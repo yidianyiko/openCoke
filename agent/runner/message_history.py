@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 _embedding_executor = ThreadPoolExecutor(max_workers=4)
 
 
-def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):
+def store_messages_for_retrieval_sync(context: dict, resp_messages: list):
     """
     Store messages as embeddings for future retrieval (sync, runs in background thread).
     """
@@ -75,11 +75,11 @@ def store_messages_background(context: dict, resp_messages: list):
     context_copy = copy.deepcopy(context)
     resp_messages_copy = copy.deepcopy(resp_messages)
     _embedding_executor.submit(
-        _store_messages_for_retrieval_sync, context_copy, resp_messages_copy
+        store_messages_for_retrieval_sync, context_copy, resp_messages_copy
     )
 
 
-def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
+def extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
     """
     从聊天历史中提取最近的对话（包括用户和角色的消息）
     用于主动消息/提醒消息场景，避免传入过长的历史对话
@@ -123,7 +123,3 @@ def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
                 result_lines.append(f"（{msg_from}发来了{msg_type}消息）{msg_content}")
 
     return "\n".join(result_lines)
-
-
-store_messages_for_retrieval_sync = _store_messages_for_retrieval_sync
-extract_recent_chat_history = _extract_recent_chat_history

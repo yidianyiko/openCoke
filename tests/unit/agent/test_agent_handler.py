@@ -153,9 +153,9 @@ def _install_agent_handler_agno_stubs(monkeypatch):
 
 def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import _chat_response_timeout_fallback
+    from agent.runner.output_delivery import chat_response_timeout_fallback
 
-    reply = _chat_response_timeout_fallback("每天学习时间为晚上9点到12点")
+    reply = chat_response_timeout_fallback("每天学习时间为晚上9点到12点")
 
     assert reply == "系统刚才没能生成回复，请稍后再试一次。"
     assert "具体时间和事项" not in reply
@@ -164,9 +164,9 @@ def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monke
 
 def test_chat_response_timeout_fallback_is_neutral_for_simple_greetings(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import _chat_response_timeout_fallback
+    from agent.runner.output_delivery import chat_response_timeout_fallback
 
-    reply = _chat_response_timeout_fallback(
+    reply = chat_response_timeout_fallback(
         "你好，我刚登录。能简单介绍一下你能帮我做什么吗？"
     )
 
@@ -178,9 +178,9 @@ def test_chat_response_timeout_fallback_is_neutral_for_simple_greetings(monkeypa
 
 def test_chat_response_timeout_fallback_is_neutral_for_pure_greeting(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import _chat_response_timeout_fallback
+    from agent.runner.output_delivery import chat_response_timeout_fallback
 
-    reply = _chat_response_timeout_fallback("你好，我是 Bob，我刚登录。")
+    reply = chat_response_timeout_fallback("你好，我是 Bob，我刚登录。")
 
     assert reply == "系统刚才没能生成回复，请稍后再试一次。"
     assert "Coke" not in reply
@@ -189,9 +189,9 @@ def test_chat_response_timeout_fallback_is_neutral_for_pure_greeting(monkeypatch
 
 def test_chat_response_timeout_fallback_ignores_business_context(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import _chat_response_timeout_fallback
+    from agent.runner.output_delivery import chat_response_timeout_fallback
 
-    reply = _chat_response_timeout_fallback(
+    reply = chat_response_timeout_fallback(
         "取消提醒",
         {
             "prepare_reminder_intent_hint": "stop_or_cancel",
@@ -217,11 +217,11 @@ def test_send_chat_response_fallback_is_typed_system_failure(monkeypatch):
         return {"message": kwargs["multimodal_response"]["content"]}, 123
 
     monkeypatch.setattr(
-        output_delivery, "_send_single_message", fake_send_single_message
+        output_delivery, "send_single_message", fake_send_single_message
     )
 
     outputmessage, expect_output_timestamp = (
-        output_delivery._send_chat_response_fallback(
+        output_delivery.send_chat_response_fallback(
             context={"conversation": {"conversation_info": {}}},
             input_message="你好，能介绍一下提醒功能吗？",
             expect_output_timestamp=100,
@@ -436,7 +436,9 @@ async def test_handle_message_agent_runtime_uses_agent_runtime(
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime
     )
-    monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
+    monkeypatch.setattr(
+        agent_handler.output_delivery, "send_single_message", fake_send_single_message
+    )
     monkeypatch.setattr(
         agent_handler.asyncio,
         "create_task",
@@ -513,7 +515,9 @@ async def test_handle_message_agent_runtime_sends_multiple_visible_messages_in_o
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
-    monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
+    monkeypatch.setattr(
+        agent_handler.output_delivery, "send_single_message", fake_send_single_message
+    )
     monkeypatch.setattr(agent_handler.time, "time", lambda: 1710000000)
 
     resp_messages, context, is_rollback, is_content_blocked = (
@@ -578,7 +582,9 @@ async def test_handle_message_agent_runtime_empty_output_uses_chat_fallback(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(
-        agent_handler, "_send_chat_response_fallback", fake_send_chat_response_fallback
+        agent_handler.output_delivery,
+        "send_chat_response_fallback",
+        fake_send_chat_response_fallback,
     )
 
     resp_messages, context, is_rollback, is_content_blocked = (
@@ -633,8 +639,8 @@ async def test_handle_message_agent_runtime_passes_typed_user_turn(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(
-        agent_handler,
-        "_send_single_message",
+        agent_handler.output_delivery,
+        "send_single_message",
         lambda **kwargs: ({"_id": "out-1"}, kwargs["expect_output_timestamp"]),
     )
 
@@ -686,8 +692,8 @@ async def test_handle_message_agent_runtime_schedules_post_analyze(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(
-        agent_handler,
-        "_send_single_message",
+        agent_handler.output_delivery,
+        "send_single_message",
         lambda **kwargs: ({"_id": "out-1"}, kwargs["expect_output_timestamp"]),
     )
     monkeypatch.setattr(
@@ -740,8 +746,8 @@ async def test_handle_message_agent_runtime_can_skip_post_analyze_with_env(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(
-        agent_handler,
-        "_send_single_message",
+        agent_handler.output_delivery,
+        "send_single_message",
         lambda **kwargs: ({"_id": "out-1"}, kwargs["expect_output_timestamp"]),
     )
     monkeypatch.setattr(
@@ -778,7 +784,9 @@ async def test_handle_message_agent_runtime_rolls_back_before_runtime_on_new_mes
         agent_handler, "_run_agent_runtime_event", fail_run_agent_runtime
     )
     monkeypatch.setattr(
-        agent_handler, "_send_single_message", lambda **kwargs: sent.append(kwargs)
+        agent_handler.output_delivery,
+        "send_single_message",
+        lambda **kwargs: sent.append(kwargs),
     )
     monkeypatch.setattr(
         agent_handler,
@@ -834,9 +842,13 @@ async def test_handle_message_agent_runtime_rolls_back_when_lock_lost_before_sen
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: False)
     monkeypatch.setattr(
-        agent_handler, "_send_single_message", lambda **kwargs: sent.append(kwargs)
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: False
+    )
+    monkeypatch.setattr(
+        agent_handler.output_delivery,
+        "send_single_message",
+        lambda **kwargs: sent.append(kwargs),
     )
 
     resp_messages, _, is_rollback, is_content_blocked = (
@@ -898,9 +910,15 @@ async def test_handle_message_agent_runtime_renews_lock_before_runtime_and_send(
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
-    monkeypatch.setattr(agent_handler.lock_manager, "renew_lock", fake_renew_lock)
-    monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
+    monkeypatch.setattr(
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: True
+    )
+    monkeypatch.setattr(
+        agent_handler.runtime_lock.lock_manager, "renew_lock", fake_renew_lock
+    )
+    monkeypatch.setattr(
+        agent_handler.output_delivery, "send_single_message", fake_send_single_message
+    )
 
     resp_messages, _, is_rollback, is_content_blocked = (
         await agent_handler.handle_message(
@@ -918,7 +936,7 @@ async def test_handle_message_agent_runtime_renews_lock_before_runtime_and_send(
     assert resp_messages == [{"message": "Runtime reply"}]
     assert calls[0][0] == "renew"
     assert calls[0][1] == ("conversation", "conversation-1", "lock-1")
-    assert calls[0][2] == {"timeout": agent_handler.LOCK_TIMEOUT}
+    assert calls[0][2] == {"timeout": agent_handler.runtime_lock.LOCK_TIMEOUT}
     assert calls[1:] == ["runtime", "send"]
     assert is_rollback is False
     assert is_content_blocked is False
@@ -963,11 +981,15 @@ async def test_handle_message_agent_runtime_renews_lock_while_runtime_is_running
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
-    monkeypatch.setattr(agent_handler.lock_manager, "renew_lock", fake_renew_lock)
     monkeypatch.setattr(
-        agent_handler,
-        "_send_single_message",
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: True
+    )
+    monkeypatch.setattr(
+        agent_handler.runtime_lock.lock_manager, "renew_lock", fake_renew_lock
+    )
+    monkeypatch.setattr(
+        agent_handler.output_delivery,
+        "send_single_message",
         lambda **kwargs: (
             {"message": kwargs["multimodal_response"]["content"]},
             kwargs["expect_output_timestamp"],

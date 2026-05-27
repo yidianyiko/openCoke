@@ -30,33 +30,12 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-import agent.runner.output_delivery as output_delivery
+from agent.runner import message_history, output_delivery, runtime_lock
 from agent.agno_agent.runtime.post_analyze import run_post_analyze
 from agent.agno_agent.runtime.session import initialize_agent_session_db
 from agent.runner.context import context_prepare
 from agent.runner.identity import get_agent_entity_id
-from agent.runner.message_history import (
-    extract_recent_chat_history,
-    store_messages_background,
-    store_messages_for_retrieval_sync,
-)
 from agent.runner.rollback_detection import is_new_message_coming_in
-from agent.runner.runtime_lock import (
-    LOCK_TIMEOUT,
-    agent_runtime_lock_heartbeat_interval_seconds,
-    await_with_agent_runtime_lock_heartbeat,
-    lock_manager,
-    verify_lock_ownership,
-)
-from agent.runner.output_delivery import (
-    OutboundSendInterrupted,
-    chat_response_timeout_fallback,
-    send_chat_response_fallback,
-    send_single_message,
-)
-from agent.tool.image import upload_image
-from agent.tool.voice import character_voice
-from agent.util.message_util import send_message_via_context
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
@@ -75,44 +54,6 @@ HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
 target_user_alias = CONF.get("default_character_alias", "coke")
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
 max_conversation_round = 15
-
-
-_agent_runtime_lock_heartbeat_interval_seconds = (
-    agent_runtime_lock_heartbeat_interval_seconds
-)
-_await_with_agent_runtime_lock_heartbeat = await_with_agent_runtime_lock_heartbeat
-_verify_lock_ownership = verify_lock_ownership
-
-
-async def await_with_agent_runtime_lock_heartbeat(*args, **kwargs):
-    return await _await_with_agent_runtime_lock_heartbeat(*args, **kwargs)
-
-
-def verify_lock_ownership(*args, **kwargs):
-    return _verify_lock_ownership(*args, **kwargs)
-
-
-_OutboundSendInterrupted = OutboundSendInterrupted
-_chat_response_timeout_fallback = chat_response_timeout_fallback
-_send_chat_response_fallback = send_chat_response_fallback
-_send_single_message = send_single_message
-
-
-def _sync_output_delivery_dependencies() -> None:
-    output_delivery.character_voice = character_voice
-    output_delivery.upload_image = upload_image
-    output_delivery.send_message_via_context = send_message_via_context
-    output_delivery._send_single_message = _send_single_message
-
-
-def send_single_message(*args, **kwargs):
-    _sync_output_delivery_dependencies()
-    return _send_single_message(*args, **kwargs)
-
-
-def send_chat_response_fallback(*args, **kwargs):
-    _sync_output_delivery_dependencies()
-    return _send_chat_response_fallback(*args, **kwargs)
 
 
 def _agent_runtime_should_skip_post_analyze() -> bool:
@@ -151,9 +92,6 @@ conversation_dao = ConversationDAO()
 user_dao = UserDAO()
 mongo = MongoDBBase()
 initialize_agent_session_db()
-
-_store_messages_for_retrieval_sync = store_messages_for_retrieval_sync
-_extract_recent_chat_history = extract_recent_chat_history
 
 
 async def _run_post_analyze_background(
@@ -382,7 +320,7 @@ async def handle_message(
 
     # 提取最近的对话历史（精简版），用于主动消息/提醒消息场景
     conversation = context.get("conversation", {})
-    recent_chat_history = extract_recent_chat_history(
+    recent_chat_history = message_history.extract_recent_chat_history(
         conversation.get("conversation_info", {}).get("chat_history", []),
         limit=6,  # 最近6条消息，约3轮对话
     )
@@ -412,8 +350,11 @@ async def handle_message(
                 return resp_messages, context, True, False
 
         if lock_id and conversation_id:
-            lock_manager.renew_lock(
-                "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
+            runtime_lock.lock_manager.renew_lock(
+                "conversation",
+                conversation_id,
+                lock_id,
+                timeout=runtime_lock.LOCK_TIMEOUT,
             )
             logger.debug(f"{worker_tag} 锁续期成功 (single-Agent runtime 前)")
 
@@ -438,7 +379,7 @@ async def handle_message(
             occurred_at=_derive_agent_runtime_user_turn_occurred_at(context),
             metadata={"message_source": message_source, "worker_tag": worker_tag},
         )
-        result = await await_with_agent_runtime_lock_heartbeat(
+        result = await runtime_lock.await_with_agent_runtime_lock_heartbeat(
             _run_agent_runtime_event(
                 agent_input=agent_input,
                 context=context,
@@ -456,7 +397,7 @@ async def handle_message(
         if (
             lock_id
             and conversation_id
-            and not verify_lock_ownership(conversation_id, lock_id)
+            and not runtime_lock.verify_lock_ownership(conversation_id, lock_id)
         ):
             logger.warning(f"{worker_tag} 锁已丢失，停止接受 single-Agent runtime 结果")
             context["MultiModalResponses"] = all_multimodal_responses
@@ -485,7 +426,7 @@ async def handle_message(
             }
 
             if lock_id and conversation_id:
-                if not verify_lock_ownership(conversation_id, lock_id):
+                if not runtime_lock.verify_lock_ownership(conversation_id, lock_id):
                     logger.warning(f"{worker_tag} 锁已丢失，停止发送 runtime 消息")
                     context["MultiModalResponses"] = all_multimodal_responses
                     _compensate_rolled_back_domain_writes(
@@ -496,25 +437,27 @@ async def handle_message(
                     return resp_messages, context, True, False
 
             try:
-                outputmessage, expect_output_timestamp = send_single_message(
-                    context=context,
-                    multimodal_response=multimodal_response,
-                    expect_output_timestamp=expect_output_timestamp,
-                    is_first=(len(all_multimodal_responses) == 0),
-                    interrupt_check=(
-                        (
-                            lambda: is_new_message_coming_in(
-                                get_agent_entity_id(user),
-                                get_agent_entity_id(character),
-                                current_platform,
-                                current_message_ids,
+                outputmessage, expect_output_timestamp = (
+                    output_delivery.send_single_message(
+                        context=context,
+                        multimodal_response=multimodal_response,
+                        expect_output_timestamp=expect_output_timestamp,
+                        is_first=(len(all_multimodal_responses) == 0),
+                        interrupt_check=(
+                            (
+                                lambda: is_new_message_coming_in(
+                                    get_agent_entity_id(user),
+                                    get_agent_entity_id(character),
+                                    current_platform,
+                                    current_message_ids,
+                                )
                             )
-                        )
-                        if check_new_message and message_source == "user"
-                        else None
-                    ),
+                            if check_new_message and message_source == "user"
+                            else None
+                        ),
+                    )
                 )
-            except OutboundSendInterrupted as exc:
+            except output_delivery.OutboundSendInterrupted as exc:
                 resp_messages.extend(exc.sent_messages)
                 if exc.sent_messages:
                     all_multimodal_responses.append(multimodal_response)
@@ -543,7 +486,7 @@ async def handle_message(
             if (
                 lock_id
                 and conversation_id
-                and not verify_lock_ownership(conversation_id, lock_id)
+                and not runtime_lock.verify_lock_ownership(conversation_id, lock_id)
             ):
                 logger.warning(f"{worker_tag} 锁已丢失，跳过 runtime 兜底回复")
                 context["MultiModalResponses"] = all_multimodal_responses
@@ -572,11 +515,13 @@ async def handle_message(
                     )
                     return resp_messages, context, True, False
 
-            outputmessage, expect_output_timestamp = send_chat_response_fallback(
-                context=context,
-                input_message=input_message_str,
-                expect_output_timestamp=expect_output_timestamp,
-                all_multimodal_responses=all_multimodal_responses,
+            outputmessage, expect_output_timestamp = (
+                output_delivery.send_chat_response_fallback(
+                    context=context,
+                    input_message=input_message_str,
+                    expect_output_timestamp=expect_output_timestamp,
+                    all_multimodal_responses=all_multimodal_responses,
+                )
             )
             if outputmessage is not None:
                 resp_messages.append(outputmessage)
@@ -706,11 +651,15 @@ def create_handler(worker_id: int = 0):
                         if not should_rollback:
                             # 达到最大 rollback 次数，强制完成
                             finalizer.finalize_success(
-                                msg_ctx, resp_messages, store_messages_background
+                                msg_ctx,
+                                resp_messages,
+                                message_history.store_messages_background,
                             )
                     else:
                         finalizer.finalize_success(
-                            msg_ctx, resp_messages, store_messages_background
+                            msg_ctx,
+                            resp_messages,
+                            message_history.store_messages_background,
                         )
 
                 except Exception as e:

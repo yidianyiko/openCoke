@@ -44,12 +44,16 @@ async def test_send_loop_aborts_when_new_message_arrives_between_sends(
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: True
+    )
     monkeypatch.setattr(
         agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
     )
     monkeypatch.setattr(
-        agent_handler, "send_message_via_context", fake_send_message_via_context
+        agent_handler.output_delivery,
+        "send_message_via_context",
+        fake_send_message_via_context,
     )
     monkeypatch.setattr(
         agent_handler,
@@ -130,7 +134,9 @@ async def test_rolled_back_visible_reminder_create_is_cancelled(
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: True
+    )
     monkeypatch.setattr(
         agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
     )
@@ -196,12 +202,16 @@ async def test_empty_output_fallback_skipped_when_new_message_arrives(
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: True
+    )
     monkeypatch.setattr(
         agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
     )
     monkeypatch.setattr(
-        agent_handler, "_send_chat_response_fallback", fake_send_chat_response_fallback
+        agent_handler.output_delivery,
+        "send_chat_response_fallback",
+        fake_send_chat_response_fallback,
     )
     monkeypatch.setattr(
         agent_handler,
@@ -265,17 +275,21 @@ async def test_voice_send_aborts_after_synthesis_before_first_chunk(
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: True
+    )
     monkeypatch.setattr(
         agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
     )
     monkeypatch.setattr(
-        agent_handler,
+        agent_handler.output_delivery,
         "character_voice",
         lambda content, emotion: [("voice-1", 1000)],
     )
     monkeypatch.setattr(
-        agent_handler, "send_message_via_context", fake_send_message_via_context
+        agent_handler.output_delivery,
+        "send_message_via_context",
+        fake_send_message_via_context,
     )
     monkeypatch.setattr(
         agent_handler,
@@ -337,17 +351,21 @@ async def test_voice_send_loop_aborts_between_voice_chunks(monkeypatch, sample_c
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
-    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(
+        agent_handler.runtime_lock, "verify_lock_ownership", lambda *args: True
+    )
     monkeypatch.setattr(
         agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
     )
     monkeypatch.setattr(
-        agent_handler,
+        agent_handler.output_delivery,
         "character_voice",
         lambda content, emotion: [("voice-1", 1000), ("voice-2", 1000)],
     )
     monkeypatch.setattr(
-        agent_handler, "send_message_via_context", fake_send_message_via_context
+        agent_handler.output_delivery,
+        "send_message_via_context",
+        fake_send_message_via_context,
     )
     monkeypatch.setattr(
         agent_handler,

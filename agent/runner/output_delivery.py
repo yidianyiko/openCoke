@@ -19,7 +19,7 @@ _SYSTEM_FAILURE_FALLBACK_MESSAGE = "系统刚才没能生成回复，请稍后�
 _SYSTEM_FAILURE_FALLBACK_KIND = "system_failure"
 
 
-class _OutboundSendInterrupted(Exception):
+class OutboundSendInterrupted(Exception):
     """Raised when a newer user message arrives between outbound writes."""
 
     def __init__(self, sent_messages: list[dict] | None = None) -> None:
@@ -27,7 +27,7 @@ class _OutboundSendInterrupted(Exception):
         self.sent_messages = sent_messages or []
 
 
-def _send_single_message(
+def send_single_message(
     context,
     multimodal_response,
     expect_output_timestamp,
@@ -57,7 +57,7 @@ def _send_single_message(
         for voice_url, voice_length in voice_messages:
             if interrupt_check is not None:
                 if interrupt_check():
-                    raise _OutboundSendInterrupted(sent_messages)
+                    raise OutboundSendInterrupted(sent_messages)
             if not is_first:
                 expect_output_timestamp += int(voice_length / 1000) + random.randint(
                     2, 5
@@ -88,7 +88,7 @@ def _send_single_message(
                 expect_output_timestamp += random.randint(2, 8)
             if interrupt_check is not None:
                 if interrupt_check():
-                    raise _OutboundSendInterrupted(sent_messages)
+                    raise OutboundSendInterrupted(sent_messages)
             outputmessage = send_message_via_context(
                 context,
                 message=content,
@@ -102,7 +102,7 @@ def _send_single_message(
             expect_output_timestamp += int(len(text_message) / typing_speed)
         if interrupt_check is not None:
             if interrupt_check():
-                raise _OutboundSendInterrupted(sent_messages)
+                raise OutboundSendInterrupted(sent_messages)
         outputmessage = send_message_via_context(
             context,
             message=text_message,
@@ -112,14 +112,14 @@ def _send_single_message(
     return outputmessage, expect_output_timestamp
 
 
-def _chat_response_timeout_fallback(
+def chat_response_timeout_fallback(
     input_message: str, context: dict | None = None
 ) -> str:
     # Empty runtime output is a system failure, not a product reply strategy.
     return _SYSTEM_FAILURE_FALLBACK_MESSAGE
 
 
-def _send_chat_response_fallback(
+def send_chat_response_fallback(
     *,
     context: dict,
     input_message: str,
@@ -128,19 +128,13 @@ def _send_chat_response_fallback(
 ) -> Tuple[Optional[dict], int]:
     multimodal_response = {
         "type": "text",
-        "content": _chat_response_timeout_fallback(input_message, context),
+        "content": chat_response_timeout_fallback(input_message, context),
         "metadata": {"fallback_kind": _SYSTEM_FAILURE_FALLBACK_KIND},
     }
     all_multimodal_responses.append(multimodal_response)
-    return _send_single_message(
+    return send_single_message(
         context=context,
         multimodal_response=multimodal_response,
         expect_output_timestamp=expect_output_timestamp,
         is_first=True,
     )
-
-
-OutboundSendInterrupted = _OutboundSendInterrupted
-chat_response_timeout_fallback = _chat_response_timeout_fallback
-send_chat_response_fallback = _send_chat_response_fallback
-send_single_message = _send_single_message

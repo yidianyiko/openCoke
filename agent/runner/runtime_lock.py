@@ -16,7 +16,7 @@ LOCK_TIMEOUT = 180  # 锁超时时间（秒）- 增加到 180 秒以覆盖完整
 lock_manager = MongoDBLockManager()
 
 
-def _agent_runtime_lock_heartbeat_interval_seconds() -> float:
+def agent_runtime_lock_heartbeat_interval_seconds() -> float:
     raw_value = os.environ.get("COKE_AGENT_RUNTIME_LOCK_HEARTBEAT_SECONDS")
     default = min(60.0, max(1.0, LOCK_TIMEOUT / 3))
     if raw_value is None:
@@ -33,7 +33,7 @@ def _agent_runtime_lock_heartbeat_interval_seconds() -> float:
     return value if value > 0 else default
 
 
-async def _await_with_agent_runtime_lock_heartbeat(
+async def await_with_agent_runtime_lock_heartbeat(
     awaitable,
     *,
     lock_id: Optional[str],
@@ -46,7 +46,7 @@ async def _await_with_agent_runtime_lock_heartbeat(
     done = asyncio.Event()
 
     async def _heartbeat() -> None:
-        interval = _agent_runtime_lock_heartbeat_interval_seconds()
+        interval = agent_runtime_lock_heartbeat_interval_seconds()
         while not done.is_set():
             await asyncio.sleep(interval)
             if done.is_set():
@@ -55,7 +55,9 @@ async def _await_with_agent_runtime_lock_heartbeat(
                 "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
             )
             if renewed:
-                logger.debug(f"{worker_tag} 锁续期成功 (single-Agent runtime heartbeat)")
+                logger.debug(
+                    f"{worker_tag} 锁续期成功 (single-Agent runtime heartbeat)"
+                )
             else:
                 logger.warning(f"{worker_tag} single-Agent runtime heartbeat 续期失败")
                 return
@@ -72,7 +74,7 @@ async def _await_with_agent_runtime_lock_heartbeat(
             pass
 
 
-def _verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
+def verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
     """
     验证当前是否仍然持有锁
 
@@ -99,10 +101,3 @@ def _verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
         )
         return False
     return True
-
-
-agent_runtime_lock_heartbeat_interval_seconds = (
-    _agent_runtime_lock_heartbeat_interval_seconds
-)
-await_with_agent_runtime_lock_heartbeat = _await_with_agent_runtime_lock_heartbeat
-verify_lock_ownership = _verify_lock_ownership
