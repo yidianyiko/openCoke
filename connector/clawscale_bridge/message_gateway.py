@@ -2,9 +2,6 @@ import uuid
 
 from pymongo.errors import DuplicateKeyError
 
-from connector.clawscale_bridge.customer_ids import resolve_customer_id
-
-
 def _read_clean_string(value) -> str | None:
     if not isinstance(value, str):
         return None
@@ -86,6 +83,13 @@ def _resolve_message_type(attachments: list[dict]) -> str:
     return "text"
 
 
+def _required_customer_id(inbound: dict) -> str:
+    customer_id = inbound.get("customer_id")
+    if not isinstance(customer_id, str) or not customer_id.strip():
+        raise ValueError("customer_id_required")
+    return customer_id.strip()
+
+
 class CokeMessageGateway:
     def __init__(self, mongo, user_dao, target_character_alias: str = "coke"):
         self.mongo = mongo
@@ -142,10 +146,7 @@ class CokeMessageGateway:
             if value:
                 business_protocol[key] = value
 
-        customer_id = resolve_customer_id(
-            customer_id=inbound.get("customer_id") or inbound.get("coke_account_id"),
-            account_id=account_id,
-        )
+        customer_id = _required_customer_id(inbound)
         customer = {
             "id": customer_id,
             "display_name": inbound.get("coke_account_display_name"),

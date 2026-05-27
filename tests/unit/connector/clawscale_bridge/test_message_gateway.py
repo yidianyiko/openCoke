@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import pytest
 from pymongo.errors import DuplicateKeyError
 
 
@@ -21,6 +22,7 @@ def test_message_gateway_builds_normalized_business_protocol_input_message():
             "channel_id": "ch_1",
             "end_user_id": "eu_1",
             "external_id": "8617807028761",
+            "customer_id": "acct_1",
             "coke_account_id": "acct_1",
             "coke_account_display_name": "Alice",
             "account_status": "subscription_required",
@@ -73,6 +75,7 @@ def test_message_gateway_enqueue_respects_inbound_event_id_without_minting():
         text="你好",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_event_id": "in_evt_gateway_1",
         },
     )
@@ -100,6 +103,7 @@ def test_message_gateway_builds_business_protocol_with_optional_gateway_metadata
         causal_inbound_event_id="in_evt_2",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "business_conversation_key": "conv_key_2",
         },
     )
@@ -168,6 +172,7 @@ def test_message_gateway_preserves_single_image_attachment_metadata_and_type():
         causal_inbound_event_id="in_evt_image_1",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_text": "caption",
             "attachments": [attachment],
         },
@@ -197,6 +202,7 @@ def test_message_gateway_preserves_single_audio_attachment_metadata_and_type():
         causal_inbound_event_id="in_evt_audio_1",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_text": "",
             "attachments": [attachment],
         },
@@ -238,6 +244,7 @@ def test_message_gateway_keeps_mixed_and_file_attachments_as_text():
         causal_inbound_event_id="in_evt_mixed_1",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_text": "please review",
             "attachments": attachments,
         },
@@ -270,6 +277,7 @@ def test_message_gateway_preserves_redacted_inline_attachment_values():
         causal_inbound_event_id="in_evt_inline_1",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_text": "",
             "attachments": [attachment],
         },
@@ -296,6 +304,7 @@ def test_message_gateway_redacts_raw_data_url_attachments_before_persistence():
         causal_inbound_event_id="in_evt_raw_data_1",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_text": "",
             "attachments": [
                 {
@@ -334,6 +343,7 @@ def test_message_gateway_copies_attachments_before_persistence():
     }
     inbound = {
         "timestamp": 1710000000,
+        "customer_id": "acct_1",
         "inbound_text": "caption",
         "attachments": [attachment],
     }
@@ -380,6 +390,7 @@ def test_message_gateway_drops_malformed_attachment_without_url():
         causal_inbound_event_id="in_evt_malformed_1",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "attachments": [
                 {
                     "contentType": "image/png",
@@ -408,6 +419,7 @@ def test_message_gateway_enqueue_deduplicates_same_inbound_event_id():
         text="你好",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_event_id": "in_evt_dup_1",
         },
     )
@@ -417,6 +429,7 @@ def test_message_gateway_enqueue_deduplicates_same_inbound_event_id():
         text="你好(重试)",
         inbound={
             "timestamp": 1710000010,
+            "customer_id": "acct_1",
             "inbound_event_id": "in_evt_dup_1",
         },
     )
@@ -443,6 +456,7 @@ def test_message_gateway_enqueue_returns_same_id_on_duplicate_key_race():
         text="你好",
         inbound={
             "timestamp": 1710000000,
+            "customer_id": "acct_1",
             "inbound_event_id": "in_evt_race_1",
         },
     )
@@ -465,7 +479,7 @@ def test_message_gateway_enqueue_strips_retired_auth_only_fields_from_emitted_pa
         inbound={
             "timestamp": 1710000000,
             "inbound_event_id": "in_evt_gateway_2",
-            "coke_account_id": "acct_1",
+            "customer_id": "acct_1",
             "coke_account_display_name": "Alice",
             "account_status": "subscription_required",
             "email_verified": True,
@@ -494,3 +508,21 @@ def test_message_gateway_enqueue_strips_retired_auth_only_fields_from_emitted_pa
     assert set(coke_account) == {"id", "display_name"}
     assert forbidden_keys.isdisjoint(customer)
     assert forbidden_keys.isdisjoint(coke_account)
+
+
+def test_message_gateway_rejects_unnormalized_coke_account_id_only_payload():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    with pytest.raises(ValueError, match="customer_id_required"):
+        gateway.build_input_message(
+            account_id="acct_1",
+            character_id="char_1",
+            text="你好",
+            causal_inbound_event_id="in_evt_missing_customer_1",
+            inbound={
+                "timestamp": 1710000000,
+                "coke_account_id": "acct_1",
+            },
+        )
