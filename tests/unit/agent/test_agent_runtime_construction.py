@@ -326,7 +326,7 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent_tool(
             created["input_message"] = kwargs["input"]
             self.domain_results.append(reminder_result)
             return SimpleNamespace(
-                content="model text should not replace confirmed reminder summary",
+                content="已创建提醒：出门（2026-05-10 18:05）",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -876,7 +876,7 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
             captured["input_message"] = kwargs["input"]
             self.domain_results.append(reminder_result)
             return SimpleNamespace(
-                content="model text should not replace confirmed reminder summary",
+                content="已创建提醒：喝水（2029-01-06 10:00）",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -951,7 +951,7 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
             captured["input_message"] = kwargs["input"]
             self.domain_results.append(reminder_result)
             return SimpleNamespace(
-                content="model text should not replace confirmed reminder summary",
+                content="已完成提醒：做俯卧撑",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
