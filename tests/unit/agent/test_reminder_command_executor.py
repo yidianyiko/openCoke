@@ -435,6 +435,9 @@ def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
     assert result.outcome == "executed"
     assert result.operations[0].action == "update"
     assert result.operations[0].facts["title"] == "drink water"
+    assert result.operations[0].facts["visible_summary"] == (
+        "已更新提醒：drink water（2026-05-01 周五 09:30）"
+    )
     assert calls[0]["action"] == "update"
     assert calls[0]["title"] is None
     assert calls[0]["reminder_id"] == "rem-1"

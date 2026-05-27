@@ -62,12 +62,33 @@ The model then handled complete/update inconsistently:
 reminder CRUD phrases directly to Reminder Runtime, not only create phrases.
 The route remains closed for shared-reminder turns containing `共享提醒`.
 
+The first post-deploy production retest with marker
+`crud-fix-20260527T071209Z` confirmed the route fix:
+
+- Complete input
+  `完成做俯卧撑-crud-fix-20260527T071209Z-c3这个提醒。` replied
+  `已完成提醒：做俯卧撑-crud-fix-20260527T071209Z-c3` and moved reminder
+  `6a1699edceae234bc1be8bb6` to `completed`.
+- Update input updated the existing reminder
+  `6a1699d2ceae234bc1be8b64`, but still replied
+  `已创建提醒：喝水更新-crud-fix-20260527T071209Z-c1...`.
+
+That remaining visible-output bug was isolated to
+`agent/agno_agent/adapters/reminder_command_executor.py`: create and update
+share `_visible_reminder_summary`, but it always used the `已创建提醒` prefix.
+The summary builder now uses `已更新提醒` for update actions while preserving
+the create prefix for create actions.
+
 Regression coverage:
 
 ```bash
 .venv/bin/python -m pytest \
   tests/unit/agent/test_agent_runtime_construction.py::test_run_agent_runtime_directly_executes_explicit_personal_reminder_crud \
   tests/unit/agent/test_agent_runtime_construction.py::test_direct_personal_reminder_route_ignores_shared_reminder_acceptance \
+  -q
+
+.venv/bin/python -m pytest \
+  tests/unit/agent/test_reminder_command_executor.py::test_dict_decision_input_is_supported_and_empty_operations_becomes_none \
   -q
 ```
 
@@ -78,5 +99,7 @@ cleaned up:
 - `6a1696646645e7bf138ae958` cancelled.
 - `6a1696966645e7bf138ae9c2` cancelled by the natural cancel case.
 
-Final production redeploy and real-user retest evidence should be appended
-after deployment.
+## Final Production Retest
+
+Pending redeploy of the visible-summary follow-up fix and a focused real-user
+update retest.

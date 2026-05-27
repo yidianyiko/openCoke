@@ -401,15 +401,16 @@ def _visible_reminder_summary(
     except (ValueError, IndexError):
         weekday = ""
     time_label = _local_time_label(local_time)
+    prefix = "已更新提醒" if action == "update" else "已创建提醒"
     recurring_label = _rrule_visible_label(rrule, time_label)
     until_label = _rrule_until_label(rrule, str(schedule.get("timezone") or "UTC"))
     if recurring_label:
         if until_label:
             recurring_label = f"{recurring_label}，截止 {until_label}"
-        return f"已创建提醒：{title}（{recurring_label}）"
+        return f"{prefix}：{title}（{recurring_label}）"
     if weekday:
-        return f"已创建提醒：{title}（{local_date} {weekday} {time_label}）"
-    return f"已创建提醒：{title}（{local_date} {time_label}）"
+        return f"{prefix}：{title}（{local_date} {weekday} {time_label}）"
+    return f"{prefix}：{title}（{local_date} {time_label}）"
 
 
 def _rrule_visible_label(rrule: str, time_label: str) -> str | None:
