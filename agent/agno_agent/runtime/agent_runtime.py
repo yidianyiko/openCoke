@@ -21,6 +21,7 @@ from agent.agno_agent.runtime.domain_results import (
     DomainExecutionResult,
     DomainOperationResult,
     ReplyContract,
+    ReplyFactRequirement,
 )
 from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.focus import (
@@ -615,6 +616,19 @@ def _focus_has_actionable_candidates(focus: Any) -> bool:
 def _focused_semantic_failure_result(
     focus: Any,
     semantic_result: SemanticIntentResult,
+    *,
+    run_context: AgentRunContext | None = None,
+) -> DomainExecutionResult:
+    if getattr(focus, "ambiguity", None) == "multi_pending":
+        return _multi_pending_clarification_result(
+            focus, semantic_result, run_context=run_context
+        )
+    return _single_candidate_focus_failure_result(focus, semantic_result)
+
+
+def _single_candidate_focus_failure_result(
+    focus: Any,
+    semantic_result: SemanticIntentResult,
 ) -> DomainExecutionResult:
     action = _focus_current_action(focus)
     action_id = str(_focus_action_value(action, "action_id") or "")
@@ -656,6 +670,101 @@ def _focused_semantic_failure_result(
         ),
         error=error,
     )
+
+
+def _multi_pending_clarification_result(
+    focus: Any,
+    semantic_result: SemanticIntentResult,
+    *,
+    run_context: AgentRunContext | None = None,
+) -> DomainExecutionResult:
+    candidates = tuple(getattr(focus, "candidates", ()) or ())
+    viewer_timezone = _viewer_timezone_from_run_context(run_context)
+    lines = ["你有多条等你确认的邀请，请选一条："]
+    facts: list[ReplyFactRequirement] = []
+    for index, candidate in enumerate(candidates):
+        delivered_at = getattr(candidate, "delivered_at", None)
+        summary = getattr(candidate, "summary_for_llm", "") or ""
+        delivered_label = _format_delivered_at_for_user(
+            delivered_at, viewer_timezone
+        )
+        lines.append(f"{index + 1}. {delivered_label} {summary}".rstrip())
+        facts.append(
+            ReplyFactRequirement(path=f"candidates[{index}].delivered_at")
+        )
+        facts.append(
+            ReplyFactRequirement(path=f"candidates[{index}].summary_for_llm")
+        )
+    summary_text = "\n".join(lines)
+    error = DomainError(
+        code="semantic_focus_multi_pending",
+        message=semantic_result.clarification_reason or summary_text,
+        retryable=True,
+        detail={
+            "semantic_intent": semantic_result.intent,
+            "semantic_confidence": semantic_result.confidence,
+            "candidate_count": len(candidates),
+        },
+    )
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(
+            DomainOperationResult(
+                action="classify_product_action_reply",
+                ok=False,
+                effect="none",
+                entity_type="product_action",
+                entity_id=None,
+                facts={"visible_summary": summary_text},
+                error=error,
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary="semantic_focus_multi_pending",
+        reply_contract=ReplyContract(
+            intent="ask_clarification",
+            required_facts=tuple(facts),
+            required_questions=("你要对哪一条邀请操作？",),
+            prohibited_claims=(
+                "friend_request_accepted",
+                "shared_reminder_accepted",
+            ),
+            allow_rephrase=True,
+        ),
+        error=error,
+    )
+
+
+def _format_delivered_at_for_user(value: Any, viewer_timezone: Any) -> str:
+    if not isinstance(value, datetime):
+        return ""
+    tzinfo = _resolve_viewer_tzinfo(viewer_timezone)
+    if value.tzinfo is None or tzinfo is None:
+        local = value
+    else:
+        local = value.astimezone(tzinfo)
+    return local.strftime("%H:%M")
+
+
+def _viewer_timezone_from_run_context(run_context: AgentRunContext | None) -> str:
+    if run_context is None:
+        return ""
+    user = getattr(run_context, "user", None)
+    if user is None:
+        return ""
+    return str(getattr(user, "timezone", "") or "")
+
+
+def _resolve_viewer_tzinfo(viewer_timezone: Any):
+    if isinstance(viewer_timezone, str) and viewer_timezone.strip():
+        try:
+            from zoneinfo import ZoneInfo
+
+            return ZoneInfo(viewer_timezone.strip())
+        except Exception:
+            return None
+    return None
 
 
 def _should_fail_closed_focused_semantic(
@@ -2164,6 +2273,7 @@ async def run_agent_runtime(
                 domain_result=_focused_semantic_failure_result(
                     focus,
                     semantic_result,
+                    run_context=run_context,
                 ),
             )
         if preselected_scheduling_intent:

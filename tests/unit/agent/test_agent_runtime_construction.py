@@ -1338,6 +1338,92 @@ async def test_run_agent_runtime_fails_closed_when_focused_semantic_intent_is_am
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_fails_closed_with_enumeration_for_multi_pending_focus(
+    monkeypatch,
+):
+    async def fake_interpret_semantic_intent(**_kwargs):
+        return agent_runtime.SemanticIntentResult(
+            intent="ambiguous",
+            confidence="low",
+            clarification_reason="multi candidate focus",
+        )
+
+    class UnexpectedAgent:
+        async def arun(self, **_kwargs):
+            raise AssertionError(
+                "interaction agent should not handle multi_pending focus"
+            )
+
+    monkeypatch.setattr(
+        agent_runtime, "interpret_semantic_intent", fake_interpret_semantic_intent
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "_create_interaction_agent",
+        lambda **kwargs: UnexpectedAgent(),
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv-1",
+            text="我同意",
+            payload=UserTurnPayload(
+                current_message_ids=["msg-1"],
+                metadata={
+                    "product_notification": {
+                        "ambiguity": "multi_pending",
+                        "candidates": [
+                            {
+                                "request_id": "rid_1",
+                                "request_type": "shared_reminder_request",
+                                "delivered_at": "2026-05-27T14:07:38.968Z",
+                                "allowed_actions": ["accept", "reject"],
+                                "summary_for_llm": (
+                                    "李梓豪邀请你参加「数学课」，时间2026-05-28 20:00。"
+                                ),
+                            },
+                            {
+                                "request_id": "rid_2",
+                                "request_type": "shared_reminder_request",
+                                "delivered_at": "2026-05-27T13:40:37.376Z",
+                                "allowed_actions": ["accept", "reject"],
+                                "summary_for_llm": (
+                                    "李梓豪邀请你参加「数学课」，时间2026-05-28 20:00。"
+                                ),
+                            },
+                        ],
+                    }
+                },
+            ),
+            occurred_at=datetime(2026, 5, 27, 14, 8, tzinfo=UTC),
+        ),
+        run_context=_run_context(),
+    )
+
+    domain_result = result.domain_results[0]
+    assert domain_result.safety_boundary == "semantic_focus_multi_pending"
+    assert domain_result.reply_contract.intent == "ask_clarification"
+    assert domain_result.reply_contract.required_questions == (
+        "你要对哪一条邀请操作？",
+    )
+    fact_paths = [
+        requirement.path for requirement in domain_result.reply_contract.required_facts
+    ]
+    assert "candidates[0].delivered_at" in fact_paths
+    assert "candidates[0].summary_for_llm" in fact_paths
+    assert "candidates[1].delivered_at" in fact_paths
+    assert "candidates[1].summary_for_llm" in fact_paths
+
+    visible = result.visible_messages[0].content
+    assert "rid_1" not in visible
+    assert "14:07" in visible
+    assert "13:40" in visible
+    assert "数学课" in visible
+    assert "同意还是拒绝" not in visible
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_returns_stale_focus_when_fresh_friend_request_is_accepted(
     monkeypatch,
 ):
