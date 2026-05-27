@@ -1045,6 +1045,62 @@ async def test_run_agent_runtime_falls_back_to_reminder_list_visible_summary(
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_uses_reminder_list_summary_over_polluted_model_text(
+    monkeypatch,
+):
+    list_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="list",
+                ok=True,
+                effect="read",
+                entity_type="reminder",
+                entity_id=None,
+                facts={
+                    "count": 1,
+                    "reminders": (
+                        {"title": "查列表修复", "local_date": "2029-01-24"},
+                    ),
+                    "visible_summary": "你有 1 个提醒：\n- 查列表修复（2029年1月24日 10:00）",
+                },
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="direct_answer",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
+        ),
+    )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="你有 1 个提醒。\n\n之前列表有技术问题，不过现在好了。",
+                messages=[],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        kwargs["domain_results"].append(list_result)
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "你有 1 个提醒：\n- 查列表修复（2029年1月24日 10:00）"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_short_circuits_explicit_past_reminder_before_model(
     monkeypatch,
 ):
@@ -2321,6 +2377,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_shared_remi
         "intent": "accept_shared_reminder",
         "forced_args": {
             "requester_name": "olivers",
+            "title": "羽毛球",
         },
     }
 
@@ -2719,6 +2776,61 @@ async def test_create_interaction_agent_scheduling_domain_allows_read_then_write
                 "duration_minutes": 60,
             },
         },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_accepts_friend_calendar_args(
+    monkeypatch,
+):
+    captured = []
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results
+        captured.append({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="看看李梓豪2029年1月1日上午有没有空？",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent="list_friend_calendar_facts",
+        friend_name="李梓豪",
+        from_date="2029-01-01",
+        to_date="2029-01-01",
+        timezone="Asia/Tokyo",
+    )
+
+    assert captured == [
+        {
+            "intent": "list_friend_calendar_facts",
+            "forced_args": {
+                "friend_name": "李梓豪",
+                "from_date": "2029-01-01",
+                "to_date": "2029-01-01",
+                "timezone": "Asia/Tokyo",
+            },
+        }
     ]
 
 

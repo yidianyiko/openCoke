@@ -137,7 +137,7 @@ async def test_scheduling_tool_fn_exposes_calendar_fact_args():
         domain_results=[],
     )
     result = await fn(
-        target_account_id="acct_a",
+        friend_name="Coach A",
         from_date="2026-05-25",
         to_date="2026-05-31",
         timezone="Asia/Tokyo",
@@ -145,11 +145,26 @@ async def test_scheduling_tool_fn_exposes_calendar_fact_args():
 
     assert result["domain"] == "scheduling"
     assert port.calls[0][2] == {
-        "target_account_id": "acct_a",
+        "friend_name": "Coach A",
         "from_date": "2026-05-25",
         "to_date": "2026-05-31",
         "timezone": "Asia/Tokyo",
     }
+
+
+def test_calendar_fact_tool_schema_requires_friend_range_and_timezone():
+    fn = _make_scheduling_tool_fn(
+        "list_friend_calendar_facts",
+        RecordingPort(name="list_friend_calendar_facts"),
+        input_message="看看 Coach A 这周什么时候有空",
+        run_context=_run_context(),
+        domain_results=[],
+    )
+    function = tool(name="list_friend_calendar_facts")(fn)
+
+    assert function.parameters["required"] == ["from_date", "to_date", "timezone"]
+    assert "friend_name" in function.parameters["properties"]
+    assert "target_account_id" in function.parameters["properties"]
 
 
 @pytest.mark.asyncio

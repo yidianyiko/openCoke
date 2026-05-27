@@ -274,6 +274,47 @@ def test_reminder_detect_schema_accepts_query_list_scope_fields():
     assert decision.list_states == ["active"]
 
 
+def test_reminder_detect_schema_defaults_query_intent_to_list_action():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(intent_type="query")
+
+    assert decision.action == "list"
+
+
+def test_reminder_detect_schema_strips_executor_defaults_from_query_list():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="query",
+        action="list",
+        title="",
+        trigger_at="",
+        duration_minutes=0,
+        reminder_id="",
+        keyword="",
+        target_title="",
+        target_local_date="",
+        target_local_time="",
+        target_rrule="",
+        target_scope="recent_active",
+        new_title="",
+        new_trigger_at="",
+        rrule="",
+        deadline_at="",
+        list_states=[],
+        schedule_basis="",
+        schedule_evidence="",
+        operations=[],
+    )
+
+    assert decision.intent_type == "query"
+    assert decision.action == "list"
+    assert decision.duration_minutes is None
+    assert decision.target_scope is None
+    assert decision.list_states is None
+
+
 def test_reminder_detect_schema_rejects_list_scope_fields_on_write_decisions():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
@@ -297,13 +338,6 @@ def test_reminder_detect_schema_rejects_invalid_list_scope_shapes():
             intent_type="query",
             action="list",
             list_from_local_date="2026-5-26",
-        )
-
-    with pytest.raises(ValidationError, match="list_states must not be empty"):
-        ReminderDetectDecision(
-            intent_type="query",
-            action="list",
-            list_states=[],
         )
 
 

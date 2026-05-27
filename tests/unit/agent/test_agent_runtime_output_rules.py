@@ -16,6 +16,7 @@ from agent.agno_agent.runtime.domain_results import (
     DomainExecutionResult,
     DomainOperationResult,
     ReplyContract,
+    ReplyFactRequirement,
 )
 from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
 from agent.agno_agent.runtime.result import CapabilityResult
@@ -668,6 +669,61 @@ async def test_failed_reminder_domain_result_blocks_created_claim(monkeypatch):
         "domain": "reminder",
         "violations": ("prohibited claim reminder_created",),
     }
+
+
+@pytest.mark.asyncio
+async def test_rejected_reminder_domain_summary_overrides_ambiguous_model_text(
+    monkeypatch,
+):
+    visible_summary = (
+        "我不能直接帮你完成外部预约。需要提醒时，请告诉我具体提醒时间和内容。"
+    )
+    rejected_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="rejected",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=False,
+                effect="none",
+                entity_type="reminder",
+                entity_id=None,
+                facts={"visible_summary": visible_summary},
+                error=DomainError(
+                    code="ExternalBookingUnsupported",
+                    message="External booking requests require an explicit reminder request.",
+                    retryable=False,
+                ),
+            ),
+        ),
+        safety_boundary="external_booking_requires_reminder_request",
+        reply_contract=ReplyContract(
+            intent="report_rejection",
+            required_facts=(
+                ReplyFactRequirement(path="operations[0].facts.visible_summary"),
+            ),
+            prohibited_claims=("reminder_created", "appointment_confirmed"),
+        ),
+    )
+
+    result = await _run_with_fake_agent(
+        messages=[
+            {
+                "role": "assistant",
+                "content": "你是想让我提醒你约课，还是让我直接帮你约课？",
+            }
+        ],
+        capability_results=[],
+        domain_results=[rejected_result],
+        monkeypatch=monkeypatch,
+        input_text="周日15:00帮我约一节羽毛球教练课",
+        content="你是想让我提醒你约课，还是让我直接帮你约课？",
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        visible_summary
+    ]
+    assert result.error_disposition is None
 
 
 @pytest.mark.asyncio

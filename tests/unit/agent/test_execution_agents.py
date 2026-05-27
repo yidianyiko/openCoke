@@ -257,6 +257,7 @@ async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
     assert "create_shared_reminder: pass invitee_name" in captured["instructions"]
     assert "do not call list_friends" in captured["instructions"]
     assert "list_friend_calendar_facts: pass friend_name" in captured["instructions"]
+    assert "plus timezone" in captured["instructions"]
     assert "Do not use Google Calendar" in captured["instructions"]
     assert "one active friend" in captured["instructions"]
     assert (

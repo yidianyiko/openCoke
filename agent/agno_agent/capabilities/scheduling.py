@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 import os
+from datetime import date, datetime
 from hashlib import sha256
-from datetime import datetime
 from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -12,6 +13,8 @@ import requests
 
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.result import CapabilityResult
+
+logger = logging.getLogger(__name__)
 
 SCHEDULING_TOOL_NAMES = (
     "get_user_link",
@@ -44,6 +47,7 @@ _READ_ONLY_TOOL_NAMES = {
 
 _VIEWER_TIMEZONE_TOOL_NAMES = {
     "create_shared_reminder",
+    "list_friend_calendar_facts",
     "list_shared_reminders",
 }
 
@@ -153,6 +157,13 @@ class SchedulingCapabilityPort:
         if not isinstance(data, Mapping):
             data = {"value": data}
         content = dict(data)
+        if ok is not True:
+            logger.warning(
+                "scheduling_tool_failed: tool=%s error=%s payload=%s",
+                self.tool_name,
+                content.get("error"),
+                _safe_scheduling_payload_for_log(payload),
+            )
         durable_write = self.tool_name not in _READ_ONLY_TOOL_NAMES
         if ok and self.tool_name == "list_friend_calendar_facts":
             content = _privacy_safe_friend_calendar_facts(content)
@@ -224,6 +235,7 @@ def _trusted_tool_payload(
     tool_name: str,
 ) -> dict[str, Any]:
     payload = dict(args)
+    _normalize_date_only_tool_fields(payload)
     if tool_name in _VIEWER_TIMEZONE_TOOL_NAMES and not str(
         payload.get("timezone") or ""
     ).strip():
@@ -242,6 +254,51 @@ def _trusted_tool_payload(
         }
     )
     return payload
+
+
+def _normalize_date_only_tool_fields(payload: dict[str, Any]) -> None:
+    for key in ("from_date", "to_date"):
+        value = payload.get(key)
+        if not isinstance(value, str):
+            continue
+        candidate = value.strip()
+        if len(candidate) < 10:
+            continue
+        date_part = candidate[:10]
+        try:
+            date.fromisoformat(date_part)
+        except ValueError:
+            continue
+        if len(candidate) == 10 or candidate[10:11] in {"T", " "}:
+            payload[key] = date_part
+
+
+def _safe_scheduling_payload_for_log(payload: Mapping[str, Any]) -> dict[str, Any]:
+    allowed = {
+        "customer_id",
+        "conversation_id",
+        "platform",
+        "target_account_id",
+        "friend_name",
+        "from_date",
+        "to_date",
+        "timezone",
+        "status",
+        "request_id",
+        "title",
+        "fire_at",
+        "duration_minutes",
+    }
+    safe: dict[str, Any] = {}
+    for key in allowed:
+        value = payload.get(key)
+        if value is None or value == "":
+            continue
+        if isinstance(value, str) and len(value) > 120:
+            safe[key] = value[:117] + "..."
+        else:
+            safe[key] = value
+    return safe
 
 
 _FRIEND_CALENDAR_PRIVATE_KEYS = {

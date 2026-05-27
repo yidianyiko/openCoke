@@ -21,6 +21,7 @@ from agent.agno_agent.runtime.domain_results import (
     DomainExecutionResult,
     DomainOperationResult,
     ReplyContract,
+    ReplyFactRequirement,
 )
 from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
@@ -176,6 +177,8 @@ class ReminderIntentPort:
             return _invalid_decision_clarification_result()
         if _should_reject_ungoverned_single_create_title(input_message, decision):
             return _invalid_decision_clarification_result()
+        if _should_reject_external_booking_create(input_message, decision):
+            return _unsupported_external_booking_result()
         if _should_reject_day_of_month_mismatch(input_message, decision, run_context):
             return _invalid_decision_clarification_result()
         if _should_reject_missing_scheduled_clauses(input_message, decision):
@@ -248,6 +251,15 @@ _INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
 _REMINDER_VERB_PATTERN = re.compile(
     r"提醒我|叫我|喊我|通知我|监督我|问我|检查我|"
     r"remind me|call me|notify me|nudge me",
+    re.IGNORECASE,
+)
+_EXTERNAL_BOOKING_ACTION_PATTERN = re.compile(
+    r"(?:帮我|替我|给我)?\s*(?:约|预约|预订|预定|订|book|reserve|schedule)",
+    re.IGNORECASE,
+)
+_EXTERNAL_BOOKING_OBJECT_PATTERN = re.compile(
+    r"教练|私教|课程|课|医生|医院|门诊|手术|餐厅|饭店|酒店|会议室|场地|球馆|"
+    r"class|lesson|coach|doctor|appointment|reservation",
     re.IGNORECASE,
 )
 _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(
@@ -828,6 +840,19 @@ def _should_reject_ungoverned_single_create_title(
     return not _title_has_local_reminder_verb_context(current_user_text, title)
 
 
+# OUTPUT SAFETY NET: external bookings are not reminder writes unless the user asks for a reminder.
+def _should_reject_external_booking_create(input_message: str, decision: Any) -> bool:
+    if not _decision_has_create_operation(decision):
+        return False
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not current_user_text or _REMINDER_VERB_PATTERN.search(current_user_text):
+        return False
+    return bool(
+        _EXTERNAL_BOOKING_ACTION_PATTERN.search(current_user_text)
+        and _EXTERNAL_BOOKING_OBJECT_PATTERN.search(current_user_text)
+    )
+
+
 # OUTPUT SAFETY NET: rejects create titles that include schedule-offset wording.
 def _should_reject_title_schedule_evidence_leak(decision: Any) -> bool:
     if str(_decision_value(decision, "action") or "").strip() != "create":
@@ -1328,6 +1353,41 @@ def _missing_reminder_content_clarification_result() -> DomainExecutionResult:
         missing_fields=("title",),
         safety_boundary="missing_reminder_content",
         required_questions=("title",),
+    )
+
+
+def _unsupported_external_booking_result() -> DomainExecutionResult:
+    visible_summary = "我不能直接帮你完成外部预约。需要提醒时，请告诉我具体提醒时间和内容。"
+    error = DomainError(
+        code="ExternalBookingUnsupported",
+        message="External booking requests require an explicit reminder request.",
+        retryable=False,
+        detail={},
+    )
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="rejected",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=False,
+                effect="none",
+                entity_type="reminder",
+                entity_id=None,
+                facts={"visible_summary": visible_summary},
+                error=error,
+            ),
+        ),
+        safety_boundary="external_booking_requires_reminder_request",
+        reply_contract=ReplyContract(
+            intent="report_rejection",
+            required_facts=(
+                ReplyFactRequirement(path="operations[0].facts.visible_summary"),
+            ),
+            required_questions=(),
+            prohibited_claims=("reminder_created", "appointment_confirmed"),
+            allow_rephrase=True,
+        ),
     )
 
 

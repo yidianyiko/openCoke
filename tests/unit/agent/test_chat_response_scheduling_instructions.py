@@ -157,6 +157,9 @@ def test_friend_calendar_policy_uses_coke_reminders_not_google_calendar():
     assert "Coke reminders are the calendar source for friend availability" in text
     assert "Do not use Google Calendar for friend availability" in text
     assert "list_friend_calendar_facts" in text
+    assert "from_date=..." in text
+    assert "to_date=..." in text
+    assert "timezone=..." in text
 
 
 def test_friend_calendar_policy_keeps_backend_facts_and_llm_reasoning_separate():

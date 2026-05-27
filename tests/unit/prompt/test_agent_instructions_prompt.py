@@ -49,6 +49,29 @@ def test_reminder_detect_instructions_own_create_routing_and_id_source():
     assert "trusted runtime context" in instructions
 
 
+def test_reminder_detect_instructions_require_authorized_recurring_schedule_fields():
+    instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
+
+    assert "For create, update, or batch" in instructions
+    assert "rrule or deadline_at" in instructions
+    assert "schedule_basis and schedule_evidence" in instructions
+    assert "Never emit rrule or deadline_at without both fields" in instructions
+
+
+def test_reminder_detect_instructions_treat_bounded_cadence_end_date_as_inclusive():
+    instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
+
+    assert "end date is inclusive" in instructions
+    assert "deadline_at = final occurrence clock" in instructions
+
+
+def test_reminder_detect_instructions_keep_external_booking_out_of_crud():
+    instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
+
+    assert "External booking, reservation, appointment" in instructions
+    assert "unless the user explicitly asks to be reminded or notified" in instructions
+
+
 def test_reminder_detect_instructions_do_not_embed_case_examples():
     instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
 

@@ -223,6 +223,88 @@ def test_list_shared_reminders_payload_includes_account_timezone_for_viewer_disp
     assert captured["payload"]["timezone"] == "Asia/Shanghai"
 
 
+def test_list_friend_calendar_facts_injects_account_timezone_when_model_omits_it():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {
+            "ok": True,
+            "data": {
+                "target_account_id": "acct_friend",
+                "range": {
+                    "from": "2029-01-01",
+                    "to": "2029-01-01",
+                    "timezone": "Asia/Shanghai",
+                },
+                "busy_intervals": [],
+                "privacy": {"event_details_included": False},
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_calendar_facts",
+        handler=handler,
+    )
+    result = port.run(
+        "看看李梓豪2029年1月1日上午有没有空？",
+        _run_context(user_id="acct_me"),
+        {
+            "friend_name": "李梓豪",
+            "from_date": "2029-01-01",
+            "to_date": "2029-01-01",
+        },
+    )
+
+    assert result.ok is True
+    assert captured["tool_name"] == "list_friend_calendar_facts"
+    assert captured["payload"]["timezone"] == "Asia/Shanghai"
+    assert captured["payload"]["friend_name"] == "李梓豪"
+
+
+def test_list_friend_calendar_facts_normalizes_datetime_range_to_date_only():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {
+            "ok": True,
+            "data": {
+                "target_account_id": "acct_friend",
+                "range": {
+                    "from": "2029-01-01",
+                    "to": "2029-01-01",
+                    "timezone": "Asia/Shanghai",
+                },
+                "busy_intervals": [],
+                "privacy": {"event_details_included": False},
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_calendar_facts",
+        handler=handler,
+    )
+    result = port.run(
+        "看看李梓豪2029年1月1日上午有没有空？",
+        _run_context(user_id="acct_me"),
+        {
+            "friend_name": "李梓豪",
+            "from_date": "2029-01-01T00:00:00",
+            "to_date": "2029-01-01T12:00:00",
+            "timezone": "Asia/Shanghai",
+        },
+    )
+
+    assert result.ok is True
+    assert captured["payload"]["from_date"] == "2029-01-01"
+    assert captured["payload"]["to_date"] == "2029-01-01"
+
+
 def test_list_friend_requests_empty_summary():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

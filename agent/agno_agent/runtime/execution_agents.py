@@ -33,10 +33,10 @@ Call exactly one scheduling tool matching the intent, except for lookup-then-act
 ## Tool selection
 - Add friend by public user-link code: call send_friend_request_by_user_link_code with user_link_code.
 - accept/reject/cancel friend request: pass friend_name when present and no request_id is known; otherwise call without a name. Gateway resolves one pending request and fails closed on ambiguity, no match, or multiple unnamed requests.
-- accept/reject shared reminder: pass requester_name when no request_id is known; cancel shared reminder: pass invitee_name. Gateway resolves one pending shared reminder and fails closed on missing or ambiguous names.
+- accept/reject shared reminder: pass requester_name and/or title when no request_id is known; cancel shared reminder: pass invitee_name and/or title. Gateway resolves one pending shared reminder and fails closed on missing or ambiguous matches.
 - create_shared_reminder: pass invitee_name when the user named a friend but not an account id; do not call list_friends. Derive title from the concrete shared item in the current user message, never product defaults or older topics.
 - list_shared_reminders: pass friend_name when named; pass status when the user asks about a specific state. For current-account overviews such as my courses today, omit friend_name and pass from_date, to_date, and timezone for the requested local day.
-- list_friend_calendar_facts: pass friend_name and always pass from_date + to_date as ISO YYYY-MM-DD strings. Default to today and today+7 days when no range is stated. Do NOT call list_friends first; the gateway resolver does it. Missing dates cause invalid_body. Use only privacy-safe busy intervals to describe free time.
+- list_friend_calendar_facts: pass friend_name and always pass from_date + to_date as ISO YYYY-MM-DD strings plus timezone. Default to today and today+7 days when no range is stated. Do NOT call list_friends first; the gateway resolver does it. Missing dates or timezone cause invalid_body. Use only privacy-safe busy intervals to describe free time.
 
 ## Boundaries
 - Do not create shared reminder state unless the named person resolves to one active friend. Ask for clarification when the name is ambiguous.
@@ -323,7 +323,8 @@ def _make_scheduling_tool_fn(
     domain_results: list[DomainExecutionResult],
     execution_guard: _SchedulingExecutionGuard | None = None,
 ) -> Any:
-    async def scheduling_tool(
+    async def _execute_tool_call(
+        *,
         target_account_id: str | None = None,
         from_date: str | None = None,
         to_date: str | None = None,
@@ -343,7 +344,6 @@ def _make_scheduling_tool_fn(
         message: str | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        """Use only for the scheduling action specified in the intent."""
         normalized_invitee_account_id = invitee_account_id or friend_account_id
         normalized_friendship_id = friendship_id
         if execution_guard is not None and not await execution_guard.claim(tool_name):
@@ -402,6 +402,68 @@ def _make_scheduling_tool_fn(
         )
         domain_results.append(domain_result)
         return domain_result.to_dict()
+
+    if tool_name == "list_friend_calendar_facts":
+
+        async def list_friend_calendar_facts_tool(
+            from_date: str,
+            to_date: str,
+            timezone: str,
+            friend_name: str | None = None,
+            target_account_id: str | None = None,
+        ) -> dict[str, Any]:
+            """Use for friend availability. Requires from_date, to_date, timezone, and a friend identity."""
+            return await _execute_tool_call(
+                target_account_id=target_account_id,
+                from_date=from_date,
+                to_date=to_date,
+                timezone=timezone,
+                friend_name=friend_name,
+            )
+
+        return list_friend_calendar_facts_tool
+
+    async def scheduling_tool(
+        target_account_id: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        invitee_account_id: str | None = None,
+        invitee_name: str | None = None,
+        friend_account_id: str | None = None,
+        title: str | None = None,
+        fire_at: str | None = None,
+        duration_minutes: int | None = None,
+        status: str | None = None,
+        timezone: str | None = None,
+        request_id: str | None = None,
+        friend_name: str | None = None,
+        requester_name: str | None = None,
+        friendship_id: str | None = None,
+        user_link_code: str | None = None,
+        message: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Use only for the scheduling action specified in the intent."""
+        return await _execute_tool_call(
+            target_account_id=target_account_id,
+            from_date=from_date,
+            to_date=to_date,
+            invitee_account_id=invitee_account_id,
+            invitee_name=invitee_name,
+            friend_account_id=friend_account_id,
+            title=title,
+            fire_at=fire_at,
+            duration_minutes=duration_minutes,
+            status=status,
+            timezone=timezone,
+            request_id=request_id,
+            friend_name=friend_name,
+            requester_name=requester_name,
+            friendship_id=friendship_id,
+            user_link_code=user_link_code,
+            message=message,
+            idempotency_key=idempotency_key,
+        )
 
     return scheduling_tool
 

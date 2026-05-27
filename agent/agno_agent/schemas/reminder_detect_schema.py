@@ -175,8 +175,9 @@ class ReminderDetectDecision(BaseModel):
         default="",
         description=(
             "Aware ISO 8601 deadline for bounded recurring cadence or "
-            "interval/deadline batches. When set, every create operation "
-            "trigger_at must be at or before it."
+            "interval/deadline batches. For an end date, use the final "
+            "occurrence clock on that inclusive date. When set, every create "
+            "operation trigger_at must be at or before it."
         ),
     )
     list_from_local_date: str | None = Field(
@@ -203,8 +204,9 @@ class ReminderDetectDecision(BaseModel):
             "How the create/update schedule was authorized by the user. Use one_shot "
             "for a single concrete trigger, explicit_occurrences when the user "
             "listed each occurrence time, and explicit_cadence only when the "
-            "user supplied a concrete frequency or interval. Leave empty for "
-            "non-scheduling actions."
+            "user supplied a concrete frequency or interval. Required for "
+            "create/update/batch decisions that emit rrule or deadline_at. Leave "
+            "empty for non-scheduling actions."
         ),
     )
     schedule_evidence: str = Field(
@@ -214,7 +216,8 @@ class ReminderDetectDecision(BaseModel):
             "explicit_cadence. For cadence, this must be the concrete "
             "frequency/interval text, not a vague supervision request. Use "
             "concrete time or interval wording, not vague references like "
-            "'these time points'."
+            "'these time points'. Required whenever create/update/batch emits "
+            "rrule or deadline_at."
         ),
     )
     operations: list[ReminderOperation] = Field(
@@ -278,7 +281,9 @@ class ReminderDetectDecision(BaseModel):
         if action in {"create", "update", "delete", "cancel", "complete", "batch"}:
             return {**data, "intent_type": "crud"}
         if action == "list":
-            return {**data, "intent_type": "query"}
+            return _strip_executable_fields_for_query_list(data)
+        if explicit_intent == "query" and not action:
+            return _strip_executable_fields_for_query_list(data)
         if clarification_reason and not action and not has_executable_fields:
             return {**data, "intent_type": "clarify", "action": ""}
         return data
@@ -502,6 +507,45 @@ def _strip_executable_fields_for_clarification(data: dict[str, Any]) -> dict[str
         "target_scope",
     ):
         normalized[field_name] = None
+    normalized["operations"] = []
+    return normalized
+
+
+def _strip_executable_fields_for_query_list(data: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(data)
+    normalized["intent_type"] = "query"
+    normalized["action"] = "list"
+    for field_name in (
+        "title",
+        "trigger_at",
+        "reminder_id",
+        "keyword",
+        "new_title",
+        "new_trigger_at",
+        "rrule",
+        "deadline_at",
+        "schedule_basis",
+        "schedule_evidence",
+    ):
+        normalized[field_name] = ""
+    normalized["duration_minutes"] = None
+    for field_name in (
+        "target_title",
+        "target_local_date",
+        "target_local_time",
+        "target_rrule",
+        "target_scope",
+    ):
+        normalized[field_name] = None
+    for field_name in (
+        "list_from_local_date",
+        "list_to_local_date",
+        "list_title_query",
+    ):
+        if not str(normalized.get(field_name) or "").strip():
+            normalized[field_name] = None
+    if normalized.get("list_states") == []:
+        normalized["list_states"] = None
     normalized["operations"] = []
     return normalized
 

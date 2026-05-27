@@ -16,6 +16,7 @@ from agent.agno_agent.runtime.domain_results import (
     DomainExecutionResult,
     DomainOperationResult,
     ReplyContract,
+    ReplyFactRequirement,
 )
 
 
@@ -115,6 +116,27 @@ def _assert_failed(result: DomainExecutionResult, code: str) -> None:
     assert result.outcome == "failed"
     assert result.error is not None
     assert result.error.code == code
+
+
+def _assert_rejected_external_booking(result: DomainExecutionResult) -> None:
+    assert isinstance(result, DomainExecutionResult)
+    assert result.domain == "reminder"
+    assert result.outcome == "rejected"
+    assert result.safety_boundary == "external_booking_requires_reminder_request"
+    assert result.missing_fields == ()
+    assert result.reply_contract == ReplyContract(
+        intent="report_rejection",
+        required_facts=(
+            ReplyFactRequirement(path="operations[0].facts.visible_summary"),
+        ),
+        prohibited_claims=("reminder_created", "appointment_confirmed"),
+    )
+    assert result.operations
+    operation = result.operations[0]
+    assert operation.action == "create"
+    assert operation.ok is False
+    assert operation.effect == "none"
+    assert operation.facts["visible_summary"].startswith("我不能直接帮你完成外部预约")
 
 
 def test_build_reminder_intent_input_carries_dynamic_context_only():
@@ -272,6 +294,33 @@ async def test_reminder_intent_port_rejects_unsupported_booking_requests(message
     ).run(message, _run_context())
 
     _assert_no_action(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_rejects_detector_create_for_external_booking_without_reminder_verb():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="约一节羽毛球教练课",
+        trigger_at="2026-05-31T15:00:00+08:00",
+    )
+
+    class FakeAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=decision)
+
+    class FailingExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("external booking should not write reminders")
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        command_executor=FailingExecutor(),
+    ).run("周日15:00帮我约一节羽毛球教练课", _run_context())
+
+    _assert_rejected_external_booking(result)
 
 
 @pytest.mark.asyncio
@@ -572,6 +621,75 @@ async def test_reminder_intent_port_keeps_general_list_query_unfiltered():
             assert received_decision.intent_type == "query"
             assert received_decision.action == "list"
             assert received_decision.list_title_query is None
+            return _executed_result("listed")
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        command_executor=FakeExecutor(),
+    ).run("列一下我的提醒。", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_executes_query_mapping_without_action():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class FakeAgent:
+        async def arun(self, **_kwargs):
+            return SimpleNamespace(content={"intent_type": "query"})
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.intent_type == "query"
+            assert received_decision.action == "list"
+            return _executed_result("listed")
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        command_executor=FakeExecutor(),
+    ).run("列一下我的提醒。", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_executes_model_style_query_list_defaults():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class FakeAgent:
+        async def arun(self, **_kwargs):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "query",
+                    "action": "list",
+                    "title": "",
+                    "trigger_at": "",
+                    "duration_minutes": 0,
+                    "reminder_id": "",
+                    "keyword": "",
+                    "target_title": "",
+                    "target_local_date": "",
+                    "target_local_time": "",
+                    "target_rrule": "",
+                    "target_scope": "recent_active",
+                    "new_title": "",
+                    "new_trigger_at": "",
+                    "rrule": "",
+                    "deadline_at": "",
+                    "list_states": [],
+                    "schedule_basis": "",
+                    "schedule_evidence": "",
+                    "operations": [],
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.intent_type == "query"
+            assert received_decision.action == "list"
+            assert received_decision.target_scope is None
+            assert received_decision.list_states is None
             return _executed_result("listed")
 
     result = await ReminderIntentPort(

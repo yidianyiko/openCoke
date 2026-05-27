@@ -124,6 +124,7 @@ _SCHEDULING_FORCED_ARG_KEYS = {
     "target_name",
     "message",
     "request_id",
+    "title",
     "friendship_id",
     "invitee_name",
     "invitee_account_id",
@@ -379,7 +380,6 @@ def _shared_reminder_action_args(raw_intent: Mapping[str, Any]) -> dict[str, Any
         not in {
             "shared_reminder_request_action",
             *_SCHEDULING_INTENT_SELECTOR_KEYS,
-            "reminder_title",
         }
     }
     requester_name = (
@@ -393,6 +393,9 @@ def _shared_reminder_action_args(raw_intent: Mapping[str, Any]) -> dict[str, Any
     shared_request_id = raw_intent.get("shared_reminder_request_id")
     if shared_request_id and not args.get("request_id"):
         args["request_id"] = shared_request_id
+    reminder_title = raw_intent.get("reminder_title")
+    if reminder_title and not args.get("title"):
+        args["title"] = reminder_title
     return args
 
 
@@ -410,7 +413,10 @@ def _normalize_scheduling_intent_args(
             if alias in normalized and normalized[alias]:
                 normalized["requester_name"] = normalized[alias]
                 break
-    normalized.pop("reminder_title", None)
+    if "title" not in normalized and "reminder_title" in normalized:
+        normalized["title"] = normalized.pop("reminder_title")
+    else:
+        normalized.pop("reminder_title", None)
     if tool_name == "create_shared_reminder":
         invalid_keys = sorted(
             key
@@ -805,8 +811,15 @@ def _create_interaction_agent(
                 reminder_domain_result["result"] = result
                 return result
 
-        async def scheduling_domain(intent: Any = None) -> dict[str, Any]:
-            """Use for explicit user-link, friend-request, friendship, or shared-reminder actions. For friend invites like "帮我约/邀请 <friend>" with a concrete appointment time, call create_shared_reminder using canonical fields invitee_name, title, fire_at, timezone, and duration_minutes."""
+        async def scheduling_domain(
+            intent: Any = None,
+            friend_name: str = "",
+            target_account_id: str = "",
+            from_date: str = "",
+            to_date: str = "",
+            timezone: str = "",
+        ) -> dict[str, Any]:
+            """Use for explicit user-link, friend-request, friendship, friend availability, or shared-reminder actions. For friend availability, use intent=list_friend_calendar_facts and pass friend_name, from_date, to_date, and timezone. For friend invites like "帮我约/邀请 <friend>" with a concrete appointment time, call create_shared_reminder using canonical fields invitee_name, title, fire_at, timezone, and duration_minutes."""
             async with scheduling_domain_lock:
                 if preloaded_scheduling_domain_result is not None:
                     result = _scheduling_failure_result(
@@ -828,6 +841,30 @@ def _create_interaction_agent(
                         scheduling_intent,
                         forced_scheduling_args,
                     ) = _split_scheduling_intent_args(normalized_intent)
+                    direct_raw_args = {
+                        key: value
+                        for key, value in {
+                            "friend_name": friend_name,
+                            "target_account_id": target_account_id,
+                            "from_date": from_date,
+                            "to_date": to_date,
+                            "timezone": timezone,
+                        }.items()
+                        if value is not None and value != ""
+                    }
+                    direct_args = (
+                        _normalize_scheduling_intent_args(
+                            scheduling_intent,
+                            direct_raw_args,
+                        )
+                        if direct_raw_args
+                        else {}
+                    )
+                    if direct_args:
+                        forced_scheduling_args = {
+                            **(forced_scheduling_args or {}),
+                            **direct_args,
+                        }
                 except _SchedulingIntentError as error:
                     result = _scheduling_failure_result(
                         code=error.code,
@@ -1194,6 +1231,42 @@ def _resolve_domain_visible_text(
         error = result.error
         if error is not None and error.message.strip():
             return error.message.strip()
+    return ""
+
+
+def _authoritative_domain_visible_text(
+    domain_results: Sequence[DomainExecutionResult],
+) -> str:
+    for result in reversed(domain_results):
+        if (
+            result.domain != "reminder"
+            or result.outcome != "rejected"
+            or not result.safety_boundary
+        ):
+            continue
+        for operation in result.operations:
+            if operation.ok or operation.effect != "none":
+                continue
+            facts = operation.facts
+            for key in ("visible_summary", "summary", "message"):
+                value = facts.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+    for result in reversed(domain_results):
+        if result.domain != "reminder" or result.outcome != "executed":
+            continue
+        for operation in result.operations:
+            if (
+                operation.action != "list"
+                or not operation.ok
+                or operation.effect != "read"
+            ):
+                continue
+            facts = operation.facts
+            for key in ("visible_summary", "summary", "message"):
+                value = facts.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
     return ""
 
 
@@ -2184,7 +2257,14 @@ async def run_agent_runtime(
         visible_text_segments = final_text_segments
         output_source = "model"
         fallback_reason = None
-        if not final_text:
+        authoritative_domain_text = _authoritative_domain_visible_text(
+            captured_domain_results
+        )
+        if authoritative_domain_text:
+            visible_text_segments = (authoritative_domain_text,)
+            output_source = "domain_summary"
+            fallback_reason = "authoritative_read_result"
+        elif not final_text:
             fallback_text = _resolve_visible_text("", captured_capability_results)
             if not fallback_text:
                 fallback_text = _resolve_domain_visible_text(
