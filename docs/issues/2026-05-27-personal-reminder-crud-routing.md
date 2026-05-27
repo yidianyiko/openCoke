@@ -101,5 +101,29 @@ cleaned up:
 
 ## Final Production Retest
 
-Pending redeploy of the visible-summary follow-up fix and a focused real-user
-update retest.
+Deployed commit `bb724367` with `./scripts/deploy-compose-to-gcp.sh --restart`.
+The deploy health check completed successfully.
+
+Focused production real-user update retest used olivers through the live bridge
+with marker `crud-update-fix-20260527T072706Z`:
+
+- Create input:
+  `2029年1月12日10:00提醒我喝水-crud-update-fix-20260527T072706Z-c1。`
+  replied
+  `已创建提醒：喝水-crud-update-fix-20260527T072706Z-c1（2029-01-12 周五 10:00）`.
+- Update input:
+  `把喝水-crud-update-fix-20260527T072706Z-c1这个提醒改到2029年1月12日11:00，标题改成喝水更新-crud-update-fix-20260527T072706Z-c1。`
+  replied
+  `已更新提醒：喝水更新-crud-update-fix-20260527T072706Z-c1（2029-01-12 周五 11:00）`.
+- Mongo showed exactly one marked reminder:
+  `6a169d52fb9c9ae2c4db7963`, title
+  `喝水更新-crud-update-fix-20260527T072706Z-c1`, `next_fire_at`
+  `2029-01-12 03:00:00+00:00`.
+- Cleanup cancelled `6a169d52fb9c9ae2c4db7963`; remaining active reminders for
+  the marker: `0`.
+
+Remote services after retest:
+
+- `coke-agent`: up.
+- `coke-bridge`: healthy.
+- `gateway`: healthy.
