@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from agent.agno_agent.runtime.result import CapabilityResult
+from agent.reminder.models import ReminderQuery
 from dao.mongo import MongoDBBase
 from util.embedding_util import embedding_by_aliyun
 from util.log_util import get_logger
@@ -45,8 +46,10 @@ class ContextRetrieveDomainContract:
         self,
         *,
         mongo: MongoDBBase | None = None,
+        reminder_runtime: Any | None = None,
     ) -> None:
         self.mongo = mongo or MongoDBBase()
+        self.reminder_runtime = reminder_runtime
 
     def retrieve(self, request: dict[str, Any]) -> dict[str, Any]:
         return_resp = {
@@ -55,6 +58,8 @@ class ContextRetrieveDomainContract:
             "user": "",
             "character_knowledge": "",
             "confirmed_reminders": "",
+            "confirmed_reminders_status": "available",
+            "confirmed_reminders_error": None,
             "relevant_history": "",
         }
 
@@ -129,33 +134,32 @@ class ContextRetrieveDomainContract:
                 )
                 logger.info("Retrieved relevant history messages")
 
-            return_resp["confirmed_reminders"] = self._retrieve_confirmed_reminders(
-                user_id
-            )
+            reminder_context = self._retrieve_confirmed_reminders(user_id)
+            return_resp["confirmed_reminders"] = reminder_context["text"]
+            return_resp["confirmed_reminders_status"] = reminder_context["status"]
+            return_resp["confirmed_reminders_error"] = reminder_context["error"]
         except Exception as exc:
             logger.error("Error in context_retrieve capability: %s", exc)
             raise
 
         return return_resp
 
-    def _retrieve_confirmed_reminders(self, user_id: str) -> str:
+    def _retrieve_confirmed_reminders(self, user_id: str) -> dict[str, Any]:
         try:
-            from dao.reminder_dao import ReminderDAO
-
-            reminder_dao = ReminderDAO()
+            reminder_runtime = self.reminder_runtime or _default_reminder_runtime()
             current_time = datetime.now(UTC)
-            all_reminders = reminder_dao.list_for_owner(
+            all_reminders = reminder_runtime.list_visible_reminders(
                 owner_user_id=user_id,
-                lifecycle_states=["active"],
+                query=ReminderQuery(lifecycle_states=["active"]),
             )
 
             lines = []
-            for action in all_reminders[:30]:
-                if action.get("lifecycle_state") != "active":
+            for reminder in all_reminders[:30]:
+                if reminder.lifecycle_state != "active":
                     continue
 
-                title = str(action.get("title", ""))
-                next_fire_at = action.get("next_fire_at")
+                title = str(reminder.title)
+                next_fire_at = reminder.next_fire_at
                 if not next_fire_at or next_fire_at <= current_time:
                     continue
 
@@ -165,15 +169,31 @@ class ContextRetrieveDomainContract:
                 if time_str:
                     line = line + " · " + time_str
                 lines.append(line)
-            reminder_dao.close()
-            return "\n".join(lines)
+            return {
+                "text": "\n".join(lines),
+                "status": "available",
+                "error": None,
+            }
         except Exception as exc:
             logger.warning("Failed to retrieve reminders: %s", exc)
-            return ""
+            return {
+                "text": "",
+                "status": "unavailable",
+                "error": {
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                },
+            }
 
 
 def _default_contract_factory(_run_context: Any) -> ContextRetrieveDomainContract:
     return ContextRetrieveDomainContract()
+
+
+def _default_reminder_runtime() -> Any:
+    from agent.reminder.runtime_contract import ReminderRuntimeContract
+
+    return ReminderRuntimeContract()
 
 
 def _merge_results_embedding(
