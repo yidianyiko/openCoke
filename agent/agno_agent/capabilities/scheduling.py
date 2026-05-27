@@ -34,6 +34,9 @@ SCHEDULING_TOOL_NAMES = (
     "accept_shared_reminder",
     "reject_shared_reminder",
     "cancel_shared_reminder",
+    "accept_pending_shared_reminders_from",
+    "reject_pending_shared_reminders_from",
+    "cancel_pending_shared_reminders_for",
 )
 
 _READ_ONLY_TOOL_NAMES = {
@@ -63,6 +66,9 @@ _DURABLE_WRITE_VISIBLE_SUMMARIES = {
     "accept_shared_reminder": "已接受共享提醒。",
     "reject_shared_reminder": "已拒绝共享提醒并取消你的提醒。",
     "cancel_shared_reminder": "已取消共享提醒请求。",
+    "accept_pending_shared_reminders_from": "已批量处理共享提醒确认。",
+    "reject_pending_shared_reminders_from": "已批量处理共享提醒拒绝。",
+    "cancel_pending_shared_reminders_for": "已批量处理共享提醒取消。",
 }
 
 
@@ -85,8 +91,20 @@ class SchedulingGatewayClient:
         self.timeout_seconds = timeout_seconds
 
     def call_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post_json(
+            f"/api/internal/scheduling/tools/{tool_name}",
+            payload,
+        )
+
+    def resolve_agent_focus(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post_json("/api/internal/scheduling/focus/resolve", payload)
+
+    def bind_agent_focus_selection(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post_json("/api/internal/scheduling/focus/bind", payload)
+
+    def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         response = self.session.post(
-            f"{self.api_url}/api/internal/scheduling/tools/{tool_name}",
+            f"{self.api_url}{path}",
             json=payload,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -107,6 +125,9 @@ class SchedulingGatewayClient:
         if body.get("ok") is not True and getattr(response, "status_code", 200) >= 500:
             response.raise_for_status()
         return body
+
+
+SchedulingContractClient = SchedulingGatewayClient
 
 
 class SchedulingCapabilityPort:
@@ -205,6 +226,17 @@ class SchedulingCapabilityPort:
                 content,
                 account_id=str(payload.get("customer_id") or ""),
             )
+        if (
+            ok
+            and self.tool_name
+            in {
+                "accept_pending_shared_reminders_from",
+                "reject_pending_shared_reminders_from",
+                "cancel_pending_shared_reminders_for",
+            }
+            and not _has_explicit_visible_summary(content)
+        ):
+            content["visible_summary"] = _bulk_shared_reminders_summary(content)
         if ok and durable_write and not _has_explicit_visible_summary(content):
             content["visible_summary"] = _DURABLE_WRITE_VISIBLE_SUMMARIES[
                 self.tool_name
@@ -236,15 +268,21 @@ def _trusted_tool_payload(
 ) -> dict[str, Any]:
     payload = dict(args)
     _normalize_date_only_tool_fields(payload)
-    if tool_name in _VIEWER_TIMEZONE_TOOL_NAMES and not str(
-        payload.get("timezone") or ""
-    ).strip():
+    if (
+        tool_name in _VIEWER_TIMEZONE_TOOL_NAMES
+        and not str(payload.get("timezone") or "").strip()
+    ):
         timezone = str(getattr(run_context.user, "timezone", "") or "").strip()
         if timezone:
             payload["timezone"] = timezone
-    if tool_name not in _READ_ONLY_TOOL_NAMES and not str(payload.get("idempotency_key") or "").strip():
+    if (
+        tool_name not in _READ_ONLY_TOOL_NAMES
+        and not str(payload.get("idempotency_key") or "").strip()
+    ):
         seed = f"{run_context.user.id}:{run_context.conversation.id}:{tool_name}:{input_message}"
-        payload["idempotency_key"] = f"{tool_name}:{sha256(seed.encode()).hexdigest()[:32]}"
+        payload["idempotency_key"] = (
+            f"{tool_name}:{sha256(seed.encode()).hexdigest()[:32]}"
+        )
     payload.update(
         {
             "customer_id": run_context.user.id,
@@ -373,7 +411,9 @@ def _pending_shared_reminders_summary(content: Mapping[str, Any]) -> str:
     return f"你有 {len(raw_items)} 个待处理的共享提醒：" + "；".join(labels) + "。"
 
 
-def _friend_requests_summary(content: Mapping[str, Any], *, account_id: str = "") -> str:
+def _friend_requests_summary(
+    content: Mapping[str, Any], *, account_id: str = ""
+) -> str:
     raw_items = content.get("value")
     if raw_items is None:
         raw_items = content.get("requests")
@@ -494,6 +534,19 @@ def _shared_reminders_summary(content: Mapping[str, Any]) -> str:
     if not labels:
         return f"你有 {len(raw_items)} 个共享提醒。"
     return f"你有 {len(raw_items)} 个共享提醒：" + "；".join(labels) + "。"
+
+
+def _bulk_shared_reminders_summary(content: Mapping[str, Any]) -> str:
+    raw_items = content.get("outcomes")
+    if not isinstance(raw_items, list) or not raw_items:
+        return "没有可处理的共享提醒。"
+    ok_count = sum(
+        1 for item in raw_items if isinstance(item, Mapping) and item.get("ok") is True
+    )
+    failed_count = len(raw_items) - ok_count
+    if failed_count == 0:
+        return f"已处理{ok_count}条共享提醒。"
+    return f"已处理{ok_count}条共享提醒，{failed_count}条未完成。"
 
 
 def _shared_reminders_friend_name(content: Mapping[str, Any]) -> str:

@@ -19,6 +19,9 @@ SemanticIntentName = Literal[
     "accept_shared_reminder",
     "reject_shared_reminder",
     "cancel_shared_reminder",
+    "accept_pending_shared_reminders_from",
+    "reject_pending_shared_reminders_from",
+    "cancel_pending_shared_reminders_for",
     "send_friend_request_by_user_link_code",
     "list_friend_requests",
     "accept_friend_request",
@@ -41,6 +44,9 @@ _MUTATION_INTENTS = {
     "accept_shared_reminder",
     "reject_shared_reminder",
     "cancel_shared_reminder",
+    "accept_pending_shared_reminders_from",
+    "reject_pending_shared_reminders_from",
+    "cancel_pending_shared_reminders_for",
     "send_friend_request_by_user_link_code",
     "accept_friend_request",
     "reject_friend_request",
@@ -51,7 +57,8 @@ _MUTATION_INTENTS = {
 }
 _DEFAULT_SEMANTIC_INTERPRETER_TIMEOUT_SECONDS = 20.0
 
-_SEMANTIC_INTERPRETER_INSTRUCTIONS = """You classify a user's current reply against a trusted product-action focus.
+_SEMANTIC_INTERPRETER_INSTRUCTIONS = (
+    """You classify a user's current reply against a trusted product-action focus.
 Return only the structured semantic intent.
 
 Rules:
@@ -59,12 +66,15 @@ Rules:
 - Interpret natural-language confirmation or rejection semantically, not by fixed keyword matching.
 - If the user confirms the focused action, return intent "accept".
 - If the user refuses the focused action, return intent "reject".
+- If the focus has multiple candidates and the user clearly selects one candidate by ordinal, offered time, or summary text, return "accept" or "reject" with args {"focus_handle": "<selected action_id>"}.
+- If the user asks to accept, reject, or cancel all currently focused shared reminders, return the matching bulk shared-reminder intent.
 - If the user asks what the focused action is about, return "ask_detail".
 - If the user asks to change the focused action rather than accept or reject it, return "request_change".
 - If the user is talking about something unrelated to the focused action, return "unrelated".
-- If the focus is missing, stale, multi-candidate, or the reply is unclear, return "ambiguous".
+- If the focus is missing, stale, multi-candidate without a clear selected candidate, or the reply is unclear, return "ambiguous".
 - Use high confidence only when the action meaning is clear from the current utterance and trusted focus.
 """.strip()
+)
 
 
 class SemanticIntentResult(BaseModel):

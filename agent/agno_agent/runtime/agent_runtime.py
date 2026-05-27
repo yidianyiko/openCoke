@@ -25,7 +25,8 @@ from agent.agno_agent.runtime.domain_results import (
 )
 from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.focus import (
-    focus_from_product_notification,
+    focus_from_agent_focus_binding,
+    focus_from_session_state,
     focus_to_session_state,
 )
 from agent.agno_agent.runtime.inputs import AgentInput
@@ -125,6 +126,8 @@ _SCHEDULING_FORCED_ARG_KEYS = {
     "target_name",
     "message",
     "request_id",
+    "focus_token",
+    "focus_handle",
     "title",
     "friendship_id",
     "invitee_name",
@@ -280,6 +283,53 @@ def _product_notification_metadata(agent_input: AgentInput) -> Mapping[str, Any]
     if not isinstance(product_notification, Mapping):
         return None
     return product_notification
+
+
+def _has_product_notification_hint(agent_input: AgentInput) -> bool:
+    return _product_notification_metadata(agent_input) is not None
+
+
+def _resolve_scheduling_focus(
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+) -> Any:
+    session_state = getattr(run_context, "session_state", {})
+    existing_focus = (
+        session_state.get("focus") if isinstance(session_state, Mapping) else None
+    )
+    if isinstance(existing_focus, Mapping):
+        focus = focus_from_session_state(
+            existing_focus,
+            current_time=run_context.current_time,
+        )
+        if _focus_has_actionable_candidates(focus):
+            return focus
+    if not _has_product_notification_hint(agent_input):
+        return focus_from_agent_focus_binding(
+            None, current_time=run_context.current_time
+        )
+    from agent.agno_agent.capabilities.scheduling import SchedulingContractClient
+
+    payload = {
+        "customer_id": run_context.user.id,
+        "conversation_id": run_context.conversation.id,
+        "platform": run_context.platform,
+        "timezone": run_context.user.timezone or "UTC",
+    }
+    try:
+        raw = SchedulingContractClient().resolve_agent_focus(payload)
+    except Exception:
+        logger.warning("scheduling_focus_resolve_failed", exc_info=True)
+        return focus_from_agent_focus_binding(
+            None, current_time=run_context.current_time
+        )
+    if raw.get("ok") is not True:
+        logger.warning("scheduling_focus_resolve_rejected: error=%s", raw.get("error"))
+        return focus_from_agent_focus_binding(
+            None, current_time=run_context.current_time
+        )
+    data = raw.get("data")
+    return focus_from_agent_focus_binding(data, current_time=run_context.current_time)
 
 
 def _is_retired_account_control_turn(input_message: str) -> bool:
@@ -575,7 +625,13 @@ def _semantic_scheduling_intent_and_args(
         )
     focus_current = getattr(focus, "current", None)
     if focus_current is None:
-        return None, {}
+        if getattr(focus, "ambiguity", None) == "multi_pending":
+            focus_current = _focus_candidate_from_semantic_args(
+                focus,
+                semantic_result.args,
+            )
+        if focus_current is None:
+            return None, {}
     if semantic_result.intent not in {"accept", "reject"}:
         return None, {}
     mapped_intent = _focus_action_scheduling_intent(
@@ -584,7 +640,38 @@ def _semantic_scheduling_intent_and_args(
     )
     if mapped_intent is None:
         return None, {}
-    return mapped_intent, {"request_id": getattr(focus_current, "action_id")}
+    focus_token = _focus_action_value(focus_current, "focus_token")
+    action_id = _focus_action_value(focus_current, "action_id")
+    if focus_token:
+        return mapped_intent, {
+            "focus_token": focus_token,
+            "focus_handle": action_id,
+        }
+    return mapped_intent, {"request_id": action_id}
+
+
+def _focus_candidate_from_semantic_args(
+    focus: Any,
+    args: Mapping[str, Any],
+) -> Any | None:
+    if not isinstance(args, Mapping):
+        return None
+    handle = str(
+        args.get("focus_handle")
+        or args.get("handle")
+        or args.get("action_id")
+        or args.get("request_id")
+        or ""
+    ).strip()
+    if not handle:
+        return None
+    candidates = getattr(focus, "candidates", None)
+    if not isinstance(candidates, Sequence):
+        return None
+    for candidate in candidates:
+        if str(_focus_action_value(candidate, "action_id") or "").strip() == handle:
+            return candidate
+    return None
 
 
 def _focus_action_value(action: Any, field: str) -> Any:
@@ -685,16 +772,10 @@ def _multi_pending_clarification_result(
     for index, candidate in enumerate(candidates):
         delivered_at = getattr(candidate, "delivered_at", None)
         summary = getattr(candidate, "summary_for_llm", "") or ""
-        delivered_label = _format_delivered_at_for_user(
-            delivered_at, viewer_timezone
-        )
+        delivered_label = _format_delivered_at_for_user(delivered_at, viewer_timezone)
         lines.append(f"{index + 1}. {delivered_label} {summary}".rstrip())
-        facts.append(
-            ReplyFactRequirement(path=f"candidates[{index}].delivered_at")
-        )
-        facts.append(
-            ReplyFactRequirement(path=f"candidates[{index}].summary_for_llm")
-        )
+        facts.append(ReplyFactRequirement(path=f"candidates[{index}].delivered_at"))
+        facts.append(ReplyFactRequirement(path=f"candidates[{index}].summary_for_llm"))
     summary_text = "\n".join(lines)
     error = DomainError(
         code="semantic_focus_multi_pending",
@@ -771,6 +852,11 @@ def _should_fail_closed_focused_semantic(
     focus: Any,
     semantic_result: SemanticIntentResult,
 ) -> bool:
+    if getattr(focus, "ambiguity", None) == "multi_pending":
+        if semantic_result.intent in {"accept", "reject"}:
+            return (
+                _focus_candidate_from_semantic_args(focus, semantic_result.args) is None
+            )
     return _focus_has_actionable_candidates(focus) and semantic_result.intent in {
         "ambiguous",
         "ask_detail",
@@ -2210,10 +2296,7 @@ async def run_agent_runtime(
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
         input_message = _input_message(agent_input)
-        focus = focus_from_product_notification(
-            _product_notification_metadata(agent_input),
-            current_time=run_context.current_time,
-        )
+        focus = _resolve_scheduling_focus(agent_input, run_context)
         run_context = replace(
             run_context,
             session_state={

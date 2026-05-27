@@ -58,6 +58,18 @@ class _IgnoredAgent:
         return SimpleNamespace(content="ignored", messages=[])
 
 
+def _use_legacy_product_notification_focus(monkeypatch):
+    from agent.agno_agent.runtime.focus import focus_from_product_notification
+
+    def resolve(agent_input, run_context):
+        return focus_from_product_notification(
+            agent_input.payload.metadata.get("product_notification"),
+            current_time=run_context.current_time,
+        )
+
+    monkeypatch.setattr(agent_runtime, "_resolve_scheduling_focus", resolve)
+
+
 def test_resolve_domain_visible_text_joins_multiple_successful_operation_summaries():
     visible_text = agent_runtime._resolve_domain_visible_text(
         [
@@ -622,9 +634,7 @@ async def test_run_agent_runtime_does_not_regex_preselect_friend_invite_with_con
     semantic_calls = []
 
     async def fail_run_scheduling_domain(**_kwargs):
-        raise AssertionError(
-            "shared reminder utterances must not be regex-preselected"
-        )
+        raise AssertionError("shared reminder utterances must not be regex-preselected")
 
     class FakeAgent:
         async def arun(self, **kwargs):
@@ -987,6 +997,7 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
     ]
     assert result.domain_results == (reminder_result,)
 
+
 @pytest.mark.asyncio
 async def test_run_agent_runtime_falls_back_to_reminder_list_visible_summary(
     monkeypatch,
@@ -1060,9 +1071,7 @@ async def test_run_agent_runtime_uses_reminder_list_summary_over_polluted_model_
                 entity_id=None,
                 facts={
                     "count": 1,
-                    "reminders": (
-                        {"title": "查列表修复", "local_date": "2029-01-24"},
-                    ),
+                    "reminders": ({"title": "查列表修复", "local_date": "2029-01-24"},),
                     "visible_summary": "你有 1 个提醒：\n- 查列表修复（2029年1月24日 10:00）",
                 },
             ),
@@ -1139,6 +1148,7 @@ async def test_run_agent_runtime_short_circuits_explicit_past_reminder_before_mo
 async def test_run_agent_runtime_dispatches_semantic_focus_action_from_product_notification_context(
     monkeypatch,
 ):
+    _use_legacy_product_notification_focus(monkeypatch)
     captured = {}
     interpreted = {}
     preloaded_domain_result = DomainExecutionResult(
@@ -1286,9 +1296,131 @@ def test_focus_from_multi_pending_notification_carries_delivered_at():
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_binds_gateway_focus_handle_before_scheduling_write(
+    monkeypatch,
+):
+    captured = {}
+    client_calls = []
+
+    class FakeSchedulingContractClient:
+        def resolve_agent_focus(self, payload):
+            client_calls.append(("resolve", payload))
+            return {
+                "ok": True,
+                "data": {
+                    "focus_token": "focus_1",
+                    "state": "single",
+                    "expires_at": "2026-05-09T01:30:00+00:00",
+                    "candidates": [
+                        {
+                            "handle": "sfh_1",
+                            "kind": "shared_reminder_request",
+                            "offered_at": "2026-05-09T01:00:00+00:00",
+                            "summary": {
+                                "request_id": "srr_hidden",
+                                "title": "数学课",
+                                "fire_at": "2026-05-10T12:00:00+00:00",
+                                "requester_name": "Bob",
+                            },
+                        }
+                    ],
+                },
+            }
+
+        def bind_agent_focus_selection(self, payload):
+            client_calls.append(("bind", payload))
+            return {
+                "ok": True,
+                "data": {
+                    "ok": True,
+                    "resolved_kind": "shared_reminder_request",
+                    "resolved_handle": "sfh_1",
+                    "request_id": "srr_real",
+                },
+            }
+
+    class RecordingSchedulingPort:
+        def __init__(self, *, tool_name: str):
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            captured.update(
+                {
+                    "tool_name": self.tool_name,
+                    "input_message": input_message,
+                    "args": args,
+                }
+            )
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"id": "srr_real", "visible_summary": "已接受共享提醒。"},
+            )
+
+    async def fake_interpret_semantic_intent(**_kwargs):
+        return agent_runtime.SemanticIntentResult(intent="accept", confidence="high")
+
+    class FakeAgent:
+        async def arun(self, **_kwargs):
+            return SimpleNamespace(content="已接受共享提醒。", messages=[])
+
+    monkeypatch.setattr(
+        "agent.agno_agent.capabilities.scheduling.SchedulingContractClient",
+        FakeSchedulingContractClient,
+    )
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.SchedulingContractClient",
+        FakeSchedulingContractClient,
+    )
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+        RecordingSchedulingPort,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "interpret_semantic_intent", fake_interpret_semantic_intent
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv-1",
+            text="确认",
+            payload=UserTurnPayload(
+                current_message_ids=["msg-1"],
+                metadata={"product_notification": {"actionable_items": 1}},
+            ),
+            occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+        ),
+        run_context=_run_context(),
+    )
+
+    assert client_calls == [
+        (
+            "resolve",
+            {
+                "customer_id": "user-1",
+                "conversation_id": "conv-1",
+                "platform": "business",
+                "timezone": "UTC",
+            },
+        ),
+        ("bind", {"focus_token": "focus_1", "handle": "sfh_1"}),
+    ]
+    assert captured["tool_name"] == "accept_shared_reminder"
+    assert captured["args"]["request_id"] == "srr_real"
+    assert "focus_token" not in captured["args"]
+    assert result.domain_results[0].outcome == "executed"
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_fails_closed_when_focused_semantic_intent_is_ambiguous(
     monkeypatch,
 ):
+    _use_legacy_product_notification_focus(monkeypatch)
+
     async def fake_interpret_semantic_intent(**_kwargs):
         return agent_runtime.SemanticIntentResult(
             intent="ambiguous",
@@ -1341,6 +1473,8 @@ async def test_run_agent_runtime_fails_closed_when_focused_semantic_intent_is_am
 async def test_run_agent_runtime_fails_closed_with_enumeration_for_multi_pending_focus(
     monkeypatch,
 ):
+    _use_legacy_product_notification_focus(monkeypatch)
+
     async def fake_interpret_semantic_intent(**_kwargs):
         return agent_runtime.SemanticIntentResult(
             intent="ambiguous",
@@ -1427,6 +1561,7 @@ async def test_run_agent_runtime_fails_closed_with_enumeration_for_multi_pending
 async def test_run_agent_runtime_returns_stale_focus_when_fresh_friend_request_is_accepted(
     monkeypatch,
 ):
+    _use_legacy_product_notification_focus(monkeypatch)
     port_calls = []
 
     class RecordingSchedulingPort:
@@ -1504,6 +1639,7 @@ async def test_run_agent_runtime_returns_stale_focus_when_fresh_friend_request_i
 async def test_run_agent_runtime_returns_stale_focus_when_shared_request_is_expired(
     monkeypatch,
 ):
+    _use_legacy_product_notification_focus(monkeypatch)
     port_calls = []
 
     class RecordingSchedulingPort:
@@ -1582,6 +1718,7 @@ async def test_run_agent_runtime_returns_stale_focus_when_shared_request_is_expi
 async def test_run_agent_runtime_returns_stale_focus_for_wrong_recipient(
     monkeypatch,
 ):
+    _use_legacy_product_notification_focus(monkeypatch)
     port_calls = []
 
     class RecordingSchedulingPort:

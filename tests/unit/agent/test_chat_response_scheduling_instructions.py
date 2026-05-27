@@ -295,11 +295,11 @@ def test_chat_response_instructions_omits_agent_instance_profile_when_empty():
     assert "User-configured agent profile:" not in text
 
 
-def test_product_notification_metadata_is_exposed_as_trusted_context():
+def test_product_notification_metadata_is_not_used_as_focus_truth():
     text = build_chat_response_instructions(_run_context(), _product_notification_input())
 
     assert "product_notification:" not in text
     assert '<trusted kind="focus">' in text
-    assert '"request_id": "srr_1"' in text
-    assert '"request_type": "shared_reminder_request"' in text
-    assert '"allowed_actions": ["accept", "reject"]' in text
+    assert '"current": null' in text
+    assert '"ambiguity": "none_actionable"' in text
+    assert '"request_id": "srr_1"' not in text

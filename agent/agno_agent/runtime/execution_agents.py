@@ -13,6 +13,7 @@ from agno.tools import tool
 from agent.agno_agent.capabilities import ReminderIntentPort, SchedulingCapabilityPort
 from agent.agno_agent.capabilities.scheduling import (
     SCHEDULING_TOOL_NAMES,
+    SchedulingContractClient,
     _READ_ONLY_TOOL_NAMES,
 )
 from agent.agno_agent.model_factory import create_llm_model
@@ -498,6 +499,9 @@ def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
         "accept_shared_reminder",
         "reject_shared_reminder",
         "cancel_shared_reminder",
+        "accept_pending_shared_reminders_from",
+        "reject_pending_shared_reminders_from",
+        "cancel_pending_shared_reminders_for",
     ):
         if single in normalized:
             return (single,)
@@ -528,6 +532,9 @@ def _normalize_forced_scheduling_call(
             "accept_shared_reminder",
             "reject_shared_reminder",
             "cancel_shared_reminder",
+            "accept_pending_shared_reminders_from",
+            "reject_pending_shared_reminders_from",
+            "cancel_pending_shared_reminders_for",
         }:
             normalized_intent = candidate
             normalized_args.pop(key, None)
@@ -746,6 +753,58 @@ async def _forced_focus_freshness_failure(
     return None
 
 
+async def _bind_forced_focus_selection(
+    *,
+    tool_name: str,
+    forced_args: dict[str, Any],
+) -> tuple[dict[str, Any] | None, DomainExecutionResult | None]:
+    focus_token = str(forced_args.get("focus_token") or "").strip()
+    focus_handle = str(forced_args.get("focus_handle") or "").strip()
+    if not focus_token and not focus_handle:
+        return forced_args, None
+    if not focus_token or not focus_handle:
+        return (
+            None,
+            _stale_focus_result(
+                tool_name=tool_name,
+                request_id=focus_handle or focus_token or "focused_request",
+            ),
+        )
+    try:
+        raw = await asyncio.to_thread(
+            SchedulingContractClient().bind_agent_focus_selection,
+            {"focus_token": focus_token, "handle": focus_handle},
+        )
+    except Exception:
+        return (
+            None,
+            _stale_focus_result(tool_name=tool_name, request_id=focus_handle),
+        )
+    data = raw.get("data") if isinstance(raw, Mapping) else None
+    if (
+        raw.get("ok") is not True
+        or not isinstance(data, Mapping)
+        or data.get("ok") is not True
+    ):
+        return (
+            None,
+            _stale_focus_result(tool_name=tool_name, request_id=focus_handle),
+        )
+    request_id = str(data.get("request_id") or "").strip()
+    if not request_id:
+        return (
+            None,
+            _stale_focus_result(tool_name=tool_name, request_id=focus_handle),
+        )
+    normalized_args = {
+        key: value
+        for key, value in forced_args.items()
+        if key not in {"focus_token", "focus_handle"}
+    }
+    normalized_args["request_id"] = request_id
+    return normalized_args, None
+
+
 def _scheduling_agent_input(input_message: str, intent: str) -> str:
     return f"Resolved scheduling intent: {intent}\n" f"User message: {input_message}"
 
@@ -842,6 +901,17 @@ async def run_scheduling_domain(
         else:
             tool_name = _forced_tool_name_for_intent(intent)
             if tool_name is None:
+                result = _no_scheduling_tool_called_result(intent)
+                domain_results.append(result)
+                return result.to_dict()
+            forced_args, bind_error = await _bind_forced_focus_selection(
+                tool_name=tool_name,
+                forced_args=forced_args,
+            )
+            if bind_error is not None:
+                domain_results.append(bind_error)
+                return bind_error.to_dict()
+            if forced_args is None:
                 result = _no_scheduling_tool_called_result(intent)
                 domain_results.append(result)
                 return result.to_dict()

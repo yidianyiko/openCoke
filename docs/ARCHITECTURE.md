@@ -7,8 +7,11 @@ This document describes the current ClawScale-backed runtime wired in this
 repository, including the gateway-hosted shared-channel experiments that feed
 the same Coke worker pipeline.
 
-This document describes runtime topology. Ownership boundaries are defined in
-`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`.
+This document describes runtime topology. Ownership boundaries are routed by
+`docs/design-docs/coke-working-contract.md` and
+`docs/design-docs/interface-contract.md`, with feature-specific boundary
+decisions recorded in active specs such as
+`docs/superpowers/specs/2026-05-28-gateway-hosted-scheduling-boundary-design.md`.
 Planning surfaces and ownership systems are related but not identical.
 
 ## 1. Runtime Topology
@@ -217,14 +220,19 @@ run start -> Focus construction -> semantic interpreter -> executor freshness ch
 
 The Focus channel is a typed runtime pointer to the one actionable product
 object the turn may act on. It is exposed through `AgentRunContext.session_state`
-with `ambiguity=none`, `multi_pending`, or `none_actionable`. `multi_pending`
-and `none_actionable` fail closed: the model should ask a clarifying question
-instead of acting on transcript clues. Focus may be seeded from trusted product
-notification metadata, but user-utterance intent classification is owned by the
-separate semantic interpreter over `(focus, current_utterance)`. Keyword or
-regex routing on user utterances is not part of the active runtime contract;
-regexes may remain only for output guardrails, model-output parsing, typed
-payload validation, trace mechanics, or temporary input normalization.
+with `ambiguity=none`, `multi_pending`, or `none_actionable`. Inbound product
+notification metadata is only a low-cardinality hint that focus may exist; the
+Agent Runtime resolves actionable candidates through the Gateway-hosted
+Scheduling Domain Contract at `/api/internal/scheduling/focus/resolve`. The
+contract mints opaque `focus_token` and candidate handles, persists those
+bindings in Postgres-owned Scheduling state, and validates a selected handle at
+`/api/internal/scheduling/focus/bind` before any focused scheduling mutation
+receives a real request id. `none_actionable` fails closed, and `multi_pending`
+requires a semantic candidate selection by ordinal, offered time, or summary
+text before acting. Keyword or regex routing on user utterances is not part of
+the active runtime contract; regexes may remain only for output guardrails,
+model-output parsing, typed payload validation, trace mechanics, or temporary
+input normalization.
 
 The response prompt renders trusted blocks for identity, environment, and Focus
 plus one conversation block. Trusted blocks are authoritative system-derived
@@ -236,9 +244,10 @@ tools (`reminder_domain` and `scheduling_domain`) return structured
 `DomainExecutionResult` JSON as the domain-to-Interaction-Agent contract:
 operation facts, missing fields, safety boundaries, reply contracts, and
 structured errors. Before Focus-driven scheduling writes, the scheduling
-executor re-reads the current friend-request or shared-reminder state and fails
-with `safety_boundary=stale_focus` when the action is missing, already moved,
-expired, or owned by the wrong recipient. Focus is a pointer, not fresh state.
+executor binds the opaque focus handle through Scheduling and fails with
+`safety_boundary=stale_focus` when the handle is unknown, expired, already
+consumed, or no longer maps to an actionable request. Focus is a pointer, not
+fresh state.
 Non-domain utility tools (`timezone`, `calendar_import`, and `url_context`)
 continue to return `CapabilityResult` values for utility visible-output
 behavior. The Interaction Agent owns final user-visible text when non-empty;
@@ -251,7 +260,9 @@ delegates execution to friend-link and shared-reminder tools:
 `cancel_friend_request`, `list_friends`, `remove_friendship`, `block_account`,
 `unblock_account`, `list_friend_calendar_facts`, `create_shared_reminder`,
 `list_pending_shared_reminders`, `accept_shared_reminder`,
-`reject_shared_reminder`, and `cancel_shared_reminder`. The runner remains
+`reject_shared_reminder`, `cancel_shared_reminder`,
+`accept_pending_shared_reminders_from`, `reject_pending_shared_reminders_from`,
+and `cancel_pending_shared_reminders_for`. The runner remains
 responsible for locks, rollback, output writes, replay checks, scheduler boot,
 post-analyze dispatch, and delivery state transitions. The former prepare/chat
 workflow runtime, legacy multi-agent runtime, and module-level Agno agent

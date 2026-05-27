@@ -6,11 +6,10 @@ to reason about them when planning or reviewing a change.
 ## Ownership Axis
 
 Planning surfaces describe where verification runs. Ownership systems describe
-who owns behavior and contracts. Use
-`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`
-for Frontend App, Platform System, Channel System, Reminder System, Memo
-System, Calendar Import System, Timezone System, Bridge System, Agent Runtime
-System, and State/Infrastructure ownership.
+who owns behavior and contracts. Use this document for verification surfaces,
+`docs/design-docs/interface-contract.md` for route ownership, and active
+feature specs for feature-specific boundary decisions, such as the
+Gateway-hosted Scheduling boundary spec.
 
 A change can touch one planning surface while affecting multiple ownership
 systems. Name both in non-trivial plans and reviews.

@@ -161,6 +161,17 @@ Shared reminder creation and acceptance span:
 This is the highest-risk area. The architecture must make projection,
 reconciliation, idempotency, notification, and cleanup ports explicit.
 
+### Boundary Reference Drift
+
+Several canonical docs still point to
+`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`,
+but that file is not present in the current checkout. Implementation of this
+design must not add new dependencies on that missing file. It must either
+replace those references with the current canonical boundary documents
+(`docs/design-docs/coke-working-contract.md`, `docs/design-docs/interface-contract.md`,
+and this spec) or restore the missing spec in the same change if it is still
+intended to be canonical.
+
 ### Duplicate Pending Invites Can Accumulate
 
 Production case (2026-05-27): a single requester landed three near-identical
@@ -364,7 +375,10 @@ Required behavior:
   duration_minutes)` must be unique.
 - The constraint must be enforced by a database unique index on
   `shared_reminder_requests` (partial index on the pending state), so
-  concurrent worker processes cannot insert duplicates.
+  concurrent worker processes cannot insert duplicates. Because PostgreSQL
+  treats `NULL` values as distinct in unique indexes, the index must normalize
+  nullable duration before comparison, for example with
+  `COALESCE(duration_minutes, -1)` or an equivalent generated key column.
 - On collision, `createSharedReminder` must return the existing pending
   request as a deterministic success (idempotent upsert), with a DTO field
   that signals "already pending" so the agent can shape its reply without
@@ -383,6 +397,11 @@ fixtures must cover it.
 
 The Scheduling contract must own a stable, agent-callable focus resolution
 that replaces ad-hoc reconstruction from `product_notification`.
+Scheduling must persist focus bindings and candidate handles in Postgres-owned
+Scheduling state or derive them from a Postgres-backed binding row. Agent
+Runtime may persist only the active conversation's selected `focus_token`,
+offered handles, and rendered text in `agent_sessions`; it must not be the
+authority that mints or validates Scheduling handles.
 
 Required shape (DTO names are illustrative; final names belong to the
 implementation plan):
@@ -493,6 +512,9 @@ Required doc sync:
   - State that Focus is requested by the agent from the Scheduling contract
     via `resolveAgentFocus`, not reconstructed from inbound channel
     metadata.
+  - Replace the stale pointer to the missing
+    `2026-05-19-frontend-platform-channel-boundary-design.md` file with the
+    current boundary references.
 - `docs/design-docs/interface-contract.md`
   - Add `/api/customer/scheduling/*` to the public customer API surface.
   - Add `/api/internal/scheduling/*` to the internal API surface, including
@@ -506,7 +528,7 @@ Required doc sync:
     Phase 4d lands.
   - Clarify that route location is not ownership.
 - Boundary spec reference cleanup
-  - Restore, replace, or remove stale references to
+  - Replace or restore stale references to
     `docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`
     if the file is not present in the current checkout.
 
@@ -519,7 +541,12 @@ that proves the regression class is closed.
 
 ### Phase 1: Contract Inventory And Tests
 
-Create contract fixtures or tests before moving code.
+Create the shared fixture format and executable tests for the existing
+contract before moving code. Future-behavior fixtures for business-key
+idempotency, focus binding, and bulk variants may be added in this phase as
+non-executable fixture data, but their executable assertions must land in the
+phase that implements the behavior so the repository does not carry an
+intentionally red Phase 1.
 
 Coverage must include:
 
@@ -581,7 +608,9 @@ called out in this phase's port-cleanup task.
 - Add a Prisma migration introducing a partial unique index on
   `shared_reminder_requests`
   `(requester_account_id, invitee_account_id, title, fire_at, timezone,
-  duration_minutes) WHERE status = 'pending_invitee_confirmation'`.
+  COALESCE(duration_minutes, -1)) WHERE status = 'pending_invitee_confirmation'`
+  or an equivalent generated-key representation. A plain nullable
+  `duration_minutes` column in the unique key is not sufficient.
 - `createSharedReminder` becomes an idempotent upsert: on business-key
   collision, return the existing pending row with an `already_pending: true`
   DTO field. Existing per-turn `idempotency_key` behavior is preserved.

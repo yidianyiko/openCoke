@@ -107,7 +107,10 @@ def test_list_pending_shared_reminders_provides_visible_summary():
     assert result.content["visible_summary"] == (
         "你有 1 个待处理的共享提醒：Alice Smoke 发来的“跑步”。"
     )
-    assert result.visible_summary == "你有 1 个待处理的共享提醒：Alice Smoke 发来的“跑步”。"
+    assert (
+        result.visible_summary
+        == "你有 1 个待处理的共享提醒：Alice Smoke 发来的“跑步”。"
+    )
 
 
 def test_list_pending_shared_reminders_empty_summary():
@@ -125,6 +128,35 @@ def test_list_pending_shared_reminders_empty_summary():
 
     assert result.ok is True
     assert result.content["visible_summary"] == "目前没有待处理的共享提醒。"
+
+
+def test_bulk_shared_reminders_provides_visible_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": {
+                "outcomes": [
+                    {"request_id": "srr_1", "ok": True, "status": "accepted"},
+                    {
+                        "request_id": "srr_2",
+                        "ok": False,
+                        "error": "shared_reminder_due",
+                    },
+                ]
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="accept_pending_shared_reminders_from",
+        handler=handler,
+    )
+    result = port.run("全部确认", _run_context(), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == "已处理1条共享提醒，1条未完成。"
 
 
 def test_list_shared_reminders_provides_visible_summary():
@@ -618,6 +650,45 @@ def test_write_tools_generate_idempotency_key_when_model_omits_it():
     assert captured["payload"]["idempotency_key"].startswith("create_shared_reminder:")
 
 
+def test_python_scheduling_tool_inventory_matches_gateway_contract():
+    from agent.agno_agent.capabilities.scheduling import (
+        SCHEDULING_TOOL_NAMES,
+        _READ_ONLY_TOOL_NAMES,
+    )
+
+    expected_tools = {
+        "get_user_link",
+        "reset_user_link",
+        "disable_user_link",
+        "send_friend_request_by_user_link_code",
+        "list_friend_requests",
+        "accept_friend_request",
+        "reject_friend_request",
+        "cancel_friend_request",
+        "list_friends",
+        "list_friend_calendar_facts",
+        "list_shared_reminders",
+        "remove_friendship",
+        "create_shared_reminder",
+        "list_pending_shared_reminders",
+        "accept_shared_reminder",
+        "reject_shared_reminder",
+        "cancel_shared_reminder",
+        "accept_pending_shared_reminders_from",
+        "reject_pending_shared_reminders_from",
+        "cancel_pending_shared_reminders_for",
+    }
+    assert set(SCHEDULING_TOOL_NAMES) >= expected_tools
+    assert _READ_ONLY_TOOL_NAMES == {
+        "get_user_link",
+        "list_friend_requests",
+        "list_friends",
+        "list_friend_calendar_facts",
+        "list_shared_reminders",
+        "list_pending_shared_reminders",
+    }
+
+
 def test_list_friend_calendar_facts_is_read_only_and_forwards_range_args():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
@@ -742,7 +813,9 @@ def test_list_friend_calendar_facts_forwards_friend_name_when_target_account_id_
             },
         }
 
-    port = SchedulingCapabilityPort(tool_name="list_friend_calendar_facts", handler=handler)
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_calendar_facts", handler=handler
+    )
     result = port.run(
         "What free time does Coach A have this week?",
         _run_context(user_id="acct_b"),
@@ -800,6 +873,22 @@ def test_scheduling_gateway_client_uses_internal_auth():
         == "https://api.example/api/internal/scheduling/tools/list_pending_shared_reminders"
     )
     assert captured["headers"]["Authorization"] == "Bearer internal-key"
+
+    assert client.resolve_agent_focus({"customer_id": "ck_a"}) == {
+        "ok": True,
+        "data": {"pending": []},
+    }
+    assert (
+        captured["url"] == "https://api.example/api/internal/scheduling/focus/resolve"
+    )
+
+    assert client.bind_agent_focus_selection(
+        {"focus_token": "focus_1", "handle": "sfh_1"}
+    ) == {
+        "ok": True,
+        "data": {"pending": []},
+    }
+    assert captured["url"] == "https://api.example/api/internal/scheduling/focus/bind"
 
 
 def test_scheduling_gateway_client_returns_error_envelope():

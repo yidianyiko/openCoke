@@ -16,9 +16,8 @@ Historical product names are not valid namespace categories for new interfaces.
 
 Interface namespaces describe audience and transport shape. Ownership systems
 describe who owns the behavior behind that interface. Use
-`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`
-when deciding whether a route is Platform, Channel, Reminder, Calendar Import,
-Bridge, Agent Runtime, or another product system.
+`docs/design-docs/coke-working-contract.md` for repository planning surfaces
+and active feature specs for feature-specific route ownership decisions.
 
 A route under `gateway/packages/api` is not automatically Platform-owned. For
 example, `/api/customer/reminders` is customer-facing but Reminder-owned, while
@@ -122,6 +121,15 @@ callers should use the canonical field names.
 - `/api/internal/scheduling/tools/create_shared_reminder` accepts canonical
   invitee fields: `invitee_account_id`, `invitee_name`, or `friendship_id`.
   `friend_id` is retired at the gateway route boundary.
+- `/api/internal/scheduling/focus/resolve` and
+  `/api/internal/scheduling/focus/bind` are Scheduling Domain Contract
+  endpoints for Agent Runtime focus. Agent callers pass `customer_id` plus a
+  conversation key to resolve focus, then pass `focus_token` and opaque
+  `handle` to bind a selected candidate. Inbound `product_notification`
+  candidate payloads are not the source of actionable request IDs.
+- Bulk shared-reminder tools are active on
+  `/api/internal/scheduling/tools/{accept_pending_shared_reminders_from,reject_pending_shared_reminders_from,cancel_pending_shared_reminders_for}`
+  and return per-candidate outcomes instead of all-or-nothing batch state.
 
 ## Forbidden Public Patterns
 

@@ -16,6 +16,7 @@ class PendingAction(BaseModel):
     kind: str
     allowed_actions: tuple[str, ...]
     status: str
+    focus_token: str | None = None
     expires_at: datetime | None = None
     delivered_at: datetime | None = None
     summary_for_llm: str
@@ -75,6 +76,50 @@ def focus_from_product_notification(
     )
 
 
+def focus_from_agent_focus_binding(
+    binding: Mapping[str, Any] | None,
+    *,
+    current_time: datetime,
+) -> FocusChannel:
+    if not isinstance(binding, Mapping):
+        return FocusChannel(current=None, ambiguity="none_actionable")
+    candidates = binding.get("candidates")
+    if not isinstance(candidates, Sequence) or isinstance(
+        candidates, (str, bytes, bytearray)
+    ):
+        return FocusChannel(current=None, ambiguity="none_actionable")
+    focus_token = str(binding.get("focus_token") or "").strip()
+    expires_at = binding.get("expires_at")
+    actions = [
+        _action_input_from_agent_focus_candidate(
+            candidate,
+            focus_token=focus_token,
+            expires_at=expires_at,
+        )
+        for candidate in candidates
+        if isinstance(candidate, Mapping)
+    ]
+    return build_focus_channel(actions, current_time=current_time)
+
+
+def focus_from_session_state(
+    focus_state: Mapping[str, Any] | None,
+    *,
+    current_time: datetime,
+) -> FocusChannel:
+    if not isinstance(focus_state, Mapping):
+        return FocusChannel(current=None, ambiguity="none_actionable")
+    candidates = focus_state.get("candidates")
+    if isinstance(candidates, Sequence) and not isinstance(
+        candidates, (str, bytes, bytearray)
+    ):
+        actions = [item for item in candidates if isinstance(item, Mapping)]
+    else:
+        current = focus_state.get("current")
+        actions = [current] if isinstance(current, Mapping) else []
+    return build_focus_channel(actions, current_time=current_time)
+
+
 def focus_to_session_state(focus: FocusChannel) -> dict[str, Any]:
     return focus.model_dump(mode="json")
 
@@ -95,6 +140,27 @@ def _action_input_from_product_notification(
         "summary_for_llm": product_notification.get("summary_for_llm")
         or product_notification.get("summary")
         or _fallback_summary(product_notification),
+    }
+
+
+def _action_input_from_agent_focus_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    focus_token: str,
+    expires_at: Any,
+) -> dict[str, Any]:
+    summary = candidate.get("summary")
+    return {
+        "action_id": candidate.get("handle"),
+        "kind": candidate.get("kind"),
+        "allowed_actions": candidate.get("allowed_actions") or ("accept", "reject"),
+        "status": candidate.get("status") or "pending",
+        "focus_token": focus_token,
+        "expires_at": expires_at,
+        "delivered_at": candidate.get("offered_at") or candidate.get("delivered_at"),
+        "summary_for_llm": candidate.get("summary_for_llm")
+        or _agent_focus_summary(summary)
+        or _fallback_summary(candidate),
     }
 
 
@@ -120,6 +186,7 @@ def _pending_action_from_mapping(
         kind=kind,
         allowed_actions=_allowed_actions(value.get("allowed_actions")),
         status=status,
+        focus_token=_optional_string(value.get("focus_token")),
         expires_at=expires_at,
         delivered_at=delivered_at,
         summary_for_llm=summary,
@@ -127,9 +194,7 @@ def _pending_action_from_mapping(
 
 
 def _allowed_actions(value: Any) -> tuple[str, ...]:
-    if isinstance(value, Sequence) and not isinstance(
-        value, (str, bytes, bytearray)
-    ):
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         actions = tuple(str(item).strip() for item in value if str(item).strip())
         if actions:
             return actions
@@ -148,6 +213,36 @@ def _parse_datetime(value: Any) -> datetime | None:
         return datetime.fromisoformat(normalized)
     except ValueError:
         return None
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    candidate = str(value).strip()
+    return candidate or None
+
+
+def _agent_focus_summary(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return ""
+    title = str(value.get("title") or "").strip()
+    requester_name = str(value.get("requester_name") or "").strip()
+    fire_at = str(value.get("fire_at") or "").strip()
+    message = str(value.get("message") or "").strip()
+    if title and requester_name and fire_at:
+        return f"{requester_name}邀请你参加“{title}”，时间{fire_at}。"
+    if title and requester_name:
+        return f"{requester_name}邀请你参加“{title}”。"
+    if title:
+        return f"共享提醒“{title}”。"
+    if requester_name and message:
+        return f"{requester_name}发来的好友请求：{message}"
+    if requester_name:
+        return f"{requester_name}发来的好友请求。"
+    request_id = str(value.get("request_id") or "").strip()
+    if request_id:
+        return f"待处理请求 {request_id}"
+    return ""
 
 
 def _fallback_summary(product_notification: Mapping[str, Any]) -> str:

@@ -80,9 +80,17 @@ directory alone.
   - public API: `gateway/packages/api/src/routes/public-user-link-routes.ts`
   - customer API: `gateway/packages/api/src/routes/customer-scheduling-routes.ts`
   - internal agent API: `gateway/packages/api/src/routes/internal-scheduling-routes.ts`
-  - internal agent scheduling tool: `list_friend_calendar_facts`
+  - internal agent scheduling tools include friend-link/friend-request,
+    friend-calendar, shared-reminder, focus binding, and bulk shared-reminder
+    operations
   - shared reminders persist `durationMinutes` and project that duration into
     participant Reminder Runtime records
+  - duplicate pending shared-reminder invitations are constrained by the
+    Scheduling business key for requester, invitee, title, fire time,
+    timezone, and nullable duration
+  - Agent focus for pending friend/shared-reminder invitations is resolved and
+    bound through Scheduling-owned opaque handles, not through inbound
+    notification candidate payloads
   - Gateway domain services: `gateway/packages/api/src/scheduling/`
   - Reminder Runtime projection client: `gateway/packages/api/src/lib/reminder-runtime-client.ts`
   - Worker agent tools: `agent/agno_agent/capabilities/scheduling.py`

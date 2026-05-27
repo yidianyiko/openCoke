@@ -6,11 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
-from agent.agno_agent.runtime.focus import (
-    focus_from_product_notification,
-    focus_to_session_state,
-)
-from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload, UserTurnPayload
+from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 from agent.prompt.onboarding_prompt import get_onboarding_context
 
@@ -180,16 +176,6 @@ def _focus_session_state(
     focus = session_state.get("focus") if isinstance(session_state, Mapping) else None
     if isinstance(focus, Mapping):
         return focus
-    if isinstance(agent_input.payload, UserTurnPayload):
-        product_notification = agent_input.payload.metadata.get("product_notification")
-        if isinstance(product_notification, Mapping):
-            computed = focus_from_product_notification(
-                product_notification,
-                current_time=run_context.current_time,
-            )
-            rendered = focus_to_session_state(computed)
-            rendered["source_product_action"] = dict(product_notification)
-            return rendered
     return {"current": None, "ambiguity": "none_actionable", "candidates": []}
 
 
