@@ -130,6 +130,50 @@ Remaining failure classification:
   - Case 24 asks "到几点为止", which is semantically an end-condition question,
     but the expected term list only accepts `持续`/`结束`/`截止`.
 
+## Corpus Eval Result (after b+c fix)
+
+Invocation:
+
+```bash
+.venv/bin/python scripts/run_reminder_eval.py --limit 50
+```
+
+Result summary:
+
+- Total: 50
+- Passed: 33 (-3 from the post-prompt-fix run)
+- Failed: 17 (+3)
+- Pass rate: 66% (-6 percentage points)
+- Critical: 6/8 passed (-2), below 100% threshold
+- Important: 26/37 passed (+1), below 95% threshold
+- Nice: 1/5 passed (-2), below 80% threshold
+- Batch id: `reminder-normal-a7032a76f6`
+
+The full-run pass rate moved down because this is a fresh live-model worker run,
+not a deterministic replay. The scoped b+c targets moved as follows:
+
+- Case 12: passed. The visible output is now a clarification and no longer
+  claims the reminder was set.
+- Case 22: still fails the detector/create expectation (`no_reminder_created`,
+  missing `开始背书`), but the original output-layer hallucination is gone; the
+  response no longer says a 10-minute reminder was set.
+- Case 24: passed. The expected clarification terms now accept equivalent
+  end-condition wording, and the current output asks when the hourly reminder
+  should end.
+- Case 39: passed. The reminder is created with `UNTIL`, and the visible domain
+  summary includes the deadline: `截止 2026-12-07 20:00`.
+
+Additional guardrail note: a restarted-worker run briefly exposed a failed-write
+case 39 variant where the reminder domain returned `InvalidSchedule` but the
+model still said it would remind the user after asking for duration. The
+completed-write safety net now catches that "tell me the missing detail and I
+can set it" wording shape.
+
+Evidence:
+
+- `artifacts/evidence/2026-05-27-reminder-intent-llm-only/reminder-eval-limit-50-after-bc-fix.txt`
+- `artifacts/evidence/agent-turn-traces/reminder-normal/reminder-normal-a7032a76f6.jsonl`
+
 ## Failing Cases Captured
 
 - Case 2: `你可以没太难18:00 提醒我学英语么`
@@ -173,8 +217,9 @@ Remaining failure classification:
 
 ## Current Status
 
-Prompt and corpus follow-up are committed. The latest direct `--limit 50` eval
-is still below the important/nice thresholds, but critical remains green. The
-remaining failures are now documented above as detector follow-up, output-layer
-work, or eval wording brittleness. No runtime regex fallback or detector model
-change was introduced.
+The b+c follow-ups are committed. The latest direct `--limit 50` eval is still
+below severity thresholds, but the requested non-detector gaps are closed or
+isolated: cases 12, 24, and 39 pass; case 22 no longer has a user-visible
+set-claim hallucination and now only reflects the out-of-scope missing create
+path. No detector model or `get_reminder_detect_instructions` change was made.
+No runtime intent regex fallback was introduced.
