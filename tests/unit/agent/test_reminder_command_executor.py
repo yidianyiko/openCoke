@@ -268,6 +268,31 @@ def test_recurring_create_visible_summary_uses_recurring_time_label():
     )
 
 
+def test_daily_until_create_visible_summary_includes_deadline():
+    def tool_entrypoint(**_kwargs):
+        result = _tool_reminder_result(title="跑步")
+        result["reminder"]["schedule"]["rrule"] = "FREQ=DAILY;UNTIL=20261206T150000Z"
+        result["summary"] = "已创建提醒：跑步（2026-05-01 09:30）"
+        return result
+
+    decision = SimpleNamespace(
+        action="create",
+        title="跑步",
+        trigger_at="2026-05-01T09:00:00+09:00",
+        rrule="FREQ=DAILY;UNTIL=20261206T150000Z",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert (
+        result.operations[0].facts["visible_summary"]
+        == "已创建提醒：跑步（每天 09:30，截止 2026-12-07）"
+    )
+
+
 def test_weekly_recurring_create_visible_summary_uses_weekly_label():
     def tool_entrypoint(**_kwargs):
         result = _tool_reminder_result(title="复盘")
@@ -293,7 +318,7 @@ def test_weekly_recurring_create_visible_summary_uses_weekly_label():
     )
 
 
-def test_hourly_recurring_create_visible_summary_keeps_recurring_label():
+def test_hourly_until_create_visible_summary_includes_deadline():
     def tool_entrypoint(**_kwargs):
         result = _tool_reminder_result(title="喝水")
         result["reminder"]["schedule"]["rrule"] = "FREQ=HOURLY;UNTIL=20260504T080000Z"
@@ -312,7 +337,10 @@ def test_hourly_recurring_create_visible_summary_keeps_recurring_label():
         session_state_setter=lambda session_state: None,
     ).execute(decision, _run_context())
 
-    assert result.operations[0].facts["visible_summary"] == "已创建提醒：喝水（每小时）"
+    assert (
+        result.operations[0].facts["visible_summary"]
+        == "已创建提醒：喝水（每小时，截止 2026-05-04 17:00）"
+    )
 
 
 def test_create_visible_summary_displays_nonzero_seconds():

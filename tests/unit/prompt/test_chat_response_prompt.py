@@ -16,6 +16,16 @@ def test_chat_response_prompt_does_not_turn_rest_plans_into_reminder_promises():
     assert "ask whether the user wants one" in INSTRUCTIONS_CHAT_RESPONSE
 
 
+def test_chat_response_prompt_forbids_claims_without_actual_reminder_write():
+    assert "upstream reminder decision is `clarify` or `discussion`" in INSTRUCTIONS_CHAT_RESPONSE
+    assert "actual reminder tool result is present" in INSTRUCTIONS_CHAT_RESPONSE
+
+
+def test_chat_response_prompt_surfaces_deadline_for_until_rrules():
+    assert "UNTIL clause or `deadline_at`" in INSTRUCTIONS_CHAT_RESPONSE
+    assert "surface the deadline" in INSTRUCTIONS_CHAT_RESPONSE
+
+
 def test_chat_response_prompt_treats_name_preferences_as_name_preferences():
     assert "name or address preference" in INSTRUCTIONS_CHAT_RESPONSE
     assert "Do not ask about reminder setup" in INSTRUCTIONS_CHAT_RESPONSE

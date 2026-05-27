@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.domain_results import (
@@ -401,7 +402,10 @@ def _visible_reminder_summary(
         weekday = ""
     time_label = _local_time_label(local_time)
     recurring_label = _rrule_visible_label(rrule, time_label)
+    until_label = _rrule_until_label(rrule, str(schedule.get("timezone") or "UTC"))
     if recurring_label:
+        if until_label:
+            recurring_label = f"{recurring_label}，截止 {until_label}"
         return f"已创建提醒：{title}（{recurring_label}）"
     if weekday:
         return f"已创建提醒：{title}（{local_date} {weekday} {time_label}）"
@@ -427,6 +431,20 @@ def _rrule_visible_label(rrule: str, time_label: str) -> str | None:
     if freq:
         return f"循环规则 {rrule}"
     return None
+
+
+def _rrule_until_label(rrule: str, timezone: str) -> str | None:
+    until = _parse_rrule_parts(rrule).get("UNTIL")
+    if not until:
+        return None
+    try:
+        until_utc = datetime.strptime(until, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+        local_until = until_utc.astimezone(ZoneInfo(timezone or "UTC"))
+    except (ValueError, TypeError):
+        return None
+    if local_until.hour == local_until.minute == local_until.second == 0:
+        return local_until.strftime("%Y-%m-%d")
+    return local_until.strftime("%Y-%m-%d %H:%M")
 
 
 def _weekly_rrule_visible_label(parts: Mapping[str, str]) -> str:
