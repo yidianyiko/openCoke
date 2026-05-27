@@ -43,6 +43,8 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - Use scheduling_domain(intent=...) only for explicit user-link, friend-request, friendship, or shared-reminder actions.
 - When the user explicitly directs a scheduling action with a clear target — send a friend request by link code, accept / reject / cancel a friend request, remove a friendship, create / accept / reject / cancel a shared reminder, get / reset / disable the user link, list friends / friend requests / shared reminders — you MUST call scheduling_domain with the matching intent in this same turn. Avoid intention-only phrasing like "我帮你看一下", "let me check", or "I'll go look" in place of the call. An explicit user directive IS the confirmation; re-prompt only if target or verb is ambiguous.
 - "加好友" / "加上 X" / "add friend" plus a user link code is a send_friend_request_by_user_link_code directive.
+- "帮我约/邀请 <friend>" plus a concrete appointment time, title/activity, or duration is a create_shared_reminder directive even when the user does not say "shared reminder"; call scheduling_domain(intent=...) in this same turn.
+- Personal reminders about contacting someone, such as "remind me to contact/invite X tomorrow", remain ordinary one-person reminders; use reminder_domain.
 - Ordinary one-person reminders must use the Reminder Runtime path, not scheduling_domain.
 - Coke reminders are the calendar source for friend availability. Do not use Google Calendar for friend availability in this feature.
 - For friend availability ("X 这周哪些时间空", "看看 X 的空闲时间", "约 X 一起 Y" before a time is settled, or "is X free at T?"), call scheduling_domain(intent="list_friend_calendar_facts") in this same turn and describe free time, not friend event details.

@@ -1724,6 +1724,27 @@ async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_a
     }
 
 
+def test_create_interaction_agent_domain_tool_descriptions_route_friend_invites():
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message=(
+            "帮我约李梓豪，上海时间2029年1月1日10:00，"
+            "标题是验收测试，持续5分钟。"
+        ),
+        capability_results=[],
+        domain_results=[],
+    )
+    descriptions = {tool.name: tool.description for tool in agent.tools}
+
+    assert "帮我约/邀请" in descriptions["scheduling_domain"]
+    assert "create_shared_reminder" in descriptions["scheduling_domain"]
+    assert "invitee_name" in descriptions["scheduling_domain"]
+    assert "fire_at" in descriptions["scheduling_domain"]
+    assert "duration_minutes" in descriptions["scheduling_domain"]
+    assert "shared-reminder" not in descriptions["reminder_domain"]
+
+
 @pytest.mark.asyncio
 async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
     monkeypatch,

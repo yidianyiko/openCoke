@@ -689,7 +689,7 @@ def _create_interaction_agent(
         }
 
         async def reminder_domain(**_model_supplied_args: Any) -> dict[str, Any]:
-            """Use for explicit reminder create, update, cancel, complete, or list requests."""
+            """Use for explicit personal reminder create, update, cancel, complete, or list requests. Do not use for friend appointment invitations."""
             async with reminder_domain_lock:
                 if "result" in reminder_domain_result:
                     return {
@@ -724,7 +724,7 @@ def _create_interaction_agent(
                 return result
 
         async def scheduling_domain(intent: Any = None) -> dict[str, Any]:
-            """Use for explicit user-link, friend-request, friendship, or shared-reminder actions."""
+            """Use for explicit user-link, friend-request, friendship, or shared-reminder actions. For friend invites like "帮我约/邀请 <friend>" with a concrete appointment time, call create_shared_reminder using canonical fields invitee_name, title, fire_at, timezone, and duration_minutes."""
             async with scheduling_domain_lock:
                 if preloaded_scheduling_domain_result is not None:
                     result = _scheduling_failure_result(

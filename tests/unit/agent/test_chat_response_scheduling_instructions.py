@@ -94,6 +94,15 @@ def test_delegation_boundary_covers_scheduling_routing():
     ) in text
 
 
+def test_delegation_boundary_routes_friend_invites_with_concrete_time_to_scheduling():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "帮我约/邀请" in text
+    assert "create_shared_reminder" in text
+    assert "concrete appointment time" in text
+    assert "remind me to contact" in text
+
+
 def test_delegation_boundary_keeps_direct_utility_tools_out_of_domain_routing():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
     assert "Use timezone, calendar_import, or url_context directly" in text
