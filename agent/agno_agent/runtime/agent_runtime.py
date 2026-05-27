@@ -138,31 +138,6 @@ _RETIRED_ACCOUNT_CONTROL_RE = re.compile(
     r"(屏蔽|拉黑|解除屏蔽|取消屏蔽|\b(?:unblock|block)\b)",
     re.IGNORECASE,
 )
-_DIRECT_SHARED_REMINDER_INVITE_VERB_RE = re.compile(
-    r"(?:帮我|替我|给我)?\s*(?:邀请|邀约|(?<!预)约)"
-)
-_DIRECT_SHARED_REMINDER_TIME_RE = re.compile(
-    r"(\d{4}年|\d{1,2}[:：]\d{2}|\d{1,2}\s*点|今天|明天|后天|"
-    r"周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|"
-    r"\b\d{1,2}\s*(?:am|pm)\b)",
-    re.IGNORECASE,
-)
-_DIRECT_SHARED_REMINDER_DETAIL_RE = re.compile(
-    r"(标题|持续|时长|\d+\s*(?:分钟|小时)|一起|共享提醒)"
-)
-_PERSONAL_CONTACT_REMINDER_RE = re.compile(
-    r"(提醒我|到时提醒我|记得提醒我|叫我).{0,16}(联系|约|邀请|找|问)"
-)
-_DIRECT_PERSONAL_REMINDER_CRUD_RE = re.compile(
-    r"(完成|标记.{0,8}完成|取消|删除|删掉|关掉|修改|更新|改到|改成|推迟|提前|延后|挪到|"
-    r"列(?:一下)?|查(?:一下)?|看看|有哪些)"
-    r".{0,48}(提醒|reminder|notification)"
-    r"|"
-    r"(提醒|reminder|notification)"
-    r".{0,48}(完成|取消|删除|删掉|关掉|修改|更新|改到|改成|推迟|提前|延后|挪到|"
-    r"列(?:一下)?|查(?:一下)?|看看|有哪些)",
-    re.IGNORECASE,
-)
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -308,35 +283,6 @@ def _product_notification_metadata(agent_input: AgentInput) -> Mapping[str, Any]
 def _is_retired_account_control_turn(input_message: str) -> bool:
     return bool(
         _RETIRED_ACCOUNT_CONTROL_RE.search(_latest_user_turn_text(input_message))
-    )
-
-
-def _direct_shared_reminder_create_intent(input_message: str) -> str | None:
-    text = _latest_user_turn_text(input_message)
-    if _PERSONAL_CONTACT_REMINDER_RE.search(text):
-        return None
-    if not _DIRECT_SHARED_REMINDER_INVITE_VERB_RE.search(text):
-        return None
-    if not _DIRECT_SHARED_REMINDER_TIME_RE.search(text):
-        return None
-    if not _DIRECT_SHARED_REMINDER_DETAIL_RE.search(text):
-        return None
-    return "create_shared_reminder"
-
-
-def _direct_personal_reminder_domain_required(input_message: str) -> bool:
-    from agent.agno_agent.capabilities import reminder_intent
-
-    text = reminder_intent._latest_user_turn_text(input_message)
-    if not text:
-        return False
-    if _direct_shared_reminder_create_intent(input_message) is not None:
-        return False
-    if "共享提醒" in text:
-        return False
-    return bool(
-        reminder_intent._REMINDER_VERB_PATTERN.search(text)
-        or _DIRECT_PERSONAL_REMINDER_CRUD_RE.search(text)
     )
 
 
@@ -2106,10 +2052,7 @@ async def run_agent_runtime(
     agent_input: AgentInput,
     run_context: AgentRunContext,
 ) -> AgentRunResult:
-    from agent.agno_agent.runtime.execution_agents import (
-        run_reminder_domain,
-        run_scheduling_domain,
-    )
+    from agent.agno_agent.runtime.execution_agents import run_scheduling_domain
 
     capability_results: list[CapabilityResult] = []
     domain_results: list[DomainExecutionResult] = []
@@ -2133,6 +2076,9 @@ async def run_agent_runtime(
                 "focus": focus_to_session_state(focus),
             },
         )
+        # Runtime safety guards only. These reject impossible or retired writes;
+        # supported reminder/scheduling intent routing belongs to the semantic
+        # interpreter and interaction-agent tool path below.
         explicit_past_result = _explicit_past_reminder_precheck(
             input_message,
             run_context,
@@ -2153,31 +2099,6 @@ async def run_agent_runtime(
                 started_at=started_at,
                 domain_result=_retired_account_control_result(),
             )
-        direct_scheduling_intent = _direct_shared_reminder_create_intent(input_message)
-        if (
-            direct_scheduling_intent is None
-            and agent_input.input_type == "user.turn"
-            and _direct_personal_reminder_domain_required(input_message)
-        ):
-            await run_reminder_domain(
-                input_message=input_message,
-                run_context=run_context,
-                domain_results=domain_results,
-            )
-            direct_reminder_result = domain_results[-1] if domain_results else None
-            domain_visible_text = _resolve_domain_visible_text(domain_results)
-            if (
-                direct_reminder_result is not None
-                and direct_reminder_result.outcome != "no_action"
-                and domain_visible_text
-            ):
-                return _domain_visible_text_result(
-                    agent_input=agent_input,
-                    run_context=run_context,
-                    input_message=input_message,
-                    started_at=started_at,
-                    domain_result=direct_reminder_result,
-                )
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
         semantic_client = (
             _create_semantic_intent_client()
@@ -2195,11 +2116,6 @@ async def run_agent_runtime(
         preselected_scheduling_intent, preselected_scheduling_args = (
             _semantic_scheduling_intent_and_args(semantic_result, focus)
         )
-        if (
-            preselected_scheduling_intent is None
-            and direct_scheduling_intent is not None
-        ):
-            preselected_scheduling_intent = direct_scheduling_intent
         if (
             preselected_scheduling_intent is None
             and _should_fail_closed_focused_semantic(focus, semantic_result)

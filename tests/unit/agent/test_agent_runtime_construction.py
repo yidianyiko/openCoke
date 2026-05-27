@@ -290,7 +290,9 @@ async def test_run_agent_runtime_uses_captured_capability_results(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypatch):
+async def test_run_agent_runtime_routes_explicit_reminder_through_agent_tool(
+    monkeypatch,
+):
     created = {}
     reminder_result = DomainExecutionResult(
         domain="reminder",
@@ -311,25 +313,29 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
         ),
     )
 
-    async def fake_run_reminder_domain(
-        *,
-        input_message,
-        run_context,
-        domain_results,
-    ):
-        del run_context
-        created["input_message"] = input_message
-        domain_results.append(reminder_result)
-        return reminder_result.to_dict()
+    async def fail_pre_agent_reminder_domain(**_kwargs):
+        raise AssertionError(
+            "personal reminder utterances must not bypass the interaction agent"
+        )
+
+    class FakeAgent:
+        def __init__(self, domain_results):
+            self.domain_results = domain_results
+
+        async def arun(self, **kwargs):
+            created["input_message"] = kwargs["input"]
+            self.domain_results.append(reminder_result)
+            return SimpleNamespace(
+                content="model text should not replace confirmed reminder summary",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
 
     def fake_create_interaction_agent(**kwargs):
-        raise AssertionError(
-            "explicit personal reminders should execute before agent tool selection"
-        )
+        return FakeAgent(kwargs["domain_results"])
 
     monkeypatch.setattr(
         "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
-        fake_run_reminder_domain,
+        fail_pre_agent_reminder_domain,
     )
     monkeypatch.setattr(
         agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
@@ -610,63 +616,39 @@ async def test_run_agent_runtime_prefers_domain_visible_summary_for_explicit_sch
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_preselects_friend_invite_with_concrete_time(
+async def test_run_agent_runtime_does_not_regex_preselect_friend_invite_with_concrete_time(
     monkeypatch,
 ):
-    captured = {}
-    preloaded_domain_result = DomainExecutionResult(
-        domain="scheduling",
-        outcome="executed",
-        operations=(
-            DomainOperationResult(
-                action="create_shared_reminder",
-                ok=True,
-                effect="write",
-                entity_type="shared_reminder_request",
-                entity_id="srr-1",
-                facts={"visible_summary": "已提交共享提醒请求，等待李梓豪确认。"},
-            ),
-        ),
-        missing_fields=(),
-        safety_boundary=None,
-        reply_contract=ReplyContract(
-            intent="confirm_execution",
-            required_facts=(),
-            required_questions=(),
-            prohibited_claims=("needs_more_info",),
-            allow_rephrase=True,
-        ),
-    )
+    semantic_calls = []
 
-    async def fake_run_scheduling_domain(
-        *,
-        input_message,
-        intent,
-        run_context,
-        domain_results,
-        forced_args=None,
-    ):
-        captured.update(
-            {
-                "input_message": input_message,
-                "intent": intent,
-                "run_context": run_context,
-                "forced_args": forced_args,
-            }
+    async def fail_run_scheduling_domain(**_kwargs):
+        raise AssertionError(
+            "shared reminder utterances must not be regex-preselected"
         )
-        domain_results.append(preloaded_domain_result)
-        return preloaded_domain_result.to_dict()
 
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="我看一下对方有没有空。",
+                content="我会按正常对话路径处理。",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
+    async def fake_interpret_semantic_intent(**kwargs):
+        semantic_calls.append(kwargs)
+        return agent_runtime.SemanticIntentResult(
+            intent="ambiguous",
+            confidence="low",
+            clarification_reason="semantic test control",
+        )
+
     monkeypatch.setattr(
         "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
-        fake_run_scheduling_domain,
+        fail_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "interpret_semantic_intent",
+        fake_interpret_semantic_intent,
     )
     monkeypatch.setattr(
         agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
@@ -689,10 +671,9 @@ async def test_run_agent_runtime_preselects_friend_invite_with_concrete_time(
         run_context=_run_context(),
     )
 
-    assert captured["intent"] == "create_shared_reminder"
-    assert captured["forced_args"] is None
+    assert semantic_calls[0]["current_utterance"] == agent_input.text
     assert [message.content for message in result.visible_messages] == [
-        "已提交共享提醒请求，等待李梓豪确认。"
+        "我会按正常对话路径处理。"
     ]
 
 
@@ -859,7 +840,7 @@ async def test_run_agent_runtime_prefers_explicit_past_reminder_failure_text(
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_directly_executes_explicit_personal_reminder(
+async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_reminder(
     monkeypatch,
 ):
     reminder_result = DomainExecutionResult(
@@ -882,28 +863,33 @@ async def test_run_agent_runtime_directly_executes_explicit_personal_reminder(
     )
     captured = {}
 
-    async def fake_run_reminder_domain(
-        *,
-        input_message,
-        run_context,
-        domain_results,
-    ):
-        captured["input_message"] = input_message
-        captured["run_context"] = run_context
-        domain_results.append(reminder_result)
-        return reminder_result.to_dict()
-
-    def fail_create_interaction_agent(**_kwargs):
+    async def fail_pre_agent_reminder_domain(**_kwargs):
         raise AssertionError(
-            "explicit personal reminders should not wait for model tool selection"
+            "personal reminder utterances must not bypass the interaction agent"
         )
+
+    class FakeAgent:
+        def __init__(self, domain_results):
+            self.domain_results = domain_results
+
+        async def arun(self, **kwargs):
+            captured["input_message"] = kwargs["input"]
+            self.domain_results.append(reminder_result)
+            return SimpleNamespace(
+                content="model text should not replace confirmed reminder summary",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        captured["run_context"] = kwargs["run_context"]
+        return FakeAgent(kwargs["domain_results"])
 
     monkeypatch.setattr(
         "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
-        fake_run_reminder_domain,
+        fail_pre_agent_reminder_domain,
     )
     monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
     )
 
     agent_input = _agent_input()
@@ -929,7 +915,7 @@ async def test_run_agent_runtime_directly_executes_explicit_personal_reminder(
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_directly_executes_explicit_personal_reminder_crud(
+async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_reminder_crud(
     monkeypatch,
 ):
     reminder_result = DomainExecutionResult(
@@ -952,27 +938,32 @@ async def test_run_agent_runtime_directly_executes_explicit_personal_reminder_cr
     )
     captured = {}
 
-    async def fake_run_reminder_domain(
-        *,
-        input_message,
-        run_context,
-        domain_results,
-    ):
-        captured["input_message"] = input_message
-        domain_results.append(reminder_result)
-        return reminder_result.to_dict()
-
-    def fail_create_interaction_agent(**_kwargs):
+    async def fail_pre_agent_reminder_domain(**_kwargs):
         raise AssertionError(
-            "explicit personal reminder CRUD should not wait for model tool selection"
+            "personal reminder CRUD must not bypass the interaction agent"
         )
+
+    class FakeAgent:
+        def __init__(self, domain_results):
+            self.domain_results = domain_results
+
+        async def arun(self, **kwargs):
+            captured["input_message"] = kwargs["input"]
+            self.domain_results.append(reminder_result)
+            return SimpleNamespace(
+                content="model text should not replace confirmed reminder summary",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        return FakeAgent(kwargs["domain_results"])
 
     monkeypatch.setattr(
         "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
-        fake_run_reminder_domain,
+        fail_pre_agent_reminder_domain,
     )
     monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
     )
 
     agent_input = _agent_input()
@@ -995,16 +986,6 @@ async def test_run_agent_runtime_directly_executes_explicit_personal_reminder_cr
         "已完成提醒：做俯卧撑"
     ]
     assert result.domain_results == (reminder_result,)
-
-
-def test_direct_personal_reminder_route_ignores_shared_reminder_acceptance():
-    assert (
-        agent_runtime._direct_personal_reminder_domain_required(
-            "接受 olivers 发来的 羽毛球 共享提醒。"
-        )
-        is False
-    )
-
 
 @pytest.mark.asyncio
 async def test_run_agent_runtime_prefers_reminder_list_visible_summary(monkeypatch):
