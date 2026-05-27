@@ -277,7 +277,7 @@ async def test_preselected_scheduling_failure_summary_becomes_visible_text(monke
                     action="create_shared_reminder",
                     ok=False,
                     effect="none",
-                    entity_type="shared_reminder_request",
+                    entity_type="shared_reminder",
                     entity_id=None,
                     facts={"summary": "这个时间已经过去了，请给我一个未来的上课时间。"},
                     error=DomainError(
@@ -392,24 +392,18 @@ async def test_multimodal_text_content_newlines_become_visible_segments(monkeypa
     ]
 
 
-def test_unconfirmed_durable_write_friend_accept_patterns():
-    """Regression: when the assistant lies about accepting a friend request
-    without a successful scheduling write, the unconfirmed-write detector
-    must trip. The chat persona occasionally produces "已经通过 / 你们现在是
-    好友啦" text even when accept_friend_request returned friend_request_not_found."""
+def test_unconfirmed_durable_write_direct_friendship_patterns():
+    """Regression: "now you are friends" claims require a successful write."""
     from agent.agno_agent.runtime.agent_runtime import (
         _UNCONFIRMED_DURABLE_WRITE_PATTERNS,
     )
 
     must_match = [
-        "好嘞，Bob 的跑步搭子请求已经通过啦！",
-        "已经通过 Bob 的好友请求。",
-        "I've accepted the friend request.",
         "now you are friends.",
         "你们现在是好朋友啦~",
     ]
     must_skip = [
-        "等对方通过你的好友请求就成啦",  # safe — describes the other side, no first-person claim
+        "需要先和对方建立好友关系才行",  # safe — no first-person write claim
         "建共享提醒需要先把对方加为好友。",  # decline
         "要通过还是拒绝？",  # asking user
     ]
@@ -479,7 +473,7 @@ async def test_malformed_envelope_json_recovers_text_segments(monkeypatch):
     # Real example from smoke batch 143020Z T5: extra closing `}` before `]`.
     raw = (
         '{"MultiModalResponses": [{"type": "text", "content": '
-        '"没有待处理的好友请求，目前都是清空的。"}}]}'
+        '"没有共享提醒，目前都是清空的。"}}]}'
     )
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": raw}],
@@ -488,7 +482,7 @@ async def test_malformed_envelope_json_recovers_text_segments(monkeypatch):
         content=raw,
     )
     assert [m.content for m in result.visible_messages] == [
-        "没有待处理的好友请求，目前都是清空的。",
+        "没有共享提醒，目前都是清空的。",
     ]
 
 
@@ -720,9 +714,7 @@ async def test_rejected_reminder_domain_summary_overrides_ambiguous_model_text(
         content="你是想让我提醒你约课，还是让我直接帮你约课？",
     )
 
-    assert [message.content for message in result.visible_messages] == [
-        visible_summary
-    ]
+    assert [message.content for message in result.visible_messages] == [visible_summary]
     assert result.error_disposition is None
 
 
@@ -834,7 +826,7 @@ async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_wri
 
 
 @pytest.mark.asyncio
-async def test_shared_reminder_invite_sent_claim_fails_closed_without_confirmed_write(
+async def test_shared_reminder_pending_confirmation_claim_fails_closed(
     monkeypatch,
 ):
     text = "搞定了！今天上午11点去奇迹创坛的邀请已经发给 eva 了，等他确认～"
@@ -854,7 +846,7 @@ async def test_shared_reminder_invite_sent_claim_fails_closed_without_confirmed_
 
 
 @pytest.mark.asyncio
-async def test_shared_reminder_invite_sent_claim_requires_create_shared_reminder_write(
+async def test_shared_reminder_pending_confirmation_claim_rejected_after_other_write(
     monkeypatch,
 ):
     unrelated_write = DomainExecutionResult(
@@ -862,12 +854,12 @@ async def test_shared_reminder_invite_sent_claim_requires_create_shared_reminder
         outcome="executed",
         operations=(
             DomainOperationResult(
-                action="accept_friend_request",
+                action="reset_user_link",
                 ok=True,
                 effect="write",
-                entity_type="friend_request",
-                entity_id="fr_1",
-                facts={"visible_summary": "已通过好友请求。"},
+                entity_type="user_link",
+                entity_id="link_1",
+                facts={"visible_summary": "已重置用户链接。"},
             ),
         ),
     )
@@ -889,7 +881,7 @@ async def test_shared_reminder_invite_sent_claim_requires_create_shared_reminder
 
 
 @pytest.mark.asyncio
-async def test_shared_reminder_invite_sent_claim_allowed_after_create_write(
+async def test_shared_reminder_creation_claim_allowed_after_create_write(
     monkeypatch,
 ):
     create_write = DomainExecutionResult(
@@ -900,13 +892,13 @@ async def test_shared_reminder_invite_sent_claim_allowed_after_create_write(
                 action="create_shared_reminder",
                 ok=True,
                 effect="write",
-                entity_type="shared_reminder_request",
+                entity_type="shared_reminder",
                 entity_id="srr_1",
-                facts={"visible_summary": "已提交共享提醒请求。"},
+                facts={"visible_summary": "已创建共享提醒。"},
             ),
         ),
     )
-    text = "邀请已经发给 eva 了，等他确认。"
+    text = "已创建和 eva 的共享提醒。"
 
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": text}],
@@ -914,76 +906,6 @@ async def test_shared_reminder_invite_sent_claim_allowed_after_create_write(
         domain_results=[create_write],
         monkeypatch=monkeypatch,
         input_text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
-        content=text,
-    )
-
-    assert result.output_disposition.status == "ok"
-    assert [message.content for message in result.visible_messages] == [text]
-
-
-@pytest.mark.asyncio
-async def test_shared_reminder_accept_claim_fails_closed_without_confirmed_write(
-    monkeypatch,
-):
-    failed_accept = DomainExecutionResult(
-        domain="scheduling",
-        outcome="failed",
-        operations=(),
-        missing_fields=(),
-        reply_contract=ReplyContract(
-            intent="report_failure",
-            prohibited_claims=("appointment_confirmed",),
-            allow_rephrase=True,
-        ),
-        error=DomainError(
-            code="invalid_scheduling_intent",
-            message="scheduling intent could not be resolved",
-            retryable=False,
-        ),
-    )
-    text = "收到，你已经接受了 olivers 的「羽毛球」共享提醒，记下了～"
-
-    result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": text}],
-        capability_results=[],
-        domain_results=[failed_accept],
-        monkeypatch=monkeypatch,
-        input_text="接受 olivers 发来的羽毛球共享提醒",
-        content=text,
-    )
-
-    assert result.visible_messages == ()
-    assert result.output_disposition.status == "empty"
-    assert result.error_disposition is not None
-    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
-
-
-@pytest.mark.asyncio
-async def test_shared_reminder_accept_claim_allowed_after_accept_write(
-    monkeypatch,
-):
-    accept_write = DomainExecutionResult(
-        domain="scheduling",
-        outcome="executed",
-        operations=(
-            DomainOperationResult(
-                action="accept_shared_reminder",
-                ok=True,
-                effect="write",
-                entity_type="shared_reminder_request",
-                entity_id="srr_1",
-                facts={"visible_summary": "已接受共享提醒。"},
-            ),
-        ),
-    )
-    text = "收到，你已经接受了 olivers 的「羽毛球」共享提醒，记下了～"
-
-    result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": text}],
-        capability_results=[],
-        domain_results=[accept_write],
-        monkeypatch=monkeypatch,
-        input_text="接受 olivers 发来的羽毛球共享提醒",
         content=text,
     )
 
@@ -1001,7 +923,7 @@ async def test_scheduling_write_without_visible_summary_fails_closed(monkeypatch
                 action="create_shared_reminder",
                 ok=True,
                 effect="write",
-                entity_type="shared_reminder_request",
+                entity_type="shared_reminder",
                 entity_id="srr_1",
                 facts={},
             ),

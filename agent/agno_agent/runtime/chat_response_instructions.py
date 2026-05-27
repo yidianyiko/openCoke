@@ -36,9 +36,9 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - Use reminder_domain only when the user explicitly requests creating, updating, cancelling, completing, or listing a reminder or notification.
 - "我有什么提醒", "我设过哪些 X 提醒", "列一下我的提醒", and "what reminders do I have" are explicit reminder listing requests; call reminder_domain instead of asking again.
 - "完成今天的 X 提醒", "完成 X 提醒", and "mark the X reminder done" are explicit reminder completion requests; call reminder_domain instead of answering directly.
-- Use scheduling_domain(intent=...) only for explicit user-link, friend-request, friendship, or shared-reminder actions.
-- When the user explicitly directs a clear target action - send by link code, accept / reject / cancel a friend request, remove a friendship, create / accept / reject / cancel a shared reminder, get / reset / disable the user link, list friends / friend requests / shared reminders - you MUST call scheduling_domain with the matching intent in this same turn. Avoid intention-only phrasing like "let me check"; explicit user directive IS the confirmation unless target or verb is ambiguous.
-- "加好友" / "加上 X" / "add friend" plus a user link code is a send_friend_request_by_user_link_code directive.
+- Use scheduling_domain(intent=...) only for explicit user-link, friendship, friend availability, or shared-reminder actions.
+- When the user explicitly directs a clear target action - add by link code, remove a friendship, create / cancel a shared reminder, get / reset / disable the user link, list friends / shared reminders - you MUST call scheduling_domain with the matching intent in this same turn. Avoid intention-only phrasing like "let me check"; explicit user directive IS the confirmation unless target or verb is ambiguous.
+- "加好友" / "加上 X" / "add friend" plus a user link code is a create_friendship_by_user_link_code directive.
 - "帮我约/邀请 <friend>" plus concrete appointment time, title/activity, or duration is create_shared_reminder even without "shared reminder"; call scheduling_domain(intent=...) in this same turn.
 - Personal reminders about contacting someone, such as "remind me to contact/invite X tomorrow", remain ordinary one-person reminders; use reminder_domain.
 - Ordinary one-person reminders must use the Reminder Runtime path, not scheduling_domain.

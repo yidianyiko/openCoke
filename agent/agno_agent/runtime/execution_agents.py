@@ -29,13 +29,12 @@ from agent.agno_agent.runtime.scheduling_types import _compact_scheduling_args
 
 _SCHEDULING_SYSTEM_PROMPT = """## Role
 You are the friend-link, friend-calendar, and shared-reminder execution worker.
-Call exactly one scheduling tool matching the intent, except for lookup-then-act sequences described here.
+Call exactly one scheduling tool matching the intent.
 
 ## Tool selection
-- Add friend by public user-link code: call send_friend_request_by_user_link_code with user_link_code.
-- accept/reject/cancel friend request: pass friend_name when present and no request_id is known; otherwise call without a name. Gateway resolves one pending request and fails closed on ambiguity, no match, or multiple unnamed requests.
-- accept/reject shared reminder: pass requester_name and/or title when no request_id is known; cancel shared reminder: pass invitee_name and/or title. Gateway resolves one pending shared reminder and fails closed on missing or ambiguous matches.
-- create_shared_reminder: pass invitee_name when the user named a friend but not an account id; do not call list_friends. Derive title from the concrete shared item in the current user message, never product defaults or older topics.
+- Add friend by public user-link code: call create_friendship_by_user_link_code with user_link_code.
+- cancel_shared_reminder: pass request_id, friendship_id, friend_name, and/or title when known. Gateway resolves the active shared reminder and fails closed on missing or ambiguous matches.
+- create_shared_reminder: pass receiver_name when the user named a friend but not an account id; do not call list_friends. Derive title from the concrete shared item in the current user message, never product defaults or older topics.
 - list_shared_reminders: pass friend_name when named; pass status when the user asks about a specific state. For current-account overviews such as my courses today, omit friend_name and pass from_date, to_date, and timezone for the requested local day.
 - list_friend_calendar_facts: pass friend_name and always pass from_date + to_date as ISO YYYY-MM-DD strings plus timezone. Default to today and today+7 days when no range is stated. Do NOT call list_friends first; the gateway resolver does it. Missing dates or timezone cause invalid_body. Use only privacy-safe busy intervals to describe free time.
 
@@ -48,19 +47,12 @@ Call exactly one scheduling tool matching the intent, except for lookup-then-act
 - Do not treat an iLink QR as a public user-link QR.""".strip()
 
 _FOCUS_WRITE_TO_READ_TOOL = {
-    "accept_friend_request": "list_friend_requests",
-    "reject_friend_request": "list_friend_requests",
-    "cancel_friend_request": "list_friend_requests",
-    "accept_shared_reminder": "list_shared_reminders",
-    "reject_shared_reminder": "list_shared_reminders",
     "cancel_shared_reminder": "list_shared_reminders",
 }
 
-_FRIEND_REQUEST_PENDING_STATUS = "pending"
-_SHARED_REMINDER_PENDING_STATUS = "pending_invitee_confirmation"
 _CREATE_SHARED_REMINDER_FORCED_ARG_KEYS = {
-    "invitee_account_id",
-    "invitee_name",
+    "receiver_account_id",
+    "receiver_name",
     "friend_account_id",
     "friendship_id",
     "title",
@@ -107,9 +99,7 @@ def _scheduling_entity_type(tool_name: str) -> str:
     if tool_name == "list_friend_calendar_facts":
         return "friend_calendar_facts"
     if "shared_reminder" in tool_name:
-        return "shared_reminder_request"
-    if "friend_request" in tool_name:
-        return "friend_request"
+        return "shared_reminder"
     if "friendship" in tool_name or tool_name == "list_friends":
         return "friendship"
     return "user_link"
@@ -119,8 +109,7 @@ def _scheduling_entity_id(tool_name: str, content: dict[str, Any]) -> str | None
     for key in (
         "request_id",
         "friendship_id",
-        "shared_reminder_request_id",
-        "friend_request_id",
+        "shared_reminder_id",
         "user_link_id",
         "link_id",
         "id",
@@ -329,8 +318,8 @@ def _make_scheduling_tool_fn(
         target_account_id: str | None = None,
         from_date: str | None = None,
         to_date: str | None = None,
-        invitee_account_id: str | None = None,
-        invitee_name: str | None = None,
+        receiver_account_id: str | None = None,
+        receiver_name: str | None = None,
         friend_account_id: str | None = None,
         title: str | None = None,
         fire_at: str | None = None,
@@ -345,7 +334,7 @@ def _make_scheduling_tool_fn(
         message: str | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        normalized_invitee_account_id = invitee_account_id or friend_account_id
+        normalized_receiver_account_id = receiver_account_id or friend_account_id
         normalized_friendship_id = friendship_id
         if execution_guard is not None and not await execution_guard.claim(tool_name):
             duplicate = DomainExecutionResult(
@@ -380,8 +369,8 @@ def _make_scheduling_tool_fn(
                     "target_account_id": target_account_id,
                     "from_date": from_date,
                     "to_date": to_date,
-                    "invitee_account_id": normalized_invitee_account_id,
-                    "invitee_name": invitee_name,
+                    "receiver_account_id": normalized_receiver_account_id,
+                    "receiver_name": receiver_name,
                     "title": title,
                     "fire_at": fire_at,
                     "duration_minutes": duration_minutes,
@@ -428,8 +417,8 @@ def _make_scheduling_tool_fn(
         target_account_id: str | None = None,
         from_date: str | None = None,
         to_date: str | None = None,
-        invitee_account_id: str | None = None,
-        invitee_name: str | None = None,
+        receiver_account_id: str | None = None,
+        receiver_name: str | None = None,
         friend_account_id: str | None = None,
         title: str | None = None,
         fire_at: str | None = None,
@@ -449,8 +438,8 @@ def _make_scheduling_tool_fn(
             target_account_id=target_account_id,
             from_date=from_date,
             to_date=to_date,
-            invitee_account_id=invitee_account_id,
-            invitee_name=invitee_name,
+            receiver_account_id=receiver_account_id,
+            receiver_name=receiver_name,
             friend_account_id=friend_account_id,
             title=title,
             fire_at=fire_at,
@@ -475,33 +464,24 @@ def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
         return ("list_shared_reminders",)
     if "create_shared_reminder" in normalized:
         return ("create_shared_reminder",)
-    if "send_friend_request_by_user_link_code" in normalized:
-        return ("send_friend_request_by_user_link_code",)
+    if "create_friendship_by_user_link_code" in normalized:
+        return ("create_friendship_by_user_link_code",)
     if (
         "user_link" in normalized
         or "user link" in normalized
         or "link code" in normalized
     ) and ("friend" in normalized or "add" in normalized):
-        return ("send_friend_request_by_user_link_code",)
+        return ("create_friendship_by_user_link_code",)
     if ("链接码" in intent or "邀请链接" in intent) and (
         "加好友" in intent or "好友" in intent
     ):
-        return ("send_friend_request_by_user_link_code",)
-    # Single-write intents — restrict to that one tool so the inner LLM cannot
-    # silently fall back to a read tool like list_friend_requests when the
-    # user message also contains read-tinted keywords ("未处理", "看一下").
-    # Gateway resolves friend_name / requester_name server-side.
+        return ("create_friendship_by_user_link_code",)
+    # Single-write intents - restrict to that one tool so the inner LLM cannot
+    # silently fall back to a read tool when the user message also contains
+    # read-tinted keywords ("看一下").
     for single in (
-        "accept_friend_request",
-        "reject_friend_request",
-        "cancel_friend_request",
         "remove_friendship",
-        "accept_shared_reminder",
-        "reject_shared_reminder",
         "cancel_shared_reminder",
-        "accept_pending_shared_reminders_from",
-        "reject_pending_shared_reminders_from",
-        "cancel_pending_shared_reminders_for",
     ):
         if single in normalized:
             return (single,)
@@ -529,12 +509,7 @@ def _normalize_forced_scheduling_call(
             continue
         candidate = value.strip()
         if candidate in {
-            "accept_shared_reminder",
-            "reject_shared_reminder",
             "cancel_shared_reminder",
-            "accept_pending_shared_reminders_from",
-            "reject_pending_shared_reminders_from",
-            "cancel_pending_shared_reminders_for",
         }:
             normalized_intent = candidate
             normalized_args.pop(key, None)
@@ -560,8 +535,8 @@ def _normalize_forced_scheduling_call(
         has_counterparty = any(
             str(normalized_args.get(key) or "").strip()
             for key in (
-                "invitee_account_id",
-                "invitee_name",
+                "receiver_account_id",
+                "receiver_name",
                 "friend_account_id",
                 "friendship_id",
             )
@@ -622,12 +597,8 @@ def _records_from_freshness_result(
     tool_name: str,
     content: Mapping[str, Any],
 ) -> list[Mapping[str, Any]]:
-    keys = (
-        ("friend_requests", "requests", "value")
-        if tool_name == "list_friend_requests"
-        else ("shared_reminders", "pending", "value")
-    )
-    for key in keys:
+    del tool_name
+    for key in ("shared_reminders", "reminders", "value"):
         records = content.get(key)
         if isinstance(records, Sequence) and not isinstance(
             records, (str, bytes, bytearray)
@@ -646,10 +617,8 @@ def _matching_fresh_record(
             "id",
             "request_id",
             "requestId",
-            "friend_request_id",
-            "friendRequestId",
-            "shared_reminder_request_id",
-            "sharedReminderRequestId",
+            "shared_reminder_id",
+            "sharedReminderId",
         )
         if candidate == request_id:
             return record
@@ -657,26 +626,18 @@ def _matching_fresh_record(
 
 
 def _actor_field_for_tool(tool_name: str) -> tuple[str, str]:
-    if tool_name == "cancel_friend_request":
-        return "requesterAccountId", "requester_account_id"
-    if tool_name in {"accept_friend_request", "reject_friend_request"}:
-        return "targetAccountId", "target_account_id"
     if tool_name == "cancel_shared_reminder":
-        return "requesterAccountId", "requester_account_id"
-    return "inviteeAccountId", "invitee_account_id"
+        return "creatorAccountId", "creator_account_id"
+    return "receiverAccountId", "receiver_account_id"
 
 
 def _fresh_record_status_is_actionable(
     tool_name: str, record: Mapping[str, Any]
 ) -> bool:
     status = _record_value(record, "status")
-    if tool_name in {
-        "accept_friend_request",
-        "reject_friend_request",
-        "cancel_friend_request",
-    }:
-        return status == _FRIEND_REQUEST_PENDING_STATUS
-    return status in {_SHARED_REMINDER_PENDING_STATUS, _FRIEND_REQUEST_PENDING_STATUS}
+    if tool_name == "cancel_shared_reminder":
+        return status == "active"
+    return False
 
 
 def _fresh_record_belongs_to_actor(

@@ -90,8 +90,10 @@ def test_delegation_boundary_covers_scheduling_routing():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
     assert "Use scheduling_domain(intent=..." in text
     assert (
-        "explicit user-link, friend-request, friendship, or shared-reminder actions"
-    ) in text
+        "explicit user-link, friendship, friend availability, or shared-reminder actions"
+        in text
+    )
+    assert "friend-request" not in text
 
 
 def test_delegation_boundary_routes_friend_invites_with_concrete_time_to_scheduling():
@@ -136,16 +138,17 @@ def test_delegation_boundary_restores_scheduling_safety_policy():
     assert "Do not treat an iLink QR as a public friend-link QR" in text
     assert "personal-channel binding" in text
     # The legacy "ask for confirmation" rule was over-cautious — the model
-    # interpreted an explicit "通过 Bob 的好友请求" command as still needing
+    # interpreted an explicit add-friend command as still needing
     # a re-prompt. The replacement rule mandates the scheduling call directly
     # when the user gives an unambiguous directive, and folds the active action
-    # surface (accept/reject/cancel, remove friendship, shared-reminder ops,
-    # user-link ops) into one place.
+    # surface (direct add, remove friendship, shared-reminder ops, user-link
+    # ops) into one place.
     assert "you MUST call scheduling_domain" in text
-    assert "accept / reject / cancel a friend request" in text
+    assert "add by link code" in text
     assert "remove a friendship" in text
     assert "block / unblock an account" not in text
-    assert "create / accept / reject / cancel a shared reminder" in text
+    assert "create / cancel a shared reminder" in text
+    assert "accept / reject" not in text
     assert "get / reset / disable the user link" in text
     assert "intention-only phrasing" in text
     assert "explicit user directive IS the confirmation" in text
@@ -170,7 +173,10 @@ def test_friend_calendar_policy_keeps_backend_facts_and_llm_reasoning_separate()
     assert "describe free time, not friend event details" in text
     assert "When no date range is provided" not in text
     assert "Do not call list_friends first" not in text
-    assert "Do not reveal reminder titles, prompts, metadata, ids, or output targets" not in text
+    assert (
+        "Do not reveal reminder titles, prompts, metadata, ids, or output targets"
+        not in text
+    )
     assert "For a reminder about attending a fitness class" not in text
     assert "The tool returns busy intervals only" not in text
 
@@ -221,9 +227,7 @@ def test_trusted_focus_block_survives_frozen_session_state():
     text = build_chat_response_instructions(ctx, _user_turn_input())
 
     assert '<trusted kind="focus">' in text
-    focus_block = text.split('<trusted kind="focus">', 1)[1].split(
-        "</trusted>", 1
-    )[0]
+    focus_block = text.split('<trusted kind="focus">', 1)[1].split("</trusted>", 1)[0]
     assert '"ambiguity": "none_actionable"' in focus_block
 
 
@@ -296,7 +300,9 @@ def test_chat_response_instructions_omits_agent_instance_profile_when_empty():
 
 
 def test_product_notification_metadata_is_not_used_as_focus_truth():
-    text = build_chat_response_instructions(_run_context(), _product_notification_input())
+    text = build_chat_response_instructions(
+        _run_context(), _product_notification_input()
+    )
 
     assert "product_notification:" not in text
     assert '<trusted kind="focus">' in text

@@ -13,7 +13,7 @@ def test_compact_scheduling_args_strips_none_and_empty_string():
 
 def test_compact_scheduling_args_serializes_shared_reminder_args():
     args = SharedReminderSchedulingArgs(
-        invitee_account_id="acct_a",
+        receiver_account_id="acct_a",
         title="meeting",
         fire_at="2026-05-22T07:00:00.000Z",
         timezone="Asia/Shanghai",
@@ -27,8 +27,8 @@ def test_compact_scheduling_args_serializes_shared_reminder_args():
             "target_account_id": None,
             "from_date": None,
             "to_date": None,
-            "invitee_account_id": "acct_a",
-            "invitee_name": None,
+            "receiver_account_id": "acct_a",
+            "receiver_name": None,
             "friend_account_id": None,
             "title": "meeting",
             "fire_at": "2026-05-22T07:00:00.000Z",
@@ -54,7 +54,7 @@ def test_compact_scheduling_args_passes_through_primitives():
 
 def test_shared_reminder_scheduling_args_round_trips():
     args = SharedReminderSchedulingArgs(
-        invitee_account_id="acct_a",
+        receiver_account_id="acct_a",
         title="meeting",
         fire_at="2026-05-22T07:00:00.000Z",
         timezone="Asia/Shanghai",
@@ -69,8 +69,8 @@ def test_shared_reminder_scheduling_args_round_trips():
         "target_account_id": None,
         "from_date": None,
         "to_date": None,
-        "invitee_account_id": "acct_a",
-        "invitee_name": None,
+        "receiver_account_id": "acct_a",
+        "receiver_name": None,
         "friend_account_id": None,
         "title": "meeting",
         "fire_at": "2026-05-22T07:00:00.000Z",

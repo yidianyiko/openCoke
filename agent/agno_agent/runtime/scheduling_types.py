@@ -10,8 +10,8 @@ class SharedReminderSchedulingArgs(BaseModel):
     target_account_id: str | None = None
     from_date: str | None = None
     to_date: str | None = None
-    invitee_account_id: str | None = None
-    invitee_name: str | None = None
+    receiver_account_id: str | None = None
+    receiver_name: str | None = None
     friend_account_id: str | None = None
     title: str | None = None
     fire_at: str | None = None

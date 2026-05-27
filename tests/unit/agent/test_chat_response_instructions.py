@@ -99,8 +99,12 @@ def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
     assert "Do not invent a reminder or scheduling action" in prompt
     assert "casual mention of time" in prompt
     assert "shared-reminder actions" in prompt
-    assert "create / accept / reject / cancel a shared reminder" in prompt
-    assert "Do not call reminder_domain or scheduling_domain for the booking itself" not in prompt
+    assert "create / cancel a shared reminder" in prompt
+    assert "accept / reject" not in prompt
+    assert (
+        "Do not call reminder_domain or scheduling_domain for the booking itself"
+        not in prompt
+    )
     assert "Requests to book, reserve, or schedule" not in prompt
 
 
@@ -263,8 +267,14 @@ def test_prompt_omits_onboarding_for_existing_user():
 def test_prompt_removes_broad_booking_refusal_but_keeps_shared_reminder_contract():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
-    assert "Requests to book, reserve, or schedule a coach, class, lesson, or session are unsupported" not in prompt
-    assert "Do not call reminder_domain or scheduling_domain for the booking itself" not in prompt
+    assert (
+        "Requests to book, reserve, or schedule a coach, class, lesson, or session are unsupported"
+        not in prompt
+    )
+    assert (
+        "Do not call reminder_domain or scheduling_domain for the booking itself"
+        not in prompt
+    )
     assert "only create a reminder after the user asks for a reminder" not in prompt
     assert "shared-reminder actions" in prompt
     assert "A shared reminder requires one active friend" not in prompt

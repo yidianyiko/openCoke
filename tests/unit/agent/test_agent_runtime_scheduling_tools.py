@@ -49,8 +49,8 @@ async def test_scheduling_tool_fn_dispatches_model_args():
         domain_results=domain_results,
     )
     result = await fn(
-        invitee_account_id="acct_a",
-        invitee_name="Coach A",
+        receiver_account_id="acct_a",
+        receiver_name="Coach A",
         title="meeting",
         fire_at="2026-05-22T07:00:00.000Z",
         timezone="Asia/Shanghai",
@@ -65,8 +65,8 @@ async def test_scheduling_tool_fn_dispatches_model_args():
             "Help me and A remember the meeting",
             context,
             {
-                "invitee_account_id": "acct_a",
-                "invitee_name": "Coach A",
+                "receiver_account_id": "acct_a",
+                "receiver_name": "Coach A",
                 "title": "meeting",
                 "fire_at": "2026-05-22T07:00:00.000Z",
                 "timezone": "Asia/Shanghai",
@@ -90,8 +90,10 @@ def test_scheduling_tool_fn_schema_exposes_top_level_arguments():
     function = tool(name="create_shared_reminder")(fn)
 
     assert "kwargs" not in function.parameters["properties"]
-    assert "invitee_account_id" in function.parameters["properties"]
-    assert "invitee_name" in function.parameters["properties"]
+    assert "receiver_account_id" in function.parameters["properties"]
+    assert "receiver_name" in function.parameters["properties"]
+    assert "invitee_account_id" not in function.parameters["properties"]
+    assert "invitee_name" not in function.parameters["properties"]
     assert "friend_account_id" in function.parameters["properties"]
     assert "title" in function.parameters["properties"]
     assert "fire_at" in function.parameters["properties"]
@@ -101,7 +103,7 @@ def test_scheduling_tool_fn_schema_exposes_top_level_arguments():
 
 
 @pytest.mark.asyncio
-async def test_scheduling_tool_fn_maps_friend_account_id_to_invitee_account_id():
+async def test_scheduling_tool_fn_maps_friend_account_id_to_receiver_account_id():
     port = RecordingPort(name="create_shared_reminder")
     fn = _make_scheduling_tool_fn(
         "create_shared_reminder",
@@ -119,7 +121,7 @@ async def test_scheduling_tool_fn_maps_friend_account_id_to_invitee_account_id()
     )
 
     assert port.calls[0][2] == {
-        "invitee_account_id": "acct_nora",
+        "receiver_account_id": "acct_nora",
         "title": "meeting",
         "fire_at": "2026-05-22T07:00:00.000Z",
         "timezone": "Asia/Shanghai",
@@ -205,10 +207,10 @@ def test_scheduling_tool_fn_schema_exposes_friend_and_shared_reminder_arguments(
 
 
 @pytest.mark.asyncio
-async def test_scheduling_tool_fn_dispatches_user_link_code_friend_request_args():
-    port = RecordingPort(name="send_friend_request_by_user_link_code")
+async def test_scheduling_tool_fn_dispatches_user_link_code_friendship_args():
+    port = RecordingPort(name="create_friendship_by_user_link_code")
     fn = _make_scheduling_tool_fn(
-        "send_friend_request_by_user_link_code",
+        "create_friendship_by_user_link_code",
         port,
         input_message="我要加 Ming 为好友，链接码 AbCdEfGhIjK_，备注：一起测试提醒。",
         run_context=_run_context(),
@@ -225,31 +227,6 @@ async def test_scheduling_tool_fn_dispatches_user_link_code_friend_request_args(
         "user_link_code": "AbCdEfGhIjK_",
         "message": "一起测试提醒",
         "idempotency_key": "friend:req:code",
-    }
-
-
-@pytest.mark.asyncio
-async def test_scheduling_tool_fn_dispatches_friend_name_for_friend_request_actions():
-    port = RecordingPort(name="accept_friend_request")
-    fn = _make_scheduling_tool_fn(
-        "accept_friend_request",
-        port,
-        input_message="通过 Bob 的好友请求",
-        run_context=_run_context(),
-        domain_results=[],
-    )
-
-    await fn(
-        friend_name="Bob",
-        requester_name="Bob",
-        request_id="",
-        idempotency_key="friend:req:accept",
-    )
-
-    assert port.calls[0][2] == {
-        "friend_name": "Bob",
-        "requester_name": "Bob",
-        "idempotency_key": "friend:req:accept",
     }
 
 
@@ -279,7 +256,7 @@ async def test_scheduling_tool_fn_compacts_empty_shared_reminder_args():
     )
 
     await fn(
-        invitee_account_id="acct_a",
+        receiver_account_id="acct_a",
         title="meeting",
         fire_at="2026-05-22T07:00:00.000Z",
         timezone="Asia/Shanghai",
@@ -287,7 +264,7 @@ async def test_scheduling_tool_fn_compacts_empty_shared_reminder_args():
     )
 
     assert port.calls[0][2] == {
-        "invitee_account_id": "acct_a",
+        "receiver_account_id": "acct_a",
         "title": "meeting",
         "fire_at": "2026-05-22T07:00:00.000Z",
         "timezone": "Asia/Shanghai",

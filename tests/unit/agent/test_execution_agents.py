@@ -207,10 +207,10 @@ async def test_make_scheduling_tool_fn_passes_non_none_args_to_port():
     class RecordingPort:
         def run(self, input_message, run_context, args):
             received_args.append(args)
-            return CapabilityResult(name="accept_shared_reminder", ok=True, content={})
+            return CapabilityResult(name="cancel_shared_reminder", ok=True, content={})
 
     fn = _make_scheduling_tool_fn(
-        "accept_shared_reminder",
+        "cancel_shared_reminder",
         RecordingPort(),
         input_message="confirm that",
         run_context=_run_context(),
@@ -251,10 +251,12 @@ async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
     assert "## Tool selection" in captured["instructions"]
     assert "## Boundaries" in captured["instructions"]
     assert (
-        "send_friend_request_by_user_link_code with user_link_code"
+        "create_friendship_by_user_link_code with user_link_code"
         in captured["instructions"]
     )
-    assert "create_shared_reminder: pass invitee_name" in captured["instructions"]
+    assert "create_shared_reminder: pass receiver_name" in captured["instructions"]
+    assert "send_friend_request_by_user_link_code" not in captured["instructions"]
+    assert "invitee_name" not in captured["instructions"]
     assert "do not call list_friends" in captured["instructions"]
     assert "list_friend_calendar_facts: pass friend_name" in captured["instructions"]
     assert "plus timezone" in captured["instructions"]
@@ -288,17 +290,17 @@ async def test_run_scheduling_domain_passes_resolved_intent_to_worker_input():
             ),
         ):
             await run_scheduling_domain(
-                input_message="accept that",
-                intent="accept_shared_reminder request_id=srr_1",
+                input_message="cancel that",
+                intent="cancel_shared_reminder request_id=srr_1",
                 run_context=_run_context(),
                 domain_results=[],
             )
 
     assert (
-        "Resolved scheduling intent: accept_shared_reminder request_id=srr_1"
+        "Resolved scheduling intent: cancel_shared_reminder request_id=srr_1"
         in captured["input"]
     )
-    assert "User message: accept that" in captured["input"]
+    assert "User message: cancel that" in captured["input"]
 
 
 @pytest.mark.asyncio
@@ -520,7 +522,7 @@ async def test_run_scheduling_domain_returns_shared_reminder_status_results():
         async def arun(self, **kwargs):
             await self.tools["list_shared_reminders"](
                 friend_name="Bob",
-                status="accepted",
+                status="active",
             )
 
     class RecordingSchedulingPort:
@@ -538,11 +540,11 @@ async def test_run_scheduling_domain_returns_shared_reminder_status_results():
                         {
                             "id": "srr_1",
                             "title": "打羽毛球",
-                            "status": "accepted",
+                            "status": "active",
                             "fireAt": "2026-05-25T08:00:00.000Z",
                             "timezone": "Asia/Tokyo",
-                            "requester": {"displayName": "Alice Badminton"},
-                            "invitee": {"displayName": "Bob Badminton"},
+                            "creator": {"displayName": "Alice Badminton"},
+                            "receiver": {"displayName": "Bob Badminton"},
                         }
                     ],
                 },
@@ -555,19 +557,17 @@ async def test_run_scheduling_domain_returns_shared_reminder_status_results():
         ):
             result = await run_scheduling_domain(
                 input_message="我跟 Bob 那个羽毛球的共享提醒现在是什么状态？",
-                intent="list_shared_reminders for friend named Bob status accepted",
+                intent="list_shared_reminders for friend named Bob status active",
                 run_context=_run_context(),
                 domain_results=[],
             )
 
     assert captured_args["list_shared_reminders"] == {
         "friend_name": "Bob",
-        "status": "accepted",
+        "status": "active",
     }
     assert result["operations"][0]["action"] == "list_shared_reminders"
-    assert (
-        result["operations"][0]["facts"]["shared_reminders"][0]["status"] == "accepted"
-    )
+    assert result["operations"][0]["facts"]["shared_reminders"][0]["status"] == "active"
 
 
 @pytest.mark.asyncio
@@ -741,120 +741,6 @@ async def test_run_scheduling_domain_clarifies_partial_friend_calendar_forced_ar
 
 
 @pytest.mark.asyncio
-async def test_run_scheduling_domain_forced_args_call_exact_tool_without_worker_agent():
-    captured_args: dict[str, dict] = {}
-
-    class _UnexpectedAgent:
-        def __init__(self, **kwargs):
-            raise AssertionError(
-                "forced scheduling args should not spawn the worker agent"
-            )
-
-    class RecordingSchedulingPort:
-        def __init__(self, tool_name: str) -> None:
-            self.tool_name = tool_name
-
-        async def run(self, input_message, run_context, args):
-            captured_args[self.tool_name] = args
-            return CapabilityResult(
-                name=self.tool_name,
-                ok=True,
-                content={"id": "fr_1", "status": "accepted"},
-            )
-
-    domain_results: list[DomainExecutionResult] = []
-
-    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
-        with patch(
-            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
-            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
-        ):
-            result = await run_scheduling_domain(
-                input_message="确认",
-                intent="accept_friend_request",
-                run_context=_run_context(),
-                domain_results=domain_results,
-                forced_args={"request_id": "fr_1"},
-            )
-
-    assert captured_args == {"accept_friend_request": {"request_id": "fr_1"}}
-    assert result["operations"][0]["action"] == "accept_friend_request"
-    assert result["operations"][0]["entity_id"] == "fr_1"
-
-
-@pytest.mark.asyncio
-async def test_run_scheduling_domain_freshness_accepts_gateway_friend_requests_shape():
-    captured_calls: list[tuple[str, dict]] = []
-    run_context = replace(
-        _run_context(),
-        session_state={
-            "focus": {
-                "current": {
-                    "action_id": "fr_1",
-                    "kind": "friend_request",
-                    "status": "pending",
-                }
-            }
-        },
-    )
-
-    class _UnexpectedAgent:
-        def __init__(self, **kwargs):
-            raise AssertionError(
-                "fresh forced scheduling args should not spawn the worker agent"
-            )
-
-    class RecordingSchedulingPort:
-        def __init__(self, tool_name: str) -> None:
-            self.tool_name = tool_name
-
-        async def run(self, input_message, run_context, args):
-            del input_message, run_context
-            captured_calls.append((self.tool_name, dict(args)))
-            if self.tool_name == "list_friend_requests":
-                return CapabilityResult(
-                    name=self.tool_name,
-                    ok=True,
-                    content={
-                        "requests": [
-                            {
-                                "id": "fr_1",
-                                "status": "pending",
-                                "targetAccountId": "user-1",
-                            }
-                        ]
-                    },
-                )
-            return CapabilityResult(
-                name=self.tool_name,
-                ok=True,
-                content={"id": "fr_1", "status": "accepted"},
-            )
-
-    domain_results: list[DomainExecutionResult] = []
-
-    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
-        with patch(
-            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
-            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
-        ):
-            result = await run_scheduling_domain(
-                input_message="确认",
-                intent="accept_friend_request",
-                run_context=run_context,
-                domain_results=domain_results,
-                forced_args={"request_id": "fr_1"},
-            )
-
-    assert captured_calls == [
-        ("list_friend_requests", {}),
-        ("accept_friend_request", {"request_id": "fr_1"}),
-    ]
-    assert result["outcome"] == "executed"
-    assert result["operations"][0]["action"] == "accept_friend_request"
-
-
-@pytest.mark.asyncio
 async def test_run_scheduling_domain_forced_create_rejects_date_time_alias():
     captured_args: dict[str, dict] = {}
 
@@ -873,7 +759,7 @@ async def test_run_scheduling_domain_forced_create_rejects_date_time_alias():
             return CapabilityResult(
                 name=self.tool_name,
                 ok=True,
-                content={"id": "srr_1", "status": "pending_invitee_confirmation"},
+                content={"id": "srr_1", "status": "active"},
             )
 
     with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
@@ -887,7 +773,7 @@ async def test_run_scheduling_domain_forced_create_rejects_date_time_alias():
                 run_context=_run_context(),
                 domain_results=[],
                 forced_args={
-                    "invitee_name": "Alex",
+                    "receiver_name": "Alex",
                     "title": "上课",
                     "date_time": "2026-05-27T15:00:00+08:00",
                     "timezone": "Asia/Shanghai",
@@ -897,48 +783,6 @@ async def test_run_scheduling_domain_forced_create_rejects_date_time_alias():
     assert captured_args == {}
     assert result["outcome"] == "failed"
     assert result["error"]["code"] == "invalid_scheduling_args"
-
-
-@pytest.mark.asyncio
-async def test_run_scheduling_domain_forced_operation_alias_selects_shared_reminder_action():
-    captured_args: dict[str, dict] = {}
-
-    class _UnexpectedAgent:
-        def __init__(self, **kwargs):
-            raise AssertionError(
-                "forced shared-reminder action should not spawn the worker agent"
-            )
-
-    class RecordingSchedulingPort:
-        def __init__(self, tool_name: str) -> None:
-            self.tool_name = tool_name
-
-        async def run(self, input_message, run_context, args):
-            captured_args[self.tool_name] = args
-            return CapabilityResult(
-                name=self.tool_name,
-                ok=True,
-                content={"id": "srr_1", "status": "rejected"},
-            )
-
-    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
-        with patch(
-            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
-            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
-        ):
-            result = await run_scheduling_domain(
-                input_message="拒绝 Kai 的预约。",
-                intent="scheduling",
-                run_context=_run_context(),
-                domain_results=[],
-                forced_args={
-                    "operation": "reject_shared_reminder",
-                    "friend_name": "Kai",
-                },
-            )
-
-    assert captured_args == {"reject_shared_reminder": {"friend_name": "Kai"}}
-    assert result["operations"][0]["action"] == "reject_shared_reminder"
 
 
 @pytest.mark.asyncio
@@ -960,7 +804,7 @@ async def test_run_scheduling_domain_rejects_incomplete_forced_create_args():
             return CapabilityResult(
                 name=self.tool_name,
                 ok=True,
-                content={"id": "srr_1", "status": "pending_invitee_confirmation"},
+                content={"id": "srr_1", "status": "active"},
             )
 
     with patch("agent.agno_agent.runtime.execution_agents.Agent", _SharedReminderAgent):
@@ -991,7 +835,7 @@ async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder
 
         async def arun(self, **kwargs):
             await self.tools["create_shared_reminder"](
-                invitee_account_id="acct_coach",
+                receiver_account_id="acct_coach",
                 title="lesson",
                 fire_at="2026-05-26T01:00:00+00:00",
                 duration_minutes=60,
@@ -1010,7 +854,7 @@ async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder
                 ok=True,
                 content={
                     "id": "srr_1",
-                    "status": "pending_invitee_confirmation",
+                    "status": "active",
                 },
             )
 
@@ -1029,7 +873,7 @@ async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder
             )
 
     assert captured_args["create_shared_reminder"] == {
-        "invitee_account_id": "acct_coach",
+        "receiver_account_id": "acct_coach",
         "title": "lesson",
         "fire_at": "2026-05-26T01:00:00+00:00",
         "duration_minutes": 60,
@@ -1039,9 +883,9 @@ async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder
     operation = result["operations"][0]
     assert operation["action"] == "create_shared_reminder"
     assert operation["effect"] == "write"
-    assert operation["entity_type"] == "shared_reminder_request"
+    assert operation["entity_type"] == "shared_reminder"
     assert operation["entity_id"] == "srr_1"
-    assert operation["facts"]["status"] == "pending_invitee_confirmation"
+    assert operation["facts"]["status"] == "active"
 
 
 @pytest.mark.asyncio
@@ -1055,7 +899,7 @@ async def test_run_scheduling_domain_exposes_only_create_tool_for_shared_reminde
 
         async def arun(self, **kwargs):
             await self.tools["create_shared_reminder"](
-                invitee_name="Nora",
+                receiver_name="Nora",
                 title="meeting",
                 fire_at="2026-05-25T06:00:00+00:00",
                 timezone="Asia/Tokyo",
@@ -1070,7 +914,7 @@ async def test_run_scheduling_domain_exposes_only_create_tool_for_shared_reminde
             return CapabilityResult(
                 name=self.tool_name,
                 ok=True,
-                content={"id": "srr_1", "status": "pending_invitee_confirmation"},
+                content={"id": "srr_1", "status": "active"},
             )
 
     with patch("agent.agno_agent.runtime.execution_agents.Agent", _SharedReminderAgent):
@@ -1099,7 +943,7 @@ async def test_run_scheduling_domain_exposes_only_user_link_code_tool_for_link_f
             self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
 
         async def arun(self, **kwargs):
-            await self.tools["send_friend_request_by_user_link_code"](
+            await self.tools["create_friendship_by_user_link_code"](
                 user_link_code="AbCdEfGhIjK_",
                 message="跑步搭子",
                 idempotency_key="friend-link:1",
@@ -1114,7 +958,7 @@ async def test_run_scheduling_domain_exposes_only_user_link_code_tool_for_link_f
             return CapabilityResult(
                 name=self.tool_name,
                 ok=True,
-                content={"friend_request_id": "fr_1", "status": "pending"},
+                content={"friendship_id": "fs_1", "status": "active"},
             )
 
     with patch("agent.agno_agent.runtime.execution_agents.Agent", _UserLinkFriendAgent):
@@ -1129,8 +973,8 @@ async def test_run_scheduling_domain_exposes_only_user_link_code_tool_for_link_f
                 domain_results=[],
             )
 
-    assert captured_tools == {"send_friend_request_by_user_link_code"}
-    assert captured_args["send_friend_request_by_user_link_code"] == {
+    assert captured_tools == {"create_friendship_by_user_link_code"}
+    assert captured_args["create_friendship_by_user_link_code"] == {
         "user_link_code": "AbCdEfGhIjK_",
         "message": "跑步搭子",
         "idempotency_key": "friend-link:1",

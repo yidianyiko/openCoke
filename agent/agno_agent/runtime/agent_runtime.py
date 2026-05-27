@@ -65,14 +65,8 @@ _DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
 _MAX_VISIBLE_TEXT_SEGMENTS = 3
 _SCHEDULING_INTENT_NAMES = {
     "create_shared_reminder",
-    "accept_shared_reminder",
-    "reject_shared_reminder",
     "cancel_shared_reminder",
-    "send_friend_request_by_user_link_code",
-    "list_friend_requests",
-    "accept_friend_request",
-    "reject_friend_request",
-    "cancel_friend_request",
+    "create_friendship_by_user_link_code",
     "list_friends",
     "remove_friendship",
     "get_user_link",
@@ -83,11 +77,9 @@ _SCHEDULING_INTENT_NAMES = {
 }
 _SCHEDULING_READ_ONLY_INTENTS = {
     "get_user_link",
-    "list_friend_requests",
     "list_friends",
     "list_friend_calendar_facts",
     "list_shared_reminders",
-    "list_pending_shared_reminders",
 }
 _SCHEDULING_INTENT_SELECTOR_KEYS = {
     "intent",
@@ -98,19 +90,9 @@ _SCHEDULING_INTENT_SELECTOR_KEYS = {
     "operation",
     "action",
 }
-_SHARED_REMINDER_REQUEST_ACTION_INTENTS = {
-    "accept": "accept_shared_reminder",
-    "接受": "accept_shared_reminder",
-    "同意": "accept_shared_reminder",
-    "确认": "accept_shared_reminder",
-    "reject": "reject_shared_reminder",
-    "decline": "reject_shared_reminder",
-    "拒绝": "reject_shared_reminder",
-    "不同意": "reject_shared_reminder",
-}
 _SCHEDULING_CREATE_SHARED_REMINDER_ARG_KEYS = {
-    "invitee_account_id",
-    "invitee_name",
+    "receiver_account_id",
+    "receiver_name",
     "friend_account_id",
     "friendship_id",
     "title",
@@ -130,8 +112,8 @@ _SCHEDULING_FORCED_ARG_KEYS = {
     "focus_handle",
     "title",
     "friendship_id",
-    "invitee_name",
-    "invitee_account_id",
+    "receiver_name",
+    "receiver_account_id",
     "target_account_id",
     "from_date",
     "to_date",
@@ -166,49 +148,18 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         r"\b(remind|notify|set (?:up )?(?:the )?reminder)",
         re.IGNORECASE,
     ),
-    # Friend-request accept claims without a successful write. Requires a
-    # first-person / completed lead-in so we don't trip on "wait for the other
-    # side to accept your request" — those are safe statements, not promises.
-    re.compile(
-        r"(已经|已|帮你|好啦|好嘞|I(?:'ve| have))"
-        r"(?:(?:.{0,32}(通过|接受|accepted|approved).{0,32}(请求|好友|friend request|friend-request))"
-        r"|(?:.{0,32}(请求|好友|friend request|friend-request).{0,16}(通过|接受|accepted|approved)))",
-        re.IGNORECASE,
-    ),
     # "Now you're friends" claims: "你们现在是好友/好朋友啦", "now you are friends".
     re.compile(
         r"(你们现在|现在你们|now you(?:'re| are))" r".{0,12}(是好(友|朋友)|friends?)",
         re.IGNORECASE,
     ),
 )
-_SHARED_REMINDER_INVITE_WRITE_CLAIM_PATTERNS = (
+_SHARED_REMINDER_PENDING_CONFIRMATION_CLAIM_PATTERNS = (
     re.compile(r"(邀请|邀约|共享提醒请求).{0,24}(发给|发过去|发出|发送|提交)"),
     re.compile(r"(发给|发过去|发出|发送|提交).{0,24}(邀请|邀约|共享提醒请求)"),
     re.compile(r"(等|等待).{0,16}(确认|接受|同意)"),
     re.compile(
-        r"\b(invitation|invite|shared reminder request).{0,40}"
-        r"\b(sent|submitted|created)",
-        re.IGNORECASE,
-    ),
-    re.compile(
         r"\b(waiting|wait).{0,40}\b(confirm|accept)",
-        re.IGNORECASE,
-    ),
-)
-_SHARED_REMINDER_ACCEPT_WRITE_CLAIM_PATTERNS = (
-    re.compile(
-        r"(已经|已|帮你|收到|好啦|好嘞).{0,24}"
-        r"(接受|同意|确认参加).{0,32}"
-        r"(共享提醒|邀请|邀约)"
-    ),
-    re.compile(
-        r"(已经|已|帮你|收到|好啦|好嘞).{0,24}"
-        r"(共享提醒|邀请|邀约).{0,32}"
-        r"(接受|同意|确认参加)"
-    ),
-    re.compile(
-        r"\b(i(?:'ve| have)|we(?:'ve| have)).{0,40}"
-        r"\b(accepted|confirmed).{0,40}\b(shared reminder|invite|invitation)",
         re.IGNORECASE,
     ),
 )
@@ -363,16 +314,6 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                     )
                 return normalized_key
 
-        shared_reminder_action = _shared_reminder_action_intent(raw_intent)
-        if shared_reminder_action:
-            args = _shared_reminder_action_args(raw_intent)
-            if args:
-                return (
-                    f"{shared_reminder_action}: "
-                    f"{json.dumps(_normalize_scheduling_intent_args(shared_reminder_action, args), ensure_ascii=False)}"
-                )
-            return shared_reminder_action
-
         for key in _SCHEDULING_INTENT_SELECTOR_KEYS:
             value = raw_intent.get(key)
             if isinstance(value, str) and value.strip():
@@ -414,42 +355,6 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
     )
 
 
-def _shared_reminder_action_intent(raw_intent: Mapping[str, Any]) -> str | None:
-    action = raw_intent.get("shared_reminder_request_action")
-    if not isinstance(action, str):
-        return None
-    return _SHARED_REMINDER_REQUEST_ACTION_INTENTS.get(action.strip().lower()) or (
-        _SHARED_REMINDER_REQUEST_ACTION_INTENTS.get(action.strip())
-    )
-
-
-def _shared_reminder_action_args(raw_intent: Mapping[str, Any]) -> dict[str, Any]:
-    args = {
-        key: value
-        for key, value in raw_intent.items()
-        if key
-        not in {
-            "shared_reminder_request_action",
-            *_SCHEDULING_INTENT_SELECTOR_KEYS,
-        }
-    }
-    requester_name = (
-        raw_intent.get("requester_name")
-        or raw_intent.get("requester")
-        or raw_intent.get("inviter_name")
-        or raw_intent.get("inviter")
-    )
-    if requester_name and not args.get("requester_name"):
-        args["requester_name"] = requester_name
-    shared_request_id = raw_intent.get("shared_reminder_request_id")
-    if shared_request_id and not args.get("request_id"):
-        args["request_id"] = shared_request_id
-    reminder_title = raw_intent.get("reminder_title")
-    if reminder_title and not args.get("title"):
-        args["title"] = reminder_title
-    return args
-
-
 def _normalize_scheduling_intent_args(
     tool_name: str,
     args: Mapping[str, Any],
@@ -457,8 +362,6 @@ def _normalize_scheduling_intent_args(
     normalized = dict(args)
     if "message" not in normalized and "note" in normalized:
         normalized["message"] = normalized.pop("note")
-    if "request_id" not in normalized and "shared_reminder_request_id" in normalized:
-        normalized["request_id"] = normalized.pop("shared_reminder_request_id")
     if "requester_name" not in normalized:
         for alias in ("inviter_name", "inviter", "requester"):
             if alias in normalized and normalized[alias]:
@@ -488,8 +391,8 @@ def _normalize_scheduling_intent_args(
         has_counterparty = any(
             str(compact.get(key) or "").strip()
             for key in (
-                "invitee_account_id",
-                "invitee_name",
+                "receiver_account_id",
+                "receiver_name",
                 "friend_account_id",
                 "friendship_id",
             )
@@ -752,7 +655,7 @@ def _single_candidate_focus_failure_result(
             intent="ask_clarification",
             required_facts=(),
             required_questions=("同意还是拒绝这条请求？",),
-            prohibited_claims=("friend_request_accepted", "shared_reminder_accepted"),
+            prohibited_claims=(),
             allow_rephrase=True,
         ),
         error=error,
@@ -807,10 +710,7 @@ def _multi_pending_clarification_result(
             intent="ask_clarification",
             required_facts=tuple(facts),
             required_questions=("你要对哪一条邀请操作？",),
-            prohibited_claims=(
-                "friend_request_accepted",
-                "shared_reminder_accepted",
-            ),
+            prohibited_claims=(),
             allow_rephrase=True,
         ),
         error=error,
@@ -865,14 +765,7 @@ def _should_fail_closed_focused_semantic(
 
 
 def _focus_action_scheduling_intent(*, kind: str, action: str) -> str | None:
-    if kind == "friend_request":
-        return (
-            "accept_friend_request" if action == "accept" else "reject_friend_request"
-        )
-    if kind == "shared_reminder_request":
-        return (
-            "accept_shared_reminder" if action == "accept" else "reject_shared_reminder"
-        )
+    del kind, action
     return None
 
 
@@ -1014,7 +907,7 @@ def _create_interaction_agent(
             to_date: str = "",
             timezone: str = "",
         ) -> dict[str, Any]:
-            """Use for explicit user-link, friend-request, friendship, friend availability, or shared-reminder actions. For friend availability, use intent=list_friend_calendar_facts and pass friend_name, from_date, to_date, and timezone. For friend invites like "帮我约/邀请 <friend>" with a concrete appointment time, call create_shared_reminder using canonical fields invitee_name, title, fire_at, timezone, and duration_minutes."""
+            """Use for explicit user-link, friendship, friend availability, or shared-reminder actions. For friend availability, use intent=list_friend_calendar_facts and pass friend_name, from_date, to_date, and timezone. For friend invites like "帮我约/邀请 <friend>" with a concrete appointment time, call create_shared_reminder using canonical fields receiver_name, title, fire_at, timezone, and duration_minutes."""
             async with scheduling_domain_lock:
                 if preloaded_scheduling_domain_result is not None:
                     result = _scheduling_failure_result(
@@ -1559,27 +1452,11 @@ def _check_unconfirmed_durable_write_promise(
 ) -> RuntimeErrorDisposition | None:
     if agent_input.input_type != "user.turn" or not final_text:
         return None
-    shared_reminder_invite_claim = any(
+    shared_reminder_pending_confirmation_claim = any(
         pattern.search(final_text)
-        for pattern in _SHARED_REMINDER_INVITE_WRITE_CLAIM_PATTERNS
+        for pattern in _SHARED_REMINDER_PENDING_CONFIRMATION_CLAIM_PATTERNS
     )
-    if shared_reminder_invite_claim and not _has_successful_domain_write(
-        domain_results,
-        action="create_shared_reminder",
-    ):
-        return RuntimeErrorDisposition(
-            code="unconfirmed_durable_write_promise",
-            retryable=False,
-            metadata={"input_type": agent_input.input_type},
-        )
-    shared_reminder_accept_claim = any(
-        pattern.search(final_text)
-        for pattern in _SHARED_REMINDER_ACCEPT_WRITE_CLAIM_PATTERNS
-    )
-    if shared_reminder_accept_claim and not _has_successful_domain_write(
-        domain_results,
-        action="accept_shared_reminder",
-    ):
+    if shared_reminder_pending_confirmation_claim:
         return RuntimeErrorDisposition(
             code="unconfirmed_durable_write_promise",
             retryable=False,
@@ -1608,13 +1485,11 @@ def _check_unconfirmed_durable_write_promise(
     has_question = "?" in final_text or "\uff1f" in final_text or "\u5417" in final_text
     if has_question:
         direct_promise_patterns = (
-            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[0],
-            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[2],
-            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[3],
-            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[4],
-            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[5],
-            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[6],
-            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[7],
+            *(
+                pattern
+                for index, pattern in enumerate(_UNCONFIRMED_DURABLE_WRITE_PATTERNS)
+                if index != 1
+            ),
             *_COMPLETED_WRITE_CLAIM_PATTERNS,
         )
         if not any(pattern.search(final_text) for pattern in direct_promise_patterns):
@@ -1676,7 +1551,7 @@ def _prohibited_claim_confirmed_by_write(
             result.domain == "scheduling"
             and operation.ok
             and operation.effect == "write"
-            and operation.action == "accept_shared_reminder"
+            and operation.action == "create_shared_reminder"
             for result in domain_results
             for operation in result.operations
         )

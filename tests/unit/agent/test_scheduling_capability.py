@@ -78,87 +78,6 @@ def test_get_user_link_provides_visible_summary_for_empty_chat_text():
     )
 
 
-def test_list_pending_shared_reminders_provides_visible_summary():
-    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
-
-    def handler(tool_name, payload):
-        del tool_name, payload
-        return {
-            "ok": True,
-            "data": [
-                {
-                    "id": "sr_1",
-                    "requesterAccountId": "ck_alice",
-                    "requester": {"displayName": "Alice Smoke"},
-                    "title": "跑步",
-                    "fireAt": "2026-05-29T10:30:00.000Z",
-                    "status": "pending_invitee_confirmation",
-                }
-            ],
-        }
-
-    port = SchedulingCapabilityPort(
-        tool_name="list_pending_shared_reminders",
-        handler=handler,
-    )
-    result = port.run("我现在有没有待处理的共享提醒？", _run_context(), {})
-
-    assert result.ok is True
-    assert result.content["visible_summary"] == (
-        "你有 1 个待处理的共享提醒：Alice Smoke 发来的“跑步”。"
-    )
-    assert (
-        result.visible_summary
-        == "你有 1 个待处理的共享提醒：Alice Smoke 发来的“跑步”。"
-    )
-
-
-def test_list_pending_shared_reminders_empty_summary():
-    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
-
-    def handler(tool_name, payload):
-        del tool_name, payload
-        return {"ok": True, "data": []}
-
-    port = SchedulingCapabilityPort(
-        tool_name="list_pending_shared_reminders",
-        handler=handler,
-    )
-    result = port.run("我现在有没有待处理的共享提醒？", _run_context(), {})
-
-    assert result.ok is True
-    assert result.content["visible_summary"] == "目前没有待处理的共享提醒。"
-
-
-def test_bulk_shared_reminders_provides_visible_summary():
-    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
-
-    def handler(tool_name, payload):
-        del tool_name, payload
-        return {
-            "ok": True,
-            "data": {
-                "outcomes": [
-                    {"request_id": "srr_1", "ok": True, "status": "accepted"},
-                    {
-                        "request_id": "srr_2",
-                        "ok": False,
-                        "error": "shared_reminder_due",
-                    },
-                ]
-            },
-        }
-
-    port = SchedulingCapabilityPort(
-        tool_name="accept_pending_shared_reminders_from",
-        handler=handler,
-    )
-    result = port.run("全部确认", _run_context(), {})
-
-    assert result.ok is True
-    assert result.content["visible_summary"] == "已处理1条共享提醒，1条未完成。"
-
-
 def test_list_shared_reminders_provides_visible_summary():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
@@ -172,11 +91,11 @@ def test_list_shared_reminders_provides_visible_summary():
                     {
                         "id": "srr_1",
                         "title": "打羽毛球",
-                        "status": "accepted",
+                        "status": "active",
                         "fireAt": "2026-05-25T08:00:00.000Z",
                         "timezone": "Asia/Tokyo",
-                        "requester": {"displayName": "Alice Badminton"},
-                        "invitee": {"displayName": "Bob Badminton"},
+                        "creator": {"displayName": "Alice Badminton"},
+                        "receiver": {"displayName": "Bob Badminton"},
                     }
                 ],
             },
@@ -194,10 +113,10 @@ def test_list_shared_reminders_provides_visible_summary():
 
     assert result.ok is True
     assert result.content["visible_summary"] == (
-        "你有 1 个共享提醒：Bob 的“打羽毛球”，2026-05-25 17:00，状态 accepted。"
+        "你有 1 个共享提醒：Bob 的“打羽毛球”，2026-05-25 17:00，状态 active。"
     )
     assert result.visible_summary == (
-        "你有 1 个共享提醒：Bob 的“打羽毛球”，2026-05-25 17:00，状态 accepted。"
+        "你有 1 个共享提醒：Bob 的“打羽毛球”，2026-05-25 17:00，状态 active。"
     )
 
 
@@ -214,7 +133,7 @@ def test_list_shared_reminders_summary_prefers_viewer_display_fields():
                     {
                         "id": "srr_1",
                         "title": "喝咖啡",
-                        "status": "pending_invitee_confirmation",
+                        "status": "active",
                         "fireAt": "2026-05-27T01:00:00.000Z",
                         "timezone": "UTC",
                         "viewer_timezone": "Asia/Tokyo",
@@ -337,101 +256,6 @@ def test_list_friend_calendar_facts_normalizes_datetime_range_to_date_only():
     assert captured["payload"]["to_date"] == "2029-01-01"
 
 
-def test_list_friend_requests_empty_summary():
-    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
-
-    def handler(tool_name, payload):
-        del tool_name, payload
-        return {"ok": True, "data": []}
-
-    port = SchedulingCapabilityPort(
-        tool_name="list_friend_requests",
-        handler=handler,
-    )
-    result = port.run("我现在有没有未处理的好友请求或系统通知？", _run_context(), {})
-
-    assert result.ok is True
-    assert result.content["visible_summary"] == "目前没有待处理的好友请求。"
-
-
-def test_list_friend_requests_summary_includes_names_and_direction():
-    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
-
-    def handler(tool_name, payload):
-        del tool_name, payload
-        return {
-            "ok": True,
-            "data": [
-                {
-                    "id": "fr_in",
-                    "requesterAccountId": "ck_bob",
-                    "targetAccountId": "ck_a",
-                    "status": "pending",
-                    "requester": {"displayName": "Bob Smoke"},
-                    "target": {"displayName": "Alice Smoke"},
-                },
-                {
-                    "id": "fr_out",
-                    "requesterAccountId": "ck_a",
-                    "targetAccountId": "ck_carol",
-                    "status": "pending",
-                    "requester": {"displayName": "Alice Smoke"},
-                    "target": {"displayName": "Carol Smoke"},
-                },
-                {
-                    "id": "fr_old",
-                    "requesterAccountId": "ck_dan",
-                    "targetAccountId": "ck_a",
-                    "status": "rejected",
-                    "requester": {"displayName": "Dan Smoke"},
-                    "target": {"displayName": "Alice Smoke"},
-                },
-            ],
-        }
-
-    port = SchedulingCapabilityPort(
-        tool_name="list_friend_requests",
-        handler=handler,
-    )
-    result = port.run("我的好友申请", _run_context(), {})
-
-    assert result.ok is True
-    assert result.content["visible_summary"] == (
-        "你有 3 个好友请求：收到 Bob Smoke 的申请；已向 Carol Smoke 发出申请。"
-    )
-
-
-def test_list_friend_requests_terminal_only_summary_marks_history():
-    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
-
-    def handler(tool_name, payload):
-        del tool_name, payload
-        return {
-            "ok": True,
-            "data": [
-                {
-                    "id": "fr_1",
-                    "status": "rejected",
-                    "requesterAccountId": "ck_b",
-                    "targetAccountId": "ck_a",
-                    "requester": {"displayName": "Bob Smoke"},
-                    "target": {"displayName": "Alice Smoke"},
-                }
-            ],
-        }
-
-    port = SchedulingCapabilityPort(
-        tool_name="list_friend_requests",
-        handler=handler,
-    )
-    result = port.run("我的好友申请", _run_context(user_id="ck_a"), {})
-
-    assert result.ok is True
-    assert result.content["visible_summary"] == (
-        "你有 1 个好友请求：历史：Bob Smoke，收到方向，状态 rejected。"
-    )
-
-
 def test_list_friends_empty_summary():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
@@ -514,7 +338,7 @@ def test_create_shared_reminder_forwards_required_args():
         captured.update({"tool_name": tool_name, "payload": payload})
         return {
             "ok": True,
-            "data": {"id": "srr_1", "status": "pending_invitee_confirmation"},
+            "data": {"id": "srr_1", "status": "active"},
         }
 
     port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
@@ -522,7 +346,7 @@ def test_create_shared_reminder_forwards_required_args():
         "Help me and A remember the meeting",
         _run_context(user_id="acct_b"),
         {
-            "invitee_account_id": "acct_a",
+            "receiver_account_id": "acct_a",
             "title": "meeting",
             "fire_at": "2026-05-22T07:00:00.000Z",
             "timezone": "Asia/Shanghai",
@@ -533,7 +357,7 @@ def test_create_shared_reminder_forwards_required_args():
     assert result.ok is True
     assert captured["tool_name"] == "create_shared_reminder"
     assert captured["payload"]["customer_id"] == "acct_b"
-    assert captured["payload"]["invitee_account_id"] == "acct_a"
+    assert captured["payload"]["receiver_account_id"] == "acct_a"
     assert result.durable_write is True
 
 
@@ -546,7 +370,7 @@ def test_create_shared_reminder_injects_account_timezone_when_model_omits_it():
         captured.update({"tool_name": tool_name, "payload": payload})
         return {
             "ok": True,
-            "data": {"id": "srr_1", "status": "pending_invitee_confirmation"},
+            "data": {"id": "srr_1", "status": "active"},
         }
 
     port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
@@ -554,7 +378,7 @@ def test_create_shared_reminder_injects_account_timezone_when_model_omits_it():
         "约 Nora 明天 10 点喝咖啡",
         _run_context(user_id="acct_b"),
         {
-            "invitee_name": "Nora",
+            "receiver_name": "Nora",
             "title": "喝咖啡",
             "fire_at": "2026-05-27T01:00:00.000Z",
             "idempotency_key": "shared-1",
@@ -574,7 +398,7 @@ def test_create_shared_reminder_preserves_explicit_timezone():
         captured.update({"tool_name": tool_name, "payload": payload})
         return {
             "ok": True,
-            "data": {"id": "srr_1", "status": "pending_invitee_confirmation"},
+            "data": {"id": "srr_1", "status": "active"},
         }
 
     port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
@@ -582,7 +406,7 @@ def test_create_shared_reminder_preserves_explicit_timezone():
         "Schedule with Nora",
         _run_context(user_id="acct_b"),
         {
-            "invitee_name": "Nora",
+            "receiver_name": "Nora",
             "title": "meeting",
             "fire_at": "2026-05-27T17:00:00.000Z",
             "timezone": "America/Los_Angeles",
@@ -594,7 +418,7 @@ def test_create_shared_reminder_preserves_explicit_timezone():
     assert captured["payload"]["timezone"] == "America/Los_Angeles"
 
 
-def test_send_friend_request_does_not_treat_note_message_as_visible_summary():
+def test_create_friendship_by_link_visible_summary():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
     def handler(tool_name, payload):
@@ -603,13 +427,15 @@ def test_send_friend_request_does_not_treat_note_message_as_visible_summary():
             "ok": True,
             "data": {
                 "id": "fr_1",
-                "status": "pending",
+                "status": "active",
+                "friend_account_id": "ck_owner",
+                "created": True,
                 "message": "跑步搭子",
             },
         }
 
     port = SchedulingCapabilityPort(
-        tool_name="send_friend_request_by_user_link_code",
+        tool_name="create_friendship_by_user_link_code",
         handler=handler,
     )
 
@@ -621,8 +447,8 @@ def test_send_friend_request_does_not_treat_note_message_as_visible_summary():
 
     assert result.ok is True
     assert result.content["message"] == "跑步搭子"
-    assert result.content["visible_summary"] == "已发送好友请求。"
-    assert result.visible_summary == "已发送好友请求。"
+    assert result.content["visible_summary"] == "已添加好友。"
+    assert result.visible_summary == "已添加好友。"
 
 
 def test_write_tools_generate_idempotency_key_when_model_omits_it():
@@ -639,7 +465,7 @@ def test_write_tools_generate_idempotency_key_when_model_omits_it():
         "Help me and Nora remember the meeting",
         _run_context(user_id="acct_b"),
         {
-            "invitee_name": "Nora",
+            "receiver_name": "Nora",
             "title": "meeting",
             "fire_at": "2026-05-22T07:00:00.000Z",
             "timezone": "Asia/Shanghai",
@@ -660,32 +486,36 @@ def test_python_scheduling_tool_inventory_matches_gateway_contract():
         "get_user_link",
         "reset_user_link",
         "disable_user_link",
-        "send_friend_request_by_user_link_code",
-        "list_friend_requests",
-        "accept_friend_request",
-        "reject_friend_request",
-        "cancel_friend_request",
+        "create_friendship_by_user_link_code",
         "list_friends",
         "list_friend_calendar_facts",
         "list_shared_reminders",
         "remove_friendship",
         "create_shared_reminder",
+        "cancel_shared_reminder",
+    }
+    removed_tools = {
+        "send_friend_request_by_user_link_code",
+        "list_friend_requests",
+        "accept_friend_request",
+        "reject_friend_request",
+        "cancel_friend_request",
         "list_pending_shared_reminders",
         "accept_shared_reminder",
         "reject_shared_reminder",
-        "cancel_shared_reminder",
         "accept_pending_shared_reminders_from",
         "reject_pending_shared_reminders_from",
         "cancel_pending_shared_reminders_for",
+        "block_account",
+        "unblock_account",
     }
-    assert set(SCHEDULING_TOOL_NAMES) >= expected_tools
+    assert set(SCHEDULING_TOOL_NAMES) == expected_tools
+    assert not removed_tools.intersection(SCHEDULING_TOOL_NAMES)
     assert _READ_ONLY_TOOL_NAMES == {
         "get_user_link",
-        "list_friend_requests",
         "list_friends",
         "list_friend_calendar_facts",
         "list_shared_reminders",
-        "list_pending_shared_reminders",
     }
 
 
@@ -862,15 +692,13 @@ def test_scheduling_gateway_client_uses_internal_auth():
         session=Session(),
     )
 
-    assert client.call_tool(
-        "list_pending_shared_reminders", {"customer_id": "ck_a"}
-    ) == {
+    assert client.call_tool("list_shared_reminders", {"customer_id": "ck_a"}) == {
         "ok": True,
         "data": {"pending": []},
     }
     assert (
         captured["url"]
-        == "https://api.example/api/internal/scheduling/tools/list_pending_shared_reminders"
+        == "https://api.example/api/internal/scheduling/tools/list_shared_reminders"
     )
     assert captured["headers"]["Authorization"] == "Bearer internal-key"
 

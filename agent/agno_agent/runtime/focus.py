@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict
 
 FocusAmbiguity = Literal["none", "multi_pending", "none_actionable"]
+_RETIRED_FOCUS_KINDS = {"friend_request", "shared_reminder_request"}
 
 
 class PendingAction(BaseModel):
@@ -132,8 +133,7 @@ def _action_input_from_product_notification(
         or product_notification.get("request_id"),
         "kind": product_notification.get("kind")
         or product_notification.get("request_type"),
-        "allowed_actions": product_notification.get("allowed_actions")
-        or ("accept", "reject"),
+        "allowed_actions": product_notification.get("allowed_actions") or (),
         "status": product_notification.get("status") or "pending",
         "expires_at": product_notification.get("expires_at"),
         "delivered_at": product_notification.get("delivered_at"),
@@ -153,7 +153,7 @@ def _action_input_from_agent_focus_candidate(
     return {
         "action_id": candidate.get("handle"),
         "kind": candidate.get("kind"),
-        "allowed_actions": candidate.get("allowed_actions") or ("accept", "reject"),
+        "allowed_actions": candidate.get("allowed_actions") or (),
         "status": candidate.get("status") or "pending",
         "focus_token": focus_token,
         "expires_at": expires_at,
@@ -178,13 +178,16 @@ def _pending_action_from_mapping(
     delivered_at = _parse_datetime(value.get("delivered_at"))
     action_id = str(value.get("action_id") or value.get("request_id") or "").strip()
     kind = str(value.get("kind") or value.get("request_type") or "").strip()
+    if kind in _RETIRED_FOCUS_KINDS:
+        return None
     summary = str(value.get("summary_for_llm") or value.get("summary") or "").strip()
-    if not action_id or not kind or not summary:
+    allowed_actions = _allowed_actions(value.get("allowed_actions"))
+    if not action_id or not kind or not summary or not allowed_actions:
         return None
     return PendingAction(
         action_id=action_id,
         kind=kind,
-        allowed_actions=_allowed_actions(value.get("allowed_actions")),
+        allowed_actions=allowed_actions,
         status=status,
         focus_token=_optional_string(value.get("focus_token")),
         expires_at=expires_at,
@@ -198,7 +201,7 @@ def _allowed_actions(value: Any) -> tuple[str, ...]:
         actions = tuple(str(item).strip() for item in value if str(item).strip())
         if actions:
             return actions
-    return ("accept", "reject")
+    return ()
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -226,26 +229,43 @@ def _agent_focus_summary(value: Any) -> str:
     if not isinstance(value, Mapping):
         return ""
     title = str(value.get("title") or "").strip()
-    requester_name = str(value.get("requester_name") or "").strip()
+    creator_name = str(
+        value.get("creator_name") or value.get("requester_name") or ""
+    ).strip()
+    friend_name = str(
+        value.get("friend_name") or value.get("counterparty_name") or ""
+    ).strip()
     fire_at = str(value.get("fire_at") or "").strip()
-    message = str(value.get("message") or "").strip()
-    if title and requester_name and fire_at:
-        return f"{requester_name}邀请你参加“{title}”，时间{fire_at}。"
-    if title and requester_name:
-        return f"{requester_name}邀请你参加“{title}”。"
+    if title and creator_name and fire_at:
+        return f"{creator_name}创建的共享提醒“{title}”，时间{fire_at}。"
+    if title and creator_name:
+        return f"{creator_name}创建的共享提醒“{title}”。"
     if title:
         return f"共享提醒“{title}”。"
-    if requester_name and message:
-        return f"{requester_name}发来的好友请求：{message}"
-    if requester_name:
-        return f"{requester_name}发来的好友请求。"
-    request_id = str(value.get("request_id") or "").strip()
-    if request_id:
-        return f"待处理请求 {request_id}"
+    if friend_name:
+        return f"好友关系：{friend_name}。"
+    resource_id = str(
+        value.get("shared_reminder_id")
+        or value.get("friendship_id")
+        or value.get("request_id")
+        or ""
+    ).strip()
+    if resource_id:
+        return f"关联事项 {resource_id}"
     return ""
 
 
 def _fallback_summary(product_notification: Mapping[str, Any]) -> str:
-    request_type = str(product_notification.get("request_type") or "product_action")
-    request_id = str(product_notification.get("request_id") or "")
-    return f"{request_type} {request_id}".strip()
+    resource_type = str(
+        product_notification.get("resource_type")
+        or product_notification.get("kind")
+        or "product_action"
+    )
+    resource_id = str(
+        product_notification.get("shared_reminder_id")
+        or product_notification.get("friendship_id")
+        or product_notification.get("action_id")
+        or product_notification.get("request_id")
+        or ""
+    )
+    return f"{resource_type} {resource_id}".strip()

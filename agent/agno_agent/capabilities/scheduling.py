@@ -20,32 +20,20 @@ SCHEDULING_TOOL_NAMES = (
     "get_user_link",
     "reset_user_link",
     "disable_user_link",
-    "send_friend_request_by_user_link_code",
-    "list_friend_requests",
-    "accept_friend_request",
-    "reject_friend_request",
-    "cancel_friend_request",
+    "create_friendship_by_user_link_code",
     "list_friends",
     "list_friend_calendar_facts",
     "list_shared_reminders",
     "remove_friendship",
     "create_shared_reminder",
-    "list_pending_shared_reminders",
-    "accept_shared_reminder",
-    "reject_shared_reminder",
     "cancel_shared_reminder",
-    "accept_pending_shared_reminders_from",
-    "reject_pending_shared_reminders_from",
-    "cancel_pending_shared_reminders_for",
 )
 
 _READ_ONLY_TOOL_NAMES = {
     "get_user_link",
-    "list_friend_requests",
     "list_friends",
     "list_friend_calendar_facts",
     "list_shared_reminders",
-    "list_pending_shared_reminders",
 }
 
 _VIEWER_TIMEZONE_TOOL_NAMES = {
@@ -57,18 +45,10 @@ _VIEWER_TIMEZONE_TOOL_NAMES = {
 _DURABLE_WRITE_VISIBLE_SUMMARIES = {
     "reset_user_link": "已重置用户链接。",
     "disable_user_link": "已停用用户链接。",
-    "send_friend_request_by_user_link_code": "已发送好友请求。",
-    "accept_friend_request": "已通过好友请求。",
-    "reject_friend_request": "已拒绝好友请求。",
-    "cancel_friend_request": "已取消好友请求。",
+    "create_friendship_by_user_link_code": "已添加好友。",
     "remove_friendship": "已移除好友关系。",
-    "create_shared_reminder": "已提交共享提醒请求。",
-    "accept_shared_reminder": "已接受共享提醒。",
-    "reject_shared_reminder": "已拒绝共享提醒并取消你的提醒。",
-    "cancel_shared_reminder": "已取消共享提醒请求。",
-    "accept_pending_shared_reminders_from": "已批量处理共享提醒确认。",
-    "reject_pending_shared_reminders_from": "已批量处理共享提醒拒绝。",
-    "cancel_pending_shared_reminders_for": "已批量处理共享提醒取消。",
+    "create_shared_reminder": "已创建共享提醒。",
+    "cancel_shared_reminder": "已取消共享提醒。",
 }
 
 
@@ -204,21 +184,6 @@ class SchedulingCapabilityPort:
             content["visible_summary"] = _shared_reminders_summary(content)
         if (
             ok
-            and self.tool_name == "list_pending_shared_reminders"
-            and not _has_explicit_visible_summary(content)
-        ):
-            content["visible_summary"] = _pending_shared_reminders_summary(content)
-        if (
-            ok
-            and self.tool_name == "list_friend_requests"
-            and not _has_explicit_visible_summary(content)
-        ):
-            content["visible_summary"] = _friend_requests_summary(
-                content,
-                account_id=str(payload.get("customer_id") or ""),
-            )
-        if (
-            ok
             and self.tool_name == "list_friends"
             and not _has_explicit_visible_summary(content)
         ):
@@ -226,17 +191,6 @@ class SchedulingCapabilityPort:
                 content,
                 account_id=str(payload.get("customer_id") or ""),
             )
-        if (
-            ok
-            and self.tool_name
-            in {
-                "accept_pending_shared_reminders_from",
-                "reject_pending_shared_reminders_from",
-                "cancel_pending_shared_reminders_for",
-            }
-            and not _has_explicit_visible_summary(content)
-        ):
-            content["visible_summary"] = _bulk_shared_reminders_summary(content)
         if ok and durable_write and not _has_explicit_visible_summary(content):
             content["visible_summary"] = _DURABLE_WRITE_VISIBLE_SUMMARIES[
                 self.tool_name
@@ -394,50 +348,6 @@ def _scheduling_failure_summary(error_code: str) -> str:
     return ""
 
 
-def _pending_shared_reminders_summary(content: Mapping[str, Any]) -> str:
-    raw_items = content.get("value")
-    if raw_items is None:
-        raw_items = content.get("pending")
-    if not isinstance(raw_items, list) or not raw_items:
-        return "目前没有待处理的共享提醒。"
-
-    labels = [
-        _pending_shared_reminder_label(item)
-        for item in raw_items[:3]
-        if isinstance(item, Mapping)
-    ]
-    if not labels:
-        return f"你有 {len(raw_items)} 个待处理的共享提醒。"
-    return f"你有 {len(raw_items)} 个待处理的共享提醒：" + "；".join(labels) + "。"
-
-
-def _friend_requests_summary(
-    content: Mapping[str, Any], *, account_id: str = ""
-) -> str:
-    raw_items = content.get("value")
-    if raw_items is None:
-        raw_items = content.get("requests")
-    if not isinstance(raw_items, list) or not raw_items:
-        return "目前没有待处理的好友请求。"
-    pending_items = [
-        item
-        for item in raw_items
-        if isinstance(item, Mapping)
-        and str(item.get("status") or "").strip() == "pending"
-    ]
-    summary_items = pending_items or [
-        item for item in raw_items if isinstance(item, Mapping)
-    ]
-    labels = [
-        _friend_request_label(item, account_id)
-        for item in summary_items[:3]
-        if isinstance(item, Mapping)
-    ]
-    if not labels:
-        return f"你有 {len(raw_items)} 个好友请求。"
-    return f"你有 {len(raw_items)} 个好友请求：" + "；".join(labels) + "。"
-
-
 def _friends_summary(content: Mapping[str, Any], *, account_id: str = "") -> str:
     raw_items = content.get("value")
     if raw_items is None:
@@ -456,25 +366,6 @@ def _friends_summary(content: Mapping[str, Any], *, account_id: str = "") -> str
     if labels:
         return f"你现在有 {len(raw_items)} 个好友：" + "；".join(labels) + "。"
     return f"你现在有 {len(raw_items)} 个好友。"
-
-
-def _friend_request_label(item: Mapping[str, Any], account_id: str) -> str:
-    status = str(item.get("status") or "unknown").strip() or "unknown"
-    requester_id = str(item.get("requesterAccountId") or "").strip()
-    target_id = str(item.get("targetAccountId") or "").strip()
-    requester_name = _profile_display_name(item.get("requester")) or "对方"
-    target_name = _profile_display_name(item.get("target")) or "对方"
-    if account_id and target_id == account_id:
-        if status == "pending":
-            return f"收到 {requester_name} 的申请"
-        return f"历史：{requester_name}，收到方向，状态 {status}"
-    if account_id and requester_id == account_id:
-        if status == "pending":
-            return f"已向 {target_name} 发出申请"
-        return f"历史：{target_name}，发出方向，状态 {status}"
-    if status == "pending":
-        return f"{requester_name} 向 {target_name} 的申请"
-    return f"历史：{requester_name} 到 {target_name}，状态 {status}"
 
 
 def _friendship_counterpart_label(item: Mapping[str, Any], account_id: str) -> str:
@@ -497,25 +388,6 @@ def _profile_display_name(value: Any) -> str:
     return ""
 
 
-def _pending_shared_reminder_label(item: Mapping[str, Any]) -> str:
-    requester = _shared_reminder_requester_display_name(item)
-    title = item.get("title") or "共享提醒"
-    return f"{requester} 发来的“{title}”"
-
-
-def _shared_reminder_requester_display_name(item: Mapping[str, Any]) -> str:
-    requester = item.get("requester")
-    if isinstance(requester, Mapping):
-        display_name = requester.get("displayName")
-        if isinstance(display_name, str) and display_name.strip():
-            return display_name.strip()
-    for key in ("requesterName", "requester_name"):
-        value = item.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return "对方"
-
-
 def _shared_reminders_summary(content: Mapping[str, Any]) -> str:
     raw_items = content.get("value")
     if raw_items is None:
@@ -534,19 +406,6 @@ def _shared_reminders_summary(content: Mapping[str, Any]) -> str:
     if not labels:
         return f"你有 {len(raw_items)} 个共享提醒。"
     return f"你有 {len(raw_items)} 个共享提醒：" + "；".join(labels) + "。"
-
-
-def _bulk_shared_reminders_summary(content: Mapping[str, Any]) -> str:
-    raw_items = content.get("outcomes")
-    if not isinstance(raw_items, list) or not raw_items:
-        return "没有可处理的共享提醒。"
-    ok_count = sum(
-        1 for item in raw_items if isinstance(item, Mapping) and item.get("ok") is True
-    )
-    failed_count = len(raw_items) - ok_count
-    if failed_count == 0:
-        return f"已处理{ok_count}条共享提醒。"
-    return f"已处理{ok_count}条共享提醒，{failed_count}条未完成。"
 
 
 def _shared_reminders_friend_name(content: Mapping[str, Any]) -> str:
@@ -578,17 +437,17 @@ def _shared_reminder_status_label(
 
 
 def _shared_reminder_counterparty_display_name(item: Mapping[str, Any]) -> str:
-    requester = item.get("requester")
-    if isinstance(requester, Mapping):
-        display_name = requester.get("displayName")
+    creator = item.get("creator")
+    if isinstance(creator, Mapping):
+        display_name = creator.get("displayName")
         if isinstance(display_name, str) and display_name.strip():
             return display_name.strip()
-    invitee = item.get("invitee")
-    if isinstance(invitee, Mapping):
-        display_name = invitee.get("displayName")
+    receiver = item.get("receiver")
+    if isinstance(receiver, Mapping):
+        display_name = receiver.get("displayName")
         if isinstance(display_name, str) and display_name.strip():
             return display_name.strip()
-    for key in ("requesterName", "requester_name", "inviteeName", "invitee_name"):
+    for key in ("creatorName", "creator_name", "receiverName", "receiver_name"):
         value = item.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
