@@ -107,9 +107,10 @@ The following are removed from the active schema and generated client:
 
 ### Removed Account Blocks
 
-Account-blocking is retired entirely. Any remaining account-block table,
-relations, indexes, routes, services, tests, docs, and agent tools must be
-removed.
+Account-blocking is retired entirely. The current schema already has no active
+`AccountBlock` model. This change must assert that account-block tables,
+relations, indexes, routes, services, tests, docs, and agent tools are absent
+and must fail review if block/unblock behavior is reintroduced.
 
 ### Shared Reminders
 
@@ -166,9 +167,25 @@ match the new model:
 - foreign key `shared_reminder_id`
 - `from_state` and `to_state` use `SharedReminderStatus`
 - actor role: `creator | receiver | system`
+- nullable `reason` for cancellation, invalidation, migration, and compensation
+  evidence
 
 `ProductNotification` must reference `shared_reminder_id` instead of
 `shared_reminder_request_id`.
+
+Direct-friendship notifications must also have a current relation after
+`friend_request_id` is removed. `ProductNotification` must reference
+`friendship_id` for direct-friendship notifications, or use an equivalent
+typed resource reference that can express:
+
+- `resource_type = friendship`
+- `resource_id = friendships.id`
+- unique idempotency key for `friendship:<friendship_id>:direct-add`
+- recipient account id equal to the link owner
+
+The notification enqueue contract must stop accepting
+`requestType: friend_request`. It must support direct friendship and shared
+reminder notification resources only.
 
 Notification metadata for shared-reminder creation and cancellation includes:
 
@@ -224,6 +241,11 @@ Removing a friend:
 Creating a shared reminder requires an active friendship between creator and
 receiver.
 
+The `createSharedReminder` domain port must include `listRuntimeCalendarFacts`
+in addition to runtime create/cancel operations. Duration conflict checks use
+the receiver's runtime calendar facts for the half-open interval
+`[fire_at, fire_at + duration_minutes)`.
+
 On create:
 
 1. Validate creator, receiver, title, `fire_at`, timezone, optional duration,
@@ -234,13 +256,37 @@ On create:
    for the occupied interval.
 5. If receiver time conflicts, fail the whole operation. Do not create the
    center record, either runtime reminder projection, or a receiver
-   notification.
-6. If no conflict, create or reuse the shared-reminder center record.
-7. Create the creator runtime reminder projection.
-8. Create the receiver runtime reminder projection.
-9. Mark the shared reminder `active` with both runtime reminder ids.
-10. Notify only the receiver.
-11. Return success to the creator.
+   notification. The error code is `receiver_time_conflict`; response metadata
+   may include the requested interval but no private title/details.
+6. If no conflict, resolve the idempotency key:
+   - active row with same participants/key returns the existing shared reminder
+   - same key with different participants/title/time returns
+     `idempotency_conflict`
+   - no row continues creation
+7. Generate the future `shared_reminder_id` before runtime calls.
+8. Create the creator runtime reminder projection using that id.
+9. Create the receiver runtime reminder projection using that id.
+10. Insert the shared-reminder center row and both projection rows in one DB
+    transaction with `status = active` and both runtime reminder ids.
+11. Notify only the receiver.
+12. Return success to the creator.
+
+Projection creation is a two-runtime side-effect flow and must be idempotent:
+
+- If creator projection creation succeeds and receiver projection creation
+  fails, cancel the creator runtime reminder and return failure. No
+  shared-reminder center row or projection row may remain.
+- If receiver projection creation succeeds but final DB activation fails,
+  cancel both runtime reminders and return failure. No shared-reminder center
+  row or projection row may remain unless the transaction already committed.
+- If retry finds an active center row with both projections for the same
+  idempotency key, return the existing active shared reminder without creating
+  new runtime reminders or notifications.
+- If retry occurs after runtime reminders were created but before DB commit, the
+  runtime idempotency keys must let the retry reuse or safely cancel those
+  runtime reminders before the single active insert.
+- Tests must cover creator-created/receiver-failed, both-created/finalize-failed,
+  retry-active, runtime-idempotent retry, and receiver-conflict-no-write cases.
 
 Point reminders without `duration_minutes` do not perform busy-interval
 conflict checks.
@@ -259,6 +305,21 @@ On cancel:
 3. Cancel both participant runtime reminders.
 4. Keep the center record for history/listing/audit.
 5. Notify only the other participant.
+
+Cancellation is actor-neutral:
+
+- `actor_account_id` may equal `creator_account_id` or `receiver_account_id`.
+- `recipient_account_id` is always the other participant.
+- notification metadata includes `actor_role`, `actor_account_id`,
+  `recipient_account_id`, `creator_account_id`, `receiver_account_id`, `title`,
+  `fire_at`, `timezone`, viewer-local date/time, and `duration_minutes`.
+- notification text must describe who cancelled and which shared reminder was
+  cancelled without implying requester/invitee confirmation.
+- cancellation idempotency uses
+  `shared-reminder:<shared_reminder_id>:cancel:<actor_account_id>`.
+- repeated cancellation of an already-cancelled shared reminder by either
+  participant returns the existing cancelled state and does not send a duplicate
+  notification.
 
 There is no single-side conversion from shared reminder to personal reminder in
 this contract.
@@ -321,6 +382,30 @@ Customer and public APIs should expose direct actions only. Removed routes
 should return normal route-not-found behavior rather than compatibility
 responses.
 
+Route/tool/type rename table:
+
+| Current removed contract | Replacement active contract |
+| --- | --- |
+| `POST /api/public/link-sessions/:token/friend-requests` | `POST /api/public/link-sessions/:token/friendships` |
+| `send_friend_request_by_user_link_code` | `create_friendship_by_user_link_code` |
+| `FriendRequestResponse` shared type | `DirectFriendshipResponse` |
+| `FriendRequestStatus` shared type | no replacement; friendship response status is `active` |
+| `list_friend_requests` | no replacement |
+| `accept_friend_request` / `reject_friend_request` / `cancel_friend_request` | no replacement |
+
+`DirectFriendshipResponse` contains:
+
+- `id`: friendship id
+- `status`: `active`
+- `friend_account_id`: the link owner for opener-facing responses, or the
+  opener for owner-facing contexts
+- `created`: boolean indicating whether this call created/reactivated the
+  friendship or reused an existing active friendship
+
+Removed public/customer/internal route paths must have route-not-found tests.
+Removed agent tools must return `unknown_tool` from the scheduling domain
+contract if called.
+
 Customer web surfaces should remove pending invitation panels, accept/reject
 buttons, and block/unblock controls. They should keep friend list, friend-link
 sharing, remove friend, shared-reminder list/query, create, and cancel flows.
@@ -338,17 +423,40 @@ Migration requirements:
 1. Convert existing accepted shared-reminder request rows to active shared
    reminder rows.
 2. Convert pending shared-reminder request rows:
-   - if receiver has no duration conflict and projections can be completed,
-     create/reuse missing receiver projection and mark active
-   - otherwise mark invalidated with a reason
+   - activate only when friendship is active, fire time is still valid for the
+     current product policy, existing/requester projection can be reconciled,
+     receiver projection can be created or reused, and receiver duration
+     conflict check passes when duration is present
+   - invalidate with a reason when friendship is missing/removed, participants
+     are invalid, receiver conflict exists, projection reconciliation fails, or
+     the row is stale according to migration policy
 3. Convert old accepted friend requests into active friendships when necessary.
-4. Convert old pending friend requests into active friendships when possible.
+4. Convert old pending friend requests into active friendships only when the
+   requester, target, and link/session lineage are valid and the canonical pair
+   is not already active. Duplicate pending rows for the same canonical pair
+   collapse into one active friendship; older duplicates are counted as skipped.
 5. Drop friend-request schema after data is represented in friendships.
-6. Drop account-block schema and data.
+6. Assert account-block schema and data are absent; do not recreate or reference
+   the retired account-block model.
 7. Rename shared-reminder request tables/columns/indexes/foreign keys to
    shared-reminder fact names.
 8. Update product notification foreign keys from request names to current
-   shared-reminder names.
+   direct-friendship and shared-reminder names.
+
+Migration decision table:
+
+| Legacy row | Activate | Invalidate | Skip |
+| --- | --- | --- | --- |
+| accepted friend request | when no active friendship exists for canonical pair | never | when active friendship already exists |
+| pending friend request | when requester/target/link lineage are valid and pair is not active | when requester or target is missing or self-pair | duplicate canonical pair |
+| accepted shared-reminder request | when both participant runtime projections can be reconciled | when required projection data is missing and cannot be rebuilt | when already represented by migrated shared reminder |
+| pending shared-reminder request | when active friendship exists, receiver has no duration conflict, and both projections can be completed | when friendship is absent/removed, receiver conflict exists, stale policy rejects it, or projection compensation fails | duplicate idempotency/business key already migrated |
+
+Migration must not enqueue new product notifications for converted legacy
+pending rows. The migration is a data-shape conversion, not a new user action.
+Every invalidated shared reminder must have a `SharedReminderEvent.reason`
+entry. Migration evidence must include reason counts and representative ids for
+each invalidation reason.
 
 Migration evidence must include counts of:
 
@@ -356,11 +464,22 @@ Migration evidence must include counts of:
 - friend requests skipped or invalidated
 - shared reminders activated
 - shared reminders invalidated
-- account-block rows dropped
+- account-block schema/data absence asserted
 
 The deploy runbook must state that the migration is part of the release window
-and must run before the old pending handlers are considered retired in
-production.
+and is a non-rolling change. Deployment order is:
+
+1. Announce/enter the scheduling maintenance window.
+2. Stop old Gateway API and worker/scheduling processes, or otherwise block
+   scheduling writes.
+3. Take a database backup.
+4. Run the schema/data migration.
+5. Deploy the new Gateway/API/worker code.
+6. Run migration evidence checks and production smoke.
+7. Resume scheduling traffic.
+
+Zero-downtime expand/contract compatibility is explicitly not part of this
+design because compatibility routes and legacy pending models are being removed.
 
 ## Testing And Verification
 
