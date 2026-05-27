@@ -4,6 +4,7 @@ import types
 
 from tools.agent_smoke.bridge_client import (
     SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
+    _poll_for_reply,
     poll_late_reply_text,
 )
 
@@ -145,3 +146,33 @@ def test_poll_late_reply_text_returns_none_on_timeout(monkeypatch):
     assert time.monotonic() - start < 5
     assert reply_text is None
     assert output_doc is None
+
+
+def test_poll_for_reply_requires_matching_causal_event(monkeypatch):
+    outputmessages = _FakeOutputMessages(
+        [[{"_id": "out_causal", "message": "因果匹配回复。"}]]
+    )
+    _install_fake_mongo(monkeypatch, outputmessages)
+
+    reply_text, output_id = _poll_for_reply("evt_causal", 0.03, 0.001)
+
+    assert reply_text == "因果匹配回复。"
+    assert output_id == "out_causal"
+    assert outputmessages.queries == [
+        {"metadata.business_protocol.causal_inbound_event_id": "evt_causal"}
+    ]
+
+
+def test_poll_for_reply_does_not_guess_by_recipient_timestamp(monkeypatch):
+    outputmessages = _FakeOutputMessages([[], [], []])
+    _install_fake_mongo(monkeypatch, outputmessages)
+
+    reply_text, output_id = _poll_for_reply("evt_missing", 0.003, 0.001)
+
+    assert reply_text == ""
+    assert output_id is None
+    assert outputmessages.queries
+    assert all(
+        query == {"metadata.business_protocol.causal_inbound_event_id": "evt_missing"}
+        for query in outputmessages.queries
+    )
