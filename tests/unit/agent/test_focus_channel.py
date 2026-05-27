@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from agent.agno_agent.runtime.focus import build_focus_channel
+from agent.agno_agent.runtime.focus import build_focus_channel, focus_from_product_notification
 
 
 def _pending_action(**overrides):
@@ -75,3 +75,23 @@ def test_build_focus_channel_marks_expired_action_as_none_actionable():
     assert focus.ambiguity == "none_actionable"
     assert focus.current is None
     assert focus.candidates == ()
+
+
+def test_focus_from_product_notification_preserves_multi_pending_candidates():
+    focus = focus_from_product_notification(
+        {
+            "ambiguity": "multi_pending",
+            "candidates": [
+                _pending_action(action_id="srr_1"),
+                _pending_action(
+                    action_id="srr_2",
+                    summary_for_llm="Another shared reminder request.",
+                ),
+            ],
+        },
+        current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
+    )
+
+    assert focus.ambiguity == "multi_pending"
+    assert focus.current is None
+    assert [candidate.action_id for candidate in focus.candidates] == ["srr_1", "srr_2"]

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from agent.agno_agent.runtime.focus import build_focus_channel
 from agent.agno_agent.runtime.semantic_interpreter import (
     SemanticIntentResult,
     build_semantic_interpreter_input,
+    create_semantic_intent_client,
     interpret_semantic_intent,
 )
 
@@ -108,6 +110,32 @@ def test_semantic_interpreter_input_contains_only_focus_and_current_utterance():
     assert payload["current_utterance"] == "确认"
 
 
+def test_create_semantic_intent_client_uses_structured_llm_agent(monkeypatch):
+    captured = {}
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            captured["agent_kwargs"] = kwargs
+
+    def fake_create_llm_model(*, role, max_tokens):
+        captured["model"] = {"role": role, "max_tokens": max_tokens}
+        return object()
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        fake_create_llm_model,
+    )
+
+    client = create_semantic_intent_client()
+
+    assert client.agent.kwargs == captured["agent_kwargs"]
+    assert captured["model"] == {"role": "semantic_interpreter", "max_tokens": 800}
+    assert captured["agent_kwargs"]["output_schema"] is SemanticIntentResult
+    assert captured["agent_kwargs"]["structured_outputs"] is True
+
+
 @pytest.mark.asyncio
 async def test_semantic_interpreter_replays_fixture_with_fake_structured_client():
     cases = _cases()
@@ -136,3 +164,61 @@ async def test_semantic_interpreter_replays_fixture_with_fake_structured_client(
         assert result.intent == case["expected_intent"]
 
     assert all(set(payload) == {"focus", "current_utterance"} for payload in client.payloads)
+
+
+@pytest.mark.asyncio
+async def test_semantic_interpreter_fails_closed_without_client_for_single_focus():
+    focus = build_focus_channel(
+        [
+            {
+                "action_id": "fr_1",
+                "kind": "friend_request",
+                "allowed_actions": ("accept", "reject"),
+                "status": "pending",
+                "summary_for_llm": "好友申请。",
+            }
+        ],
+        current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
+    )
+
+    result = await interpret_semantic_intent(
+        focus=focus,
+        current_utterance="同意",
+        client=None,
+    )
+
+    assert result.intent == "ambiguous"
+    assert result.clarification_reason == "semantic interpreter client unavailable"
+
+
+@pytest.mark.asyncio
+async def test_semantic_interpreter_uses_configured_timeout_and_fails_closed(
+    monkeypatch,
+):
+    monkeypatch.setenv("COKE_SEMANTIC_INTERPRETER_TIMEOUT_SECONDS", "0.001")
+    focus = build_focus_channel(
+        [
+            {
+                "action_id": "fr_1",
+                "kind": "friend_request",
+                "allowed_actions": ("accept", "reject"),
+                "status": "pending",
+                "summary_for_llm": "好友申请。",
+            }
+        ],
+        current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
+    )
+
+    class SlowClient:
+        async def create(self, *, payload, schema):
+            await asyncio.sleep(0.05)
+            return {"intent": "accept", "confidence": "high"}
+
+    result = await interpret_semantic_intent(
+        focus=focus,
+        current_utterance="同意",
+        client=SlowClient(),
+    )
+
+    assert result.intent == "ambiguous"
+    assert result.clarification_reason == "semantic interpreter timed out"

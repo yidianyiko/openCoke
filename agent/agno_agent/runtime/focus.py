@@ -56,6 +56,18 @@ def focus_from_product_notification(
 ) -> FocusChannel:
     if not isinstance(product_notification, Mapping):
         return FocusChannel(current=None, ambiguity="none_actionable")
+    candidates = product_notification.get("candidates")
+    if isinstance(candidates, Sequence) and not isinstance(
+        candidates, (str, bytes, bytearray)
+    ):
+        return build_focus_channel(
+            [
+                _action_input_from_product_notification(candidate)
+                for candidate in candidates
+                if isinstance(candidate, Mapping)
+            ],
+            current_time=current_time,
+        )
     return build_focus_channel(
         [_action_input_from_product_notification(product_notification)],
         current_time=current_time,

@@ -291,6 +291,7 @@ def _make_scheduling_tool_fn(
         invitee_account_id: str | None = None,
         invitee_name: str | None = None,
         friend_account_id: str | None = None,
+        friend_id: str | None = None,
         title: str | None = None,
         fire_at: str | None = None,
         duration_minutes: int | None = None,
@@ -305,6 +306,14 @@ def _make_scheduling_tool_fn(
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Use only for the scheduling action specified in the intent."""
+        normalized_invitee_account_id = invitee_account_id or friend_account_id
+        normalized_friendship_id = friendship_id
+        legacy_friend_id = str(friend_id or "").strip()
+        if legacy_friend_id:
+            if re.match(r"^(?:ck|acct)_", legacy_friend_id):
+                normalized_invitee_account_id = normalized_invitee_account_id or legacy_friend_id
+            else:
+                normalized_friendship_id = normalized_friendship_id or legacy_friend_id
         if execution_guard is not None and not await execution_guard.claim(tool_name):
             duplicate = DomainExecutionResult(
                 domain="scheduling",
@@ -338,7 +347,7 @@ def _make_scheduling_tool_fn(
                     "target_account_id": target_account_id,
                     "from_date": from_date,
                     "to_date": to_date,
-                    "invitee_account_id": invitee_account_id or friend_account_id,
+                    "invitee_account_id": normalized_invitee_account_id,
                     "invitee_name": invitee_name,
                     "title": title,
                     "fire_at": fire_at,
@@ -348,7 +357,7 @@ def _make_scheduling_tool_fn(
                     "request_id": request_id,
                     "friend_name": friend_name,
                     "requester_name": requester_name,
-                    "friendship_id": friendship_id,
+                    "friendship_id": normalized_friendship_id,
                     "user_link_code": user_link_code,
                     "message": message,
                     "idempotency_key": idempotency_key,

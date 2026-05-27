@@ -35,6 +35,9 @@ from agent.agno_agent.runtime.result import (
     VisibleMessage,
 )
 from agent.agno_agent.runtime.semantic_interpreter import SemanticIntentResult
+from agent.agno_agent.runtime.semantic_interpreter import (
+    create_semantic_intent_client as _create_semantic_intent_client,
+)
 from agent.agno_agent.runtime.semantic_interpreter import interpret_semantic_intent
 from agent.agno_agent.runtime.session import get_agent_session_db
 from agent.agno_agent.runtime.trace import (
@@ -279,6 +282,16 @@ def _normalize_scheduling_intent_args(
     if "message" not in normalized and "note" in normalized:
         normalized["message"] = normalized.pop("note")
     if tool_name == "create_shared_reminder":
+        if "invitee_account_id" not in normalized and "friend_account_id" in normalized:
+            normalized["invitee_account_id"] = normalized.pop("friend_account_id")
+        legacy_friend_id = normalized.pop("friend_id", None)
+        if legacy_friend_id is not None:
+            legacy_friend_id_text = str(legacy_friend_id).strip()
+            if legacy_friend_id_text:
+                if re.match(r"^(?:ck|acct)_", legacy_friend_id_text):
+                    normalized.setdefault("invitee_account_id", legacy_friend_id_text)
+                else:
+                    normalized.setdefault("friendship_id", legacy_friend_id_text)
         if "invitee_name" not in normalized and "friend_name" in normalized:
             normalized["invitee_name"] = normalized.pop("friend_name")
         if "title" not in normalized and "reminder_title" in normalized:
@@ -334,8 +347,6 @@ def _split_scheduling_intent_args(
         return normalized_intent, None
     if not isinstance(args, Mapping):
         return normalized_intent, None
-    if tool_name == "create_shared_reminder":
-        return tool_name, None
     return tool_name, _normalize_scheduling_intent_args(tool_name, args)
 
 
@@ -362,6 +373,89 @@ def _semantic_scheduling_intent_and_args(
     if mapped_intent is None:
         return None, {}
     return mapped_intent, {"request_id": getattr(focus_current, "action_id")}
+
+
+def _focus_action_value(action: Any, field: str) -> Any:
+    if isinstance(action, Mapping):
+        return action.get(field)
+    return getattr(action, field, None)
+
+
+def _focus_current_action(focus: Any) -> Any | None:
+    if isinstance(focus, Mapping):
+        current = focus.get("current")
+        if current is not None:
+            return current
+        candidates = focus.get("candidates")
+    else:
+        current = getattr(focus, "current", None)
+        if current is not None:
+            return current
+        candidates = getattr(focus, "candidates", None)
+    if isinstance(candidates, Sequence) and candidates:
+        return candidates[0]
+    return None
+
+
+def _focus_has_actionable_candidates(focus: Any) -> bool:
+    return _focus_current_action(focus) is not None
+
+
+def _focused_semantic_failure_result(
+    focus: Any,
+    semantic_result: SemanticIntentResult,
+) -> DomainExecutionResult:
+    action = _focus_current_action(focus)
+    action_id = str(_focus_action_value(action, "action_id") or "")
+    kind = str(_focus_action_value(action, "kind") or "product_action")
+    summary = "我没法可靠判断你要同意还是拒绝这条请求，请再明确回复同意或拒绝。"
+    error = DomainError(
+        code="semantic_focus_ambiguous",
+        message=semantic_result.clarification_reason or summary,
+        retryable=True,
+        detail={
+            "semantic_intent": semantic_result.intent,
+            "semantic_confidence": semantic_result.confidence,
+            "action_id": action_id,
+            "kind": kind,
+        },
+    )
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(
+            DomainOperationResult(
+                action="classify_product_action_reply",
+                ok=False,
+                effect="none",
+                entity_type=kind,
+                entity_id=action_id or None,
+                facts={"visible_summary": summary},
+                error=error,
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary="semantic_focus_ambiguous",
+        reply_contract=ReplyContract(
+            intent="ask_clarification",
+            required_facts=(),
+            required_questions=("同意还是拒绝这条请求？",),
+            prohibited_claims=("friend_request_accepted", "shared_reminder_accepted"),
+            allow_rephrase=True,
+        ),
+        error=error,
+    )
+
+
+def _should_fail_closed_focused_semantic(
+    focus: Any,
+    semantic_result: SemanticIntentResult,
+) -> bool:
+    return _focus_has_actionable_candidates(focus) and semantic_result.intent in {
+        "ambiguous",
+        "ask_detail",
+        "request_change",
+    }
 
 
 def _focus_action_scheduling_intent(*, kind: str, action: str) -> str | None:
@@ -1626,16 +1720,36 @@ async def run_agent_runtime(
                 domain_result=_retired_account_control_result(),
             )
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
+        semantic_client = (
+            _create_semantic_intent_client()
+            if _focus_has_actionable_candidates(focus)
+            else None
+        )
         semantic_result = await interpret_semantic_intent(
             focus=focus,
             current_utterance=_current_utterance_for_semantic_interpreter(
                 agent_input,
                 input_message,
             ),
+            client=semantic_client,
         )
         preselected_scheduling_intent, preselected_scheduling_args = (
             _semantic_scheduling_intent_and_args(semantic_result, focus)
         )
+        if (
+            preselected_scheduling_intent is None
+            and _should_fail_closed_focused_semantic(focus, semantic_result)
+        ):
+            return _domain_visible_text_result(
+                agent_input=agent_input,
+                run_context=run_context,
+                input_message=input_message,
+                started_at=started_at,
+                domain_result=_focused_semantic_failure_result(
+                    focus,
+                    semantic_result,
+                ),
+            )
         if preselected_scheduling_intent:
             run_scheduling_kwargs: dict[str, Any] = {
                 "input_message": input_message,

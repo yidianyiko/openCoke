@@ -795,10 +795,12 @@ async def test_run_agent_runtime_dispatches_semantic_focus_action_from_product_n
         async def arun(self, **kwargs):
             return SimpleNamespace(content="ignored", messages=[])
 
+    semantic_client = object()
+
     async def fake_interpret_semantic_intent(*, focus, current_utterance, client=None):
-        del client
         interpreted["focus"] = focus.model_dump(mode="json")
         interpreted["current_utterance"] = current_utterance
+        interpreted["client"] = client
         return agent_runtime.SemanticIntentResult(
             intent="accept",
             confidence="high",
@@ -812,6 +814,12 @@ async def test_run_agent_runtime_dispatches_semantic_focus_action_from_product_n
         agent_runtime,
         "interpret_semantic_intent",
         fake_interpret_semantic_intent,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "_create_semantic_intent_client",
+        lambda: semantic_client,
+        raising=False,
     )
     monkeypatch.setattr(
         agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
@@ -844,9 +852,60 @@ async def test_run_agent_runtime_dispatches_semantic_focus_action_from_product_n
     }
     assert interpreted["focus"]["current"]["action_id"] == "fr_1"
     assert interpreted["current_utterance"] == "确认"
+    assert interpreted["client"] is semantic_client
     assert [message.content for message in result.visible_messages] == [
         "已通过好友请求。"
     ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_fails_closed_when_focused_semantic_intent_is_ambiguous(
+    monkeypatch,
+):
+    async def fake_interpret_semantic_intent(**_kwargs):
+        return agent_runtime.SemanticIntentResult(
+            intent="ambiguous",
+            confidence="low",
+            clarification_reason="semantic interpreter client unavailable",
+        )
+
+    class UnexpectedAgent:
+        async def arun(self, **_kwargs):
+            raise AssertionError("interaction agent should not handle ambiguous focused action")
+
+    monkeypatch.setattr(
+        agent_runtime, "interpret_semantic_intent", fake_interpret_semantic_intent
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "_create_interaction_agent",
+        lambda **kwargs: UnexpectedAgent(),
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv-1",
+            text="同意",
+            payload=UserTurnPayload(
+                current_message_ids=["msg-1"],
+                metadata={
+                    "product_notification": {
+                        "request_id": "fr_1",
+                        "request_type": "friend_request",
+                        "allowed_actions": ["accept", "reject"],
+                    }
+                },
+            ),
+            occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+        ),
+        run_context=_run_context(),
+    )
+
+    assert result.domain_results[0].safety_boundary == "semantic_focus_ambiguous"
+    assert result.visible_messages[0].content == (
+        "我没法可靠判断你要同意还是拒绝这条请求，请再明确回复同意或拒绝。"
+    )
 
 
 @pytest.mark.asyncio
@@ -1949,7 +2008,7 @@ async def test_create_interaction_agent_scheduling_domain_honors_tool_key_intent
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_does_not_force_shared_reminder_create_args(
+async def test_create_interaction_agent_scheduling_domain_forces_complete_shared_reminder_create_args(
     monkeypatch,
 ):
     captured = {}
@@ -2002,7 +2061,12 @@ async def test_create_interaction_agent_scheduling_domain_does_not_force_shared_
     assert captured == {
         "input_message": "今天上午十点半，帮我和 EVA 约一个一个小时的时间去做测试",
         "intent": "create_shared_reminder",
-        "forced_args": None,
+        "forced_args": {
+            "invitee_name": "EVA",
+            "title": "一起运动",
+            "fire_at": "2026-05-26T10:30:00+08:00",
+            "duration_minutes": 60,
+        },
     }
 
 
@@ -2071,7 +2135,90 @@ async def test_create_interaction_agent_scheduling_domain_delegates_tool_key_cre
 
     assert result is envelope
     assert captured["intent"] == "create_shared_reminder"
-    assert captured["forced_args"] is None
+    assert captured["forced_args"] == {
+        "invitee_name": "Bob",
+        "title": "跑步",
+        "fire_at": "2026-05-29T19:30:00",
+        "duration_minutes": 40,
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_normalizes_legacy_friend_id_aliases(
+    monkeypatch,
+):
+    captured = []
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results
+        captured.append({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    def make_scheduling_domain():
+        agent = agent_runtime._create_interaction_agent(
+            run_context=_run_context(),
+            agent_input=_agent_input(),
+            input_message="帮我约好友打篮球",
+            capability_results=[],
+            domain_results=[],
+        )
+        return next(
+            tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+        )
+
+    await make_scheduling_domain()(
+        intent={
+            "create_shared_reminder": {
+                "friend_id": "ck_CsFu-A91jbCSBwtizPx1K",
+                "title": "打篮球",
+                "fire_at": "2026-05-27T23:00:00+08:00",
+                "duration_minutes": 60,
+            }
+        }
+    )
+    await make_scheduling_domain()(
+        intent={
+            "create_shared_reminder": {
+                "friend_id": "cmpmw9gs60001ru1tc4y12851",
+                "title": "打篮球",
+                "fire_at": "2026-05-27T23:00:00+08:00",
+                "duration_minutes": 60,
+            }
+        }
+    )
+
+    assert captured == [
+        {
+            "intent": "create_shared_reminder",
+            "forced_args": {
+                "invitee_account_id": "ck_CsFu-A91jbCSBwtizPx1K",
+                "title": "打篮球",
+                "fire_at": "2026-05-27T23:00:00+08:00",
+                "duration_minutes": 60,
+            },
+        },
+        {
+            "intent": "create_shared_reminder",
+            "forced_args": {
+                "friendship_id": "cmpmw9gs60001ru1tc4y12851",
+                "title": "打篮球",
+                "fire_at": "2026-05-27T23:00:00+08:00",
+                "duration_minutes": 60,
+            },
+        },
+    ]
 
 
 @pytest.mark.asyncio
@@ -2121,7 +2268,13 @@ async def test_create_interaction_agent_scheduling_domain_delegates_start_dateti
 
     assert captured == {
         "intent": "create_shared_reminder",
-        "forced_args": None,
+        "forced_args": {
+            "invitee_name": "eva",
+            "title": "共同提醒",
+            "fire_at": "2026-05-25T21:00:00",
+            "timezone": "Asia/Shanghai",
+            "duration_minutes": 60,
+        },
     }
 
 
@@ -2172,7 +2325,12 @@ async def test_create_interaction_agent_scheduling_domain_delegates_common_creat
 
     assert captured == {
         "intent": "create_shared_reminder",
-        "forced_args": None,
+        "forced_args": {
+            "invitee_name": "Bob",
+            "fire_at": "2026-05-29T19:30:00",
+            "duration_minutes": 40,
+            "title": "小区操场跑步",
+        },
     }
 
 
