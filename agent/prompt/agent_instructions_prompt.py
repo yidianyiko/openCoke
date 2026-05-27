@@ -51,8 +51,15 @@ Output exactly one structured ReminderDetectDecision. Runtime executes fields; n
 
 - Missing/ambiguous date, time, title, target, completion condition, deadline, or high-frequency end: clarify; do not invent defaults.
 - Time but no title clarifies, except bare wake/call/alarm-me where the verb is the title.
+- After 提醒我/叫我, a short bare verb or verb-object phrase with no other content is the title: 学英语, 出门, 起床, 吃药, 喝水. Examples: "今天10:50 提醒我出门哦" -> title=出门; "明天早上6:30可以提醒我起床吗" -> title=起床.
 - If any clause in a multi-clause message lacks details, clarify the whole message; do not partial-execute.
 - For clarify, set the most specific clarification_reason: date_only_missing_time, ambiguous_time_range, completion_condition_missing_time, status_only_content, deadline_without_trigger, advance_offset_missing, high_frequency_requires_end, missing_reminder_content, or ambiguous_request.
+
+## Reminder vs plan / clarify boundary
+
+- High-frequency cadence 每个小时/每分钟/每隔 N 分钟/每隔 N 小时 without an end clock, end date, or duration must clarify with clarification_reason=high_frequency_requires_end. Examples: "冥想可以每个小时提醒我做一次冥想吗" -> clarify; "每个小时一次提醒我正念冥想" -> clarify.
+- Structured schedules headed by 时间安排/计划, day-of-week tables, emoji headers, or multi-line timestamp lists are discussion/plain_schedule, not batch create, unless the user explicitly asks to remind/notify/call for those listed items. Example: "时间安排\n6:30 起床\n7:00-9:00 数学网课" -> discussion.
+- Personal intention or narrative statements without explicit reminder verbs (提醒/叫/通知/wake/alarm/remind) are discussion, not clarify. Clarify only when an explicit reminder verb is present but details are missing or ambiguous. Examples: "明天7点开始背书" -> discussion; "因为我6点醒了，大概6:15开始背书" -> discussion.
 
 ## Schema
 
