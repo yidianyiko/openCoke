@@ -212,7 +212,19 @@ class ReminderManagementService:
         if not isinstance(body, dict):
             raise ValueError("invalid_body")
         customer_id = _require_string(customer_id, "customer_id")
-        metadata = _validate_optional_metadata(body.get("metadata"))
+        metadata = _validate_optional_metadata(body.get("metadata")) or {}
+        runtime_idempotency_key = _optional_string(
+            body.get("idempotencyKey") or body.get("idempotency_key")
+        ) or _optional_string(metadata.get("runtime_idempotency_key"))
+        if runtime_idempotency_key:
+            metadata["runtime_idempotency_key"] = runtime_idempotency_key
+            existing = self.reminder_runtime.find_visible_reminder_by_metadata_key(
+                owner_user_id=customer_id,
+                key="runtime_idempotency_key",
+                value=runtime_idempotency_key,
+            )
+            if existing is not None:
+                return serialize_reminder(existing)
         character_id = _require_string(
             body.get("characterId") or self.character_id_provider(),
             "character_id",

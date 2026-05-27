@@ -185,6 +185,17 @@ class ReminderDAO:
             }
         )
 
+    def find_visible_by_metadata_key(
+        self, *, owner_user_id: str, key: str, value: str
+    ) -> Optional[Dict]:
+        return self.collection.find_one(
+            {
+                "owner_user_id": owner_user_id,
+                "visibility": "visible",
+                f"metadata.{key}": value,
+            }
+        )
+
     def replace_reminder(
         self,
         reminder_id: str,

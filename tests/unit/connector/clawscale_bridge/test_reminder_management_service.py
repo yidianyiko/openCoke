@@ -291,8 +291,8 @@ def test_create_reminder_resolves_latest_conversation_and_passes_output_target()
 
 def test_create_reminder_passes_metadata_to_runtime_and_serializes_it():
     metadata = {
-        "shared_reminder_request_id": "srr_1",
-        "projection_role": "requester",
+        "shared_reminder_id": "sr_1",
+        "projection_role": "creator",
     }
     runtime_contract = MagicMock()
     runtime_contract.create_visible_reminder.return_value = _reminder(metadata=metadata)
@@ -321,6 +321,40 @@ def test_create_reminder_passes_metadata_to_runtime_and_serializes_it():
         == metadata
     )
     assert result["metadata"] == metadata
+
+
+def test_create_reminder_reuses_existing_runtime_idempotency_key():
+    metadata = {
+        "shared_reminder_id": "sr_1",
+        "projection_role": "creator",
+    }
+    existing = _reminder(
+        id="rem-existing",
+        metadata={**metadata, "runtime_idempotency_key": "shared-reminder:sr_1:creator"},
+    )
+    runtime_contract = MagicMock()
+    runtime_contract.find_visible_reminder_by_metadata_key.return_value = existing
+
+    result = _service(reminder_runtime=runtime_contract).create_reminder(
+        customer_id="customer-1",
+        body={
+            "title": "standup",
+            "localDate": "2026-05-13",
+            "localTime": "09:30",
+            "timezone": "Asia/Tokyo",
+            "idempotencyKey": "shared-reminder:sr_1:creator",
+            "metadata": metadata,
+        },
+    )
+
+    runtime_contract.find_visible_reminder_by_metadata_key.assert_called_once_with(
+        owner_user_id="customer-1",
+        key="runtime_idempotency_key",
+        value="shared-reminder:sr_1:creator",
+    )
+    runtime_contract.create_visible_reminder.assert_not_called()
+    assert result["id"] == "rem-existing"
+    assert result["metadata"]["runtime_idempotency_key"] == "shared-reminder:sr_1:creator"
 
 
 def test_create_reminder_accepts_duration_minutes_and_serializes_schedule():

@@ -189,6 +189,16 @@ class ReminderService:
             source_original_start_time=source_original_start_time,
         )
 
+    def find_visible_by_metadata_key(
+        self, *, owner_user_id: str, key: str, value: str
+    ) -> Reminder | None:
+        document = self.reminder_dao.find_visible_by_metadata_key(
+            owner_user_id=owner_user_id,
+            key=key,
+            value=value,
+        )
+        return self._map_document(document) if document is not None else None
+
     def update(
         self,
         *,
