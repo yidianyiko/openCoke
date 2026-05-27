@@ -246,7 +246,10 @@ def test_message_acquirer_mints_and_persists_business_key_for_first_turn(
 
     assert ctx is not None
     assert ctx.conversation["business_conversation_key"] == "bc_conv_virtual"
-    assert ctx.conversation["conversation_info"]["business_conversation_key"] == "bc_conv_virtual"
+    assert (
+        ctx.conversation["conversation_info"]["business_conversation_key"]
+        == "bc_conv_virtual"
+    )
     assert persisted_updates == [
         (
             "conv_virtual",
@@ -536,3 +539,96 @@ def test_message_acquirer_filters_clawscale_request_response_batch_by_business_t
 
     assert ctx is not None
     assert ctx.input_messages == [product_message]
+
+
+def test_message_acquirer_keeps_direct_request_response_turns_per_inbound_event(
+    monkeypatch,
+):
+    from agent.runner import message_processor as mp
+
+    fake_user_dao = types.SimpleNamespace(
+        get_user_by_id=lambda user_id: (
+            {
+                "_id": "ck_alice",
+                "display_name": "Alice",
+                "platforms": {},
+            }
+            if user_id == "ck_alice"
+            else {
+                "_id": "65f000000000000000000002",
+                "name": "coke",
+                "platforms": {},
+            }
+        ),
+        find_characters=lambda query: [],
+    )
+    fake_conversation_dao = types.SimpleNamespace(
+        get_or_create_private_conversation=lambda **kwargs: ("conv_direct", True),
+        get_conversation_by_id=lambda conversation_id: {
+            "_id": conversation_id,
+            "conversation_info": {},
+            "business_conversation_key": "bc_direct",
+        },
+        update_conversation=lambda conversation_id, update_data: True,
+        get_private_conversation=lambda platform, user_id1, user_id2: None,
+    )
+    fake_lock_manager = types.SimpleNamespace(
+        acquire_lock=lambda *args, **kwargs: "lock_1",
+    )
+
+    first_message = {
+        "_id": "msg_first",
+        "from_user": "ck_alice",
+        "to_user": "65f000000000000000000002",
+        "platform": "business",
+        "status": "pending",
+        "message_type": "text",
+        "message": "第一条",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "business_conversation_key": "bc_direct",
+                "causal_inbound_event_id": "evt_first",
+            },
+        },
+    }
+    second_message = {
+        "_id": "msg_second",
+        "from_user": "ck_alice",
+        "to_user": "65f000000000000000000002",
+        "platform": "business",
+        "status": "pending",
+        "message_type": "text",
+        "message": "第二条",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "business_conversation_key": "bc_direct",
+                "causal_inbound_event_id": "evt_second",
+            },
+        },
+    }
+
+    monkeypatch.setattr(mp, "UserDAO", lambda *args, **kwargs: fake_user_dao)
+    monkeypatch.setattr(
+        mp, "ConversationDAO", lambda *args, **kwargs: fake_conversation_dao
+    )
+    monkeypatch.setattr(
+        mp, "MongoDBLockManager", lambda *args, **kwargs: fake_lock_manager
+    )
+    monkeypatch.setattr(
+        mp,
+        "read_all_inputmessages",
+        lambda from_user, to_user, platform, status=None: [
+            first_message,
+            second_message,
+        ],
+    )
+
+    acquirer = mp.MessageAcquirer("[W1]")
+    ctx = acquirer._try_acquire_message(first_message, set())
+
+    assert ctx is not None
+    assert ctx.input_messages == [first_message]

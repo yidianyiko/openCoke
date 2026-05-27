@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: active
+status: resolved
 title: Real-user corpus smoke found pending-message aggregation and false shared-reminder accept
 created_at: 2026-05-27T05:17:37Z
-updated_at: 2026-05-27T05:17:37Z
+updated_at: 2026-05-27T06:00:39Z
 severity: high
 surface:
   - agent-runtime
@@ -145,18 +145,50 @@ Initial code correlation:
 
 ## Next Repair Direction
 
-1. Add a production-path regression around rapid request/response messages in
-   one conversation. The expected contract should be either one deterministic
-   aggregated output bound to the newest turn or individual outputs, but not
-   "handled inputs with missing outputs".
-2. Change message acquisition so request/response inputs selected for a turn
-   are claimed atomically before long agent execution, or otherwise excluded
-   from other workers until the owning turn finishes.
-3. Fix scheduling accept intent normalization so natural language
-   `接受 <requester> 发来的「<title>」共享提醒` maps to the canonical
-   accept-shared-reminder intent accepted by the scheduling executor.
-4. Add a reply contract enforcement guard after model output: if a domain
-   result is failed and `prohibited_claims` are present, reject or rewrite final
-   wording instead of allowing success claims.
-5. Keep the gateway canonical accept path unchanged; production isolation
-   showed it creates the requester accepted notification correctly.
+Completed in this repair:
+
+1. Added regression coverage for same-conversation ClawScale
+   `request_response` turns. Direct sync turns now stay isolated per
+   `causal_inbound_event_id`, then per `sync_reply_token`, then per input
+   message id.
+2. Updated rollback detection so an in-flight ClawScale sync turn is not
+   interrupted by another ClawScale sync turn from the same business
+   conversation. Non-request/response messages still interrupt as before.
+3. Normalized the model-observed shared-reminder accept shape
+   `{"inviter": "...", "shared_reminder_request_action": "accept"}` to the
+   canonical `accept_shared_reminder` intent with `requester_name`.
+4. Added action-specific final-text guardrails: a reply may not claim a shared
+   reminder accept succeeded unless an `accept_shared_reminder` write actually
+   succeeded.
+5. Left the gateway canonical accept path unchanged.
+
+## Fix Verification
+
+Local verification before deploy:
+
+- `zsh scripts/check`
+- `.venv/bin/python -m pytest tests/unit/runner/ -v`
+- `.venv/bin/python -m pytest tests/unit/agent/ -v`
+- `.venv/bin/python -m pytest tests/unit/test_clawscale_only_topology.py -v`
+- `zsh scripts/review-trigger --base HEAD~1`: `human_review_required: no`
+- `git diff --check`
+
+Deployment:
+
+- `./scripts/deploy-compose-to-gcp.sh --restart`
+- Remote health and public site checks passed.
+
+Production real-user verification after deploy:
+
+- Rapid marker `fix-rapid-20260527T055333Z`: three concurrent real messages
+  from `olivers` each logged `count=1`, all three inputs became `handled`, and
+  three outputs were produced, each bound to its own causal event. No earlier
+  input was swallowed by a later turn.
+- Shared marker `fix-shared-20260527T055525Z`: `olivers` created a shared
+  reminder for `李梓豪`; invite notification was delivered. `李梓豪` then accepted
+  via natural language, and the request changed to `accepted`, an invitee
+  reminder was created, and the requester received a delivered
+  `shared_reminder_accepted` notification.
+- Cleanup completed: both future reminder projections were cancelled, the
+  exact marked shared request was deleted, and final Postgres checks showed
+  `0` shared rows and `0` product notifications for the marker.

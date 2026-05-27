@@ -813,6 +813,76 @@ async def test_shared_reminder_invite_sent_claim_allowed_after_create_write(
 
 
 @pytest.mark.asyncio
+async def test_shared_reminder_accept_claim_fails_closed_without_confirmed_write(
+    monkeypatch,
+):
+    failed_accept = DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(),
+        missing_fields=(),
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            prohibited_claims=("appointment_confirmed",),
+            allow_rephrase=True,
+        ),
+        error=DomainError(
+            code="invalid_scheduling_intent",
+            message="scheduling intent could not be resolved",
+            retryable=False,
+        ),
+    )
+    text = "收到，你已经接受了 olivers 的「羽毛球」共享提醒，记下了～"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": text}],
+        capability_results=[],
+        domain_results=[failed_accept],
+        monkeypatch=monkeypatch,
+        input_text="接受 olivers 发来的羽毛球共享提醒",
+        content=text,
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
+async def test_shared_reminder_accept_claim_allowed_after_accept_write(
+    monkeypatch,
+):
+    accept_write = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="accept_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder_request",
+                entity_id="srr_1",
+                facts={"visible_summary": "已接受共享提醒。"},
+            ),
+        ),
+    )
+    text = "收到，你已经接受了 olivers 的「羽毛球」共享提醒，记下了～"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": text}],
+        capability_results=[],
+        domain_results=[accept_write],
+        monkeypatch=monkeypatch,
+        input_text="接受 olivers 发来的羽毛球共享提醒",
+        content=text,
+    )
+
+    assert result.output_disposition.status == "ok"
+    assert [message.content for message in result.visible_messages] == [text]
+
+
+@pytest.mark.asyncio
 async def test_scheduling_write_without_visible_summary_fails_closed(monkeypatch):
     scheduling_write = DomainExecutionResult(
         domain="scheduling",

@@ -331,21 +331,29 @@ class MessageAcquirer:
         if delivery_mode != "request_response":
             return None
 
-        stable_id = (
-            business_protocol.get("business_conversation_key")
-            or business_protocol.get("gateway_conversation_id")
-            or business_protocol.get("causal_inbound_event_id")
+        stable_id = business_protocol.get("causal_inbound_event_id") or metadata.get(
+            "causal_inbound_event_id"
         )
         if stable_id:
-            return str(stable_id)
+            return f"event:{stable_id}"
+
+        stable_id = business_protocol.get("sync_reply_token") or metadata.get(
+            "sync_reply_token"
+        )
+        if stable_id:
+            return f"token:{stable_id}"
+
+        stable_id = message.get("_id")
+        if stable_id:
+            return f"message:{stable_id}"
 
         clawscale_meta = metadata.get("clawscale")
         if isinstance(clawscale_meta, dict):
-            stable_id = clawscale_meta.get("conversation_id") or clawscale_meta.get(
-                "external_id"
+            stable_id = clawscale_meta.get("event_id") or clawscale_meta.get(
+                "message_id"
             )
         if stable_id:
-            return str(stable_id)
+            return f"clawscale:{stable_id}"
         return None
 
     def _ensure_business_conversation_key(
@@ -395,7 +403,9 @@ class MessageAcquirer:
             user, top_message, platform
         ) or {
             "id": f"{platform}-user:{get_agent_entity_id(user)}",
-            "nickname": resolve_profile_label(user, f"user-{get_agent_entity_id(user)[-6:]}"),
+            "nickname": resolve_profile_label(
+                user, f"user-{get_agent_entity_id(user)[-6:]}"
+            ),
         }
 
         character_platform_profile = self._build_clawscale_virtual_character_platform(
@@ -424,10 +434,7 @@ class MessageAcquirer:
         delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
             "delivery_mode"
         )
-        if (
-            metadata.get("source") != "clawscale"
-            or delivery_mode != "request_response"
-        ):
+        if metadata.get("source") != "clawscale" or delivery_mode != "request_response":
             return None
 
         get_private_conversation = getattr(
@@ -468,10 +475,7 @@ class MessageAcquirer:
         delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
             "delivery_mode"
         )
-        if (
-            metadata.get("source") != "clawscale"
-            or delivery_mode != "request_response"
-        ):
+        if metadata.get("source") != "clawscale" or delivery_mode != "request_response":
             return None
 
         # Prefer the durable business key once it exists, but preserve the
@@ -513,10 +517,7 @@ class MessageAcquirer:
         delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
             "delivery_mode"
         )
-        if (
-            metadata.get("source") != "clawscale"
-            or delivery_mode != "request_response"
-        ):
+        if metadata.get("source") != "clawscale" or delivery_mode != "request_response":
             return None
 
         character_id = get_agent_entity_id(character)

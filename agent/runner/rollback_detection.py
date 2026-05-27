@@ -19,6 +19,30 @@ def _is_product_notification_message(message: dict) -> bool:
     return str(business_conversation_key or "").startswith("product-notification:")
 
 
+def _request_response_event_key(message: dict) -> str | None:
+    metadata = message.get("metadata") or {}
+    if not isinstance(metadata, dict) or metadata.get("source") != "clawscale":
+        return None
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(business_protocol, dict):
+        business_protocol = {}
+    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+        "delivery_mode"
+    )
+    if delivery_mode != "request_response":
+        return None
+    stable_id = business_protocol.get("causal_inbound_event_id") or metadata.get(
+        "causal_inbound_event_id"
+    )
+    stable_id = (
+        stable_id
+        or business_protocol.get("sync_reply_token")
+        or metadata.get("sync_reply_token")
+    )
+    stable_id = stable_id or message.get("_id")
+    return str(stable_id) if stable_id else None
+
+
 def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = None):
     """
     检测是否有新消息到达（排除当前正在处理的消息）
@@ -57,6 +81,14 @@ def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = N
         for message in input_messages
         if not _is_product_notification_message(message)
     ]
+    if current_message_ids and any(
+        _request_response_event_key(message) for message in current_messages
+    ):
+        input_messages = [
+            message
+            for message in input_messages
+            if _request_response_event_key(message) is None
+        ]
     if current_latest is not None:
         input_messages = [
             message

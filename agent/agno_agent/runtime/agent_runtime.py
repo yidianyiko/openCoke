@@ -95,6 +95,16 @@ _SCHEDULING_INTENT_SELECTOR_KEYS = {
     "operation",
     "action",
 }
+_SHARED_REMINDER_REQUEST_ACTION_INTENTS = {
+    "accept": "accept_shared_reminder",
+    "接受": "accept_shared_reminder",
+    "同意": "accept_shared_reminder",
+    "确认": "accept_shared_reminder",
+    "reject": "reject_shared_reminder",
+    "decline": "reject_shared_reminder",
+    "拒绝": "reject_shared_reminder",
+    "不同意": "reject_shared_reminder",
+}
 _SCHEDULING_CREATE_SHARED_REMINDER_ARG_KEYS = {
     "invitee_account_id",
     "invitee_name",
@@ -194,6 +204,23 @@ _SHARED_REMINDER_INVITE_WRITE_CLAIM_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_SHARED_REMINDER_ACCEPT_WRITE_CLAIM_PATTERNS = (
+    re.compile(
+        r"(已经|已|帮你|收到|好啦|好嘞).{0,24}"
+        r"(接受|同意|确认参加).{0,32}"
+        r"(共享提醒|邀请|邀约)"
+    ),
+    re.compile(
+        r"(已经|已|帮你|收到|好啦|好嘞).{0,24}"
+        r"(共享提醒|邀请|邀约).{0,32}"
+        r"(接受|同意|确认参加)"
+    ),
+    re.compile(
+        r"\b(i(?:'ve| have)|we(?:'ve| have)).{0,40}"
+        r"\b(accepted|confirmed).{0,40}\b(shared reminder|invite|invitation)",
+        re.IGNORECASE,
+    ),
+)
 _VISIBLE_IDENTIFIER_LEAK_PATTERNS = (
     re.compile(r"ck_[a-zA-Z0-9_]{8,}"),
     re.compile(r"acct_[a-zA-Z0-9_]{8,}"),
@@ -233,7 +260,9 @@ _COMPLETED_WRITE_CLAIM_PATTERNS = (
     re.compile(r"(设置好|设好|创建好|建好).{0,8}(了|啦)"),
     re.compile(r"我再帮你.{0,8}(设一下|设置一下|安排一下).{0,80}(提醒|通知)"),
     re.compile(r"给你.{0,8}(设个|设置个|安排个).{0,16}\d+\s*分钟后.{0,8}(提醒|通知)"),
-    re.compile(r"(好嘞|好的|收到).{0,80}(提醒你|通知你|叫你).{0,80}(告诉我|补充).{0,32}(设好|设置好|安排好)"),
+    re.compile(
+        r"(好嘞|好的|收到).{0,80}(提醒你|通知你|叫你).{0,80}(告诉我|补充).{0,32}(设好|设置好|安排好)"
+    ),
 )
 
 
@@ -309,6 +338,16 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                     )
                 return normalized_key
 
+        shared_reminder_action = _shared_reminder_action_intent(raw_intent)
+        if shared_reminder_action:
+            args = _shared_reminder_action_args(raw_intent)
+            if args:
+                return (
+                    f"{shared_reminder_action}: "
+                    f"{json.dumps(_normalize_scheduling_intent_args(shared_reminder_action, args), ensure_ascii=False)}"
+                )
+            return shared_reminder_action
+
         for key in _SCHEDULING_INTENT_SELECTOR_KEYS:
             value = raw_intent.get(key)
             if isinstance(value, str) and value.strip():
@@ -350,6 +389,40 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
     )
 
 
+def _shared_reminder_action_intent(raw_intent: Mapping[str, Any]) -> str | None:
+    action = raw_intent.get("shared_reminder_request_action")
+    if not isinstance(action, str):
+        return None
+    return _SHARED_REMINDER_REQUEST_ACTION_INTENTS.get(action.strip().lower()) or (
+        _SHARED_REMINDER_REQUEST_ACTION_INTENTS.get(action.strip())
+    )
+
+
+def _shared_reminder_action_args(raw_intent: Mapping[str, Any]) -> dict[str, Any]:
+    args = {
+        key: value
+        for key, value in raw_intent.items()
+        if key
+        not in {
+            "shared_reminder_request_action",
+            *_SCHEDULING_INTENT_SELECTOR_KEYS,
+            "reminder_title",
+        }
+    }
+    requester_name = (
+        raw_intent.get("requester_name")
+        or raw_intent.get("requester")
+        or raw_intent.get("inviter_name")
+        or raw_intent.get("inviter")
+    )
+    if requester_name and not args.get("requester_name"):
+        args["requester_name"] = requester_name
+    shared_request_id = raw_intent.get("shared_reminder_request_id")
+    if shared_request_id and not args.get("request_id"):
+        args["request_id"] = shared_request_id
+    return args
+
+
 def _normalize_scheduling_intent_args(
     tool_name: str,
     args: Mapping[str, Any],
@@ -357,6 +430,14 @@ def _normalize_scheduling_intent_args(
     normalized = dict(args)
     if "message" not in normalized and "note" in normalized:
         normalized["message"] = normalized.pop("note")
+    if "request_id" not in normalized and "shared_reminder_request_id" in normalized:
+        normalized["request_id"] = normalized.pop("shared_reminder_request_id")
+    if "requester_name" not in normalized:
+        for alias in ("inviter_name", "inviter", "requester"):
+            if alias in normalized and normalized[alias]:
+                normalized["requester_name"] = normalized[alias]
+                break
+    normalized.pop("reminder_title", None)
     if tool_name == "create_shared_reminder":
         invalid_keys = sorted(
             key
@@ -1281,6 +1362,19 @@ def _check_unconfirmed_durable_write_promise(
     if shared_reminder_invite_claim and not _has_successful_domain_write(
         domain_results,
         action="create_shared_reminder",
+    ):
+        return RuntimeErrorDisposition(
+            code="unconfirmed_durable_write_promise",
+            retryable=False,
+            metadata={"input_type": agent_input.input_type},
+        )
+    shared_reminder_accept_claim = any(
+        pattern.search(final_text)
+        for pattern in _SHARED_REMINDER_ACCEPT_WRITE_CLAIM_PATTERNS
+    )
+    if shared_reminder_accept_claim and not _has_successful_domain_write(
+        domain_results,
+        action="accept_shared_reminder",
     ):
         return RuntimeErrorDisposition(
             code="unconfirmed_durable_write_promise",

@@ -661,8 +661,7 @@ async def test_run_agent_runtime_preselects_friend_invite_with_concrete_time(
         input_type=agent_input.input_type,
         conversation_id=agent_input.conversation_id,
         text=(
-            "帮我约李梓豪，上海时间2029年1月1日10:00，"
-            "标题是验收测试，持续5分钟。"
+            "帮我约李梓豪，上海时间2029年1月1日10:00，" "标题是验收测试，持续5分钟。"
         ),
         payload=agent_input.payload,
         occurred_at=agent_input.occurred_at,
@@ -1919,8 +1918,7 @@ def test_create_interaction_agent_domain_tool_descriptions_route_friend_invites(
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message=(
-            "帮我约李梓豪，上海时间2029年1月1日10:00，"
-            "标题是验收测试，持续5分钟。"
+            "帮我约李梓豪，上海时间2029年1月1日10:00，" "标题是验收测试，持续5分钟。"
         ),
         capability_results=[],
         domain_results=[],
@@ -2122,6 +2120,58 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_nested_curr
         "forced_args": {
             "user_link_code": "AbCdEfGhIjK_",
             "message": "FM01",
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_normalizes_shared_reminder_accept_shape(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results
+        captured.update({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="接受 olivers 发来的羽毛球共享提醒。",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent={
+            "intent": {
+                "inviter": "olivers",
+                "reminder_title": "羽毛球",
+                "shared_reminder_request_action": "accept",
+            }
+        }
+    )
+
+    assert captured == {
+        "intent": "accept_shared_reminder",
+        "forced_args": {
+            "requester_name": "olivers",
         },
     }
 

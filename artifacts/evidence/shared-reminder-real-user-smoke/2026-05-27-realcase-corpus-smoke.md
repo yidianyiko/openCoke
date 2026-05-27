@@ -151,3 +151,94 @@ Final cleanup checks:
 - Postgres shared requests with either marker: `0`
 - Postgres notifications with either marker: `0`
 - Active Mongo reminders with either marker: none
+
+## Post-Fix Production Retest
+
+Deployment:
+
+- Command: `./scripts/deploy-compose-to-gcp.sh --restart`
+- Result: completed successfully.
+- Remote services after deploy: `coke-agent`, `coke-bridge`, and `gateway`
+  were up; bridge and gateway health checks passed.
+
+### Rapid Request/Response Retest
+
+Marker: `fix-rapid-20260527T055333Z`
+
+Three concurrent messages were sent as `olivers` through production
+`/bridge/inbound`:
+
+1. `快速验收 fix-rapid-20260527T055333Z 第1条，只回复收到第1条。`
+2. `快速验收 fix-rapid-20260527T055333Z 第2条，只回复收到第2条。`
+3. `快速验收 fix-rapid-20260527T055333Z 第3条，只回复收到第3条。`
+
+Bridge responses:
+
+- Event 1 returned the sync placeholder, then produced late async output.
+- Event 2 returned `收到第2条`.
+- Event 3 returned `收到第3条`.
+
+Production log evidence:
+
+- Event 2: `count=1`
+- Event 3: `count=1`
+- Event 1: `count=1`
+
+Mongo evidence:
+
+- Inputs: `3`
+- All three inputs: `status=handled`
+- Outputs: `3`
+- Output causal bindings:
+  - `fix-rapid-20260527T055333Z_rapid_evt_1`: `收到第1条`
+  - `fix-rapid-20260527T055333Z_rapid_evt_2`: `收到第2条`
+  - `fix-rapid-20260527T055333Z_rapid_evt_3`: `收到第3条`
+
+This directly verifies that same-conversation ClawScale sync turns are no
+longer re-aggregated into later turns.
+
+### Shared Reminder Natural-Language Accept Retest
+
+Marker: `fix-shared-20260527T055525Z`
+
+Create message as `olivers`:
+
+`帮我约李梓豪，上海时间2029年1月1日10:00，标题是验收测试-fix-shared-20260527T055525Z，持续5分钟。`
+
+Create result:
+
+- Shared request id: `cmpnnkjk40002pa1tr5kvywv9`
+- Status after create: `pending_invitee_confirmation`
+- Requester reminder id: `6a1687e8454bd9c97c71e6b8`
+- Invite notification to `李梓豪`: `shared_reminder_request`, `delivered`
+
+Accept message as `李梓豪`:
+
+`接受 olivers 发来的 验收测试-fix-shared-20260527T055525Z 共享提醒。`
+
+Bridge response:
+
+- Output id: `6a16883c03a325ee5394be5f`
+- Reply:
+  `收到，你已经接受了 olivers 的「验收测试-fix-shared-20260527T055525Z」共享提醒，记下了～`
+
+Postgres after natural-language accept:
+
+- Request status: `accepted`
+- Requester reminder id: `6a1687e8454bd9c97c71e6b8`
+- Invitee reminder id: `6a168839454bd9c97c71e6ba`
+- Notification to `李梓豪`: `shared_reminder_request`, `delivered`
+- Notification to `olivers`: `shared_reminder_accepted`, `delivered`
+- Accepted notification text:
+  `李梓豪已确认参加「验收测试-fix-shared-20260527T055525Z」，时间2029-01-01 10:00。`
+
+Cleanup:
+
+- Cancelled requester reminder `6a1687e8454bd9c97c71e6b8`:
+  `lifecycleState=cancelled`
+- Cancelled invitee reminder `6a168839454bd9c97c71e6ba`:
+  `lifecycleState=cancelled`
+- Deleted exact shared request `cmpnnkjk40002pa1tr5kvywv9`
+- Final Postgres checks:
+  - shared rows for marker: `0`
+  - product notifications for request id: `0`
