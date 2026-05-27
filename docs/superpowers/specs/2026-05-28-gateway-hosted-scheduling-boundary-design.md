@@ -63,6 +63,12 @@ conflicts with the repository's agent capability rule: tools, HTTP routes, MCP
 servers, CLI commands, and web UI surfaces are adapters over a stable domain
 contract; they are not separate owners of business behavior.
 
+The 2026-05-27 production multi-pending case (see *Current Boundary
+Problems*) is a concrete consequence of that ownership confusion: business
+invariants, cross-turn agent state, and inbound channel metadata are each
+carrying a piece of Scheduling semantics that no single layer owns. This
+spec is the architectural step that closes that regression class.
+
 ## Why Gateway Hosting Is Still Defensible
 
 Scheduling is not only Reminder behavior. It combines:
@@ -154,6 +160,69 @@ Shared reminder creation and acceptance span:
 
 This is the highest-risk area. The architecture must make projection,
 reconciliation, idempotency, notification, and cleanup ports explicit.
+
+### Duplicate Pending Invites Can Accumulate
+
+Production case (2026-05-27): a single requester landed three near-identical
+`create_shared_reminder` requests within ninety minutes. All three rows
+persisted in `shared_reminder_requests` with
+`status = pending_invitee_confirmation`, byte-identical `title`, `fire_at`,
+`timezone`, and `duration_minutes`, differing only by `idempotency_key`,
+which the agent hashes per turn rather than per business intent.
+
+The current unique index
+`(requester_account_id, invitee_account_id, idempotency_key)` deduplicates
+retries of the same agent turn but not semantic duplicates from different
+agent turns or different concurrent worker sessions. The result is an
+unbounded multi-pending state on the invitee side and a downstream
+fail-closed loop in the agent.
+
+This is a transactional invariant. It cannot be enforced reliably at the
+language layer because concurrent worker processes do not see each other's
+in-flight intent. It must live in the contract and be enforced by a
+database constraint.
+
+### Cross-Turn Disambiguation Has No Owner
+
+When `shared_reminder_requests` carries more than one
+`pending_invitee_confirmation` row for an invitee, the Channel/Bridge
+inbound pipeline bundles every candidate into
+`product_notification.candidates` with `ambiguity = "multi_pending"`. The
+agent rebuilds Focus from that bundle on every inbound turn, and the LLM
+Focus interpreter prompt instructs the model to return `ambiguous` for any
+multi-candidate Focus. The user is asked to pick, the user picks ("1",
+"23:01 那条"), the next turn sees the same multi_pending Focus and asks the
+same question again.
+
+The missing concept is a stable per-conversation handle for "the agent is
+currently disambiguating among this candidate set." Nothing owns it today:
+
+- Gateway exposes raw pending state through a Channel-side notification
+  pipe, not through the Scheduling contract.
+- Agent session storage exists but does not carry a disambiguation phase.
+- The Focus interpreter prompt does not allow resolving ordinal, time, or
+  summary references to a concrete candidate handle.
+
+### Inbound Notification Pipe Bypasses The Scheduling Contract
+
+`product_notification` is a Channel/inbound metadata channel. It currently
+carries Scheduling state (`request_id`, `candidates`, `ambiguity`) directly
+to the agent, which means Channel-side bundling is acting as the agent's
+view of Scheduling.
+
+This is inverted: Scheduling owns those semantics. Agent-facing focus and
+candidate resolution must be requested from the Scheduling contract by
+stable handle, not reconstructed from inbound channel metadata.
+
+### Bulk Action Vocabulary Missing
+
+Contract operations today are strictly singular: `acceptSharedReminder`,
+`rejectSharedReminder`, `cancelSharedReminder` take one `request_id`. The
+common user utterance "全部确认" / "all decline" cannot be expressed as a
+single domain operation; the agent would have to emit N calls and reconcile
+N partial outcomes in user-visible text, with no atomic guarantee. The
+contract must offer bulk variants so the LLM has a faithful target for that
+intent.
 
 ## Target Component Shape
 
@@ -283,6 +352,133 @@ Scheduling event
 This keeps product notification semantics out of route handlers while keeping
 provider delivery out of Scheduling.
 
+### Business-Key Idempotency For createSharedReminder
+
+`createSharedReminder` must enforce a business-key uniqueness rule, not only
+a per-turn `idempotency_key`.
+
+Required behavior:
+
+- For rows in status `pending_invitee_confirmation`, the tuple
+  `(requester_account_id, invitee_account_id, title, fire_at, timezone,
+  duration_minutes)` must be unique.
+- The constraint must be enforced by a database unique index on
+  `shared_reminder_requests` (partial index on the pending state), so
+  concurrent worker processes cannot insert duplicates.
+- On collision, `createSharedReminder` must return the existing pending
+  request as a deterministic success (idempotent upsert), with a DTO field
+  that signals "already pending" so the agent can shape its reply without
+  claiming a fresh create.
+- `idempotency_key` remains available for replay deduplication of the same
+  agent turn. It is no longer the only line of defense.
+- The accept/reject/cancel transitions must clear the row out of the pending
+  partial index in the same transaction that updates `status`, so a new
+  invitation with the same business key after rejection or cancellation is
+  not blocked by a stale unique row.
+
+This rule is part of the contract, not an implementation detail. Phase 1
+fixtures must cover it.
+
+### Agent Focus Binding Contract
+
+The Scheduling contract must own a stable, agent-callable focus resolution
+that replaces ad-hoc reconstruction from `product_notification`.
+
+Required shape (DTO names are illustrative; final names belong to the
+implementation plan):
+
+```text
+resolveAgentFocus(actor: AccountId, conversation: ConversationKey)
+  -> AgentFocusBinding {
+       focus_token: opaque, stable for as long as the binding is valid
+       state: "single" | "multi_pending" | "none_actionable" | "stale"
+       candidates: list of CandidateDescriptor {
+         handle:       opaque stable id (not a Postgres column)
+         kind:         "shared_reminder_request" | "friend_request" | ...
+         summary:      domain DTO with title, when, counterparty,
+                       viewer-local fields
+         offered_at:   timestamp this candidate joined the binding
+       }
+       expires_at: when the binding goes stale
+     }
+
+bindAgentFocusSelection(focus_token, handle)
+  -> AgentFocusBindingOutcome {
+       ok:               boolean
+       resolved_kind:    string
+       resolved_handle:  string
+       conflict_reason?: "already_consumed" | "expired" | "unknown_handle"
+     }
+```
+
+`focus_token` is the cross-turn anchor. The Scheduling contract guarantees
+optimistic concurrency on `bindAgentFocusSelection`: if any other actor
+consumed the same candidate (accept, reject, cancel, expiry) between the
+binding being offered and the selection being submitted, the call fails
+with a typed conflict reason and the agent must re-render focus.
+
+Inbound `product_notification` may still carry a low-cardinality hint
+(e.g. "you have N actionable items"), but the agent must not treat its
+payload as the source of truth for actionable focus. Focus is obtained by
+calling the contract.
+
+### Disambiguation Session State In Agent Runtime
+
+`agent_sessions` must persist disambiguation state across turns:
+
+```text
+DisambiguationSession {
+  focus_token:           opaque, from Scheduling contract
+  offered_handles:       list of handle IDs surfaced to the user this turn
+  offered_summary_text:  the visible enumeration that was shown
+  expected_action:       "accept" | "reject" | "cancel" | "bulk_accept" | ...
+  expires_at:            mirrors the binding expiry from the contract
+}
+```
+
+When a `DisambiguationSession` is present, the semantic interpreter prompt
+must be allowed to resolve ordinal references ("1", "第一条"), delivery-time
+references ("23:01 那条"), or summary-text references ("数学课那条")
+against `offered_handles`, returning the matched `handle` in `args` instead
+of `ambiguous`. The interpreter still returns `ambiguous` when the
+utterance does not unambiguously match a single offered handle.
+
+Ordinal, time, and summary-text matching are language responsibilities and
+must remain LLM responsibilities. They must not be encoded as Python regex
+or keyword routing in agent runtime. The session state is the
+non-LLM scaffolding the interpreter binds against; the matching itself stays
+in the model.
+
+`DisambiguationSession` expiry must mirror the Scheduling focus binding
+expiry so that a stale "接受" five hours later does not silently bind to a
+candidate set the user has forgotten about.
+
+### Bulk Variants On The Contract
+
+Add bulk-shaped methods so the agent has a faithful target for "全部 X"
+intents:
+
+- `acceptPendingSharedRemindersFrom(invitee: AccountId,
+  requester_filter?)`
+- `rejectPendingSharedRemindersFrom(invitee: AccountId,
+  requester_filter?)`
+- `cancelPendingSharedRemindersFor(requester: AccountId,
+  invitee_filter?)`
+
+Bulk operations must:
+
+- be atomic per candidate (each candidate either fully transitions or is
+  reported as conflicted), but not necessarily atomic across the whole
+  batch.
+- return per-handle outcome arrays so the agent can produce a faithful
+  summary ("3 confirmed, 1 already expired") instead of claiming a uniform
+  result.
+- reuse the same focus binding handles as single-candidate operations, so
+  the agent does not maintain a separate state shape for bulk flows.
+
+The semantic interpreter prompt must be extended to map "全部 X" / "all X"
+phrasing to the bulk intent and emit the appropriate scoping argument.
+
 ## Canonical Documentation Changes Required
 
 Implementation of this spec must update the canonical docs in the same change
@@ -294,12 +490,20 @@ Required doc sync:
   - Add a Scheduling System boundary section.
   - State that Scheduling is Gateway-hosted but contract-owned.
   - State that Scheduling depends on Reminder Runtime only through a port.
+  - State that Focus is requested by the agent from the Scheduling contract
+    via `resolveAgentFocus`, not reconstructed from inbound channel
+    metadata.
 - `docs/design-docs/interface-contract.md`
   - Add `/api/customer/scheduling/*` to the public customer API surface.
-  - Add `/api/internal/scheduling/*` to the internal API surface.
+  - Add `/api/internal/scheduling/*` to the internal API surface, including
+    the focus binding endpoints (`resolveAgentFocus`,
+    `bindAgentFocusSelection`) and the bulk shared-reminder endpoints
+    introduced in Phase 4d.
   - Classify them as Scheduling System routes, not generic Gateway routes.
 - `docs/product-specs/FEATURE_TREE.md`
   - Keep Friend Link and Shared Reminders discoverable.
+  - Add bulk accept/reject/cancel as supported user-visible flows once
+    Phase 4d lands.
   - Clarify that route location is not ownership.
 - Boundary spec reference cleanup
   - Restore, replace, or remove stale references to
@@ -308,68 +512,147 @@ Required doc sync:
 
 ## Implementation Phases
 
+Phases 1-3 establish ownership without changing user-visible behavior.
+Phases 4a-4d fill the behavior gaps that the multi-pending production case
+exposed. Phase 5 hardens the agent contract. Phase 6 is the user-path smoke
+that proves the regression class is closed.
+
 ### Phase 1: Contract Inventory And Tests
 
 Create contract fixtures or tests before moving code.
 
-Coverage should include:
+Coverage must include:
 
 - tool names and accepted field shapes
 - stable success DTOs
 - stable error codes
 - read/write classification
-- idempotency for write operations
-- `create_shared_reminder`
+- idempotency for write operations, including the business-key uniqueness
+  rule for `createSharedReminder` pending state
+- `create_shared_reminder`, including idempotent upsert on business-key
+  collision
 - `list_friend_calendar_facts`
 - `list_shared_reminders`
 - accept/reject/cancel shared reminder actions
+- bulk accept/reject/cancel shared reminder actions, including per-handle
+  outcome arrays and partial-batch reporting
+- `resolveAgentFocus` / `bindAgentFocusSelection`, including
+  `multi_pending` shape, optimistic-concurrency conflict reasons, and
+  expiry behavior
 - missing friend
 - ambiguous friend or request
 - stale focused request
 - runtime projection failure
 - privacy filtering for friend calendar facts
 
-This phase should catch agent/Gateway contract drift before runtime smoke tests.
+This phase must catch agent/Gateway contract drift before runtime smoke
+tests. Fixtures live alongside the contract and are consumed by both the TS
+service tests and the Python client tests so divergence shows up as a test
+failure on either side.
 
 ### Phase 2: Introduce SchedulingDomainContract
 
 Add the contract facade and wire it to existing scheduling services.
 
-No behavior should change in this phase. The goal is to make ownership visible
-and give routes a single domain entrypoint.
+No user-visible behavior should change in this phase. The goal is to make
+ownership visible and give routes a single domain entrypoint. Behavior gaps
+named in Phases 4a-4d are introduced explicitly there, not silently here.
 
 ### Phase 3: Thin Scheduling Routes
 
-Refactor internal and customer scheduling route handlers to call the contract.
+Refactor internal and customer scheduling route handlers to call the
+contract.
 
-Move route-local request resolution, shared-reminder lookup, error taxonomy, and
-tool dispatch into the contract or domain service layer.
+Move route-local request resolution, shared-reminder lookup, error
+taxonomy, and tool dispatch into the contract or domain service layer.
 
-Keep HTTP paths stable unless a separate interface migration spec explicitly
-changes them.
+Keep HTTP paths stable unless a separate interface migration spec
+explicitly changes them.
 
-### Phase 4: Make Ports Explicit
+### Phase 4: Fill Behavior Gaps
 
-Split or clarify the ports used by shared-reminder behavior:
+Subphases here change user-visible behavior. Each subphase must land with
+its own unit and integration coverage from Phase 1 fixtures, and with the
+relevant Reminder Runtime / Notification / Outbound ports made explicit as
+called out in this phase's port-cleanup task.
 
-- Prisma repository/client boundary
-- Reminder Runtime projection port
-- Product notification port
-- delivery/outbound port
+#### Phase 4a: Business-Key Idempotency
 
-This phase should focus on reducing saga ambiguity, not changing user-visible
-behavior.
+- Add a Prisma migration introducing a partial unique index on
+  `shared_reminder_requests`
+  `(requester_account_id, invitee_account_id, title, fire_at, timezone,
+  duration_minutes) WHERE status = 'pending_invitee_confirmation'`.
+- `createSharedReminder` becomes an idempotent upsert: on business-key
+  collision, return the existing pending row with an `already_pending: true`
+  DTO field. Existing per-turn `idempotency_key` behavior is preserved.
+- accept/reject/cancel transitions must remove the row from the partial
+  index in the same transaction that flips `status`, so the next legitimate
+  invitation with the same business key is not blocked by a stale unique
+  conflict.
+- Phase 1 fixtures cover collision, post-rejection re-invite, and
+  concurrent-create races.
+
+#### Phase 4b: Agent Focus Binding Contract
+
+- Add `resolveAgentFocus` and `bindAgentFocusSelection` to the contract and
+  to `/api/internal/scheduling/*`.
+- Bridge inbound stops embedding raw `candidates` and `ambiguity` in
+  `product_notification`. It may keep an actionable-items hint, but Focus
+  comes from a contract call.
+- Agent runtime replaces `focus_from_product_notification` with a call to
+  `resolveAgentFocus` keyed by `(actor, conversation)`, and stores
+  `focus_token` for the next turn.
+- `bindAgentFocusSelection` performs optimistic concurrency against
+  `shared_reminder_requests` state; conflict reasons are typed and the
+  agent re-renders focus on conflict.
+- The Notification port also lands here: product notification rows are
+  written via the explicit `ProductNotificationPort` from this phase
+  forward, replacing inline writes from route or service code paths that
+  previously assumed Channel-side coupling.
+
+#### Phase 4c: Disambiguation Session State
+
+- Persist `DisambiguationSession` in `agent_sessions` whenever Focus is
+  rendered with `state = "multi_pending"`.
+- Extend the semantic interpreter prompt to allow resolving ordinal,
+  delivery-time, and summary-text references against `offered_handles`,
+  returning the matched `handle` in `args`. Ordinal / time / summary
+  matching remains an LLM responsibility; no Python regex or keyword
+  routing is added.
+- Agent runtime maps the returned `handle` plus `focus_token` into a
+  `bindAgentFocusSelection` call before dispatching the matching scheduling
+  intent.
+- Session expiry follows the contract `expires_at`. Expired sessions are
+  cleared and the next turn must re-resolve Focus.
+- The Reminder Runtime projection port also lands here: scheduling writes
+  to Mongo reminders only through `ReminderRuntimePort`, not directly,
+  matching the saga-ambiguity reduction goal.
+
+#### Phase 4d: Bulk Variants
+
+- Add `acceptPendingSharedRemindersFrom`,
+  `rejectPendingSharedRemindersFrom`, and
+  `cancelPendingSharedRemindersFor` to the contract and to
+  `/api/internal/scheduling/*`. Return per-handle outcome arrays.
+- Extend the semantic interpreter prompt to recognise bulk intents
+  ("全部 X", "all X") and emit the appropriate scope filter.
+- The Outbound/delivery port also lands here so bulk operations dispatch
+  product notifications through the same explicit `ProductNotificationPort`
+  and outbound port as single-candidate flows.
+- Reply contract for bulk operations summarises per-handle outcomes so the
+  agent does not claim a uniform result.
 
 ### Phase 5: Harden Agent Contract
 
 Rename or wrap the agent-side Gateway scheduling client as a Scheduling
 contract client.
 
-Add golden checks so the Python tool contract and Gateway-supported contract
-cannot silently diverge.
+Add golden checks so the Python tool contract and Gateway-supported
+contract cannot silently diverge.
 
-Ensure agent-facing DTOs are domain-shaped and do not require the agent to know
-Gateway storage columns.
+Ensure agent-facing DTOs are domain-shaped and do not require the agent to
+know Gateway storage columns. The new focus binding, business-key
+idempotency, and bulk DTOs are part of this hardening.
 
 ### Phase 6: Runtime Smoke
 
@@ -377,9 +660,21 @@ After behavior-affecting phases, run a user-path smoke that proves:
 
 - a friend link or existing friendship path works
 - a shared reminder request can be created
+- creating an identical shared reminder twice within the same business key
+  is collapsed into a single pending row and the second response is
+  flagged `already_pending`
+- after the first invitation is rejected, a fresh invitation with the same
+  business key succeeds and does not hit a stale uniqueness conflict
 - invite notification is delivered
 - invitee can accept
-- both runtime reminder projections exist
+- when multiple distinct pending invitations exist for the same invitee,
+  the agent renders an enumeration sourced from `resolveAgentFocus`, and
+  the invitee can disambiguate by ordinal, delivery time, or summary
+  reference to complete the accept
+- bulk "全部确认" / "全部拒绝" resolves all currently pending invitations
+  through the bulk contract method and produces a faithful per-handle
+  summary
+- both runtime reminder projections exist for accepted invites
 - friend calendar facts expose busy intervals only
 - reminder firing still routes through Reminder Runtime
 
@@ -420,6 +715,15 @@ Also run targeted tests for the touched side:
 - Do not change public or internal API paths in the first refactor unless a
   separate migration plan covers callers, docs, smoke checks, and deletion of
   retired paths.
+- Do not encode disambiguation language patterns (ordinal references, time
+  references, summary-text references, bulk phrasing) as Python regex or
+  keyword routing in agent runtime. They remain the LLM's responsibility;
+  the structured pieces this spec adds (`DisambiguationSession`,
+  `AgentFocusBinding`) are scaffolding the model binds against, not a
+  replacement for it.
+- Do not represent business-key idempotency as application-level checks
+  alone. The unique index is the contract; the application path is the
+  optimization.
 
 ## Open Questions
 
