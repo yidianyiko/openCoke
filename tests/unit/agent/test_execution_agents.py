@@ -259,10 +259,13 @@ async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
     assert "list_friend_calendar_facts: pass friend_name" in captured["instructions"]
     assert "Do not use Google Calendar" in captured["instructions"]
     assert "one active friend" in captured["instructions"]
-    assert "Ask for clarification when the name is ambiguous" in captured["instructions"]
-    assert "use 60 minutes unless the user states another duration" in captured[
-        "instructions"
-    ]
+    assert (
+        "Ask for clarification when the name is ambiguous" in captured["instructions"]
+    )
+    assert (
+        "use 60 minutes unless the user states another duration"
+        in captured["instructions"]
+    )
 
 
 @pytest.mark.asyncio
@@ -561,7 +564,9 @@ async def test_run_scheduling_domain_returns_shared_reminder_status_results():
         "status": "accepted",
     }
     assert result["operations"][0]["action"] == "list_shared_reminders"
-    assert result["operations"][0]["facts"]["shared_reminders"][0]["status"] == "accepted"
+    assert (
+        result["operations"][0]["facts"]["shared_reminders"][0]["status"] == "accepted"
+    )
 
 
 @pytest.mark.asyncio
@@ -592,9 +597,7 @@ async def test_run_scheduling_domain_allows_friend_lookup_then_calendar_facts():
                     name=self.tool_name,
                     ok=True,
                     content={
-                        "friends": [
-                            {"account_id": "acct_eva", "display_name": "eva"}
-                        ]
+                        "friends": [{"account_id": "acct_eva", "display_name": "eva"}]
                     },
                 )
             return CapabilityResult(
@@ -609,7 +612,9 @@ async def test_run_scheduling_domain_allows_friend_lookup_then_calendar_facts():
 
     domain_results: list[DomainExecutionResult] = []
 
-    with patch("agent.agno_agent.runtime.execution_agents.Agent", _LookupThenCalendarAgent):
+    with patch(
+        "agent.agno_agent.runtime.execution_agents.Agent", _LookupThenCalendarAgent
+    ):
         with patch(
             "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
             side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
@@ -634,7 +639,9 @@ async def test_run_scheduling_domain_allows_friend_lookup_then_calendar_facts():
 async def test_run_scheduling_domain_clarifies_partial_friend_calendar_name_before_tools():
     class _UnexpectedAgent:
         def __init__(self, **kwargs):
-            raise AssertionError("ambiguous friend names should not spawn the worker agent")
+            raise AssertionError(
+                "ambiguous friend names should not spawn the worker agent"
+            )
 
     class _UnexpectedSchedulingPort:
         def __init__(self, *, tool_name: str) -> None:
@@ -738,7 +745,9 @@ async def test_run_scheduling_domain_forced_args_call_exact_tool_without_worker_
 
     class _UnexpectedAgent:
         def __init__(self, **kwargs):
-            raise AssertionError("forced scheduling args should not spawn the worker agent")
+            raise AssertionError(
+                "forced scheduling args should not spawn the worker agent"
+            )
 
     class RecordingSchedulingPort:
         def __init__(self, tool_name: str) -> None:
@@ -790,7 +799,9 @@ async def test_run_scheduling_domain_freshness_accepts_gateway_friend_requests_s
 
     class _UnexpectedAgent:
         def __init__(self, **kwargs):
-            raise AssertionError("fresh forced scheduling args should not spawn the worker agent")
+            raise AssertionError(
+                "fresh forced scheduling args should not spawn the worker agent"
+            )
 
     class RecordingSchedulingPort:
         def __init__(self, tool_name: str) -> None:
@@ -843,12 +854,14 @@ async def test_run_scheduling_domain_freshness_accepts_gateway_friend_requests_s
 
 
 @pytest.mark.asyncio
-async def test_run_scheduling_domain_forced_create_normalizes_date_time_alias():
+async def test_run_scheduling_domain_forced_create_rejects_date_time_alias():
     captured_args: dict[str, dict] = {}
 
     class _UnexpectedAgent:
         def __init__(self, **kwargs):
-            raise AssertionError("complete forced scheduling args should not spawn the worker agent")
+            raise AssertionError(
+                "invalid forced scheduling args should not spawn the worker agent"
+            )
 
     class RecordingSchedulingPort:
         def __init__(self, tool_name: str) -> None:
@@ -867,7 +880,7 @@ async def test_run_scheduling_domain_forced_create_normalizes_date_time_alias():
             "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
             side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
         ):
-            await run_scheduling_domain(
+            result = await run_scheduling_domain(
                 input_message="约 Alex 明天下午 3 点上课",
                 intent="create_shared_reminder",
                 run_context=_run_context(),
@@ -880,14 +893,9 @@ async def test_run_scheduling_domain_forced_create_normalizes_date_time_alias():
                 },
             )
 
-    assert captured_args == {
-        "create_shared_reminder": {
-            "invitee_name": "Alex",
-            "title": "上课",
-            "fire_at": "2026-05-27T15:00:00+08:00",
-            "timezone": "Asia/Shanghai",
-        }
-    }
+    assert captured_args == {}
+    assert result["outcome"] == "failed"
+    assert result["error"]["code"] == "invalid_scheduling_args"
 
 
 @pytest.mark.asyncio
@@ -896,7 +904,9 @@ async def test_run_scheduling_domain_forced_operation_alias_selects_shared_remin
 
     class _UnexpectedAgent:
         def __init__(self, **kwargs):
-            raise AssertionError("forced shared-reminder action should not spawn the worker agent")
+            raise AssertionError(
+                "forced shared-reminder action should not spawn the worker agent"
+            )
 
     class RecordingSchedulingPort:
         def __init__(self, tool_name: str) -> None:
@@ -920,7 +930,10 @@ async def test_run_scheduling_domain_forced_operation_alias_selects_shared_remin
                 intent="scheduling",
                 run_context=_run_context(),
                 domain_results=[],
-                forced_args={"operation": "reject_shared_reminder", "friend_name": "Kai"},
+                forced_args={
+                    "operation": "reject_shared_reminder",
+                    "friend_name": "Kai",
+                },
             )
 
     assert captured_args == {"reject_shared_reminder": {"friend_name": "Kai"}}
@@ -928,22 +941,14 @@ async def test_run_scheduling_domain_forced_operation_alias_selects_shared_remin
 
 
 @pytest.mark.asyncio
-async def test_run_scheduling_domain_ignores_incomplete_forced_create_args():
+async def test_run_scheduling_domain_rejects_incomplete_forced_create_args():
     captured_tools: set[str] = set()
-    captured_input: dict[str, str] = {}
 
     class _SharedReminderAgent:
         def __init__(self, **kwargs):
             captured_tools.update(item.name for item in kwargs["tools"])
-            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
-
-        async def arun(self, **kwargs):
-            captured_input["input"] = kwargs["input"]
-            await self.tools["create_shared_reminder"](
-                invitee_name="Alex",
-                title="上课",
-                fire_at="2026-05-27T07:00:00+00:00",
-                timezone="Asia/Shanghai",
+            raise AssertionError(
+                "incomplete forced scheduling args should not spawn the worker agent"
             )
 
     class RecordingSchedulingPort:
@@ -962,7 +967,7 @@ async def test_run_scheduling_domain_ignores_incomplete_forced_create_args():
             "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
             side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
         ):
-            await run_scheduling_domain(
+            result = await run_scheduling_domain(
                 input_message="约 Alex 明天下午 3 点上课",
                 intent="create_shared_reminder",
                 run_context=_run_context(),
@@ -970,8 +975,9 @@ async def test_run_scheduling_domain_ignores_incomplete_forced_create_args():
                 forced_args={"date_time": "2026-05-27T15:00:00+08:00"},
             )
 
-    assert captured_tools == {"create_shared_reminder"}
-    assert captured_input["input"].startswith("Resolved scheduling intent: create_shared_reminder")
+    assert captured_tools == set()
+    assert result["outcome"] == "failed"
+    assert result["error"]["code"] == "invalid_scheduling_args"
 
 
 @pytest.mark.asyncio
@@ -1151,7 +1157,9 @@ async def test_run_scheduling_domain_preserves_success_when_later_tool_call_dupl
 
     domain_results: list[DomainExecutionResult] = []
 
-    with patch("agent.agno_agent.runtime.execution_agents.Agent", _DuplicateCallingAgent):
+    with patch(
+        "agent.agno_agent.runtime.execution_agents.Agent", _DuplicateCallingAgent
+    ):
         with patch(
             "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
             side_effect=lambda *, tool_name: _SyncPort(successful_write),
@@ -1227,7 +1235,4 @@ async def test_run_scheduling_domain_executes_only_first_concurrent_tool_call():
     assert result["outcome"] == "executed"
     assert result["error"] is None
     assert result["operations"][0]["action"] == "get_user_link"
-    assert (
-        result["operations"][0]["facts"]["visible_summary"]
-        == "called get_user_link"
-    )
+    assert result["operations"][0]["facts"]["visible_summary"] == "called get_user_link"

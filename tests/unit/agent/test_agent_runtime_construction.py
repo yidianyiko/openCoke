@@ -871,7 +871,9 @@ async def test_run_agent_runtime_fails_closed_when_focused_semantic_intent_is_am
 
     class UnexpectedAgent:
         async def arun(self, **_kwargs):
-            raise AssertionError("interaction agent should not handle ambiguous focused action")
+            raise AssertionError(
+                "interaction agent should not handle ambiguous focused action"
+            )
 
     monkeypatch.setattr(
         agent_runtime, "interpret_semantic_intent", fake_interpret_semantic_intent
@@ -2052,7 +2054,7 @@ async def test_create_interaction_agent_scheduling_domain_forces_complete_shared
             "create_shared_reminder": {
                 "invitee_name": "EVA",
                 "title": "一起运动",
-                "start_datetime": "2026-05-26T10:30:00+08:00",
+                "fire_at": "2026-05-26T10:30:00+08:00",
                 "duration_minutes": 60,
             }
         }
@@ -2125,9 +2127,9 @@ async def test_create_interaction_agent_scheduling_domain_delegates_tool_key_cre
     result = await scheduling_domain(
         intent={
             "create_shared_reminder": {
-                "friend_name": "Bob",
-                "reminder_title": "跑步",
-                "reminder_time": "2026-05-29T19:30:00",
+                "invitee_name": "Bob",
+                "title": "跑步",
+                "fire_at": "2026-05-29T19:30:00",
                 "duration_minutes": 40,
             }
         }
@@ -2144,7 +2146,111 @@ async def test_create_interaction_agent_scheduling_domain_delegates_tool_key_cre
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_normalizes_legacy_friend_id_aliases(
+@pytest.mark.parametrize(
+    ("payload", "error_code"),
+    [
+        (
+            {
+                "create_shared_reminder_request": {
+                    "invitee_name": "Eva",
+                    "title": "奇迹创坛",
+                    "fire_at": "2026-05-27T11:00:00+09:00",
+                }
+            },
+            "invalid_scheduling_intent",
+        ),
+        (
+            {
+                "create_shared_reminder": {
+                    "invitee_name": "Eva",
+                    "title": "奇迹创坛",
+                    "start_time": "2026-05-27T11:00:00+09:00",
+                }
+            },
+            "invalid_scheduling_args",
+        ),
+        (
+            {
+                "create_shared_reminder": {
+                    "friend_id": "ck_CsFu-A91jbCSBwtizPx1K",
+                    "title": "打篮球",
+                    "fire_at": "2026-05-27T23:00:00+08:00",
+                    "duration_minutes": 60,
+                }
+            },
+            "invalid_scheduling_args",
+        ),
+        (
+            {
+                "create_shared_reminder": {
+                    "invitee_name": "Eva",
+                    "title": "奇迹创坛",
+                    "start_datetime": "2026-05-27T11:00:00+09:00",
+                }
+            },
+            "invalid_scheduling_args",
+        ),
+        (
+            {
+                "create_shared_reminder": {
+                    "invitee_name": "Eva",
+                    "title": "奇迹创坛",
+                    "date_time": "2026-05-27T11:00:00+09:00",
+                }
+            },
+            "invalid_scheduling_args",
+        ),
+    ],
+)
+async def test_create_interaction_agent_scheduling_domain_rejects_noncanonical_create_payloads(
+    monkeypatch,
+    payload,
+    error_code,
+):
+    calls = 0
+    domain_results = []
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, intent, run_context, domain_results, forced_args
+        nonlocal calls
+        calls += 1
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="帮我约好友打篮球",
+        capability_results=[],
+        domain_results=domain_results,
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    result = await scheduling_domain(intent=payload)
+
+    assert calls == 0
+    assert result["domain"] == "scheduling"
+    assert result["outcome"] == "failed"
+    assert result["error"]["code"] == error_code
+    assert domain_results[-1].error is not None
+    assert domain_results[-1].error.code == error_code
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_allows_read_then_write(
     monkeypatch,
 ):
     captured = []
@@ -2166,34 +2272,24 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_legacy_frie
         fake_run_scheduling_domain,
     )
 
-    def make_scheduling_domain():
-        agent = agent_runtime._create_interaction_agent(
-            run_context=_run_context(),
-            agent_input=_agent_input(),
-            input_message="帮我约好友打篮球",
-            capability_results=[],
-            domain_results=[],
-        )
-        return next(
-            tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
-        )
-
-    await make_scheduling_domain()(
-        intent={
-            "create_shared_reminder": {
-                "friend_id": "ck_CsFu-A91jbCSBwtizPx1K",
-                "title": "打篮球",
-                "fire_at": "2026-05-27T23:00:00+08:00",
-                "duration_minutes": 60,
-            }
-        }
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="先看一下好友，然后帮我约 Eva 去奇迹创坛",
+        capability_results=[],
+        domain_results=[],
     )
-    await make_scheduling_domain()(
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(intent={"list_friends": {}})
+    await scheduling_domain(
         intent={
             "create_shared_reminder": {
-                "friend_id": "cmpmw9gs60001ru1tc4y12851",
-                "title": "打篮球",
-                "fire_at": "2026-05-27T23:00:00+08:00",
+                "invitee_name": "Eva",
+                "title": "奇迹创坛",
+                "fire_at": "2026-05-27T11:00:00+09:00",
                 "duration_minutes": 60,
             }
         }
@@ -2201,20 +2297,15 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_legacy_frie
 
     assert captured == [
         {
-            "intent": "create_shared_reminder",
-            "forced_args": {
-                "invitee_account_id": "ck_CsFu-A91jbCSBwtizPx1K",
-                "title": "打篮球",
-                "fire_at": "2026-05-27T23:00:00+08:00",
-                "duration_minutes": 60,
-            },
+            "intent": "list_friends",
+            "forced_args": None,
         },
         {
             "intent": "create_shared_reminder",
             "forced_args": {
-                "friendship_id": "cmpmw9gs60001ru1tc4y12851",
-                "title": "打篮球",
-                "fire_at": "2026-05-27T23:00:00+08:00",
+                "invitee_name": "Eva",
+                "title": "奇迹创坛",
+                "fire_at": "2026-05-27T11:00:00+09:00",
                 "duration_minutes": 60,
             },
         },
@@ -2222,10 +2313,11 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_legacy_frie
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_delegates_start_datetime_alias_to_worker(
+async def test_create_interaction_agent_scheduling_domain_fails_incomplete_forced_create_args(
     monkeypatch,
 ):
-    captured = {}
+    calls = 0
+    domain_results = []
 
     async def fake_run_scheduling_domain(
         *,
@@ -2235,7 +2327,9 @@ async def test_create_interaction_agent_scheduling_domain_delegates_start_dateti
         domain_results,
         forced_args=None,
     ):
-        captured.update({"intent": intent, "forced_args": forced_args})
+        del input_message, intent, run_context, domain_results, forced_args
+        nonlocal calls
+        calls += 1
         return {"domain": "scheduling"}
 
     monkeypatch.setattr(
@@ -2248,41 +2342,35 @@ async def test_create_interaction_agent_scheduling_domain_delegates_start_dateti
         agent_input=_agent_input(),
         input_message="今晚九点，给我们约一个60分钟的共同提醒",
         capability_results=[],
-        domain_results=[],
+        domain_results=domain_results,
     )
     scheduling_domain = next(
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
     )
 
-    await scheduling_domain(
+    result = await scheduling_domain(
         intent={
             "create_shared_reminder": {
                 "invitee_name": "eva",
                 "title": "共同提醒",
-                "start_datetime": "2026-05-25T21:00:00",
                 "timezone": "Asia/Shanghai",
                 "duration_minutes": 60,
             }
         }
     )
 
-    assert captured == {
-        "intent": "create_shared_reminder",
-        "forced_args": {
-            "invitee_name": "eva",
-            "title": "共同提醒",
-            "fire_at": "2026-05-25T21:00:00",
-            "timezone": "Asia/Shanghai",
-            "duration_minutes": 60,
-        },
-    }
+    assert calls == 0
+    assert result["outcome"] == "failed"
+    assert result["error"]["code"] == "invalid_scheduling_args"
+    assert domain_results[-1].error is not None
+    assert domain_results[-1].error.code == "invalid_scheduling_args"
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_delegates_common_create_aliases_to_worker(
+async def test_create_interaction_agent_scheduling_domain_rejects_common_create_alias_payload(
     monkeypatch,
 ):
-    captured = {}
+    calls = 0
 
     async def fake_run_scheduling_domain(
         *,
@@ -2292,7 +2380,9 @@ async def test_create_interaction_agent_scheduling_domain_delegates_common_creat
         domain_results,
         forced_args=None,
     ):
-        captured.update({"intent": intent, "forced_args": forced_args})
+        del input_message, intent, run_context, domain_results, forced_args
+        nonlocal calls
+        calls += 1
         return {"domain": "scheduling"}
 
     monkeypatch.setattr(
@@ -2311,7 +2401,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_common_creat
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
     )
 
-    await scheduling_domain(
+    result = await scheduling_domain(
         intent={
             "create_shared_reminder": {
                 "invitee_name": "Bob",
@@ -2323,15 +2413,9 @@ async def test_create_interaction_agent_scheduling_domain_delegates_common_creat
         }
     )
 
-    assert captured == {
-        "intent": "create_shared_reminder",
-        "forced_args": {
-            "invitee_name": "Bob",
-            "fire_at": "2026-05-29T19:30:00",
-            "duration_minutes": 40,
-            "title": "小区操场跑步",
-        },
-    }
+    assert calls == 0
+    assert result["outcome"] == "failed"
+    assert result["error"]["code"] == "invalid_scheduling_args"
 
 
 def test_create_interaction_agent_preselected_scheduling_intent_hides_reminder_domain():
@@ -2352,7 +2436,7 @@ def test_create_interaction_agent_preselected_scheduling_intent_hides_reminder_d
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
+async def test_create_interaction_agent_scheduling_domain_reuses_exact_duplicate_call(
     monkeypatch,
 ):
     calls = 0
@@ -2371,7 +2455,9 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
         intent,
         run_context,
         domain_results,
+        forced_args=None,
     ):
+        del input_message, run_context, domain_results, forced_args
         nonlocal calls
         calls += 1
         await asyncio.sleep(0.01)
@@ -2394,13 +2480,190 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
     )
 
     first, second = await asyncio.gather(
-        scheduling_domain(intent="accept_shared_reminder: request_id=srr_1"),
-        scheduling_domain(intent="accept_shared_reminder: request_id=srr_2"),
+        scheduling_domain(intent={"accept_shared_reminder": {"request_id": "srr_1"}}),
+        scheduling_domain(intent={"accept_shared_reminder": {"request_id": "srr_1"}}),
     )
 
     assert calls == 1
     assert first is second
     assert first == envelope | {"intent": "accept_shared_reminder"}
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_fails_different_write_after_write(
+    monkeypatch,
+):
+    calls = 0
+    envelope = {
+        "ok": True,
+        "domain": "scheduling",
+        "outcome": "executed",
+        "operations": [
+            {
+                "action": "accept_shared_reminder",
+                "ok": True,
+                "effect": "write",
+                "entity_type": "shared_reminder_request",
+                "entity_id": "srr_1",
+                "facts": {"visible_summary": "已接受共享提醒。"},
+                "error": None,
+            }
+        ],
+        "visible_summary": "已接受共享提醒",
+        "synthesis_context": None,
+        "content": {"visible_summary": "已接受共享提醒"},
+        "error": None,
+    }
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results, forced_args
+        nonlocal calls
+        calls += 1
+        return envelope | {"intent": intent}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="confirm it",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    first = await scheduling_domain(
+        intent={"accept_shared_reminder": {"request_id": "srr_1"}}
+    )
+    second = await scheduling_domain(
+        intent={"accept_shared_reminder": {"request_id": "srr_2"}}
+    )
+
+    assert calls == 1
+    assert first["intent"] == "accept_shared_reminder"
+    assert second["domain"] == "scheduling"
+    assert second["outcome"] == "failed"
+    assert second["safety_boundary"] == "multiple_scheduling_calls_after_write"
+    assert second["error"]["code"] == "multiple_scheduling_calls_after_write"
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_fails_read_after_write(
+    monkeypatch,
+):
+    calls = 0
+    envelope = {
+        "ok": True,
+        "domain": "scheduling",
+        "outcome": "executed",
+        "operations": [
+            {
+                "action": "create_shared_reminder",
+                "ok": True,
+                "effect": "write",
+                "entity_type": "shared_reminder_request",
+                "entity_id": "srr_1",
+                "facts": {"visible_summary": "已提交共享提醒请求。"},
+                "error": None,
+            }
+        ],
+        "content": {"visible_summary": "已提交共享提醒请求。"},
+        "error": None,
+    }
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results, forced_args
+        nonlocal calls
+        calls += 1
+        return envelope | {"intent": intent}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="create then list",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent={
+            "create_shared_reminder": {
+                "invitee_name": "Eva",
+                "title": "奇迹创坛",
+                "fire_at": "2026-05-27T11:00:00+09:00",
+            }
+        }
+    )
+    second = await scheduling_domain(intent={"list_friends": {}})
+
+    assert calls == 1
+    assert second["outcome"] == "failed"
+    assert second["error"]["code"] == "multiple_scheduling_calls_after_write"
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_preloaded_scheduling_result_not_reused_for_different_intent():
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="同意这个请求",
+        capability_results=[],
+        domain_results=[],
+        preloaded_scheduling_domain_result={
+            "domain": "scheduling",
+            "outcome": "executed",
+            "operations": [
+                {
+                    "action": "accept_shared_reminder",
+                    "ok": True,
+                    "effect": "write",
+                    "entity_type": "shared_reminder_request",
+                    "entity_id": "srr_1",
+                    "facts": {"visible_summary": "已接受共享提醒。"},
+                    "error": None,
+                }
+            ],
+            "error": None,
+        },
+        preselected_scheduling_intent="accept_shared_reminder",
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    result = await scheduling_domain(intent={"list_friends": {}})
+
+    assert result["domain"] == "scheduling"
+    assert result["outcome"] == "failed"
+    assert result["safety_boundary"] == "preselected_scheduling_result"
+    assert result["error"]["code"] == "preselected_scheduling_result"
 
 
 def test_create_interaction_agent_resolves_default_session_db(monkeypatch):

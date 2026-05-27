@@ -413,7 +413,9 @@ def test_unconfirmed_durable_write_friend_accept_patterns():
     for text in must_match:
         assert any(p.search(text) for p in _UNCONFIRMED_DURABLE_WRITE_PATTERNS), text
     for text in must_skip:
-        assert not any(p.search(text) for p in _UNCONFIRMED_DURABLE_WRITE_PATTERNS), text
+        assert not any(
+            p.search(text) for p in _UNCONFIRMED_DURABLE_WRITE_PATTERNS
+        ), text
 
 
 @pytest.mark.asyncio
@@ -536,7 +538,11 @@ async def test_multimodal_parser_ignores_non_text_and_caps_at_three(monkeypatch)
         ),
     )
 
-    assert [message.content for message in result.visible_messages] == ["一", "二", "三"]
+    assert [message.content for message in result.visible_messages] == [
+        "一",
+        "二",
+        "三",
+    ]
 
 
 @pytest.mark.asyncio
@@ -698,9 +704,13 @@ async def test_direct_reminder_promise_does_not_invoke_recovery_port(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_write(monkeypatch):
+async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_write(
+    monkeypatch,
+):
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": "好啦，已经帮你和 Nora 建了共享提醒。"}],
+        messages=[
+            {"role": "assistant", "content": "好啦，已经帮你和 Nora 建了共享提醒。"}
+        ],
         capability_results=[],
         monkeypatch=monkeypatch,
         input_text="我们聊一下共享提醒能力",
@@ -714,7 +724,129 @@ async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_wri
 
 
 @pytest.mark.asyncio
-async def test_visible_identifier_leak_guardrail_trips_on_account_id_patterns(monkeypatch):
+async def test_shared_reminder_invite_sent_claim_fails_closed_without_confirmed_write(
+    monkeypatch,
+):
+    text = "搞定了！今天上午11点去奇迹创坛的邀请已经发给 eva 了，等他确认～"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": text}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        input_text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
+        content=text,
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
+async def test_shared_reminder_invite_sent_claim_requires_create_shared_reminder_write(
+    monkeypatch,
+):
+    unrelated_write = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="accept_friend_request",
+                ok=True,
+                effect="write",
+                entity_type="friend_request",
+                entity_id="fr_1",
+                facts={"visible_summary": "已通过好友请求。"},
+            ),
+        ),
+    )
+    text = "邀请已经发给 eva 了，等他确认。"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": text}],
+        capability_results=[],
+        domain_results=[unrelated_write],
+        monkeypatch=monkeypatch,
+        input_text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
+        content=text,
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
+async def test_shared_reminder_invite_sent_claim_allowed_after_create_write(
+    monkeypatch,
+):
+    create_write = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder_request",
+                entity_id="srr_1",
+                facts={"visible_summary": "已提交共享提醒请求。"},
+            ),
+        ),
+    )
+    text = "邀请已经发给 eva 了，等他确认。"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": text}],
+        capability_results=[],
+        domain_results=[create_write],
+        monkeypatch=monkeypatch,
+        input_text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
+        content=text,
+    )
+
+    assert result.output_disposition.status == "ok"
+    assert [message.content for message in result.visible_messages] == [text]
+
+
+@pytest.mark.asyncio
+async def test_scheduling_write_without_visible_summary_fails_closed(monkeypatch):
+    scheduling_write = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder_request",
+                entity_id="srr_1",
+                facts={},
+            ),
+        ),
+    )
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": "完成了。"}],
+        capability_results=[],
+        domain_results=[scheduling_write],
+        monkeypatch=monkeypatch,
+        input_text="约 eva 明天 11 点",
+        content="完成了。",
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "durable_write_missing_visible_summary"
+
+
+@pytest.mark.asyncio
+async def test_visible_identifier_leak_guardrail_trips_on_account_id_patterns(
+    monkeypatch,
+):
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": ""}],
         capability_results=[],

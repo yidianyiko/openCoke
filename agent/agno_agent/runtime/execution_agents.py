@@ -57,6 +57,17 @@ _FOCUS_WRITE_TO_READ_TOOL = {
 
 _FRIEND_REQUEST_PENDING_STATUS = "pending"
 _SHARED_REMINDER_PENDING_STATUS = "pending_invitee_confirmation"
+_CREATE_SHARED_REMINDER_FORCED_ARG_KEYS = {
+    "invitee_account_id",
+    "invitee_name",
+    "friend_account_id",
+    "friendship_id",
+    "title",
+    "fire_at",
+    "duration_minutes",
+    "timezone",
+    "idempotency_key",
+}
 
 
 class _SchedulingExecutionGuard:
@@ -253,6 +264,34 @@ def _no_scheduling_tool_called_result(intent: str) -> DomainExecutionResult:
     )
 
 
+def _invalid_scheduling_args_result(
+    *,
+    tool_name: str,
+    message: str,
+    detail: Mapping[str, Any] | None = None,
+) -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(),
+        missing_fields=(),
+        safety_boundary="invalid_scheduling_args",
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("appointment_confirmed",),
+            allow_rephrase=True,
+        ),
+        error=DomainError(
+            code="invalid_scheduling_args",
+            message=message,
+            retryable=False,
+            detail={"tool_name": tool_name, **dict(detail or {})},
+        ),
+    )
+
+
 def _returnable_scheduling_result(
     results: list[DomainExecutionResult],
 ) -> DomainExecutionResult:
@@ -291,7 +330,6 @@ def _make_scheduling_tool_fn(
         invitee_account_id: str | None = None,
         invitee_name: str | None = None,
         friend_account_id: str | None = None,
-        friend_id: str | None = None,
         title: str | None = None,
         fire_at: str | None = None,
         duration_minutes: int | None = None,
@@ -308,12 +346,6 @@ def _make_scheduling_tool_fn(
         """Use only for the scheduling action specified in the intent."""
         normalized_invitee_account_id = invitee_account_id or friend_account_id
         normalized_friendship_id = friendship_id
-        legacy_friend_id = str(friend_id or "").strip()
-        if legacy_friend_id:
-            if re.match(r"^(?:ck|acct)_", legacy_friend_id):
-                normalized_invitee_account_id = normalized_invitee_account_id or legacy_friend_id
-            else:
-                normalized_friendship_id = normalized_friendship_id or legacy_friend_id
         if execution_guard is not None and not await execution_guard.claim(tool_name):
             duplicate = DomainExecutionResult(
                 domain="scheduling",
@@ -383,11 +415,14 @@ def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
     if "send_friend_request_by_user_link_code" in normalized:
         return ("send_friend_request_by_user_link_code",)
     if (
-        ("user_link" in normalized or "user link" in normalized or "link code" in normalized)
-        and ("friend" in normalized or "add" in normalized)
-    ):
+        "user_link" in normalized
+        or "user link" in normalized
+        or "link code" in normalized
+    ) and ("friend" in normalized or "add" in normalized):
         return ("send_friend_request_by_user_link_code",)
-    if ("链接码" in intent or "邀请链接" in intent) and ("加好友" in intent or "好友" in intent):
+    if ("链接码" in intent or "邀请链接" in intent) and (
+        "加好友" in intent or "好友" in intent
+    ):
         return ("send_friend_request_by_user_link_code",)
     # Single-write intents — restrict to that one tool so the inner LLM cannot
     # silently fall back to a read tool like list_friend_requests when the
@@ -419,7 +454,7 @@ def _normalize_forced_scheduling_call(
     *,
     intent: str,
     forced_args: dict[str, Any],
-) -> tuple[str, dict[str, Any] | None]:
+) -> tuple[str, dict[str, Any] | None, DomainExecutionResult | None]:
     normalized_intent = intent
     normalized_args = dict(forced_args)
     for key in ("operation", "intent", "action"):
@@ -438,25 +473,57 @@ def _normalize_forced_scheduling_call(
 
     tool_name = _forced_tool_name_for_intent(normalized_intent)
     if tool_name == "create_shared_reminder":
-        if "invitee_name" not in normalized_args and "friend_name" in normalized_args:
-            normalized_args["invitee_name"] = normalized_args.pop("friend_name")
-        if "fire_at" not in normalized_args and "date_time" in normalized_args:
-            normalized_args["fire_at"] = normalized_args.pop("date_time")
+        invalid_keys = sorted(
+            key
+            for key in normalized_args
+            if key not in _CREATE_SHARED_REMINDER_FORCED_ARG_KEYS
+        )
+        if invalid_keys:
+            return (
+                "create_shared_reminder",
+                None,
+                _invalid_scheduling_args_result(
+                    tool_name="create_shared_reminder",
+                    message="create_shared_reminder forced args must use canonical keys",
+                    detail={"invalid_keys": invalid_keys},
+                ),
+            )
         has_counterparty = any(
             str(normalized_args.get(key) or "").strip()
             for key in (
                 "invitee_account_id",
                 "invitee_name",
                 "friend_account_id",
-                "friend_name",
+                "friendship_id",
             )
         )
         has_title = bool(str(normalized_args.get("title") or "").strip())
         has_fire_at = bool(str(normalized_args.get("fire_at") or "").strip())
         if not (has_counterparty and has_title and has_fire_at):
-            return "create_shared_reminder", None
+            return (
+                "create_shared_reminder",
+                None,
+                _invalid_scheduling_args_result(
+                    tool_name="create_shared_reminder",
+                    message=(
+                        "create_shared_reminder forced args require a canonical "
+                        "counterparty, title, and fire_at"
+                    ),
+                    detail={
+                        "missing": [
+                            key
+                            for key, present in (
+                                ("counterparty", has_counterparty),
+                                ("title", has_title),
+                                ("fire_at", has_fire_at),
+                            )
+                            if not present
+                        ]
+                    },
+                ),
+            )
 
-    return normalized_intent, normalized_args
+    return normalized_intent, normalized_args, None
 
 
 def _focus_action_id(run_context: AgentRunContext) -> str | None:
@@ -530,7 +597,9 @@ def _actor_field_for_tool(tool_name: str) -> tuple[str, str]:
     return "inviteeAccountId", "invitee_account_id"
 
 
-def _fresh_record_status_is_actionable(tool_name: str, record: Mapping[str, Any]) -> bool:
+def _fresh_record_status_is_actionable(
+    tool_name: str, record: Mapping[str, Any]
+) -> bool:
     status = _record_value(record, "status")
     if tool_name in {
         "accept_friend_request",
@@ -616,10 +685,7 @@ async def _forced_focus_freshness_failure(
 
 
 def _scheduling_agent_input(input_message: str, intent: str) -> str:
-    return (
-        f"Resolved scheduling intent: {intent}\n"
-        f"User message: {input_message}"
-    )
+    return f"Resolved scheduling intent: {intent}\n" f"User message: {input_message}"
 
 
 def _partial_friend_calendar_name_needs_clarification(
@@ -644,8 +710,7 @@ def _partial_friend_calendar_name_needs_clarification(
         friend_name = friend_name_match.group(1) if friend_name_match else ""
     if not friend_name:
         friend_name_match = re.search(
-            r"(?<![A-Za-z])([A-Za-z])(?![A-Za-z])"
-            r"\s*(?:那个|那位|这个|这位)?朋友",
+            r"(?<![A-Za-z])([A-Za-z])(?![A-Za-z])" r"\s*(?:那个|那位|这个|这位)?朋友",
             input_message,
             flags=re.IGNORECASE,
         )
@@ -653,12 +718,15 @@ def _partial_friend_calendar_name_needs_clarification(
     if not re.fullmatch(r"[A-Za-z]", friend_name):
         return False
 
-    return re.search(
-        rf"(?<![A-Za-z]){re.escape(friend_name)}(?![A-Za-z])"
-        r"\s*(?:那个|那位|这个|这位)?朋友",
-        input_message,
-        flags=re.IGNORECASE,
-    ) is not None
+    return (
+        re.search(
+            rf"(?<![A-Za-z]){re.escape(friend_name)}(?![A-Za-z])"
+            r"\s*(?:那个|那位|这个|这位)?朋友",
+            input_message,
+            flags=re.IGNORECASE,
+        )
+        is not None
+    )
 
 
 def _ambiguous_friend_calendar_name_result() -> DomainExecutionResult:
@@ -700,10 +768,13 @@ async def run_scheduling_domain(
     execution_guard = _SchedulingExecutionGuard()
     tool_names = _tool_names_for_intent(intent)
     if forced_args is not None:
-        intent, forced_args = _normalize_forced_scheduling_call(
+        intent, forced_args, forced_args_error = _normalize_forced_scheduling_call(
             intent=intent,
             forced_args=forced_args,
         )
+        if forced_args_error is not None:
+            domain_results.append(forced_args_error)
+            return forced_args_error.to_dict()
         if forced_args is None:
             tool_names = _tool_names_for_intent(intent)
         else:
@@ -737,9 +808,7 @@ async def run_scheduling_domain(
             domain_results.append(domain_result)
             return domain_result.to_dict()
 
-    ports = {
-        name: SchedulingCapabilityPort(tool_name=name) for name in tool_names
-    }
+    ports = {name: SchedulingCapabilityPort(tool_name=name) for name in tool_names}
     tools = [
         tool(name=name)(
             _make_scheduling_tool_fn(

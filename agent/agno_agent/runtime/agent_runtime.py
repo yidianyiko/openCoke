@@ -78,7 +78,14 @@ _SCHEDULING_INTENT_NAMES = {
     "list_friend_calendar_facts",
     "list_shared_reminders",
 }
-_SCHEDULING_INTENT_ALIASES: dict[str, str] = {}
+_SCHEDULING_READ_ONLY_INTENTS = {
+    "get_user_link",
+    "list_friend_requests",
+    "list_friends",
+    "list_friend_calendar_facts",
+    "list_shared_reminders",
+    "list_pending_shared_reminders",
+}
 _SCHEDULING_INTENT_SELECTOR_KEYS = {
     "intent",
     "intent_name",
@@ -87,6 +94,17 @@ _SCHEDULING_INTENT_SELECTOR_KEYS = {
     "name",
     "operation",
     "action",
+}
+_SCHEDULING_CREATE_SHARED_REMINDER_ARG_KEYS = {
+    "invitee_account_id",
+    "invitee_name",
+    "friend_account_id",
+    "friendship_id",
+    "title",
+    "fire_at",
+    "duration_minutes",
+    "timezone",
+    "idempotency_key",
 }
 _SCHEDULING_FORCED_ARG_KEYS = {
     "user_link_code",
@@ -147,6 +165,20 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_SHARED_REMINDER_INVITE_WRITE_CLAIM_PATTERNS = (
+    re.compile(r"(邀请|邀约|共享提醒请求).{0,24}(发给|发过去|发出|发送|提交)"),
+    re.compile(r"(发给|发过去|发出|发送|提交).{0,24}(邀请|邀约|共享提醒请求)"),
+    re.compile(r"(等|等待).{0,16}(确认|接受|同意)"),
+    re.compile(
+        r"\b(invitation|invite|shared reminder request).{0,40}"
+        r"\b(sent|submitted|created)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(waiting|wait).{0,40}\b(confirm|accept)",
+        re.IGNORECASE,
+    ),
+)
 _VISIBLE_IDENTIFIER_LEAK_PATTERNS = (
     re.compile(r"ck_[a-zA-Z0-9_]{8,}"),
     re.compile(r"acct_[a-zA-Z0-9_]{8,}"),
@@ -189,6 +221,19 @@ _COMPLETED_WRITE_CLAIM_PATTERNS = (
 )
 
 
+class _SchedulingIntentError(ValueError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        detail: Mapping[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.detail = dict(detail or {})
+
+
 def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in text for pattern in patterns)
 
@@ -223,11 +268,7 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
 
     if isinstance(raw_intent, Mapping):
         for key, value in raw_intent.items():
-            normalized_key = (
-                _SCHEDULING_INTENT_ALIASES.get(key, key)
-                if isinstance(key, str)
-                else key
-            )
+            normalized_key = key
             if (
                 isinstance(normalized_key, str)
                 and normalized_key in _SCHEDULING_INTENT_NAMES
@@ -273,7 +314,11 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                             f"{json.dumps(_normalize_scheduling_intent_args(normalized, args), ensure_ascii=False)}"
                         )
                     return normalized
-    raise ValueError("scheduling intent could not be resolved")
+    raise _SchedulingIntentError(
+        "invalid_scheduling_intent",
+        "scheduling intent could not be resolved",
+        detail={"intent": _jsonable(raw_intent)},
+    )
 
 
 def _normalize_scheduling_intent_args(
@@ -284,51 +329,52 @@ def _normalize_scheduling_intent_args(
     if "message" not in normalized and "note" in normalized:
         normalized["message"] = normalized.pop("note")
     if tool_name == "create_shared_reminder":
-        if "invitee_account_id" not in normalized and "friend_account_id" in normalized:
-            normalized["invitee_account_id"] = normalized.pop("friend_account_id")
-        legacy_friend_id = normalized.pop("friend_id", None)
-        if legacy_friend_id is not None:
-            legacy_friend_id_text = str(legacy_friend_id).strip()
-            if legacy_friend_id_text:
-                if re.match(r"^(?:ck|acct)_", legacy_friend_id_text):
-                    normalized.setdefault("invitee_account_id", legacy_friend_id_text)
-                else:
-                    normalized.setdefault("friendship_id", legacy_friend_id_text)
-        if "invitee_name" not in normalized and "friend_name" in normalized:
-            normalized["invitee_name"] = normalized.pop("friend_name")
-        if "title" not in normalized and "reminder_title" in normalized:
-            normalized["title"] = normalized.pop("reminder_title")
-        if "fire_at" not in normalized and "reminder_time" in normalized:
-            normalized["fire_at"] = normalized.pop("reminder_time")
-        if "fire_at" not in normalized and "time" in normalized:
-            normalized["fire_at"] = normalized.pop("time")
-        if "fire_at" not in normalized and "scheduled_time" in normalized:
-            normalized["fire_at"] = normalized.pop("scheduled_time")
-        if "fire_at" not in normalized and "start_datetime" in normalized:
-            normalized["fire_at"] = normalized.pop("start_datetime")
-        if "fire_at" not in normalized and "date_time" in normalized:
-            normalized["fire_at"] = normalized.pop("date_time")
-        if "duration_minutes" not in normalized and "duration" in normalized:
-            normalized["duration_minutes"] = normalized.pop("duration")
-        activity = normalized.pop("activity", None)
-        location = normalized.pop("location", None)
-        if "title" not in normalized:
-            title_parts = [
-                str(value).strip()
-                for value in (location, activity)
-                if str(value or "").strip()
-            ]
-            if title_parts:
-                normalized["title"] = "".join(title_parts)
-    allowed = set(_SCHEDULING_FORCED_ARG_KEYS)
-    if tool_name == "create_shared_reminder":
-        allowed.update(
-            {
-                "title",
-                "fire_at",
-                "duration_minutes",
-            }
+        invalid_keys = sorted(
+            key
+            for key in normalized
+            if key not in _SCHEDULING_CREATE_SHARED_REMINDER_ARG_KEYS
         )
+        if invalid_keys:
+            raise _SchedulingIntentError(
+                "invalid_scheduling_args",
+                "create_shared_reminder only accepts canonical scheduling args",
+                detail={"tool_name": tool_name, "invalid_keys": invalid_keys},
+            )
+        compact = {
+            key: value
+            for key, value in normalized.items()
+            if value is not None and value != ""
+        }
+        has_counterparty = any(
+            str(compact.get(key) or "").strip()
+            for key in (
+                "invitee_account_id",
+                "invitee_name",
+                "friend_account_id",
+                "friendship_id",
+            )
+        )
+        has_title = bool(str(compact.get("title") or "").strip())
+        has_fire_at = bool(str(compact.get("fire_at") or "").strip())
+        if not (has_counterparty and has_title and has_fire_at):
+            raise _SchedulingIntentError(
+                "invalid_scheduling_args",
+                "create_shared_reminder requires a canonical counterparty, title, and fire_at",
+                detail={
+                    "tool_name": tool_name,
+                    "missing": [
+                        key
+                        for key, present in (
+                            ("counterparty", has_counterparty),
+                            ("title", has_title),
+                            ("fire_at", has_fire_at),
+                        )
+                        if not present
+                    ],
+                },
+            )
+        return compact
+    allowed = set(_SCHEDULING_FORCED_ARG_KEYS)
     return {
         key: value
         for key, value in normalized.items()
@@ -352,13 +398,87 @@ def _split_scheduling_intent_args(
     return tool_name, _normalize_scheduling_intent_args(tool_name, args)
 
 
+def _scheduling_failure_result(
+    *,
+    code: str,
+    message: str,
+    safety_boundary: str | None = None,
+    detail: Mapping[str, Any] | None = None,
+) -> DomainExecutionResult:
+    error = DomainError(
+        code=code,
+        message=message,
+        retryable=False,
+        detail=detail or {},
+    )
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(),
+        missing_fields=(),
+        safety_boundary=safety_boundary,
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("appointment_confirmed",),
+            allow_rephrase=True,
+        ),
+        error=error,
+    )
+
+
+def _scheduling_call_cache_key(
+    intent: str,
+    forced_args: Mapping[str, Any] | None,
+) -> tuple[str, str]:
+    args_json = json.dumps(
+        _jsonable(dict(forced_args or {})),
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return intent, args_json
+
+
+def _scheduling_result_has_successful_write(
+    result: Mapping[str, Any],
+    *,
+    intent: str,
+) -> bool:
+    operations = result.get("operations")
+    if isinstance(operations, Sequence) and not isinstance(
+        operations,
+        (str, bytes, bytearray),
+    ):
+        for operation in operations:
+            if not isinstance(operation, Mapping):
+                continue
+            if operation.get("ok") and operation.get("effect") == "write":
+                return True
+        return False
+    return (
+        result.get("outcome") == "executed"
+        and intent not in _SCHEDULING_READ_ONLY_INTENTS
+    )
+
+
 def _semantic_scheduling_intent_and_args(
     semantic_result: SemanticIntentResult,
     focus: Any,
 ) -> tuple[str | None, dict[str, Any]]:
-    if semantic_result.intent in {"ambiguous", "ask_detail", "request_change", "unrelated"}:
+    if semantic_result.intent in {
+        "ambiguous",
+        "ask_detail",
+        "request_change",
+        "unrelated",
+    }:
         return None, {}
     if semantic_result.intent in _SCHEDULING_INTENT_NAMES:
+        if (
+            semantic_result.intent == "create_shared_reminder"
+            and not semantic_result.args
+        ):
+            return semantic_result.intent, {}
         return semantic_result.intent, _normalize_scheduling_intent_args(
             semantic_result.intent,
             semantic_result.args,
@@ -462,9 +582,13 @@ def _should_fail_closed_focused_semantic(
 
 def _focus_action_scheduling_intent(*, kind: str, action: str) -> str | None:
     if kind == "friend_request":
-        return "accept_friend_request" if action == "accept" else "reject_friend_request"
+        return (
+            "accept_friend_request" if action == "accept" else "reject_friend_request"
+        )
     if kind == "shared_reminder_request":
-        return "accept_shared_reminder" if action == "accept" else "reject_shared_reminder"
+        return (
+            "accept_shared_reminder" if action == "accept" else "reject_shared_reminder"
+        )
     return None
 
 
@@ -552,11 +676,16 @@ def _create_interaction_agent(
         reminder_domain_lock = asyncio.Lock()
         reminder_domain_result: dict[str, Any] = {}
         scheduling_domain_lock = asyncio.Lock()
-        scheduling_domain_result: dict[str, Any] = (
-            {"result": preloaded_scheduling_domain_result}
-            if preloaded_scheduling_domain_result is not None
-            else {}
-        )
+        scheduling_domain_results: dict[tuple[str, str], dict[str, Any]] = {}
+        scheduling_domain_state: dict[str, bool] = {
+            "has_successful_write": bool(
+                preloaded_scheduling_domain_result
+                and _scheduling_result_has_successful_write(
+                    preloaded_scheduling_domain_result,
+                    intent=preselected_scheduling_intent or "",
+                )
+            )
+        }
 
         async def reminder_domain(**_model_supplied_args: Any) -> dict[str, Any]:
             """Use for explicit reminder create, update, cancel, complete, or list requests."""
@@ -596,13 +725,51 @@ def _create_interaction_agent(
         async def scheduling_domain(intent: Any = None) -> dict[str, Any]:
             """Use for explicit user-link, friend-request, friendship, or shared-reminder actions."""
             async with scheduling_domain_lock:
-                if "result" in scheduling_domain_result:
-                    return scheduling_domain_result["result"]
-                normalized_intent = _normalize_scheduling_intent(intent, input_message)
-                (
+                if preloaded_scheduling_domain_result is not None:
+                    result = _scheduling_failure_result(
+                        code="preselected_scheduling_result",
+                        message=(
+                            "scheduling_domain already has a preselected result for this turn"
+                        ),
+                        safety_boundary="preselected_scheduling_result",
+                        detail={"intent": _jsonable(intent)},
+                    )
+                    domain_results.append(result)
+                    return result.to_dict()
+                try:
+                    normalized_intent = _normalize_scheduling_intent(
+                        intent,
+                        input_message,
+                    )
+                    (
+                        scheduling_intent,
+                        forced_scheduling_args,
+                    ) = _split_scheduling_intent_args(normalized_intent)
+                except _SchedulingIntentError as error:
+                    result = _scheduling_failure_result(
+                        code=error.code,
+                        message=str(error),
+                        detail=error.detail,
+                    )
+                    domain_results.append(result)
+                    return result.to_dict()
+                call_key = _scheduling_call_cache_key(
                     scheduling_intent,
                     forced_scheduling_args,
-                ) = _split_scheduling_intent_args(normalized_intent)
+                )
+                if call_key in scheduling_domain_results:
+                    return scheduling_domain_results[call_key]
+                if scheduling_domain_state["has_successful_write"]:
+                    result = _scheduling_failure_result(
+                        code="multiple_scheduling_calls_after_write",
+                        message=(
+                            "a different scheduling call after a successful write is not allowed"
+                        ),
+                        safety_boundary="multiple_scheduling_calls_after_write",
+                        detail={"intent": scheduling_intent},
+                    )
+                    domain_results.append(result)
+                    return result.to_dict()
                 run_scheduling_kwargs: dict[str, Any] = {
                     "input_message": input_message,
                     "intent": scheduling_intent,
@@ -612,7 +779,12 @@ def _create_interaction_agent(
                 if forced_scheduling_args is not None:
                     run_scheduling_kwargs["forced_args"] = forced_scheduling_args
                 result = await run_scheduling_domain(**run_scheduling_kwargs)
-                scheduling_domain_result["result"] = result
+                scheduling_domain_results[call_key] = result
+                if _scheduling_result_has_successful_write(
+                    result,
+                    intent=scheduling_intent,
+                ):
+                    scheduling_domain_state["has_successful_write"] = True
                 return result
 
         scheduling_tool = tool(name="scheduling_domain", stop_after_tool_call=False)(
@@ -1020,6 +1192,7 @@ def _latest_user_turn_text(input_message: str) -> str:
 
 def _check_durable_write_contract(
     capability_results: Sequence[CapabilityResult],
+    domain_results: Sequence[DomainExecutionResult] = (),
 ) -> RuntimeErrorDisposition | None:
     for result in capability_results:
         if result.ok and result.durable_write and not result.visible_summary:
@@ -1028,6 +1201,23 @@ def _check_durable_write_contract(
                 retryable=False,
                 metadata={"capability": result.name},
             )
+    for result in domain_results:
+        if result.domain != "scheduling":
+            continue
+        for operation in result.operations:
+            if (
+                operation.ok
+                and operation.effect == "write"
+                and not _operation_has_visible_text(operation)
+            ):
+                return RuntimeErrorDisposition(
+                    code="durable_write_missing_visible_summary",
+                    retryable=False,
+                    metadata={
+                        "domain": result.domain,
+                        "action": operation.action,
+                    },
+                )
     return None
 
 
@@ -1055,6 +1245,19 @@ def _check_unconfirmed_durable_write_promise(
 ) -> RuntimeErrorDisposition | None:
     if agent_input.input_type != "user.turn" or not final_text:
         return None
+    shared_reminder_invite_claim = any(
+        pattern.search(final_text)
+        for pattern in _SHARED_REMINDER_INVITE_WRITE_CLAIM_PATTERNS
+    )
+    if shared_reminder_invite_claim and not _has_successful_domain_write(
+        domain_results,
+        action="create_shared_reminder",
+    ):
+        return RuntimeErrorDisposition(
+            code="unconfirmed_durable_write_promise",
+            retryable=False,
+            metadata={"input_type": agent_input.input_type},
+        )
     if any(result.ok and result.durable_write for result in capability_results):
         return None
     if any(
@@ -1093,6 +1296,21 @@ def _check_unconfirmed_durable_write_promise(
         code="unconfirmed_durable_write_promise",
         retryable=False,
         metadata={"input_type": agent_input.input_type},
+    )
+
+
+def _has_successful_domain_write(
+    domain_results: Sequence[DomainExecutionResult],
+    *,
+    action: str,
+) -> bool:
+    return any(
+        result.domain == "scheduling"
+        and operation.ok
+        and operation.effect == "write"
+        and operation.action == action
+        for result in domain_results
+        for operation in result.operations
     )
 
 
@@ -1811,7 +2029,9 @@ async def run_agent_runtime(
                 ),
                 timeout=timeout_seconds,
             )
-            logger.info("agent.arun returned: session_id=%s", run_context.conversation.id)
+            logger.info(
+                "agent.arun returned: session_id=%s", run_context.conversation.id
+            )
         except asyncio.TimeoutError:
             return _timeout_result(
                 agent_input=agent_input,
@@ -1845,7 +2065,10 @@ async def run_agent_runtime(
 
         captured_capability_results = tuple(capability_results)
         captured_domain_results = tuple(domain_results)
-        durable_write_error = _check_durable_write_contract(captured_capability_results)
+        durable_write_error = _check_durable_write_contract(
+            captured_capability_results,
+            captured_domain_results,
+        )
         runtime_contract_error = durable_write_error or unconfirmed_promise_error
         visible_text_segments = final_text_segments
         if not final_text:
