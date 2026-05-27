@@ -4,7 +4,7 @@ kind: incident
 date: 2026-05-27
 status: resolved
 resolved_at: 2026-05-27T03:38:21Z
-fix_commit: pending
+fix_commit: f28566b1
 affected_surfaces:
   - agent/agno_agent/runtime/agent_runtime.py
   - agent/agno_agent/runtime/execution_agents.py
