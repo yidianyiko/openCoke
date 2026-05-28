@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -14,6 +15,13 @@ from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
 from agent.agno_agent.runtime.result import CapabilityResult
 
 
+def _text_payload(content: str) -> str:
+    return json.dumps(
+        {"MultiModalResponses": [{"type": "text", "content": content}]},
+        ensure_ascii=False,
+    )
+
+
 def _ctx() -> AgentRunContext:
     return AgentRunContext(
         user=TrustedUserContext(id="u1", nickname="Alice", timezone="UTC"),
@@ -28,14 +36,17 @@ def _ctx() -> AgentRunContext:
     )
 
 
-async def _run(*, capability_results, monkeypatch, messages=None):
+async def _run(*, capability_results, monkeypatch, messages=None, model_text="ok"):
     captured_results = list(capability_results)
+    model_payload = _text_payload(model_text)
 
     class Out:
-        content = ""
+        content = model_payload
 
         def __init__(self):
-            self.messages = messages or [{"role": "assistant", "content": ""}]
+            self.messages = messages or [
+                {"role": "assistant", "content": model_payload}
+            ]
 
     class Agent:
         async def arun(self, **_kwargs):
@@ -70,7 +81,11 @@ async def test_durable_write_with_visible_summary_succeeds(monkeypatch):
         metadata={"durable_write": True},
     )
 
-    result = await _run(capability_results=[ok], monkeypatch=monkeypatch)
+    result = await _run(
+        capability_results=[ok],
+        monkeypatch=monkeypatch,
+        model_text="已设好提醒",
+    )
 
     assert result.output_disposition.status == "ok"
     assert [message.content for message in result.visible_messages] == ["已设好提醒"]
@@ -85,7 +100,11 @@ async def test_durable_write_without_visible_summary_is_failclosed(monkeypatch):
         metadata={"durable_write": True},
     )
 
-    result = await _run(capability_results=[bad], monkeypatch=monkeypatch)
+    result = await _run(
+        capability_results=[bad],
+        monkeypatch=monkeypatch,
+        model_text="完成了",
+    )
 
     assert result.output_disposition.status == "empty"
     assert result.visible_messages == ()
