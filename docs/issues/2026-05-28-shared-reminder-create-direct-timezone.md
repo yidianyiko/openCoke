@@ -46,11 +46,22 @@ The runtime normalized the `intent` payload correctly, then validated the direct
 payload. That produced `invalid_scheduling_args` with missing
 `counterparty`, `title`, and `fire_at`.
 
+Post-deploy production smoke then reached Gateway, but Gateway failed while
+creating the receiver runtime projection with `delivery_route_required`.
+The receiver had an active `delivery_routes` row; the failure came from relying
+on the bridge's conversation fallback instead of passing the active route key
+explicitly to the runtime reminder create call.
+
 ## Fix
 
 For `create_shared_reminder`, when forced args are already present from the
 `intent` payload, merge direct tool args such as `timezone` into those forced
 args before running canonical create validation.
+
+For shared-reminder runtime projections, Gateway now reads each participant's
+active delivery route and passes its `businessConversationKey` to the reminder
+runtime create call, so the bridge does not depend on stale or notification-only
+conversation fallback state.
 
 ## Verification
 
@@ -60,3 +71,6 @@ args before running canonical create validation.
 - `.venv/bin/python -m pytest tests/unit/agent/ -q`
 - `.venv/bin/python -m pytest tests/unit/runner/ -q`
 - `.venv/bin/python -m pytest tests/unit/test_clawscale_only_topology.py -q`
+- `pnpm --dir gateway/packages/api test src/scheduling/shared-reminder-service.test.ts -- -t "creates an active shared reminder"`
+- `pnpm --dir gateway/packages/api test src/scheduling/shared-reminder-service.test.ts`
+- `pnpm --dir gateway/packages/api test src/routes/internal-scheduling-routes.test.ts`
