@@ -11,7 +11,6 @@ from agno.agent import Agent
 
 from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
-from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物资料,
     CONTEXTPROMPT_当前的人物关系,
@@ -81,15 +80,6 @@ async def run_post_analyze(session_state: dict[str, Any]) -> None:
     try:
         agent = _create_post_analyze_agent()
         response = await agent.arun(input=rendered_userp, session_state=session_state)
-
-        if response and hasattr(response, "metrics"):
-            usage_tracker.record_from_metrics(
-                agent_name="PostAnalyzeAgent",
-                metrics=response.metrics,
-                user_id=str(session_state.get("user", {}).get("id", "")),
-                session_id=session_state.get("conversation_id"),
-                workflow_name="PostAnalyze",
-            )
 
         content = _extract_content(response)
         logger.info("PostAnalyzeAgent 执行完成")

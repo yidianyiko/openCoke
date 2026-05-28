@@ -25,9 +25,6 @@ async def test_run_post_analyze_creates_per_call_agent_without_db(monkeypatch):
 
     monkeypatch.setattr(post_analyze_runtime, "Agent", FakeAgent)
     monkeypatch.setattr(post_analyze_runtime, "create_llm_model", fake_create_llm_model)
-    monkeypatch.setattr(
-        post_analyze_runtime.usage_tracker, "record_from_metrics", Mock()
-    )
 
     await post_analyze_runtime.run_post_analyze(build_session_state())
     await post_analyze_runtime.run_post_analyze(build_session_state())

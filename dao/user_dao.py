@@ -6,7 +6,6 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from bson import ObjectId
@@ -403,24 +402,8 @@ class UserDAO:
         )
         return bool(result.modified_count or result.upserted_id)
 
-    def update_access(self, user_id: str, order_no: str, expire_time: datetime) -> bool:
-        return self._update_settings(
-            user_id,
-            {
-                "access.order_no": order_no,
-                "access.granted_at": datetime.now(),
-                "access.expire_time": expire_time,
-            },
-        )
-
     def update_timezone(self, user_id: str, timezone: str) -> bool:
         return self._update_settings(user_id, {"timezone": timezone})
-
-    def revoke_access(self, user_id: str) -> bool:
-        return self._update_settings(
-            user_id,
-            {"access.expire_time": datetime.now()},
-        )
 
     def close(self):
         self.client.close()

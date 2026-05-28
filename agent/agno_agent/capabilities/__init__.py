@@ -6,7 +6,6 @@ from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 from agent.agno_agent.capabilities.timezone import TimezoneCapabilityPort
 from agent.agno_agent.capabilities.timezone_port import TimezonePort
 from agent.agno_agent.capabilities.url_context_port import UrlContextPort
-from agent.agno_agent.capabilities.usage import UsageCapabilityPort
 
 __all__ = [
     "AlbumCapabilityPort",
@@ -17,5 +16,4 @@ __all__ = [
     "TimezoneCapabilityPort",
     "TimezonePort",
     "UrlContextPort",
-    "UsageCapabilityPort",
 ]

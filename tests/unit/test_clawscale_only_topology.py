@@ -111,6 +111,34 @@ def test_legacy_python_payment_runtime_is_removed():
     assert "access.creem_customer_id" not in user_dao
 
 
+def test_retired_billing_auth_and_usage_cleanup_surfaces_are_removed():
+    user_dao = (ROOT / "dao" / "user_dao.py").read_text()
+    post_analyze = (ROOT / "agent" / "agno_agent" / "runtime" / "post_analyze.py").read_text()
+    capability_exports = (
+        ROOT / "agent" / "agno_agent" / "capabilities" / "__init__.py"
+    ).read_text()
+
+    retired_paths = [
+        ROOT / "connector" / "scripts" / "migrate-legacy-users.py",
+        ROOT / "connector" / "scripts" / "verify-auth-retirement.py",
+        ROOT / "agent" / "agno_agent" / "capabilities" / "usage.py",
+        ROOT / "agent" / "agno_agent" / "utils" / "usage_tracker.py",
+        ROOT / "tests" / "unit" / "dao" / "test_user_dao_legacy_migration.py",
+        ROOT / "tests" / "unit" / "connector" / "clawscale_bridge" / "test_verify_auth_retirement.py",
+        ROOT / "tests" / "unit" / "dao" / "test_user_dao_access.py",
+        ROOT / "tests" / "unit" / "dao" / "test_usage_dao.py",
+        ROOT / "tests" / "unit" / "runner" / "test_background_handler_legacy_pollers.py",
+        ROOT / "tests" / "unit" / "runner" / "test_dispatcher_without_gate.py",
+    ]
+    for path in retired_paths:
+        assert not path.exists(), f"{path.relative_to(ROOT)} should stay retired"
+
+    assert "def update_access" not in user_dao
+    assert "def revoke_access" not in user_dao
+    assert "usage_tracker" not in post_analyze
+    assert "UsageCapabilityPort" not in capability_exports
+
+
 def test_runtime_sources_remove_legacy_wechat_identity_fallbacks():
     message_processor = (ROOT / "agent" / "runner" / "message_processor.py").read_text()
     background_handler = (
