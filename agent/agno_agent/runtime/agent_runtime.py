@@ -101,6 +101,10 @@ _SCHEDULING_CREATE_SHARED_REMINDER_ARG_KEYS = {
     "timezone",
     "idempotency_key",
 }
+_EXPLICIT_DURATION_RE = re.compile(
+    r"(?:持续|时长|历时|用时)\s*(?P<minutes>\d{1,3})\s*(?:分钟|分|minutes?|mins?)",
+    re.IGNORECASE,
+)
 _SCHEDULING_FORCED_ARG_KEYS = {
     "user_link_code",
     "friend_name",
@@ -533,6 +537,8 @@ def _scheduling_result_has_successful_write(
 def _semantic_scheduling_intent_and_args(
     semantic_result: SemanticIntentResult,
     focus: Any,
+    *,
+    current_utterance: str = "",
 ) -> tuple[str | None, dict[str, Any]]:
     del focus
     if semantic_result.intent in {
@@ -548,11 +554,38 @@ def _semantic_scheduling_intent_and_args(
             and not semantic_result.args
         ):
             return semantic_result.intent, {}
-        return semantic_result.intent, _normalize_scheduling_intent_args(
+        normalized_args = _normalize_scheduling_intent_args(
             semantic_result.intent,
             semantic_result.args,
         )
+        if semantic_result.intent == "create_shared_reminder":
+            normalized_args = _recover_explicit_duration_minutes(
+                normalized_args,
+                current_utterance,
+            )
+        return semantic_result.intent, normalized_args
     return None, {}
+
+
+def _recover_explicit_duration_minutes(
+    args: Mapping[str, Any],
+    current_utterance: str,
+) -> dict[str, Any]:
+    normalized = dict(args)
+    if normalized.get("duration_minutes") is not None:
+        return normalized
+    if not isinstance(current_utterance, str) or not current_utterance.strip():
+        return normalized
+    match = _EXPLICIT_DURATION_RE.search(current_utterance)
+    if match is None:
+        return normalized
+    try:
+        duration_minutes = int(match.group("minutes"))
+    except (TypeError, ValueError):
+        return normalized
+    if 0 < duration_minutes <= 24 * 60:
+        normalized["duration_minutes"] = duration_minutes
+    return normalized
 
 
 def _focus_action_value(action: Any, field: str) -> Any:
@@ -808,7 +841,11 @@ def _create_interaction_agent(
         run_scheduling_domain,
     )
 
-    if agent_input.input_type == "reminder.fired":
+    if agent_input.input_type == "reminder.fired" or _has_product_notification_hint(
+        agent_input
+    ):
+        final_tools = []
+    elif preloaded_scheduling_domain_result is not None:
         final_tools = []
     else:
         utility_wrappers = build_capability_tool_wrappers(
@@ -1237,6 +1274,29 @@ def _protocol_repair_input(input_message: str, reason: str) -> str:
         f"protocol ({reason}). Return only one JSON object with this shape: "
         '{"MultiModalResponses": [{"type": "text", "content": "message text"}]}. '
         "Do not include markdown fences or any text outside the JSON object."
+    )
+
+
+def _interaction_input_with_preloaded_scheduling_result(
+    input_message: str,
+    preloaded_scheduling_domain_result: Mapping[str, Any] | None,
+) -> str:
+    if not isinstance(preloaded_scheduling_domain_result, Mapping):
+        return input_message
+    return "\n\n".join(
+        [
+            input_message,
+            "Trusted pre-executed scheduling result:",
+            json.dumps(
+                _jsonable(preloaded_scheduling_domain_result),
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            (
+                "Reply from this trusted result. Do not call tools or claim the "
+                "operation failed when the trusted result outcome is executed."
+            ),
+        ]
     )
 
 
@@ -2220,7 +2280,14 @@ async def run_agent_runtime(
             client=semantic_client,
         )
         preselected_scheduling_intent, preselected_scheduling_args = (
-            _semantic_scheduling_intent_and_args(semantic_result, focus)
+            _semantic_scheduling_intent_and_args(
+                semantic_result,
+                focus,
+                current_utterance=_current_utterance_for_semantic_interpreter(
+                    agent_input,
+                    input_message,
+                ),
+            )
         )
         if (
             preselected_scheduling_intent is None
@@ -2277,6 +2344,11 @@ async def run_agent_runtime(
                 }
             return _create_interaction_agent(**create_agent_kwargs)
 
+        interaction_input = _interaction_input_with_preloaded_scheduling_result(
+            input_message,
+            preloaded_scheduling_domain_result,
+        )
+
         async def run_interaction_attempt(attempt_input: str, *, retry: bool) -> Any:
             agent = create_interaction_agent_for_attempt()
             agent_instructions = getattr(agent, "instructions", "") or ""
@@ -2305,7 +2377,7 @@ async def run_agent_runtime(
             return run_output
 
         try:
-            run_output = await run_interaction_attempt(input_message, retry=False)
+            run_output = await run_interaction_attempt(interaction_input, retry=False)
         except asyncio.TimeoutError:
             return _timeout_result(
                 agent_input=agent_input,
@@ -2329,10 +2401,11 @@ async def run_agent_runtime(
                 capability_results,
                 domain_results,
             )
-            if not durable_write_executed:
+            can_retry_after_write = preloaded_scheduling_domain_result is not None
+            if not durable_write_executed or can_retry_after_write:
                 attempted_output_protocol_retry = True
                 retry_input = _protocol_repair_input(
-                    input_message,
+                    interaction_input,
                     parse_result.violation_reason or "unknown",
                 )
                 try:

@@ -67,6 +67,39 @@ def _text_payload(content: str) -> str:
     return _segments_payload({"type": "text", "content": content})
 
 
+def _product_notification_agent_input() -> AgentInput:
+    return AgentInput(
+        input_type="user.turn",
+        conversation_id="conv-1",
+        text=(
+            "Use the trusted product notification facts below to write one concise "
+            "chat notification for the recipient."
+        ),
+        payload=UserTurnPayload(
+            metadata={
+                "product_notification": {
+                    "notification_id": "pn_1",
+                    "notification_kind": "shared_reminder_created",
+                    "kind": "shared_reminder_created",
+                    "resource_type": "shared_reminder",
+                    "facts": {
+                        "kind": "shared_reminder_created",
+                        "resource_type": "shared_reminder",
+                        "title": "饭后散步验收multismoke075200",
+                        "local_date": "2029-01-05",
+                        "local_time": "10:00",
+                        "duration_minutes": 5,
+                        "creator_name": "李梓豪",
+                        "receiver_name": "eva",
+                    },
+                    "facts_hash": "sha256:test",
+                }
+            }
+        ),
+        occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+    )
+
+
 def _use_legacy_product_notification_focus(monkeypatch):
     from agent.agno_agent.runtime.focus import focus_from_product_notification
 
@@ -698,6 +731,195 @@ async def test_run_agent_runtime_does_not_regex_preselect_friend_invite_with_con
     assert semantic_calls[0]["current_utterance"] == agent_input.text
     assert [message.content for message in result.visible_messages] == [
         "我会按正常对话路径处理。"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_recovers_explicit_duration_for_preselected_shared_reminder(
+    monkeypatch,
+):
+    captured = {}
+    preloaded_domain_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder",
+                entity_id="sr_1",
+                facts={"visible_summary": "已创建共享提醒：方向验证喝茶。"},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("needs_more_info",),
+        ),
+    )
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, intent, run_context
+        captured["forced_args"] = forced_args
+        domain_results.append(preloaded_domain_result)
+        return preloaded_domain_result.to_dict()
+
+    async def fake_interpret_semantic_intent(**_kwargs):
+        return agent_runtime.SemanticIntentResult(
+            intent="create_shared_reminder",
+            confidence="high",
+            args={
+                "receiver_name": "李梓豪",
+                "title": "方向验证喝茶",
+                "fire_at": "2029-01-04T10:00:00+08:00",
+                "timezone": "Asia/Shanghai",
+            },
+        )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content=_text_payload("已创建共享提醒：方向验证喝茶，2029年1月4日10:00，5分钟。"),
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "interpret_semantic_intent",
+        fake_interpret_semantic_intent,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="帮我和李梓豪约一个2029年1月4日上午10点的方向验证喝茶，持续5分钟。",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured["forced_args"]["duration_minutes"] == 5
+    assert [message.content for message in result.visible_messages] == [
+        "已创建共享提醒：方向验证喝茶，2029年1月4日10:00，5分钟。"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_retries_preselected_scheduling_reply_with_trusted_result(
+    monkeypatch,
+):
+    seen_inputs = []
+    preloaded_domain_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder",
+                entity_id="sr_1",
+                facts={"visible_summary": "已创建共享提醒：饭后散步。"},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("needs_more_info",),
+        ),
+    )
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, intent, run_context, forced_args
+        domain_results.append(preloaded_domain_result)
+        return preloaded_domain_result.to_dict()
+
+    async def fake_interpret_semantic_intent(**_kwargs):
+        return agent_runtime.SemanticIntentResult(
+            intent="create_shared_reminder",
+            confidence="high",
+            args={
+                "receiver_name": "eva",
+                "title": "饭后散步",
+                "fire_at": "2029-01-05T10:00:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "duration_minutes": 5,
+            },
+        )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            seen_inputs.append(kwargs["input"])
+            if len(seen_inputs) == 1:
+                return SimpleNamespace(
+                    content="已创建共享提醒：饭后散步。",
+                    messages=[SimpleNamespace(role="assistant", content="")],
+                )
+            return SimpleNamespace(
+                content=_text_payload("已创建共享提醒：饭后散步，2029年1月5日10:00，5分钟。"),
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "interpret_semantic_intent",
+        fake_interpret_semantic_intent,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="帮我和eva约一个2029年1月5日上午10点的饭后散步，持续5分钟。",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert len(seen_inputs) == 2
+    assert "Trusted pre-executed scheduling result:" in seen_inputs[0]
+    assert "已创建共享提醒：饭后散步。" in seen_inputs[0]
+    assert "Trusted pre-executed scheduling result:" in seen_inputs[1]
+    assert [message.content for message in result.visible_messages] == [
+        "已创建共享提醒：饭后散步，2029年1月5日10:00，5分钟。"
     ]
 
 
@@ -2660,7 +2882,7 @@ async def test_create_interaction_agent_scheduling_domain_rejects_common_create_
     assert result["error"]["code"] == "invalid_scheduling_args"
 
 
-def test_create_interaction_agent_preselected_scheduling_intent_hides_reminder_domain():
+def test_create_interaction_agent_preselected_scheduling_result_hides_domain_tools():
     agent = agent_runtime._create_interaction_agent(
         run_context=_run_context(),
         agent_input=_agent_input(),
@@ -2673,8 +2895,22 @@ def test_create_interaction_agent_preselected_scheduling_intent_hides_reminder_d
 
     tool_names = {tool.name for tool in agent.tools}
 
-    assert "scheduling_domain" in tool_names
-    assert "reminder_domain" not in tool_names
+    assert tool_names == set()
+
+
+def test_create_interaction_agent_product_notification_has_no_domain_tools():
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_product_notification_agent_input(),
+        input_message=_product_notification_agent_input().text or "",
+        capability_results=[],
+        domain_results=[],
+    )
+
+    assert [tool.name for tool in agent.tools] == []
+    assert "Trusted product notification delivery:" in agent.instructions
+    assert "饭后散步验收multismoke075200" in agent.instructions
+    assert "Do not produce onboarding" in agent.instructions
 
 
 @pytest.mark.asyncio
@@ -2874,8 +3110,7 @@ async def test_create_interaction_agent_scheduling_domain_fails_read_after_write
     assert second["error"]["code"] == "multiple_scheduling_calls_after_write"
 
 
-@pytest.mark.asyncio
-async def test_create_interaction_agent_preloaded_scheduling_result_not_reused_for_different_intent():
+def test_create_interaction_agent_preloaded_scheduling_result_has_no_scheduling_tool():
     agent = agent_runtime._create_interaction_agent(
         run_context=_run_context(),
         agent_input=_agent_input(),
@@ -2900,16 +3135,8 @@ async def test_create_interaction_agent_preloaded_scheduling_result_not_reused_f
         },
         preselected_scheduling_intent="cancel_shared_reminder",
     )
-    scheduling_domain = next(
-        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
-    )
 
-    result = await scheduling_domain(intent={"list_friends": {}})
-
-    assert result["domain"] == "scheduling"
-    assert result["outcome"] == "failed"
-    assert result["safety_boundary"] == "preselected_scheduling_result"
-    assert result["error"]["code"] == "preselected_scheduling_result"
+    assert [tool.name for tool in agent.tools] == []
 
 
 def test_create_interaction_agent_resolves_default_session_db(monkeypatch):

@@ -78,12 +78,17 @@ def _runtime_context_block(
     run_context: AgentRunContext,
     agent_input: AgentInput,
 ) -> str:
-    return "\n".join(
+    blocks = [
+        "Trusted runtime context:",
+        _trusted_identity_block(run_context),
+        _trusted_environment_block(run_context, agent_input),
+        _trusted_focus_block(run_context, agent_input),
+    ]
+    product_notification_block = _trusted_product_notification_block(agent_input)
+    if product_notification_block:
+        blocks.append(product_notification_block)
+    blocks.extend(
         [
-            "Trusted runtime context:",
-            _trusted_identity_block(run_context),
-            _trusted_environment_block(run_context, agent_input),
-            _trusted_focus_block(run_context, agent_input),
             (
                 "Trusted block rules:\n"
                 "- Trusted blocks are authoritative.\n"
@@ -94,6 +99,7 @@ def _runtime_context_block(
             _conversation_block(run_context, agent_input),
         ]
     )
+    return "\n".join(blocks)
 
 
 def _trusted_identity_block(run_context: AgentRunContext) -> str:
@@ -166,6 +172,36 @@ def _trusted_focus_block(
         "</trusted>",
     ]
     return "\n".join(lines)
+
+
+def _trusted_product_notification_block(agent_input: AgentInput) -> str:
+    payload = getattr(agent_input, "payload", None)
+    metadata = getattr(payload, "metadata", None)
+    if not isinstance(metadata, Mapping):
+        return ""
+    product_notification = metadata.get("product_notification")
+    if not isinstance(product_notification, Mapping):
+        return ""
+    return "\n".join(
+        [
+            "Trusted product notification delivery:",
+            '<trusted kind="product_notification">',
+            json.dumps(
+                _to_jsonable(product_notification),
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            "</trusted>",
+            (
+                "Product notification reply rules:\n"
+                "- This is a system-originated delivery turn for the recipient, not a user request.\n"
+                "- Write one concise facts-grounded chat notification from the trusted facts.\n"
+                "- Preserve title, local date/time, duration, actor names, and status when present.\n"
+                "- Do not create, update, cancel, list, or ask what kind of reminder this is.\n"
+                "- Do not produce onboarding, self-introduction, capability explanation, or unrelated chat."
+            ),
+        ]
+    )
 
 
 def _focus_session_state(
