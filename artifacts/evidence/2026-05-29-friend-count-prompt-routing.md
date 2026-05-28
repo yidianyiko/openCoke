@@ -54,6 +54,33 @@
 
 ## Status
 
-- Local code path is verified.
-- Production deployment and real-user smoke are not recorded in this evidence
-  item yet.
+- Committed local fix: `4f6a8061`.
+- Production deployment:
+  - Full deploy script was not used because the local worktree still had
+    unrelated dirty files.
+  - Backed up and synced only these runtime files to `gcp-coke`:
+    `agent_runtime.py`, `chat_response_instructions.py`,
+    `semantic_interpreter.py`.
+  - Rebuilt and restarted only `coke-agent` with
+    `docker compose -f docker-compose.prod.yml up -d --build coke-agent`.
+  - Health checks after restart:
+    - bridge `/bridge/healthz`: `{"ok":true}`
+    - gateway `/health`: `{"ok":true,"version":"0.1.0"}`
+- Production smoke:
+  - Marker: `friend-count-prompt-20260528T163000Z`.
+  - Requester: Li Zihao, `ck_CsFu-A91jbCSBwtizPx1K`.
+  - Prompt: `我现在有几个好友？`
+  - Bridge response:
+    `ok=true`, `output_id=6a186d58a3abe0a13c80aed9`,
+    `business_conversation_key=bc_6a1019b60fedec4719365fd5`.
+  - Visible reply:
+    `哎，之前是我搞错了。你现在有2个好友：olivers 和 eva。`
+  - Mongo output row:
+    `6a186d58a3abe0a13c80aed9`, `status=handled`, no
+    `fallback_kind`, same causal inbound event id.
+  - Postgres active friendships for the requester matched the reply:
+    `olivers` and `eva`.
+  - Agent runtime log for the turn:
+    `tools=0, has_preselected_intent=True`, which means the final chat model
+    received a preselected scheduling-domain result instead of choosing tools
+    itself.
