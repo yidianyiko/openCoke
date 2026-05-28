@@ -43,3 +43,27 @@ Observed results:
   - runner unit tests: 72 passed.
   - agent unit tests: 559 passed.
   - ClawScale-only topology tests: 7 passed.
+
+## Production Deploy Verification
+
+Commands run after deploying commit `0c25ec95` with
+`./scripts/deploy-compose-to-gcp.sh --restart`:
+
+```bash
+ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml exec -T coke-agent python - <<PY ... PY'
+ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml ps'
+ssh gcp-coke 'curl -sS http://127.0.0.1:4041/health && curl -sS http://127.0.0.1:8090/bridge/healthz'
+ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml logs --since=10m coke-agent coke-bridge gateway | egrep -i "unexpected keyword argument|internal_protocol_label_leak|Traceback|ERROR|CRITICAL|Exception" || true'
+```
+
+Observed results:
+
+- Deploy script completed and verified the public site at
+  `https://coke.keep4oforever.com`.
+- `coke-agent`, `coke-bridge`, and `gateway` were up after restart; bridge and
+  gateway were healthy.
+- Local health endpoints returned `{"ok":true,"version":"0.1.0"}` and
+  `{"ok":true}`.
+- Container smoke returned
+  `{'missing_params': [], 'label_leak_code': 'internal_protocol_label_leak', 'retryable': True}`.
+- Post-deploy logs in the checked window had no matching new runtime errors.

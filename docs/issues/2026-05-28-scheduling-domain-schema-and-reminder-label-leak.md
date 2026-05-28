@@ -78,6 +78,12 @@ durable write in the same agent call.
 - `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py tests/unit/agent/test_agent_runtime_output_rules.py tests/unit/agent/test_execution_agents.py -q`
 - `git diff --check -- agent/agno_agent/runtime/agent_runtime.py tests/unit/agent/test_agent_runtime_construction.py tests/unit/agent/test_agent_runtime_output_rules.py docs/issues/2026-05-28-scheduling-domain-schema-and-reminder-label-leak.md`
 - `zsh scripts/verify-surface repo-os-docs worker-runtime`
+- `./scripts/deploy-compose-to-gcp.sh --restart`
+- Production container smoke confirmed no missing `scheduling_domain` fields and
+  `reminders:` maps to `internal_protocol_label_leak`.
+- Post-deploy `coke-agent`, `coke-bridge`, and `gateway` logs had no matching
+  new `unexpected keyword argument`, traceback, or error-level output in the
+  checked window.
 
 ## Resolution
 
