@@ -482,6 +482,99 @@ async def test_user_turn_protocol_violation_after_durable_write_retries_without_
 
 
 @pytest.mark.asyncio
+async def test_user_turn_stale_shared_reminder_claim_after_repair_retries_without_tools(
+    monkeypatch,
+):
+    write_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder",
+                entity_id="sr-1",
+                facts={
+                    "title": "修复验证散步",
+                    "visible_summary": "已创建共享提醒：修复验证散步，2029年1月7日 10:00，时长5分钟。",
+                },
+            ),
+        ),
+    )
+    calls = []
+    force_no_tools_values = []
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            calls.append(kwargs["input"])
+            if len(calls) == 2:
+                return type(
+                    "FakeOutput",
+                    (),
+                    {
+                        "content": _segments_payload(
+                            {
+                                "type": "text",
+                                "content": "已帮你邀请李梓豪，标题「修复验证散步」。等他确认～",
+                            },
+                        ),
+                        "messages": [],
+                    },
+                )()
+            if len(calls) == 3:
+                return type(
+                    "FakeOutput",
+                    (),
+                    {
+                        "content": _segments_payload(
+                            {
+                                "type": "text",
+                                "content": "已创建共享提醒：修复验证散步，2029年1月7日 10:00，时长5分钟。",
+                            },
+                        ),
+                        "messages": [],
+                    },
+                )()
+            return type(
+                "FakeOutput",
+                (),
+                {
+                    "content": "已帮你邀请李梓豪，标题「修复验证散步」。等他确认～",
+                    "messages": [],
+                },
+            )()
+
+    def fake_create(**kwargs):
+        force_no_tools_values.append(kwargs.get("force_no_tools"))
+        if len(force_no_tools_values) == 1:
+            kwargs["domain_results"].append(write_result)
+        return FakeAgent()
+
+    monkeypatch.setattr(agent_runtime, "_create_interaction_agent", fake_create)
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv1",
+            text="帮我和李梓豪约一个2029年1月7日上午10点的修复验证散步，持续5分钟。",
+            payload=UserTurnPayload(current_message_ids=["msg1"]),
+            occurred_at=datetime.now(UTC),
+        ),
+        run_context=_ctx(),
+    )
+
+    assert len(calls) == 3
+    assert force_no_tools_values == [False, True, True]
+    assert "unconfirmed_durable_write_promise" in calls[2]
+    assert "Trusted executed runtime results:" in calls[2]
+    assert [message.content for message in result.visible_messages] == [
+        "已创建共享提醒：修复验证散步，2029年1月7日 10:00，时长5分钟。"
+    ]
+    assert result.error_disposition is None
+
+
+@pytest.mark.asyncio
 async def test_preselected_scheduling_failure_summary_becomes_visible_text(monkeypatch):
     async def fake_run_scheduling_domain(
         *,

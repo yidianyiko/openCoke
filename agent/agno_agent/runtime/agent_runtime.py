@@ -171,6 +171,13 @@ _VISIBLE_IDENTIFIER_LEAK_PATTERNS = (
     re.compile(r"ck_[a-zA-Z0-9_]{8,}"),
     re.compile(r"acct_[a-zA-Z0-9_]{8,}"),
 )
+_REPAIRABLE_VISIBLE_CONTENT_ERROR_CODES = frozenset(
+    {
+        "unconfirmed_durable_write_promise",
+        "domain_reply_contract_violation",
+        "visible_identifier_leak",
+    }
+)
 _CAPABILITY_BOUNDARY_MARKERS = (
     "不能",
     "无法",
@@ -1277,6 +1284,24 @@ def _protocol_repair_input(input_message: str, reason: str) -> str:
         f"protocol ({reason}). Return only one JSON object with this shape: "
         '{"MultiModalResponses": [{"type": "text", "content": "message text"}]}. '
         "Do not include markdown fences or any text outside the JSON object."
+    )
+
+
+def _visible_content_repair_input(
+    input_message: str,
+    error: RuntimeErrorDisposition,
+) -> str:
+    return (
+        f"{input_message}\n\n"
+        "System visible-content repair: the previous JSON parsed, but the visible "
+        "text violated the runtime contract "
+        f"({error.code}: {json.dumps(_jsonable(error.metadata), ensure_ascii=False, sort_keys=True)}). "
+        "Return only one JSON object with this shape: "
+        '{"MultiModalResponses": [{"type": "text", "content": "message text"}]}. '
+        "Reply only from the trusted executed runtime results. Do not call tools. "
+        "Do not say the recipient still needs to confirm, accept, or agree unless "
+        "a trusted result explicitly says the operation is pending recipient "
+        "confirmation. Do not include internal identifiers."
     )
 
 
@@ -2552,6 +2577,104 @@ async def run_agent_runtime(
             or domain_reply_contract_error
             or identifier_leak_error
         )
+        if (
+            parse_result.ok
+            and durable_write_executed
+            and runtime_contract_error is not None
+            and runtime_contract_error.code in _REPAIRABLE_VISIBLE_CONTENT_ERROR_CODES
+        ):
+            repair_base_input = _interaction_input_with_trusted_runtime_results(
+                interaction_input,
+                capability_results=captured_capability_results,
+                domain_results=captured_domain_results,
+            )
+            retry_input = _visible_content_repair_input(
+                repair_base_input,
+                runtime_contract_error,
+            )
+            try:
+                run_output = await run_interaction_attempt(
+                    retry_input,
+                    retry=True,
+                    force_no_tools=True,
+                )
+            except asyncio.TimeoutError:
+                return _timeout_result(
+                    agent_input=agent_input,
+                    run_context=run_context,
+                    input_message=input_message,
+                    started_at=started_at,
+                    timeout_seconds=timeout_seconds,
+                    preselected_scheduling_intent=preselected_scheduling_intent,
+                    forced_args_present=bool(preselected_scheduling_args),
+                    capability_results=capability_results,
+                    domain_results=domain_results,
+                )
+            final_text = _string_content(getattr(run_output, "content", None))
+            if not final_text:
+                final_text = _latest_assistant_text(run_output)
+            parse_result = _parse_visible_output_protocol(final_text)
+            final_text_segments = parse_result.segments if parse_result.ok else ()
+            output_protocol_error = (
+                None
+                if parse_result.ok
+                else _output_protocol_violation(
+                    parse_result.violation_reason or "unknown",
+                    attempted_retry=True,
+                    durable_write_executed=durable_write_executed,
+                )
+            )
+            unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
+                agent_input=agent_input,
+                final_text=_visible_text_for_guardrails(final_text_segments),
+                capability_results=captured_capability_results,
+                domain_results=captured_domain_results,
+            )
+            durable_write_error = _check_durable_write_contract(
+                captured_capability_results,
+                captured_domain_results,
+            )
+            runtime_contract_error = (
+                output_protocol_error
+                or durable_write_error
+                or unconfirmed_promise_error
+            )
+            visible_text_segments = final_text_segments
+            output_source = "model"
+            fallback_reason = None
+            if authoritative_domain_text:
+                visible_text_segments = (authoritative_domain_text,)
+                output_source = "domain_summary"
+                fallback_reason = "authoritative_read_result"
+            elif not final_text:
+                fallback_text = _resolve_visible_text(
+                    "",
+                    captured_capability_results,
+                )
+                if not fallback_text:
+                    fallback_text = _resolve_domain_visible_text(
+                        captured_domain_results,
+                        include_failed_generic=True,
+                    )
+                    if fallback_text:
+                        output_source = "domain_summary"
+                        fallback_reason = "empty_agent_output"
+                elif fallback_text:
+                    output_source = "capability_summary"
+                    fallback_reason = "empty_agent_output"
+                visible_text_segments = (fallback_text,) if fallback_text else ()
+            identifier_leak_error = _check_visible_identifier_leak(
+                _visible_text_for_guardrails(visible_text_segments)
+            )
+            domain_reply_contract_error = _check_domain_reply_contract(
+                final_text=_visible_text_for_guardrails(visible_text_segments),
+                domain_results=captured_domain_results,
+            )
+            runtime_contract_error = (
+                runtime_contract_error
+                or domain_reply_contract_error
+                or identifier_leak_error
+            )
         if runtime_contract_error is not None:
             visible_text_segments = ()
         visible_messages = tuple(
