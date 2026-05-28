@@ -29,7 +29,7 @@ from dao.user_dao import UserDAO
 
 logger = logging.getLogger(__name__)
 MAX_BRIDGE_INBOUND_REQUEST_BYTES = MAX_ATTACHMENT_JSON_BYTES
-SYNC_REPLY_TIMEOUT_FALLBACK_REPLY = "正在处理中，稍后把结果发给你。"
+SYNC_REPLY_TIMEOUT_ACK_REPLY = "正在处理中，稍后把结果发给你。"
 
 
 def _valid_product_notification_payload(inbound: dict) -> bool:
@@ -101,7 +101,7 @@ def _resolve_target_character_id(user_dao: UserDAO) -> str:
     return str(characters[0]["_id"])
 
 
-class LateReplyFallbackPromoter:
+class AsyncLateReplyPromoter:
     def __init__(
         self,
         *,
@@ -264,12 +264,12 @@ class BusinessOnlyBridgeGateway:
         message_gateway,
         reply_waiter,
         target_character_id: str,
-        late_reply_fallback=None,
+        async_late_reply_promoter=None,
     ):
         self.message_gateway = message_gateway
         self.reply_waiter = reply_waiter
         self.target_character_id = target_character_id
-        self.late_reply_fallback = late_reply_fallback
+        self.async_late_reply_promoter = async_late_reply_promoter
 
     def _metadata_value(
         self, inbound_payload: dict, metadata: dict, key: str, legacy_key: str
@@ -501,11 +501,11 @@ class BusinessOnlyBridgeGateway:
         except TimeoutError:
             customer_id = inbound.get("coke_account_id")
             if (
-                self.late_reply_fallback is not None
+                self.async_late_reply_promoter is not None
                 and isinstance(customer_id, str)
                 and customer_id.strip()
             ):
-                self.late_reply_fallback.start_async(
+                self.async_late_reply_promoter.start_async(
                     causal_inbound_event_id=causal_inbound_event_id,
                     customer_id=customer_id,
                     tenant_id=inbound.get("tenant_id"),
@@ -517,7 +517,7 @@ class BusinessOnlyBridgeGateway:
                 )
                 return {
                     "status": "ok",
-                    "reply": SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
+                    "reply": SYNC_REPLY_TIMEOUT_ACK_REPLY,
                 }
             raise
         if isinstance(reply, dict):
@@ -594,7 +594,7 @@ def _build_default_bridge_gateway():
         api_url=_derive_delivery_route_api_url(bridge_conf["identity_api_url"]),
         api_key=bridge_conf["identity_api_key"],
     )
-    late_reply_fallback = LateReplyFallbackPromoter(
+    async_late_reply_promoter = AsyncLateReplyPromoter(
         mongo=mongo,
         reply_waiter=ReplyWaiter(
             mongo=mongo,
@@ -607,7 +607,7 @@ def _build_default_bridge_gateway():
         message_gateway=message_gateway,
         reply_waiter=reply_waiter,
         target_character_id=_resolve_target_character_id(user_dao),
-        late_reply_fallback=late_reply_fallback,
+        async_late_reply_promoter=async_late_reply_promoter,
     )
 
 

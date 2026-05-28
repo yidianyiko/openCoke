@@ -151,8 +151,6 @@ def _stale_focus_result(
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("appointment_confirmed",),
             allow_rephrase=True,
         ),
         error=error,
@@ -169,23 +167,17 @@ def _scheduling_reply_contract(
         return ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("appointment_confirmed",),
             allow_rephrase=True,
         )
     if effect == "write":
         return ReplyContract(
             intent="confirm_execution",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("needs_more_info",),
             allow_rephrase=True,
         )
     return ReplyContract(
         intent="direct_answer",
         required_facts=(),
-        required_questions=(),
-        prohibited_claims=("appointment_confirmed",),
         allow_rephrase=True,
     )
 
@@ -241,8 +233,6 @@ def _no_scheduling_tool_called_result(intent: str) -> DomainExecutionResult:
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("appointment_confirmed",),
             allow_rephrase=True,
         ),
         error=DomainError(
@@ -269,8 +259,6 @@ def _invalid_scheduling_args_result(
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("appointment_confirmed",),
             allow_rephrase=True,
         ),
         error=DomainError(
@@ -346,8 +334,6 @@ def _make_scheduling_tool_fn(
                 reply_contract=ReplyContract(
                     intent="report_failure",
                     required_facts=(),
-                    required_questions=(),
-                    prohibited_claims=("appointment_confirmed",),
                     allow_rephrase=True,
                 ),
                 error=DomainError(
@@ -821,8 +807,6 @@ def _ambiguous_friend_calendar_name_result() -> DomainExecutionResult:
         reply_contract=ReplyContract(
             intent="ask_clarification",
             required_facts=(),
-            required_questions=("which_friend",),
-            prohibited_claims=("appointment_confirmed",),
             allow_rephrase=True,
         ),
     )

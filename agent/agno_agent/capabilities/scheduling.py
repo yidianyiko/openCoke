@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
-import re
+from collections.abc import Callable, Mapping
 from datetime import date, datetime
 from hashlib import sha256
-from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -223,11 +222,6 @@ def _trusted_tool_payload(
 ) -> dict[str, Any]:
     payload = dict(args)
     _normalize_date_only_tool_fields(payload)
-    _recover_shared_reminder_receiver_name(
-        payload,
-        input_message=input_message,
-        tool_name=tool_name,
-    )
     if (
         tool_name in _VIEWER_TIMEZONE_TOOL_NAMES
         and not str(payload.get("timezone") or "").strip()
@@ -252,71 +246,6 @@ def _trusted_tool_payload(
         }
     )
     return payload
-
-
-_DIRECT_INVITE_RECEIVER_PATTERN = re.compile(
-    r"(?:帮我|请帮我|麻烦帮我)?(?:约|邀请)\s*([^，,。！？!?、\s]+)"
-)
-_NON_RECEIVER_INVITE_PREFIXES = (
-    "今天",
-    "明天",
-    "后天",
-    "今晚",
-    "上午",
-    "下午",
-    "晚上",
-    "下周",
-    "本周",
-    "周一",
-    "周二",
-    "周三",
-    "周四",
-    "周五",
-    "周六",
-    "周日",
-    "星期",
-)
-_NON_RECEIVER_INVITE_MARKERS = (
-    "一节",
-    "一个",
-    "一次",
-    "会议",
-    "课",
-    "提醒",
-    "时间",
-    "篮球",
-    "网球",
-    "羽毛球",
-    "咖啡",
-    "吃饭",
-    "跑步",
-)
-
-
-def _recover_shared_reminder_receiver_name(
-    payload: dict[str, Any],
-    *,
-    input_message: str,
-    tool_name: str,
-) -> None:
-    if tool_name != "create_shared_reminder":
-        return
-    if any(
-        str(payload.get(key) or "").strip()
-        for key in ("receiver_account_id", "receiver_name", "friend_account_id")
-    ):
-        return
-    match = _DIRECT_INVITE_RECEIVER_PATTERN.search(input_message)
-    if not match:
-        return
-    candidate = match.group(1).strip()
-    if not candidate or len(candidate) > 32:
-        return
-    if candidate.startswith(_NON_RECEIVER_INVITE_PREFIXES):
-        return
-    if any(marker in candidate for marker in _NON_RECEIVER_INVITE_MARKERS):
-        return
-    payload["receiver_name"] = candidate
 
 
 def _normalize_date_only_tool_fields(payload: dict[str, Any]) -> None:

@@ -36,8 +36,6 @@ TraceRoute = Literal[
 ]
 TraceOutputSource = Literal[
     "model",
-    "capability_summary",
-    "domain_summary",
     "empty",
 ]
 
@@ -137,17 +135,6 @@ class TraceResultRef:
 
 
 @dataclass(frozen=True)
-class TraceGuardrail:
-    name: Literal[
-        "durable_write_summary",
-        "unconfirmed_durable_write_promise",
-        "visible_identifier_leak",
-    ]
-    status: Literal["passed", "failed", "skipped"]
-    error_code: str | None
-
-
-@dataclass(frozen=True)
 class TraceOutput:
     disposition_status: str
     output_source: TraceOutputSource
@@ -181,7 +168,6 @@ class AgentTurnTrace:
     routing: TraceRouting
     agent_calls: Sequence[TraceAgentCall]
     result_refs: Sequence[TraceResultRef]
-    guardrails: Sequence[TraceGuardrail]
     output: TraceOutput
     error: TraceError | None
     redaction: TraceRedaction
@@ -189,7 +175,6 @@ class AgentTurnTrace:
     def __post_init__(self) -> None:
         object.__setattr__(self, "agent_calls", freeze_sequence(self.agent_calls))
         object.__setattr__(self, "result_refs", freeze_sequence(self.result_refs))
-        object.__setattr__(self, "guardrails", freeze_sequence(self.guardrails))
 
 
 def resolve_agent_turn_trace_config() -> AgentTurnTraceConfig:
@@ -284,7 +269,6 @@ def build_agent_turn_trace(
             *_domain_result_refs(domain_results),
             *_capability_result_refs(capability_results),
         ),
-        guardrails=_guardrail_refs(error_disposition),
         output=output,
         error=_trace_error(error_disposition, failure_stage),
         redaction=TraceRedaction(
@@ -407,7 +391,6 @@ def coerce_agent_turn_trace(
         ),
         agent_calls=(),
         result_refs=(),
-        guardrails=(),
         output=TraceOutput(
             disposition_status=status or "unknown",
             output_source="empty",
@@ -509,28 +492,6 @@ def _capability_result_refs(
             )
         )
     return tuple(refs)
-
-
-def _guardrail_refs(
-    error_disposition: RuntimeErrorDisposition | None,
-) -> tuple[TraceGuardrail, ...]:
-    error_code = error_disposition.code if error_disposition else None
-    names = (
-        "durable_write_summary",
-        "unconfirmed_durable_write_promise",
-        "visible_identifier_leak",
-    )
-    guardrails: list[TraceGuardrail] = []
-    for name in names:
-        failed = error_code is not None and name in error_code
-        guardrails.append(
-            TraceGuardrail(
-                name=name,  # type: ignore[arg-type]
-                status="failed" if failed else "passed",
-                error_code=error_code if failed else None,
-            )
-        )
-    return tuple(guardrails)
 
 
 def _trace_error(

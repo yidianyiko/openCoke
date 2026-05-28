@@ -650,7 +650,6 @@ def test_tool_failure_result_is_propagated_as_failed_capability():
         "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
     )
     assert result.reply_contract.intent == "report_failure"
-    assert result.reply_contract.prohibited_claims == ("reminder_created",)
     assert result.operations[0].ok is False
     assert result.operations[0].error == result.error
 

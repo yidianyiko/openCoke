@@ -15,7 +15,6 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from agent.agno_agent.runtime.context import AgentRunContext
-from agent.agno_agent.runtime.diagnostic_patterns import check_prohibited_claims
 from agent.agno_agent.runtime.domain_results import (
     DomainError,
     DomainExecutionResult,
@@ -101,10 +100,6 @@ _SCHEDULING_CREATE_SHARED_REMINDER_ARG_KEYS = {
     "timezone",
     "idempotency_key",
 }
-_EXPLICIT_DURATION_RE = re.compile(
-    r"(?:持续|时长|历时|用时)\s*(?P<minutes>\d{1,3})\s*(?:分钟|分|minutes?|mins?)",
-    re.IGNORECASE,
-)
 _EXPLICIT_SCHEDULING_INTERPRETER_PATTERNS = (
     re.compile(
         r"(?:帮我|帮忙|麻烦你)?\s*(?:和|跟)\s*[\w\u4e00-\u9fff@._-]{1,64}\s*(?:约|邀|邀请)",
@@ -147,92 +142,6 @@ _RETIRED_ACCOUNT_CONTROL_RE = re.compile(
     r"(屏蔽|拉黑|解除屏蔽|取消屏蔽|\b(?:unblock|block)\b)",
     re.IGNORECASE,
 )
-_UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
-    re.compile(
-        r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
-        r".{0,24}(\u63d0\u9192\u4f60|\u901a\u77e5\u4f60)"
-    ),
-    re.compile(r"(\u63d0\u9192\u4f60|\u901a\u77e5\u4f60)"),
-    re.compile(r"(\u6211\u6765|\u4f1a|\u5230\u65f6\u5019).{0,16}" r"(\u53eb\u4f60)"),
-    re.compile(
-        r"(\u5df2\u7ecf|\u5df2|\u5e2e\u4f60).{0,16}"
-        r"(\u8bbe\u7f6e|\u8bbe\u597d).{0,16}"
-        r"(\u63d0\u9192|\u901a\u77e5)"
-    ),
-    re.compile(
-        r"(\u5df2\u7ecf|\u5df2|\u5e2e\u4f60|\u597d\u5566).{0,24}"
-        r"(\u5efa\u4e86|\u521b\u5efa|created|set up).{0,24}"
-        r"(\u5171\u4eab\u63d0\u9192|shared reminder)",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"\b(i(?:'ll| will|'ve| have)|we(?:'ll| will)).{0,40}"
-        r"\b(remind|notify|set (?:up )?(?:the )?reminder)",
-        re.IGNORECASE,
-    ),
-    # "Now you're friends" claims: "你们现在是好友/好朋友啦", "now you are friends".
-    re.compile(
-        r"(你们现在|现在你们|now you(?:'re| are))" r".{0,12}(是好(友|朋友)|friends?)",
-        re.IGNORECASE,
-    ),
-)
-_STALE_SHARED_REMINDER_INVITE_CLAIM_PATTERNS = (
-    re.compile(r"(邀请|邀约|共享提醒请求).{0,24}(发给|发过去|发出|发送|提交)"),
-    re.compile(r"(发给|发过去|发出|发送|提交).{0,24}(邀请|邀约|共享提醒请求)"),
-    re.compile(r"(等|等待).{0,16}(确认|接受|同意)"),
-    re.compile(
-        r"\b(waiting|wait).{0,40}\b(confirm|accept)",
-        re.IGNORECASE,
-    ),
-)
-_VISIBLE_IDENTIFIER_LEAK_PATTERNS = (
-    re.compile(r"ck_[a-zA-Z0-9_]{8,}"),
-    re.compile(r"acct_[a-zA-Z0-9_]{8,}"),
-)
-_CAPABILITY_BOUNDARY_MARKERS = (
-    "不能",
-    "无法",
-    "没法",
-    "没有办法",
-    "没办法",
-    "帮不了",
-    "做不了",
-    "暂时不",
-    "暂时没有",
-    "还不能",
-    "只能",
-)
-_REMINDER_OFFER_MARKERS = (
-    "可以帮你",
-    "可以告诉我",
-    "随时告诉我",
-    "需要我",
-    "要不要",
-    "要不要我",
-    "帮你设吗",
-    "我能做",
-    "如果",
-    "想要提醒",
-    "只能帮你",
-)
-# OUTPUT SAFETY NET (not a semantic classifier): catches LLM final-text
-# claims of a completed reminder write when no tool write actually
-# succeeded. Survives the LLM-only intent migration because its purpose
-# is to compensate for LLM unreliability, not to classify user intent.
-_COMPLETED_WRITE_CLAIM_PATTERNS = (
-    re.compile(r"(已经|已).{0,24}(设置|设好|创建|建了).{0,24}(提醒|通知)"),
-    re.compile(r"(设置好|设好|创建好|建好).{0,8}(了|啦)"),
-    re.compile(r"我再帮你.{0,8}(设一下|设置一下|安排一下).{0,80}(提醒|通知)"),
-    re.compile(r"给你.{0,8}(设个|设置个|安排个).{0,16}\d+\s*分钟后.{0,8}(提醒|通知)"),
-    re.compile(
-        r"(好嘞|好的|收到).{0,80}(提醒你|通知你|叫你).{0,80}(告诉我|补充).{0,32}(设好|设置好|安排好)"
-    ),
-)
-_INTERNAL_PROTOCOL_LABEL_LEAK_PATTERNS = (
-    re.compile(r"^\s*reminders?\s*[:：]", re.IGNORECASE),
-)
-
-
 class _SchedulingIntentError(ValueError):
     def __init__(
         self,
@@ -532,8 +441,6 @@ def _scheduling_failure_result(
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("appointment_confirmed",),
             allow_rephrase=True,
         ),
         error=error,
@@ -598,11 +505,6 @@ def _semantic_scheduling_intent_and_args(
             semantic_result.intent,
             semantic_result.args,
         )
-        if semantic_result.intent == "create_shared_reminder":
-            normalized_args = _recover_explicit_duration_minutes(
-                normalized_args,
-                current_utterance,
-            )
         return semantic_result.intent, normalized_args
     return None, {}
 
@@ -619,27 +521,6 @@ def _should_run_scheduling_semantic_interpreter(
         pattern.search(input_message)
         for pattern in _EXPLICIT_SCHEDULING_INTERPRETER_PATTERNS
     )
-
-
-def _recover_explicit_duration_minutes(
-    args: Mapping[str, Any],
-    current_utterance: str,
-) -> dict[str, Any]:
-    normalized = dict(args)
-    if normalized.get("duration_minutes") is not None:
-        return normalized
-    if not isinstance(current_utterance, str) or not current_utterance.strip():
-        return normalized
-    match = _EXPLICIT_DURATION_RE.search(current_utterance)
-    if match is None:
-        return normalized
-    try:
-        duration_minutes = int(match.group("minutes"))
-    except (TypeError, ValueError):
-        return normalized
-    if 0 < duration_minutes <= 24 * 60:
-        normalized["duration_minutes"] = duration_minutes
-    return normalized
 
 
 def _focus_action_value(action: Any, field: str) -> Any:
@@ -719,8 +600,6 @@ def _single_candidate_focus_failure_result(
         reply_contract=ReplyContract(
             intent="ask_clarification",
             required_facts=(),
-            required_questions=("同意还是拒绝这条请求？",),
-            prohibited_claims=(),
             allow_rephrase=True,
         ),
         error=error,
@@ -774,8 +653,6 @@ def _multi_candidate_clarification_result(
         reply_contract=ReplyContract(
             intent="ask_clarification",
             required_facts=tuple(facts),
-            required_questions=("你要对哪一条邀请操作？",),
-            prohibited_claims=(),
             allow_rephrase=True,
         ),
         error=error,
@@ -937,8 +814,6 @@ def _create_interaction_agent(
                         "reply_contract": {
                             "intent": "report_failure",
                             "required_facts": [],
-                            "required_questions": [],
-                            "prohibited_claims": ["reminder_created"],
                             "allow_rephrase": True,
                         },
                         "error": {
@@ -1275,27 +1150,12 @@ def _text_message_segments(content: str) -> tuple[str, ...]:
     return tuple(segment.strip() for segment in content.splitlines() if segment.strip())
 
 
-_FENCED_JSON_RE = re.compile(
-    r"^\s*```(?:json|JSON)?\s*\n?(?P<body>.*?)\n?```\s*$",
-    re.DOTALL,
-)
-
-
 def _try_parse_envelope_json(final_text: str) -> Any:
-    """Parse a MultiModalResponses envelope, transparently stripping markdown
-    code fences the model sometimes wraps it in. Returns the parsed object or
-    None when the final text is not parseable JSON."""
+    """Parse a strict MultiModalResponses JSON envelope."""
     try:
         return json.loads(final_text)
     except json.JSONDecodeError:
-        pass
-    match = _FENCED_JSON_RE.match(final_text)
-    if match is not None:
-        try:
-            return json.loads(match.group("body"))
-        except json.JSONDecodeError:
-            pass
-    return None
+        return None
 
 
 @dataclass(frozen=True)
@@ -1342,10 +1202,6 @@ def _parse_visible_output_protocol(final_text: str) -> _VisibleOutputParseResult
             False, violation_reason="no_usable_text_content"
         )
     return _VisibleOutputParseResult(True, tuple(segments))
-
-
-def _visible_text_for_guardrails(segments: Sequence[str]) -> str:
-    return "\n".join(segment for segment in segments if segment)
 
 
 def _output_protocol_violation(
@@ -1395,73 +1251,6 @@ def _has_successful_durable_write(
         for result in domain_results
         for operation in result.operations
     )
-
-
-def _resolve_domain_visible_text(
-    domain_results: Sequence[DomainExecutionResult],
-) -> str:
-    for result in reversed(domain_results):
-        if result.outcome != "executed":
-            continue
-        summaries: list[str] = []
-        for operation in result.operations:
-            if not operation.ok:
-                continue
-            facts = operation.facts
-            for key in ("visible_summary", "summary", "message"):
-                value = facts.get(key)
-                if isinstance(value, str) and value.strip():
-                    summaries.append(value.strip())
-                    break
-        if summaries:
-            return "\n".join(summaries)
-    for result in reversed(domain_results):
-        if result.domain != "scheduling" or result.outcome != "failed":
-            continue
-        for operation in result.operations:
-            facts = operation.facts
-            for key in ("visible_summary", "summary", "message"):
-                value = facts.get(key)
-                if _is_safe_scheduling_failure_summary(value):
-                    return str(value).strip()
-    for result in reversed(domain_results):
-        if (
-            result.domain != "reminder"
-            or result.outcome != "failed"
-            or result.safety_boundary != "explicit_past"
-        ):
-            continue
-        for operation in result.operations:
-            facts = operation.facts
-            for key in ("visible_summary", "summary", "message"):
-                value = facts.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-        error = result.error
-        if error is not None and error.message.strip():
-            return error.message.strip()
-    return ""
-
-
-def _is_safe_scheduling_failure_summary(value: Any) -> bool:
-    if not isinstance(value, str) or not value.strip():
-        return False
-    if value.strip() == "日程操作暂时无法完成。":
-        return False
-    lowered = value.casefold()
-    unsafe_markers = (
-        "traceback",
-        "stack trace",
-        "exception",
-        "runtimeerror",
-        "valueerror",
-        "typeerror",
-        "mongodb",
-        "postgres",
-        "prisma",
-        "sql",
-    )
-    return not any(marker in lowered for marker in unsafe_markers)
 
 
 _DOMAIN_VISIBLE_TEXT_KEYS = ("visible_summary", "summary", "message")
@@ -1526,182 +1315,6 @@ def _message_source(agent_input: AgentInput, run_context: AgentRunContext) -> st
     if isinstance(value, str) and value:
         return value
     return agent_input.input_type
-
-
-def _check_unconfirmed_durable_write_promise(
-    *,
-    agent_input: AgentInput,
-    final_text: str,
-    capability_results: Sequence[CapabilityResult],
-    domain_results: Sequence[DomainExecutionResult] = (),
-) -> RuntimeErrorDisposition | None:
-    if agent_input.input_type != "user.turn" or not final_text:
-        return None
-    stale_shared_reminder_invite_claim = any(
-        pattern.search(final_text)
-        for pattern in _STALE_SHARED_REMINDER_INVITE_CLAIM_PATTERNS
-    )
-    if stale_shared_reminder_invite_claim:
-        return RuntimeErrorDisposition(
-            code="unconfirmed_durable_write_promise",
-            retryable=False,
-            metadata={"input_type": agent_input.input_type},
-        )
-    if any(result.ok and result.durable_write for result in capability_results):
-        return None
-    if any(
-        operation.ok and operation.effect == "write"
-        for result in domain_results
-        for operation in result.operations
-    ):
-        return None
-    matched = [
-        pattern
-        for pattern in (
-            *_UNCONFIRMED_DURABLE_WRITE_PATTERNS,
-            *_COMPLETED_WRITE_CLAIM_PATTERNS,
-        )
-        if pattern.search(final_text)
-    ]
-    if not matched:
-        return None
-    if _is_reminder_capability_offer_not_write_claim(final_text):
-        return None
-    has_question = "?" in final_text or "\uff1f" in final_text or "\u5417" in final_text
-    if has_question:
-        direct_promise_patterns = (
-            *(
-                pattern
-                for index, pattern in enumerate(_UNCONFIRMED_DURABLE_WRITE_PATTERNS)
-                if index != 1
-            ),
-            *_COMPLETED_WRITE_CLAIM_PATTERNS,
-        )
-        if not any(pattern.search(final_text) for pattern in direct_promise_patterns):
-            return None
-    return RuntimeErrorDisposition(
-        code="unconfirmed_durable_write_promise",
-        retryable=False,
-        metadata={"input_type": agent_input.input_type},
-    )
-
-
-def _check_domain_reply_contract(
-    *,
-    final_text: str,
-    domain_results: Sequence[DomainExecutionResult],
-) -> RuntimeErrorDisposition | None:
-    if not final_text:
-        return None
-    for result in domain_results:
-        contract = replace(
-            result.reply_contract,
-            prohibited_claims=tuple(
-                claim
-                for claim in result.reply_contract.prohibited_claims
-                if not _prohibited_claim_confirmed_by_write(
-                    claim,
-                    domain_results,
-                )
-            ),
-        )
-        violations = check_prohibited_claims(contract, final_text)
-        if violations:
-            return RuntimeErrorDisposition(
-                code="domain_reply_contract_violation",
-                retryable=False,
-                metadata={
-                    "domain": result.domain,
-                    "violations": violations,
-                },
-            )
-    return None
-
-
-def _prohibited_claim_confirmed_by_write(
-    claim: str,
-    domain_results: Sequence[DomainExecutionResult],
-) -> bool:
-    if claim == "reminder_created":
-        return any(
-            result.domain == "reminder"
-            and operation.ok
-            and operation.effect == "write"
-            and operation.action == "create"
-            for result in domain_results
-            for operation in result.operations
-        )
-    if claim == "appointment_confirmed":
-        return any(
-            result.domain == "scheduling"
-            and operation.ok
-            and operation.effect == "write"
-            and operation.action == "create_shared_reminder"
-            for result in domain_results
-            for operation in result.operations
-        )
-    return False
-
-
-def _has_successful_domain_write(
-    domain_results: Sequence[DomainExecutionResult],
-    *,
-    action: str,
-) -> bool:
-    return any(
-        result.domain == "scheduling"
-        and operation.ok
-        and operation.effect == "write"
-        and operation.action == action
-        for result in domain_results
-        for operation in result.operations
-    )
-
-
-def _is_reminder_capability_offer_not_write_claim(final_text: str) -> bool:
-    """Allow refusal text that offers reminder help without claiming a write.
-
-    The durable-write guardrail should block claims like "已经帮你设置好了提醒"
-    when no tool write succeeded. It should not block a capability boundary
-    such as "我不能预约教练，只能帮你设置提醒，需要我提醒你吗？".
-    """
-    if not _contains_any(final_text, _CAPABILITY_BOUNDARY_MARKERS):
-        return False
-    if not _contains_any(final_text, _REMINDER_OFFER_MARKERS):
-        return False
-    if any(pattern.search(final_text) for pattern in _COMPLETED_WRITE_CLAIM_PATTERNS):
-        return False
-    return True
-
-
-def _check_visible_identifier_leak(final_text: str) -> RuntimeErrorDisposition | None:
-    if not final_text:
-        return None
-    if not any(
-        pattern.search(final_text) for pattern in _VISIBLE_IDENTIFIER_LEAK_PATTERNS
-    ):
-        return None
-    return RuntimeErrorDisposition(
-        code="visible_identifier_leak",
-        retryable=False,
-        metadata={},
-    )
-
-
-def _check_internal_protocol_label_leak(
-    final_text: str,
-) -> RuntimeErrorDisposition | None:
-    if not final_text:
-        return None
-    if not any(
-        pattern.search(final_text) for pattern in _INTERNAL_PROTOCOL_LABEL_LEAK_PATTERNS
-    ):
-        return None
-    return RuntimeErrorDisposition(
-        code="internal_protocol_label_leak",
-        retryable=True,
-        metadata={},
-    )
 
 
 async def _run_capability_port(
@@ -1816,83 +1429,9 @@ def _retired_account_control_result() -> DomainExecutionResult:
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=(
-                "friendship_removed",
-                "account_blocked",
-                "account_unblocked",
-            ),
             allow_rephrase=True,
         ),
         error=error,
-    )
-
-
-def _domain_visible_text_result(
-    *,
-    agent_input: AgentInput,
-    run_context: AgentRunContext,
-    input_message: str,
-    started_at: datetime,
-    domain_result: DomainExecutionResult,
-) -> AgentRunResult:
-    domain_results = (domain_result,)
-    visible_text = _resolve_domain_visible_text(domain_results)
-    visible_messages = (
-        (VisibleMessage(message_type="text", content=visible_text),)
-        if visible_text
-        else ()
-    )
-    output_disposition = OutputDisposition(status="ok" if visible_text else "empty")
-    trace = _build_runtime_trace(
-        agent_input=agent_input,
-        run_context=run_context,
-        input_message=input_message,
-        started_at=started_at,
-        status="ok" if visible_text else "empty_output",
-        failure_stage=None,
-        timeout_seconds=None,
-        preselected_scheduling_intent=None,
-        forced_args_present=False,
-        tool_names=_available_tool_names(agent_input, None),
-        selected_tool_names=_selected_tool_names(domain_results, ()),
-        capability_results=(),
-        domain_results=domain_results,
-        output=TraceOutput(
-            disposition_status=output_disposition.status,
-            output_source="domain_summary" if visible_text else "empty",
-            visible_message_count=len(visible_messages),
-            output_reference_count=0,
-            post_analyze_requested=bool(visible_text),
-        ),
-        output_disposition=output_disposition,
-        error_disposition=None,
-        content_evidence=(
-            {
-                "input_text": input_message,
-                "visible_output_text": [
-                    message.content for message in visible_messages
-                ],
-            }
-            if visible_messages
-            else None
-        ),
-    )
-    return AgentRunResult(
-        visible_messages=visible_messages,
-        post_analyze_input=(
-            {
-                "input_message": input_message,
-                "message_source": _message_source(agent_input, run_context),
-            }
-            if visible_messages
-            else None
-        ),
-        domain_results=domain_results,
-        capability_results=(),
-        metrics={"capability_result_count": 0, "domain_result_count": 1},
-        trace=trace,
-        output_disposition=output_disposition,
     )
 
 
@@ -2218,21 +1757,9 @@ async def run_agent_runtime(
             run_context,
         )
         if explicit_past_result is not None:
-            return _domain_visible_text_result(
-                agent_input=agent_input,
-                run_context=run_context,
-                input_message=input_message,
-                started_at=started_at,
-                domain_result=explicit_past_result,
-            )
+            domain_results.append(explicit_past_result)
         if _is_retired_account_control_turn(input_message):
-            return _domain_visible_text_result(
-                agent_input=agent_input,
-                run_context=run_context,
-                input_message=input_message,
-                started_at=started_at,
-                domain_result=_retired_account_control_result(),
-            )
+            domain_results.append(_retired_account_control_result())
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
         semantic_client = (
             _create_semantic_intent_client()
@@ -2261,16 +1788,10 @@ async def run_agent_runtime(
             preselected_scheduling_intent is None
             and _should_fail_closed_focused_semantic(focus, semantic_result)
         ):
-            return _domain_visible_text_result(
-                agent_input=agent_input,
-                run_context=run_context,
-                input_message=input_message,
-                started_at=started_at,
-                domain_result=_focused_semantic_failure_result(
-                    focus,
-                    semantic_result,
-                    run_context=run_context,
-                ),
+            domain_results.append(
+                _focused_semantic_failure_result(
+                    focus, semantic_result, run_context=run_context
+                )
             )
         if preselected_scheduling_intent:
             run_scheduling_kwargs: dict[str, Any] = {
@@ -2374,39 +1895,15 @@ async def run_agent_runtime(
                 durable_write_executed=durable_write_executed,
             )
         )
-        unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
-            agent_input=agent_input,
-            final_text=_visible_text_for_guardrails(final_text_segments),
-            capability_results=capability_results,
-            domain_results=domain_results,
-        )
-
         captured_capability_results = tuple(capability_results)
         captured_domain_results = tuple(domain_results)
         durable_write_error = _check_durable_write_contract(
             captured_capability_results,
             captured_domain_results,
         )
-        runtime_contract_error = (
-            output_protocol_error or durable_write_error or unconfirmed_promise_error
-        )
+        runtime_contract_error = output_protocol_error or durable_write_error
         visible_text_segments = final_text_segments
         output_source = "model"
-        visible_guardrail_text = _visible_text_for_guardrails(visible_text_segments)
-        identifier_leak_error = _check_visible_identifier_leak(visible_guardrail_text)
-        internal_label_leak_error = _check_internal_protocol_label_leak(
-            visible_guardrail_text
-        )
-        domain_reply_contract_error = _check_domain_reply_contract(
-            final_text=visible_guardrail_text,
-            domain_results=captured_domain_results,
-        )
-        runtime_contract_error = (
-            runtime_contract_error
-            or domain_reply_contract_error
-            or internal_label_leak_error
-            or identifier_leak_error
-        )
         if runtime_contract_error is not None:
             visible_text_segments = ()
         visible_messages = tuple(

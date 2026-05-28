@@ -33,33 +33,12 @@ def _record(
     exposed_tools: list[str] | None = None,
     selected_tools: list[str] | None = None,
     error_code: str | None = None,
-    failed_guardrail: str | None = None,
     content_text: str | None = None,
 ) -> dict[str, Any]:
     if exposed_tools is None:
         exposed_tools = ["create_reminder", "update_reminder"]
     if selected_tools is None:
         selected_tools = ["create_reminder"]
-    guardrails = [
-        {
-            "name": "durable_write_summary",
-            "status": (
-                "failed" if failed_guardrail == "durable_write_summary" else "passed"
-            ),
-            "error_code": (
-                error_code if failed_guardrail == "durable_write_summary" else None
-            ),
-        },
-        {
-            "name": "visible_identifier_leak",
-            "status": (
-                "failed" if failed_guardrail == "visible_identifier_leak" else "passed"
-            ),
-            "error_code": (
-                error_code if failed_guardrail == "visible_identifier_leak" else None
-            ),
-        },
-    ]
     record: dict[str, Any] = {
         "schema_version": "agent_turn_trace.v1",
         "record_type": "agent_turn_trace",
@@ -76,7 +55,6 @@ def _record(
                     "selected_tool_names": selected_tools,
                 }
             ],
-            "guardrails": guardrails,
         },
     }
     if content_text:
@@ -114,7 +92,6 @@ def test_analyze_trace_records_counts_routes_tools_errors_and_findings(tmp_path:
                 exposed_tools=["create_reminder", "cancel_reminder"],
                 selected_tools=[],
                 error_code="agent_runtime_exception",
-                failed_guardrail="visible_identifier_leak",
                 content_text="PRIVATE USER SENTENCE",
             ),
             "{not json",
@@ -130,7 +107,6 @@ def test_analyze_trace_records_counts_routes_tools_errors_and_findings(tmp_path:
     assert summary["status_counts"] == {"exception": 1, "ok": 1}
     assert summary["output_source_counts"] == {"empty": 1, "model": 1}
     assert summary["error_counts"] == {"agent_runtime_exception": 1}
-    assert summary["guardrail_failure_counts"] == {"visible_identifier_leak": 1}
     assert summary["tool_exposure_counts"] == {
         "cancel_reminder": 2,
         "create_reminder": 2,
@@ -140,7 +116,6 @@ def test_analyze_trace_records_counts_routes_tools_errors_and_findings(tmp_path:
     finding_codes = {finding["code"] for finding in summary["findings"]}
     assert "runtime_non_ok" in finding_codes
     assert "empty_output" in finding_codes
-    assert "guardrail_failure" in finding_codes
     assert "unused_exposed_tools" in finding_codes
 
     payload = analysis_to_json(summary)

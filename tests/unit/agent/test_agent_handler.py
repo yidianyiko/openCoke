@@ -398,7 +398,7 @@ async def test_handle_message_agent_runtime_uses_agent_runtime(
         lambda coro: create_task_calls.append(coro),
     )
 
-    resp_messages, context, is_rollback, is_content_blocked = (
+    resp_messages, context, is_content_blocked = (
         await agent_handler.handle_message(
             context=sample_context,
             input_message_str="你好",
@@ -419,7 +419,6 @@ async def test_handle_message_agent_runtime_uses_agent_runtime(
         }
     ]
     assert context is sample_context
-    assert is_rollback is False
     assert is_content_blocked is False
     assert create_task_calls == []
 
@@ -473,7 +472,7 @@ async def test_handle_message_agent_runtime_sends_multiple_visible_messages_in_o
     )
     monkeypatch.setattr(agent_handler.time, "time", lambda: 1710000000)
 
-    resp_messages, context, is_rollback, is_content_blocked = (
+    resp_messages, context, is_content_blocked = (
         await agent_handler.handle_message(
             context=sample_context,
             input_message_str="你好",
@@ -502,7 +501,6 @@ async def test_handle_message_agent_runtime_sends_multiple_visible_messages_in_o
         {"type": "text", "content": "第一条", "metadata": {}},
         {"type": "text", "content": "第二条", "metadata": {}},
     ]
-    assert is_rollback is False
     assert is_content_blocked is False
 
 
@@ -529,7 +527,7 @@ async def test_handle_message_agent_runtime_empty_output_sends_no_fallback(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
 
-    resp_messages, context, is_rollback, is_content_blocked = (
+    resp_messages, context, is_content_blocked = (
         await agent_handler.handle_message(
             context=sample_context,
             input_message_str="你好",
@@ -542,7 +540,6 @@ async def test_handle_message_agent_runtime_empty_output_sends_no_fallback(
 
     assert resp_messages == []
     assert context["MultiModalResponses"] == []
-    assert is_rollback is False
     assert is_content_blocked is False
 
 
@@ -706,53 +703,7 @@ async def test_handle_message_agent_runtime_can_skip_post_analyze_with_env(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_agent_runtime_rolls_back_before_runtime_on_new_message(
-    monkeypatch, sample_context
-):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner import agent_handler
-
-    async def fail_run_agent_runtime(**kwargs):
-        raise AssertionError(
-            "single-Agent runtime should not run when a newer message exists"
-        )
-
-    sent = []
-
-    monkeypatch.setattr(
-        agent_handler, "_run_agent_runtime_event", fail_run_agent_runtime
-    )
-    monkeypatch.setattr(
-        agent_handler.output_delivery,
-        "send_single_message",
-        lambda **kwargs: sent.append(kwargs),
-    )
-    monkeypatch.setattr(
-        agent_handler,
-        "is_new_message_coming_in",
-        lambda u_id, c_id, platform, current_message_ids: True,
-    )
-
-    resp_messages, context, is_rollback, is_content_blocked = (
-        await agent_handler.handle_message(
-            context=sample_context,
-            input_message_str="你好",
-            message_source="user",
-            check_new_message=True,
-            worker_tag="[T]",
-            current_message_ids=["msg-1"],
-        )
-    )
-
-    assert resp_messages == []
-    assert context is sample_context
-    assert is_rollback is True
-    assert is_content_blocked is False
-    assert sent == []
-
-
-@pytest.mark.asyncio
-async def test_handle_message_agent_runtime_rolls_back_when_lock_lost_before_send(
+async def test_handle_message_agent_runtime_stops_when_lock_lost_before_send(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
@@ -790,7 +741,7 @@ async def test_handle_message_agent_runtime_rolls_back_when_lock_lost_before_sen
         lambda **kwargs: sent.append(kwargs),
     )
 
-    resp_messages, _, is_rollback, is_content_blocked = (
+    resp_messages, _, is_content_blocked = (
         await agent_handler.handle_message(
             context=sample_context,
             input_message_str="你好",
@@ -804,7 +755,6 @@ async def test_handle_message_agent_runtime_rolls_back_when_lock_lost_before_sen
     )
 
     assert resp_messages == []
-    assert is_rollback is True
     assert is_content_blocked is False
     assert sent == []
 
@@ -859,7 +809,7 @@ async def test_handle_message_agent_runtime_renews_lock_before_runtime_and_send(
         agent_handler.output_delivery, "send_single_message", fake_send_single_message
     )
 
-    resp_messages, _, is_rollback, is_content_blocked = (
+    resp_messages, _, is_content_blocked = (
         await agent_handler.handle_message(
             context=sample_context,
             input_message_str="你好",
@@ -877,7 +827,6 @@ async def test_handle_message_agent_runtime_renews_lock_before_runtime_and_send(
     assert calls[0][1] == ("conversation", "conversation-1", "lock-1")
     assert calls[0][2] == {"timeout": agent_handler.runtime_lock.LOCK_TIMEOUT}
     assert calls[1:] == ["runtime", "send"]
-    assert is_rollback is False
     assert is_content_blocked is False
 
 
@@ -935,7 +884,7 @@ async def test_handle_message_agent_runtime_renews_lock_while_runtime_is_running
         ),
     )
 
-    resp_messages, _, is_rollback, is_content_blocked = (
+    resp_messages, _, is_content_blocked = (
         await agent_handler.handle_message(
             context=sample_context,
             input_message_str="17:57提醒我喝水",
@@ -959,30 +908,23 @@ async def test_handle_message_agent_runtime_renews_lock_while_runtime_is_running
 
     assert resp_messages == [{"message": "Runtime reply"}]
     assert len(renews_during_runtime) >= 2
-    assert is_rollback is False
     assert is_content_blocked is False
 
 
 def test_agent_runtime_acceptance_contract_names_are_tracked():
     required_contracts = {
         "sync_first_text",
-        "rollback_new_message",
-        "timeout_fallback",
         "timezone_proposal_update",
         "url_context",
         "calendar_import_entry",
-        "empty_output_fallback",
         "fired_event_replay",
     }
 
     implemented_contracts = {
         "sync_first_text",
-        "rollback_new_message",
-        "timeout_fallback",
         "timezone_proposal_update",
         "url_context",
         "calendar_import_entry",
-        "empty_output_fallback",
         "fired_event_replay",
     }
 

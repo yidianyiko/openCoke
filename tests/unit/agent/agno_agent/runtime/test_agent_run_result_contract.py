@@ -31,8 +31,6 @@ def _domain_result() -> DomainExecutionResult:
         reply_contract=ReplyContract(
             intent="confirm_execution",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("not_created",),
             allow_rephrase=True,
         ),
     )

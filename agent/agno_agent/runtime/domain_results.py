@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -117,8 +116,6 @@ class ReplyFactRequirement:
 class ReplyContract:
     intent: ReplyIntent
     required_facts: Sequence[ReplyFactRequirement] = field(default_factory=tuple)
-    required_questions: Sequence[str] = field(default_factory=tuple)
-    prohibited_claims: Sequence[str] = field(default_factory=tuple)
     allow_rephrase: bool = True
 
     def __post_init__(self) -> None:
@@ -127,23 +124,11 @@ class ReplyContract:
             "required_facts",
             freeze_sequence(self.required_facts),
         )
-        object.__setattr__(
-            self,
-            "required_questions",
-            freeze_sequence(self.required_questions),
-        )
-        object.__setattr__(
-            self,
-            "prohibited_claims",
-            freeze_sequence(self.prohibited_claims),
-        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "intent": self.intent,
             "required_facts": [item.to_dict() for item in self.required_facts],
-            "required_questions": list(self.required_questions),
-            "prohibited_claims": list(self.prohibited_claims),
             "allow_rephrase": self.allow_rephrase,
         }
 
@@ -166,12 +151,6 @@ class ReplyContract:
                 ReplyFactRequirement.from_dict(_mapping(item))
                 for item in _sequence(payload.get("required_facts"))
             ),
-            required_questions=tuple(
-                str(item) for item in _sequence(payload.get("required_questions"))
-            ),
-            prohibited_claims=tuple(
-                str(item) for item in _sequence(payload.get("prohibited_claims"))
-            ),
             allow_rephrase=bool(payload.get("allow_rephrase", True)),
         )
 
@@ -187,8 +166,6 @@ class DomainExecutionResult:
         default_factory=lambda: ReplyContract(
             intent="direct_answer",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=(),
             allow_rephrase=True,
         )
     )
@@ -275,27 +252,6 @@ class DomainExecutionResult:
             ),
             error=DomainError.from_dict(_optional_mapping(payload.get("error"))),
         )
-
-
-def resolve_required_fact(result: DomainExecutionResult, path: str) -> Any:
-    operation_match = re.fullmatch(r"operations\[(\d+)\]\.entity_id", path)
-    if operation_match:
-        return result.operations[int(operation_match.group(1))].entity_id
-
-    fact_match = re.fullmatch(
-        r"operations\[(\d+)\]\.facts\.([A-Za-z_][A-Za-z0-9_]*)",
-        path,
-    )
-    if fact_match:
-        return result.operations[int(fact_match.group(1))].facts.get(
-            fact_match.group(2)
-        )
-
-    missing_field_match = re.fullmatch(r"missing_fields\[(\d+)\]", path)
-    if missing_field_match:
-        return result.missing_fields[int(missing_field_match.group(1))]
-
-    raise ValueError(f"unsupported reply fact path: {path}")
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

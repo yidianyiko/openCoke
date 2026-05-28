@@ -27,10 +27,10 @@ def _turn(
     )
 
 
-def test_base_bug_pattern_late_timeout_precedes_empty_fallback():
+def test_base_bug_pattern_late_timeout_precedes_empty_reply():
     turns = [
         _turn(
-            "我没接住你刚才的意思。",
+            "",
             placeholder_received=True,
             late_reply_landed=False,
         )
@@ -47,9 +47,9 @@ def test_base_bug_pattern_late_timeout_precedes_empty_fallback():
     )
 
 
-def test_base_bug_pattern_keeps_specific_primary_tag_for_incidental_fallback():
+def test_base_bug_pattern_keeps_specific_primary_tag_for_incidental_empty_reply():
     turns = [
-        _turn("我没接住你刚才的意思。", note="incidental_fallback"),
+        _turn("", note="incidental_empty"),
         _turn("已创建共享提醒。", note="contract_failure"),
     ]
 
@@ -64,10 +64,10 @@ def test_base_bug_pattern_keeps_specific_primary_tag_for_incidental_fallback():
     )
 
 
-def test_fallback_turns_capture_per_turn_placeholder_and_real_empty_fallback():
+def test_delivery_anomaly_turns_capture_per_turn_placeholder_and_empty_reply():
     turns = [
         _turn(
-            cfl.EMPTY_FALLBACK_TOKENS[0],
+            "",
             turn=19,
             note="late_empty",
             placeholder_received=True,
@@ -80,19 +80,19 @@ def test_fallback_turns_capture_per_turn_placeholder_and_real_empty_fallback():
             placeholder_received=True,
             late_reply_landed=True,
         ),
-        _turn(cfl.EMPTY_FALLBACK_TOKENS[1], turn=21, note="real_empty"),
+        _turn("", turn=21, note="real_empty"),
     ]
 
-    assert cfl._fallback_turns(turns) == [
+    assert cfl._delivery_anomaly_turns(turns) == [
         {
             "turn": 1,
             "global_turn": 19,
             "note": "late_empty",
-            "reply_text": cfl.EMPTY_FALLBACK_TOKENS[0],
+            "reply_text": "",
             "placeholder_received": True,
             "late_reply_landed": True,
-            "is_real_empty_fallback": True,
-            "output_kind": "real_empty_fallback",
+            "is_empty_reply": True,
+            "output_kind": "empty_reply",
         },
         {
             "turn": 2,
@@ -101,18 +101,18 @@ def test_fallback_turns_capture_per_turn_placeholder_and_real_empty_fallback():
             "reply_text": "正常回复",
             "placeholder_received": True,
             "late_reply_landed": True,
-            "is_real_empty_fallback": False,
+            "is_empty_reply": False,
             "output_kind": "late_real_reply",
         },
         {
             "turn": 3,
             "global_turn": 21,
             "note": "real_empty",
-            "reply_text": cfl.EMPTY_FALLBACK_TOKENS[1],
+            "reply_text": "",
             "placeholder_received": False,
             "late_reply_landed": False,
-            "is_real_empty_fallback": True,
-            "output_kind": "real_empty_fallback",
+            "is_empty_reply": True,
+            "output_kind": "empty_reply",
         },
     ]
 

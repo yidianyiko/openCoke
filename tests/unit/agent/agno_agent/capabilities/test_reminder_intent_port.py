@@ -8,7 +8,6 @@ import pytest
 from agent.agno_agent.capabilities.reminder_intent import (
     ReminderIntentPort,
     _no_action_discussion_result,
-    _unbounded_high_frequency_cadence_clarification_result,
 )
 from agent.agno_agent.runtime.context import (
     AgentRunContext,
@@ -74,24 +73,9 @@ class _Executor:
             reply_contract=ReplyContract(
                 intent="confirm_execution",
                 required_facts=(),
-                required_questions=(),
-                prohibited_claims=("not_created",),
                 allow_rephrase=True,
             ),
         )
-
-
-def test_clarification_helper_returns_domain_execution_result():
-    result = _unbounded_high_frequency_cadence_clarification_result(
-        SimpleNamespace(title="喝水")
-    )
-
-    assert result.domain == "reminder"
-    assert result.outcome == "needs_clarification"
-    assert result.missing_fields == ("end_time",)
-    assert result.safety_boundary == "high_frequency_requires_end"
-    assert result.reply_contract.intent == "ask_clarification"
-    assert result.reply_contract.required_questions == ("end_time",)
 
 
 def test_no_action_helper_returns_domain_execution_result():

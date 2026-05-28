@@ -26,8 +26,6 @@ from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from entity.message import (
     get_locked_conversation_ids,
-    increment_retry_count,
-    increment_rollback_count,
     read_all_inputmessages,
     read_top_inputmessages,
     save_inputmessage,
@@ -45,8 +43,6 @@ logger = get_logger(__name__)
 
 # ========== 配置常量 ==========
 MAX_HANDLE_AGE = 3600 * 12  # 只处理12小时以内的消息
-MAX_RETRIES = 3  # 最大重试次数
-MAX_ROLLBACK = 4  # 最大 rollback 次数
 LOCK_TIMEOUT = 180  # 锁超时时间（秒）
 # 多平台支持：平台从消息中动态获取（wechat, 等）
 
@@ -55,7 +51,6 @@ class ProcessResult(Enum):
     """处理结果枚举"""
 
     FINISH = "finish"  # 正常完成
-    ROLLBACK = "rollback"  # 需要回滚
     HOLD = "hold"  # 暂时挂起
     FAILED = "failed"  # 处理失败
 
@@ -156,15 +151,6 @@ class MessageAcquirer:
         self, top_message: Dict, locked_conversation_ids: set
     ) -> Optional[MessageContext]:
         """尝试获取单条消息的处理权"""
-
-        # 检查重试次数
-        retry_count = top_message.get("retry_count", 0)
-        if retry_count >= MAX_RETRIES:
-            logger.warning(
-                f"{self.worker_tag} 消息达到最大重试次数({MAX_RETRIES})，标记为 failed: {top_message['_id']}"
-            )
-            update_message_status_safe(top_message["_id"], "failed", "pending")
-            return None
 
         # 获取用户和角色
         user = resolve_agent_user_context(
@@ -609,7 +595,6 @@ class MessageFinalizer:
     职责：
     1. 更新消息状态
     2. 保存对话历史
-    3. 处理 rollback 逻辑
     """
 
     def __init__(self, worker_tag: str, max_conversation_round: int = 15):
@@ -630,69 +615,6 @@ class MessageFinalizer:
         )
         for input_message in msg_ctx.input_messages:
             update_message_status_safe(input_message["_id"], "handled", "pending")
-
-    def finalize_rollback(
-        self, msg_ctx: MessageContext, resp_messages: List[Dict]
-    ) -> bool:
-        """
-        处理 rollback
-
-        Returns:
-            bool: True 表示应该继续 rollback，False 表示强制完成
-        """
-        max_rollback_count = max(
-            msg.get("rollback_count", 0) for msg in msg_ctx.input_messages
-        )
-
-        if max_rollback_count >= MAX_ROLLBACK:
-            logger.warning(
-                f"{self.worker_tag} 达到最大 rollback 次数({MAX_ROLLBACK})，强制完成处理"
-            )
-            return False  # 强制完成，不再 rollback
-
-        logger.info(
-            f"{self.worker_tag} [消息打断] rollback_count={max_rollback_count + 1}/{MAX_ROLLBACK}"
-        )
-
-        # 增加 rollback 计数
-        for input_message in msg_ctx.input_messages:
-            increment_rollback_count(input_message["_id"])
-
-        # 记录已发送的消息到历史
-        if resp_messages:
-            self._record_partial_messages(msg_ctx, resp_messages)
-
-        return True  # 继续 rollback
-
-    def _record_partial_messages(
-        self, msg_ctx: MessageContext, resp_messages: List[Dict]
-    ):
-        """记录部分已发送的消息"""
-        conversation = msg_ctx.context["conversation"]
-        chat_history = conversation["conversation_info"]["chat_history"]
-
-        for msg in resp_messages:
-            if msg and msg not in chat_history:
-                chat_history.append(msg)
-
-        logger.info(
-            f"{self.worker_tag} [消息打断] 已记录 {len(resp_messages)} 条已发送消息到对话历史"
-        )
-
-        # 记录本轮已发送内容，用于下一轮去重
-        sent_contents = [
-            msg.get("message", "") for msg in resp_messages if msg.get("message")
-        ]
-        existing = conversation["conversation_info"].get("turn_sent_contents", [])
-        conversation["conversation_info"]["turn_sent_contents"] = (
-            existing + sent_contents
-        )
-
-        logger.info(f"{self.worker_tag} [去重] 记录已发送内容: {len(sent_contents)} 条")
-
-        self.conversation_dao.update_conversation_info(
-            msg_ctx.conversation_id, conversation["conversation_info"]
-        )
 
     def finalize_success(
         self,
@@ -762,18 +684,10 @@ class MessageFinalizer:
         logger.error(f"{self.worker_tag} {traceback.format_exc()}")
 
         for input_message in msg_ctx.input_messages:
-            retry_count = input_message.get("retry_count", 0) + 1
-            if retry_count < MAX_RETRIES:
-                increment_retry_count(input_message["_id"], str(error)[:500])
-                logger.info(
-                    f"{self.worker_tag} 消息重试计数: {input_message['_id']}, "
-                    f"retry_count={retry_count}/{MAX_RETRIES}"
-                )
-            else:
-                update_message_status_safe(input_message["_id"], "failed", "pending")
-                logger.warning(
-                    f"{self.worker_tag} 消息达到最大重试次数，标记为 failed: {input_message['_id']}"
-                )
+            update_message_status_safe(input_message["_id"], "failed", "pending")
+            logger.warning(
+                f"{self.worker_tag} 消息处理失败，标记为 failed: {input_message['_id']}"
+            )
 
 
 def consume_stream_batch(

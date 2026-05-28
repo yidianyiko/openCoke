@@ -28,7 +28,6 @@ def analyze_trace_records(paths: Sequence[Path]) -> dict[str, Any]:
     status_counts: Counter[str] = Counter()
     output_source_counts: Counter[str] = Counter()
     error_counts: Counter[str] = Counter()
-    guardrail_failure_counts: Counter[str] = Counter()
     tool_exposure_counts: Counter[str] = Counter()
     selected_tool_counts: Counter[str] = Counter()
     record_count = 0
@@ -58,7 +57,6 @@ def analyze_trace_records(paths: Sequence[Path]) -> dict[str, Any]:
                     status_counts=status_counts,
                     output_source_counts=output_source_counts,
                     error_counts=error_counts,
-                    guardrail_failure_counts=guardrail_failure_counts,
                     tool_exposure_counts=tool_exposure_counts,
                     selected_tool_counts=selected_tool_counts,
                 )
@@ -79,7 +77,6 @@ def analyze_trace_records(paths: Sequence[Path]) -> dict[str, Any]:
         "status_counts": _sorted_counter(status_counts),
         "output_source_counts": _sorted_counter(output_source_counts),
         "error_counts": _sorted_counter(error_counts),
-        "guardrail_failure_counts": _sorted_counter(guardrail_failure_counts),
         "tool_exposure_counts": _sorted_counter(tool_exposure_counts),
         "selected_tool_counts": _sorted_counter(selected_tool_counts),
         "unused_exposed_tool_counts": _sorted_counter(unused_exposed_tool_counts),
@@ -87,7 +84,6 @@ def analyze_trace_records(paths: Sequence[Path]) -> dict[str, Any]:
             status_counts=status_counts,
             output_source_counts=output_source_counts,
             error_counts=error_counts,
-            guardrail_failure_counts=guardrail_failure_counts,
             unused_exposed_tool_counts=unused_exposed_tool_counts,
         ),
         "positive_loop": {
@@ -117,7 +113,6 @@ def _count_trace(
     status_counts: Counter[str],
     output_source_counts: Counter[str],
     error_counts: Counter[str],
-    guardrail_failure_counts: Counter[str],
     tool_exposure_counts: Counter[str],
     selected_tool_counts: Counter[str],
 ) -> None:
@@ -134,13 +129,6 @@ def _count_trace(
     if error_code:
         error_counts[str(error_code)] += 1
 
-    for guardrail in _sequence(trace.get("guardrails")):
-        guardrail_mapping = _mapping(guardrail)
-        if guardrail_mapping.get("status") == "failed":
-            guardrail_failure_counts[
-                _text(guardrail_mapping.get("name"), "unknown")
-            ] += 1
-
     for agent_call in _sequence(trace.get("agent_calls")):
         call = _mapping(agent_call)
         for tool_name in _sequence(call.get("tool_names")):
@@ -154,7 +142,6 @@ def _build_findings(
     status_counts: Counter[str],
     output_source_counts: Counter[str],
     error_counts: Counter[str],
-    guardrail_failure_counts: Counter[str],
     unused_exposed_tool_counts: Counter[str],
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
@@ -184,19 +171,6 @@ def _build_findings(
                 "summary": f"{empty_output_count} trace records produced empty output.",
                 "recommended_next_step": (
                     "Check route handling and output synthesis before adding examples."
-                ),
-            }
-        )
-
-    if guardrail_failure_counts:
-        findings.append(
-            {
-                "severity": "high",
-                "code": "guardrail_failure",
-                "summary": "One or more visible-output guardrails failed.",
-                "evidence": _sorted_counter(guardrail_failure_counts),
-                "recommended_next_step": (
-                    "Fix the visible-output acceptance layer or durable-write summary."
                 ),
             }
         )

@@ -3,7 +3,7 @@ import time
 import types
 
 from tools.agent_smoke.bridge_client import (
-    SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
+    SYNC_REPLY_TIMEOUT_ACK_REPLY,
     _poll_for_reply,
     poll_late_reply_text,
 )
@@ -83,7 +83,7 @@ def test_poll_late_reply_text_returns_immediate_matching_reply(monkeypatch):
     assert query["$and"][2]["status"]["$in"] == ["failed", "handled"]
     assert query["$and"][3]["message"]["$nin"] == [
         "",
-        SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
+        SYNC_REPLY_TIMEOUT_ACK_REPLY,
     ]
 
 

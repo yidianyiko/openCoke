@@ -135,38 +135,6 @@ def _use_legacy_product_notification_focus(monkeypatch):
 
     monkeypatch.setattr(agent_runtime, "_resolve_scheduling_focus", resolve)
 
-
-def test_resolve_domain_visible_text_joins_multiple_successful_operation_summaries():
-    visible_text = agent_runtime._resolve_domain_visible_text(
-        [
-            DomainExecutionResult(
-                domain="reminder",
-                outcome="executed",
-                operations=(
-                    DomainOperationResult(
-                        action="create",
-                        effect="write",
-                        ok=True,
-                        entity_type="reminder",
-                        entity_id="reminder-1",
-                        facts={"visible_summary": "已创建提醒：喝水（17:57）"},
-                    ),
-                    DomainOperationResult(
-                        action="create",
-                        effect="write",
-                        ok=True,
-                        entity_type="reminder",
-                        entity_id="reminder-2",
-                        facts={"visible_summary": "已创建提醒：锻炼（17:58）"},
-                    ),
-                ),
-            )
-        ]
-    )
-
-    assert visible_text == "已创建提醒：喝水（17:57）\n已创建提醒：锻炼（17:58）"
-
-
 def test_selected_tool_names_match_exposed_domain_tool_names():
     selected_tool_names = agent_runtime._selected_tool_names(
         [
@@ -389,7 +357,6 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent_tool(
         ),
         reply_contract=ReplyContract(
             intent="confirm_execution",
-            prohibited_claims=("not_created", "needs_more_info"),
         ),
     )
 
@@ -634,8 +601,6 @@ async def test_run_agent_runtime_keeps_agent_text_for_explicit_scheduling_action
         reply_contract=ReplyContract(
             intent="confirm_execution",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("not_accepted",),
             allow_rephrase=True,
         ),
     )
@@ -759,98 +724,6 @@ async def test_run_agent_runtime_does_not_regex_preselect_friend_invite_with_con
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_recovers_explicit_duration_for_preselected_shared_reminder(
-    monkeypatch,
-):
-    captured = {}
-    preloaded_domain_result = DomainExecutionResult(
-        domain="scheduling",
-        outcome="executed",
-        operations=(
-            DomainOperationResult(
-                action="create_shared_reminder",
-                ok=True,
-                effect="write",
-                entity_type="shared_reminder",
-                entity_id="sr_1",
-                facts={"visible_summary": "已创建共享提醒：方向验证喝茶。"},
-            ),
-        ),
-        reply_contract=ReplyContract(
-            intent="confirm_execution",
-            prohibited_claims=("needs_more_info",),
-        ),
-    )
-
-    async def fake_run_scheduling_domain(
-        *,
-        input_message,
-        intent,
-        run_context,
-        domain_results,
-        forced_args=None,
-    ):
-        del input_message, intent, run_context
-        captured["forced_args"] = forced_args
-        domain_results.append(preloaded_domain_result)
-        return preloaded_domain_result.to_dict()
-
-    async def fake_interpret_semantic_intent(**_kwargs):
-        return agent_runtime.SemanticIntentResult(
-            intent="create_shared_reminder",
-            confidence="high",
-            args={
-                "receiver_name": "李梓豪",
-                "title": "方向验证喝茶",
-                "fire_at": "2029-01-04T10:00:00+08:00",
-                "timezone": "Asia/Shanghai",
-            },
-        )
-
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            return SimpleNamespace(
-                content=_text_payload(
-                    "已创建共享提醒：方向验证喝茶，2029年1月4日10:00，5分钟。"
-                ),
-                messages=[SimpleNamespace(role="assistant", content="")],
-            )
-
-    monkeypatch.setattr(
-        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
-        fake_run_scheduling_domain,
-    )
-    monkeypatch.setattr(
-        agent_runtime,
-        "interpret_semantic_intent",
-        fake_interpret_semantic_intent,
-    )
-    monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
-    )
-
-    agent_input = _agent_input()
-    agent_input = type(agent_input)(
-        input_type=agent_input.input_type,
-        conversation_id=agent_input.conversation_id,
-        text="帮我和李梓豪约一个2029年1月4日上午10点的方向验证喝茶，持续5分钟。",
-        payload=agent_input.payload,
-        occurred_at=agent_input.occurred_at,
-        metadata=agent_input.metadata,
-    )
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=agent_input,
-        run_context=_run_context(),
-    )
-
-    assert captured["forced_args"]["duration_minutes"] == 5
-    assert [message.content for message in result.visible_messages] == [
-        "已创建共享提醒：方向验证喝茶，2029年1月4日10:00，5分钟。"
-    ]
-
-
-@pytest.mark.asyncio
 async def test_run_agent_runtime_fails_closed_on_invalid_preselected_scheduling_reply(
     monkeypatch,
 ):
@@ -870,7 +743,6 @@ async def test_run_agent_runtime_fails_closed_on_invalid_preselected_scheduling_
         ),
         reply_contract=ReplyContract(
             intent="confirm_execution",
-            prohibited_claims=("needs_more_info",),
         ),
     )
 
@@ -965,7 +837,6 @@ async def test_run_agent_runtime_runs_semantic_interpreter_for_explicit_shared_i
         ),
         reply_contract=ReplyContract(
             intent="confirm_execution",
-            prohibited_claims=("needs_more_info",),
         ),
     )
 
@@ -1070,7 +941,6 @@ async def test_run_agent_runtime_runs_semantic_interpreter_for_friend_count_quer
         ),
         reply_contract=ReplyContract(
             intent="answer_from_tool_facts",
-            prohibited_claims=("missing_tool",),
         ),
     )
 
@@ -1281,8 +1151,6 @@ async def test_run_agent_runtime_uses_agent_envelope_for_explicit_past_reminder_
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("reminder_created",),
         ),
         error=DomainError(
             code="InvalidSchedule",
@@ -1339,7 +1207,6 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
         ),
         reply_contract=ReplyContract(
             intent="confirm_execution",
-            prohibited_claims=("not_created", "needs_more_info"),
         ),
     )
     captured = {}
@@ -1414,7 +1281,6 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
         ),
         reply_contract=ReplyContract(
             intent="confirm_execution",
-            prohibited_claims=("not_completed", "needs_more_info"),
         ),
     )
     captured = {}
@@ -1496,8 +1362,6 @@ async def test_run_agent_runtime_does_not_rewrite_reminder_list_model_text(
         reply_contract=ReplyContract(
             intent="direct_answer",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("reminder_created",),
         ),
     )
 
@@ -1527,16 +1391,24 @@ async def test_run_agent_runtime_does_not_rewrite_reminder_list_model_text(
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_short_circuits_explicit_past_reminder_before_model(
+async def test_run_agent_runtime_passes_explicit_past_reminder_fact_to_model(
     monkeypatch,
 ):
-    def fail_create_interaction_agent(**kwargs):
-        raise AssertionError(
-            "explicit past reminders should be handled deterministically"
-        )
+    captured = {}
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content=_text_payload("这个提醒时间已经过去了，请告诉我一个未来的时间。"),
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        captured["domain_results"] = tuple(kwargs["domain_results"])
+        return FakeAgent()
 
     monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
     )
 
     agent_input = _agent_input()
@@ -1558,6 +1430,7 @@ async def test_run_agent_runtime_short_circuits_explicit_past_reminder_before_mo
         "这个提醒时间已经过去了，请告诉我一个未来的时间。"
     ]
     assert result.domain_results[0].safety_boundary == "explicit_past"
+    assert captured["domain_results"][0].safety_boundary == "explicit_past"
     assert result.output_disposition.status == "ok"
 
 
@@ -1597,8 +1470,6 @@ async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promi
                 reply_contract=ReplyContract(
                     intent="confirm_execution",
                     required_facts=(),
-                    required_questions=(),
-                    prohibited_claims=("not_created",),
                     allow_rephrase=True,
                 ),
             )
@@ -1664,8 +1535,6 @@ async def test_run_agent_runtime_uses_agent_synthesis_for_superseding_batched_wr
                 reply_contract=ReplyContract(
                     intent="confirm_execution",
                     required_facts=(),
-                    required_questions=(),
-                    prohibited_claims=("not_created",),
                     allow_rephrase=True,
                 ),
             )
@@ -1695,55 +1564,6 @@ async def test_run_agent_runtime_uses_agent_synthesis_for_superseding_batched_wr
     assert [message.content for message in result.visible_messages] == [
         synthesized_reply
     ]
-
-
-@pytest.mark.asyncio
-async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
-    monkeypatch,
-):
-    reminder_calls = 0
-
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            return SimpleNamespace(
-                content=_text_payload(
-                    "好的呀！17:57 我会提醒你喝水，还有什么需要我帮忙的吗？"
-                ),
-                messages=[
-                    SimpleNamespace(
-                        role="assistant",
-                        content=(
-                            "好的呀！17:57 我会提醒你喝水，" "还有什么需要我帮忙的吗？"
-                        ),
-                    )
-                ],
-            )
-
-    monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
-    )
-
-    agent_input = _agent_input()
-    agent_input = type(agent_input)(
-        input_type=agent_input.input_type,
-        conversation_id=agent_input.conversation_id,
-        text="今天17:57我想喝水呀",
-        payload=agent_input.payload,
-        occurred_at=agent_input.occurred_at,
-        metadata=agent_input.metadata,
-    )
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=agent_input,
-        run_context=_run_context(),
-    )
-
-    assert reminder_calls == 0
-    assert result.visible_messages == ()
-    assert result.capability_results == ()
-    assert result.output_disposition.status == "empty"
-    assert result.error_disposition is not None
-    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
 
 
 @pytest.mark.asyncio
@@ -2029,8 +1849,6 @@ async def test_create_interaction_agent_reminder_domain_delegates_with_domain_re
         "reply_contract": {
             "intent": "confirm_execution",
             "required_facts": [],
-            "required_questions": [],
-            "prohibited_claims": ["not_created"],
             "allow_rephrase": True,
         },
         "error": None,
@@ -2091,8 +1909,6 @@ async def test_create_interaction_agent_reminder_domain_rejects_duplicate_calls(
         "reply_contract": {
             "intent": "confirm_execution",
             "required_facts": [],
-            "required_questions": [],
-            "prohibited_claims": [],
             "allow_rephrase": True,
         },
         "error": None,
@@ -2139,8 +1955,6 @@ async def test_create_interaction_agent_reminder_domain_rejects_duplicate_calls(
         "reply_contract": {
             "intent": "report_failure",
             "required_facts": [],
-            "required_questions": [],
-            "prohibited_claims": ["reminder_created"],
             "allow_rephrase": True,
         },
         "error": {
@@ -2166,8 +1980,6 @@ async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_a
         "reply_contract": {
             "intent": "confirm_execution",
             "required_facts": [],
-            "required_questions": [],
-            "prohibited_claims": [],
             "allow_rephrase": True,
         },
         "error": None,
@@ -2436,14 +2248,24 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_nested_curr
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_refuses_retired_account_control_before_model(
+async def test_run_agent_runtime_passes_retired_account_control_fact_to_model(
     monkeypatch,
 ):
-    def fail_create_interaction_agent(**kwargs):
-        raise AssertionError("retired account-control turns should not reach model")
+    captured = {}
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content=_text_payload("屏蔽功能已经下线，不能执行这个操作。"),
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        captured["domain_results"] = tuple(kwargs["domain_results"])
+        return FakeAgent()
 
     monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
     )
 
     agent_input = _agent_input()
@@ -2464,6 +2286,7 @@ async def test_run_agent_runtime_refuses_retired_account_control_before_model(
     assert result.visible_messages
     assert "屏蔽" in result.visible_messages[0].content
     assert result.domain_results[0].safety_boundary == "retired_account_control"
+    assert captured["domain_results"][0].safety_boundary == "retired_account_control"
     assert result.domain_results[0].operations[0].action == "account_control"
     assert result.domain_results[0].operations[0].effect == "none"
 

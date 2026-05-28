@@ -14,7 +14,6 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
-from agent.agno_agent.runtime.diagnostic_patterns import check_prohibited_claims
 from agent.agno_agent.runtime.domain_results import (
     DomainExecutionResult,
     DomainOperationResult,
@@ -81,8 +80,6 @@ def _case_7_created_result() -> DomainExecutionResult:
         reply_contract=ReplyContract(
             intent="confirm_execution",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("not_created", "needs_more_info"),
             allow_rephrase=True,
         ),
     )
@@ -108,38 +105,6 @@ async def test_case_7_english_relative_reminder_preserves_executed_facts():
     assert result.operations[0].entity_id == "rem-case-7"
     assert result.operations[0].facts["title"] == "drink water"
     assert result.operations[0].facts["local_time"] == "22:06:00"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "case_text",
-    [
-        "case 19: remind me every hour to drink water",
-        "case 21: 每小时提醒我喝水",
-        "case 27: remind me hourly to stretch",
-    ],
-)
-async def test_cases_19_21_27_unbounded_hourly_reminder_needs_end_time(case_text):
-    decision = SimpleNamespace(
-        intent_type="crud",
-        action="create",
-        title="drink water",
-        trigger_at="2026-05-22T13:00:00+09:00",
-        rrule="FREQ=HOURLY",
-        operations=None,
-        deadline_at=None,
-        schedule_basis="explicit_cadence",
-        schedule_evidence="every hour",
-    )
-    result = await ReminderIntentPort(
-        detector_agent=_Detector(decision),
-        command_executor=_Executor(_case_7_created_result()),
-    ).run(case_text, _run_context())
-
-    assert result.outcome == "needs_clarification"
-    assert result.missing_fields == ("end_time",)
-    assert result.safety_boundary == "high_frequency_requires_end"
-    assert result.reply_contract.required_questions == ("end_time",)
 
 
 @pytest.mark.asyncio
@@ -171,18 +136,3 @@ async def test_scheduling_no_tool_called_returns_typed_failed_domain_result():
     assert envelope["outcome"] == "failed"
     assert envelope["error"]["code"] == "no_tool_called"
     assert domain_results[0].outcome == "failed"
-
-
-def test_prohibited_claim_labels_are_resolved_via_patterns_not_literals():
-    contract = ReplyContract(
-        intent="ask_clarification",
-        required_facts=(),
-        required_questions=("end_time",),
-        prohibited_claims=("reminder_created",),
-        allow_rephrase=True,
-    )
-
-    assert check_prohibited_claims(contract, "reminder_created") == []
-    assert check_prohibited_claims(contract, "已设好提醒，稍后提醒你") == [
-        "prohibited claim reminder_created"
-    ]

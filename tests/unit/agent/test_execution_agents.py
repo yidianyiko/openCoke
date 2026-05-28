@@ -65,8 +65,6 @@ def _reminder_domain_result() -> DomainExecutionResult:
         reply_contract=ReplyContract(
             intent="confirm_execution",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("not_created",),
             allow_rephrase=True,
         ),
     )
@@ -143,8 +141,6 @@ async def test_run_reminder_domain_forwards_failed_port_result():
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("reminder_created",),
             allow_rephrase=True,
         ),
         error=DomainError(
@@ -669,7 +665,6 @@ async def test_run_scheduling_domain_clarifies_partial_friend_calendar_name_befo
     assert result["missing_fields"] == ["friend_name"]
     assert result["safety_boundary"] == "ambiguous_friend_name"
     assert result["reply_contract"]["intent"] == "ask_clarification"
-    assert result["reply_contract"]["required_questions"] == ["which_friend"]
     assert result["operations"] == []
     assert result["error"] is None
     assert len(domain_results) == 1

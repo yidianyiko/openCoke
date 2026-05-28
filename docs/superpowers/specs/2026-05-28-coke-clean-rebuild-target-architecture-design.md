@@ -243,10 +243,10 @@ papers over historical runtime uncertainty. Strong validation is valid at:
 - **Durable fact boundary:** unique constraints, idempotency keys, state
   transitions, outbox append, and delivery lifecycle.
 - **Agent output boundary:** the agent must satisfy the current structured output
-  contract on the first returned answer. Invalid, empty, or blocked output
-  becomes `no_reply` or `failed`. The runtime does not ask the model to rewrite
-  the answer, does not convert trusted facts into replacement prose, and does not
-  send template fallback text.
+  contract on the first returned answer. Invalid, empty, or structurally blocked
+  output becomes `no_reply` or `failed`. The runtime does not ask the model to
+  rewrite the answer, does not convert trusted facts into replacement prose, and
+  does not send template fallback text.
 
 Everything else should become simpler observability plus explicit failure. The
 target does not rebuild business rollback, compatibility recovery, or
@@ -305,11 +305,20 @@ framework):
   `MemoryManager` (or post-hook) owns the extraction and injection policy;
   Agno's automatic user-memory extraction is left off. This fixes the long-term
   memory mechanism here — there is no separate deferred memory spec.
-- **Guardrails**: Coke's checks run as `pre_hooks` / `post_hooks`.
+- **Boundary validation**: Coke's executable-boundary checks may run as
+  `pre_hooks` / `post_hooks`, but semantic output repair and claim policing are
+  not rebuilt as guardrails.
+- **Detector output stays trusted-or-invalid:** Reminder and Social Scheduling
+  ports do not patch semantic-interpreter or Detector output with regex
+  recovery (`duration_minutes`, `receiver_name`, weekday/date mismatch, dropped
+  scheduled clauses, zero-duration normalization, title repair, etc.). Missing
+  or wrong semantic fields are prompt/eval failures or invalid decisions, not
+  permanent runtime guard branches.
 
 Runtime decomposition: the ~2,500-line `agent_runtime.py` is split into an
 orchestration core plus sibling modules (intent normalization, current-action
-focus resolution, envelope parsing + guardrails, Social Scheduling dispatch).
+focus resolution, envelope parsing + boundary validation, Social Scheduling
+dispatch).
 
 ## 6. Channels and ClawScale as an Adapter
 
@@ -469,10 +478,16 @@ not resurrected.)
   route targets, and persisted fact shape stay validated; prompt-quality and
   semantic-classification misses are handled in the agent contract, not by
   adding permanent schema fields for every past mistake.
+- **No semantic claim policing layer:** `required_questions`,
+  `prohibited_claims`, regex claim detectors, visible-identifier leak detectors,
+  and similar model-output semantic guardrails are deleted. They were treating
+  past model mistakes as permanent schema and runtime surface area.
 - **No model-output repair/rewrite tests:** tests must not assert protocol-repair
   prompts, second-pass visible-content rewrites, domain-summary replacement, or
-  template fallback prose. Keep tests for strict validation and fail-closed
-  dispositions only.
+  template fallback prose. They also must not preserve detector-output repair,
+  regex argument recovery, or smoke-runner classifications built around old
+  fallback prose. Keep tests for strict validation and fail-closed dispositions
+  only.
 - `memo-runtime` (replaced by Agno memory storage/retrieval — §5).
 - All media: the `framework/tool/*` vendor modules and the `voice_tools` /
   `image_tools` adapters are deleted. Image input/understanding, image

@@ -1724,7 +1724,7 @@ def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(
     )
 
 
-def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_fallback(monkeypatch):
+def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_promotion(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app
 
@@ -1735,13 +1735,13 @@ def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_fallback(monkey
     reply_waiter.wait_for_reply.side_effect = TimeoutError(
         "Timed out waiting for causal_inbound_event_id=in_evt_timeout_1"
     )
-    late_reply_fallback = MagicMock()
+    async_late_reply_promoter = MagicMock()
 
     service = bridge_app.BusinessOnlyBridgeGateway(
         message_gateway=message_gateway,
         reply_waiter=reply_waiter,
         target_character_id="char_1",
-        late_reply_fallback=late_reply_fallback,
+        async_late_reply_promoter=async_late_reply_promoter,
     )
     monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
 
@@ -1766,9 +1766,9 @@ def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_fallback(monkey
     assert response.status_code == 200
     assert response.get_json() == {
         "ok": True,
-        "reply": bridge_app.SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
+        "reply": bridge_app.SYNC_REPLY_TIMEOUT_ACK_REPLY,
     }
-    late_reply_fallback.start_async.assert_called_once_with(
+    async_late_reply_promoter.start_async.assert_called_once_with(
         causal_inbound_event_id="in_evt_timeout_1",
         customer_id="acct_1",
         tenant_id="ten_1",
@@ -1780,7 +1780,7 @@ def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_fallback(monkey
     )
 
 
-def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
+def test_async_late_reply_promoter_promotes_pending_sync_reply_for_async_dispatch():
     import connector.clawscale_bridge.app as bridge_app
 
     mongo = MagicMock()
@@ -1801,7 +1801,7 @@ def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
         },
     }
 
-    promoter = bridge_app.LateReplyFallbackPromoter(
+    promoter = bridge_app.AsyncLateReplyPromoter(
         mongo=mongo,
         reply_waiter=reply_waiter,
         delivery_route_client=delivery_route_client,
@@ -1850,7 +1850,7 @@ def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
     )
 
 
-def test_late_reply_fallback_promotes_reply_even_when_route_bind_fails():
+def test_async_late_reply_promoter_promotes_reply_even_when_route_bind_fails():
     import connector.clawscale_bridge.app as bridge_app
 
     mongo = MagicMock()
@@ -1872,7 +1872,7 @@ def test_late_reply_fallback_promotes_reply_even_when_route_bind_fails():
         },
     }
 
-    promoter = bridge_app.LateReplyFallbackPromoter(
+    promoter = bridge_app.AsyncLateReplyPromoter(
         mongo=mongo,
         reply_waiter=reply_waiter,
         delivery_route_client=delivery_route_client,
@@ -1907,7 +1907,7 @@ def test_late_reply_fallback_promotes_reply_even_when_route_bind_fails():
     )
 
 
-def test_late_reply_fallback_promotes_reply_when_route_context_missing():
+def test_async_late_reply_promoter_promotes_reply_when_route_context_missing():
     import connector.clawscale_bridge.app as bridge_app
 
     mongo = MagicMock()
@@ -1928,7 +1928,7 @@ def test_late_reply_fallback_promotes_reply_when_route_context_missing():
         },
     }
 
-    promoter = bridge_app.LateReplyFallbackPromoter(
+    promoter = bridge_app.AsyncLateReplyPromoter(
         mongo=mongo,
         reply_waiter=reply_waiter,
         delivery_route_client=delivery_route_client,

@@ -4,7 +4,6 @@ Outbound message delivery helpers for the agent runner.
 """
 
 import random
-from typing import Callable
 
 from agent.tool.image import upload_image
 from agent.tool.voice import character_voice
@@ -16,31 +15,21 @@ logger = get_logger(__name__)
 typing_speed = 2.2
 
 
-class OutboundSendInterrupted(Exception):
-    """Raised when a newer user message arrives between outbound writes."""
-
-    def __init__(self, sent_messages: list[dict] | None = None) -> None:
-        super().__init__("outbound send interrupted")
-        self.sent_messages = sent_messages or []
-
-
 def send_single_message(
     context,
     multimodal_response,
     expect_output_timestamp,
     is_first=False,
-    interrupt_check: Callable[[], bool] | None = None,
 ):
     """发送单条多模态消息"""
     outputmessage = None
-    sent_messages = []
     msg_type = multimodal_response.get("type", "text")
     content = multimodal_response.get("content", "")
     response_metadata = multimodal_response.get("metadata")
     if not isinstance(response_metadata, dict):
         response_metadata = {}
 
-    # ========== 去重检查：跳过 rollback 恢复场景中已发送的内容 ==========
+    # ========== 去重检查：跳过本轮已发送的内容 ==========
     turn_sent = (
         context.get("conversation", {})
         .get("conversation_info", {})
@@ -55,9 +44,6 @@ def send_single_message(
             content, multimodal_response.get("emotion", "无")
         )
         for voice_url, voice_length in voice_messages:
-            if interrupt_check is not None:
-                if interrupt_check():
-                    raise OutboundSendInterrupted(sent_messages)
             if not is_first:
                 expect_output_timestamp += int(voice_length / 1000) + random.randint(
                     2, 5
@@ -73,8 +59,6 @@ def send_single_message(
                     "voice_length": voice_length,
                 },
             )
-            if outputmessage is not None:
-                sent_messages.append(outputmessage)
     elif msg_type == "photo":
         photo_id = (
             str(content).replace("「", "").replace("」", "").replace("照片", "", 1)
@@ -90,9 +74,6 @@ def send_single_message(
                 ]["conversation_info"]["photo_history"][-12:]
             if not is_first:
                 expect_output_timestamp += random.randint(2, 8)
-            if interrupt_check is not None:
-                if interrupt_check():
-                    raise OutboundSendInterrupted(sent_messages)
             outputmessage = send_message_via_context(
                 context,
                 message=content,
@@ -104,9 +85,6 @@ def send_single_message(
         text_message = str(content).replace("<换行>", "\n")
         if not is_first:
             expect_output_timestamp += int(len(text_message) / typing_speed)
-        if interrupt_check is not None:
-            if interrupt_check():
-                raise OutboundSendInterrupted(sent_messages)
         outputmessage = send_message_via_context(
             context,
             message=text_message,

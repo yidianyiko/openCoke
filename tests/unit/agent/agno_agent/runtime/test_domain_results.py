@@ -6,7 +6,6 @@ from agent.agno_agent.runtime.domain_results import (
     DomainOperationResult,
     ReplyContract,
     ReplyFactRequirement,
-    resolve_required_fact,
 )
 
 
@@ -17,8 +16,6 @@ def _reply_contract() -> ReplyContract:
             ReplyFactRequirement(path="operations[0].facts.title"),
             ReplyFactRequirement(path="operations[0].facts.local_time", label="time"),
         ),
-        required_questions=(),
-        prohibited_claims=("not_created", "needs_more_info"),
         allow_rephrase=True,
     )
 
@@ -80,8 +77,6 @@ def test_domain_execution_result_round_trips_json_dict():
                 {"path": "operations[0].facts.title", "label": None},
                 {"path": "operations[0].facts.local_time", "label": "time"},
             ],
-            "required_questions": [],
-            "prohibited_claims": ["not_created", "needs_more_info"],
             "allow_rephrase": True,
         },
         "error": None,
@@ -160,8 +155,6 @@ def test_domain_execution_result_enforces_outcome_invariants(kwargs, message):
             reply_contract=ReplyContract(
                 intent="direct_answer",
                 required_facts=(),
-                required_questions=(),
-                prohibited_claims=(),
                 allow_rephrase=True,
             ),
             **kwargs,
@@ -178,8 +171,6 @@ def test_failed_result_allows_structured_error_detail():
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("appointment_confirmed",),
             allow_rephrase=True,
         ),
         error=DomainError(
@@ -244,73 +235,3 @@ def test_from_dict_rejects_invalid_literal_values():
     for field_name, invalid_payload in invalid_payloads:
         with pytest.raises(ValueError, match=f"unsupported {field_name}"):
             DomainExecutionResult.from_dict(invalid_payload)
-
-
-def test_resolve_required_fact_reads_supported_paths():
-    result = DomainExecutionResult(
-        domain="reminder",
-        outcome="needs_clarification",
-        operations=(
-            DomainOperationResult(
-                action="inspect",
-                ok=True,
-                effect="read",
-                entity_type="reminder",
-                entity_id="rem-1",
-                facts={"title": "drink water"},
-            ),
-        ),
-        missing_fields=("local_time",),
-        safety_boundary=None,
-        reply_contract=ReplyContract(
-            intent="ask_clarification",
-            required_facts=(),
-            required_questions=("local_time",),
-            prohibited_claims=(),
-            allow_rephrase=True,
-        ),
-    )
-
-    assert resolve_required_fact(result, "operations[0].entity_id") == "rem-1"
-    assert resolve_required_fact(result, "operations[0].facts.title") == "drink water"
-    assert resolve_required_fact(result, "missing_fields[0]") == "local_time"
-
-
-def test_resolve_required_fact_rejects_unsupported_path():
-    result = DomainExecutionResult(
-        domain="reminder",
-        outcome="no_action",
-        operations=(),
-        missing_fields=(),
-        safety_boundary=None,
-        reply_contract=ReplyContract(
-            intent="direct_answer",
-            required_facts=(),
-            required_questions=(),
-            prohibited_claims=(),
-            allow_rephrase=True,
-        ),
-    )
-
-    with pytest.raises(ValueError, match="unsupported reply fact path"):
-        resolve_required_fact(result, "operations[0].facts")
-
-
-def test_resolve_required_fact_preserves_out_of_range_index_error():
-    result = DomainExecutionResult(
-        domain="reminder",
-        outcome="needs_clarification",
-        operations=(),
-        missing_fields=("local_time",),
-        safety_boundary=None,
-        reply_contract=ReplyContract(
-            intent="ask_clarification",
-            required_facts=(),
-            required_questions=("local_time",),
-            prohibited_claims=(),
-            allow_rephrase=True,
-        ),
-    )
-
-    with pytest.raises(IndexError):
-        resolve_required_fact(result, "operations[0].entity_id")

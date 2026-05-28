@@ -232,9 +232,9 @@ through the Gateway-hosted Scheduling Domain Contract at
 `/api/internal/scheduling/focus/resolve`; `none_actionable` fails closed, and
 `multi_candidate` requires semantic candidate selection by ordinal, offered
 time, or summary text before acting. Keyword or regex routing on user utterances
-is not part of the active runtime contract; regexes may remain only for output
-guardrails, model-output parsing, typed payload validation, trace mechanics, or
-temporary input normalization.
+is not part of the active runtime contract; regexes may remain only for typed
+payload validation, strict envelope parsing, trace mechanics, or temporary input
+normalization.
 
 The response prompt renders trusted blocks for identity, environment, and Focus
 plus one conversation block. Trusted blocks are authoritative system-derived
@@ -249,18 +249,28 @@ and durable writes. The Interaction Agent owns final user-visible text, but not
 business-domain routing.
 
 Model-output repair is not an active runtime strategy. After the Interaction
-Agent returns, the runtime validates the visible-output envelope and current
-contract once. Malformed output, blocked claims, internal-label leaks, empty
-output, or timeout become `empty` output with a structured error disposition;
-the worker does not ask the model to rewrite the answer, does not synthesize a
-template fallback, and does not replace model prose with domain or capability
-summaries. Domain and capability summaries are trusted facts for grounding,
-traces, and eval evidence, not alternate producers of final chat prose.
+Agent returns, the runtime validates the visible-output envelope and durable
+write structural contract once. Malformed output, empty output, missing durable
+write summaries, or timeout become `empty` output with a structured error
+disposition; the worker does not ask the model to rewrite the answer, does not
+synthesize a template fallback, and does not replace model prose with domain or
+capability summaries. Domain and capability results are trusted facts for
+grounding, traces, and eval evidence, not alternate producers of final chat
+prose.
+
+The same rule applies inside domain intent ports. Detector or semantic
+interpreter output is either an executable domain decision, an explicit
+clarification/no-action decision, or an invalid decision that fails closed. The
+runtime does not patch missing business arguments from the original utterance
+with regexes, rewrite detector fields, normalize impossible model values into
+safer ones, or add post-detector semantic policing for past model mistakes.
 
 `DomainExecutionResult` JSON is the domain-to-Interaction-Agent contract:
-operation facts, missing fields, safety boundaries, reply contracts, and
-structured errors. Before Focus-driven scheduling writes, the scheduling
-executor binds the opaque focus handle through Scheduling and fails with
+operation facts, missing fields, safety boundaries, a minimal reply intent, and
+structured errors. It does not carry prompt-quality repair fields such as
+required questions or prohibited claim lists. Before Focus-driven scheduling
+writes, the scheduling executor binds the opaque focus handle through Scheduling
+and fails with
 `safety_boundary=stale_focus` when the handle is unknown, expired, already
 consumed, or no longer maps to an actionable request. Focus is a pointer, not
 fresh state. Any remaining Interaction Agent exposure of business-domain tools
@@ -280,16 +290,16 @@ delegates execution to friend-link and shared-reminder tools:
 `list_shared_reminders`, and `cancel_shared_reminder`. Friend links create
 active friendships directly, and shared reminders become active immediately
 after the receiver conflict check passes; pending request accept/reject flows
-and account block/unblock tools are retired. The runner remains
-responsible for locks, rollback, output writes, replay checks, scheduler boot,
-post-analyze dispatch, and delivery state transitions. The former prepare/chat
-workflow runtime, legacy multi-agent runtime, and module-level Agno agent
-singletons have been retired.
+and account block/unblock tools are retired. The runner remains responsible for
+locks, output writes, replay checks, scheduler boot, post-analyze dispatch, and
+delivery state transitions. It does not own business rollback compensation or
+message-level retry/rollback counters. The former prepare/chat workflow runtime,
+legacy multi-agent runtime, and module-level Agno agent singletons have been
+retired.
 
 `agent/runner/agent_handler.py` is the turn orchestrator. Its implementation
-concerns are split across four focused modules:
+concerns are split across three focused modules:
 
-- `agent/runner/rollback_detection.py` — new-message race detection
 - `agent/runner/runtime_lock.py` — lock lifecycle and heartbeat
 - `agent/runner/message_history.py` — chat history reads and embedding writes
 - `agent/runner/output_delivery.py` — outbound message delivery

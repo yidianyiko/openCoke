@@ -33,7 +33,6 @@ ACCOUNT_BATCH = "prlongtaila" + BATCH.lower().replace("t", "").replace("z", "")
 EVIDENCE_DIR = Path("artifacts/evidence/shared-reminder-agent-smoke")
 EVIDENCE_PATH = EVIDENCE_DIR / f"{BATCH_ID}.json"
 
-EMPTY_FALLBACK_TOKENS = ("我没接住你刚才的意思", "我这次没能及时整理")
 SUCCESS_CLAIM_TOKENS = ("已", "已经", "成功", "帮你", "创建", "设置", "改", "删除", "取消", "完成")
 CLARIFY_TOKENS = ("哪一个", "哪个", "请确认", "请明确", "具体", "目标", "是哪条", "提醒内容")
 UNSUPPORTED_TOKENS = ("暂不支持", "不支持", "不能", "无法", "没法")
@@ -302,7 +301,7 @@ def _base_bug_pattern(
     text = _reply_text(turns)
     if RAW_ENVELOPE_RE.search(text):
         return "A"
-    if _has_any(text, EMPTY_FALLBACK_TOKENS) or not text.strip():
+    if not text.strip():
         return "B"
     if "ValidationError" in text or "Tool call limit" in text:
         return "D1"

@@ -59,9 +59,6 @@ HALLUCINATED_BOOKING_PATTERNS = (
     re.compile(r"已为你预订"),
     re.compile(r"(booked|appointment confirmed)", re.IGNORECASE),
 )
-EMPTY_FALLBACK_TOKENS = ("我没接住你刚才的意思", "我这次没能及时整理")
-
-
 def _mongo_output_for_turn(reply_output_id: str | None, causal_event_id: str) -> dict | None:
     db = MongoClient(_config.mongo_uri())[_config.mongo_db_name()]
     if reply_output_id:
@@ -175,8 +172,6 @@ def main() -> None:
         reply_text, output_doc = _record_turn(transcript, alice, prompt)
         after_reminders = _reminder_count_for_account(alice.coke_account_id)
         mongo_outputs.append(output_doc)
-        if any(token in reply_text for token in EMPTY_FALLBACK_TOKENS):
-            problems.append(f"empty_fallback: {prompt}")
         if any(pattern.search(reply_text) for pattern in HALLUCINATED_BOOKING_PATTERNS):
             problems.append(f"hallucinated_booking_confirmation: {prompt}")
         explicitly_refused = any(token in reply_text for token in REFUSAL_TOKENS)

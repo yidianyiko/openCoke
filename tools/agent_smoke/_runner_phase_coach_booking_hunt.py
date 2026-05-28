@@ -31,7 +31,6 @@ ACCOUNT_BATCH = "coachbooking" + BATCH.lower().replace("t", "").replace("z", "")
 EVIDENCE_DIR = Path("artifacts/evidence/shared-reminder-agent-smoke")
 EVIDENCE_PATH = EVIDENCE_DIR / f"coach-booking-{BATCH}.json"
 
-EMPTY_FALLBACK_TOKENS = ("我没接住你刚才的意思", "我这次没能及时整理")
 SUCCESS_CLAIM_TOKENS = ("已", "已经", "成功", "帮你约", "约好了", "创建", "提交", "接受")
 REFUSAL_TOKENS = ("不能", "无法", "不可以", "没法", "不能约", "过去", "昨天", "请明确", "具体")
 CLARIFY_TOKENS = ("几点", "具体", "哪一个", "哪位", "哪个", "请确认", "请明确", "上午几点")
@@ -262,7 +261,7 @@ def _bug_pattern(turns: list[Turn], *, mutation_expected: bool, mutation_happene
     text = _reply_text(turns)
     if RAW_ENVELOPE_RE.search(text):
         return "A"
-    if any(token in text for token in EMPTY_FALLBACK_TOKENS) or not text.strip():
+    if not text.strip():
         return "B"
     if any("ValidationError" in turn.reply_text or "Tool call limit" in turn.reply_text for turn in turns):
         return "D1"
@@ -740,7 +739,7 @@ def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> lis
 
     def c12_judge(turns: list[Turn], delta: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
         added = _shared_added(delta)
-        empty = any(not turn.reply_text.strip() or any(token in turn.reply_text for token in EMPTY_FALLBACK_TOKENS) for turn in turns)
+        empty = any(not turn.reply_text.strip() for turn in turns)
         slow_empty = any(turn.elapsed_ms >= 180000 and not turn.reply_text.strip() for turn in turns)
         ok = len(added) == 3 and not empty and not slow_empty
         observed = f"shared added={len(added)} empty={empty} slow_empty={slow_empty}"

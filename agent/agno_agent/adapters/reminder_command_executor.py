@@ -530,8 +530,6 @@ def _reply_contract_for_operations(
                 ),
                 ReplyFactRequirement(path=f"operations[{write_index}].facts.rrule"),
             ),
-            required_questions=(),
-            prohibited_claims=("not_created", "needs_more_info"),
             allow_rephrase=True,
         )
     list_index = next(
@@ -552,15 +550,11 @@ def _reply_contract_for_operations(
                     path=f"operations[{list_index}].facts.visible_summary"
                 ),
             ),
-            required_questions=(),
-            prohibited_claims=("reminder_created",),
             allow_rephrase=True,
         )
     return ReplyContract(
         intent="direct_answer",
         required_facts=(),
-        required_questions=(),
-        prohibited_claims=("reminder_created",),
         allow_rephrase=True,
     )
 
@@ -597,8 +591,6 @@ def _failed_domain_result(
         reply_contract=ReplyContract(
             intent="report_failure",
             required_facts=(),
-            required_questions=(),
-            prohibited_claims=("reminder_created",),
             allow_rephrase=True,
         ),
         error=error,

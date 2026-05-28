@@ -270,12 +270,12 @@ def test_runtime_error_disposition_expresses_error_handling():
     error = RuntimeErrorDisposition(
         code="agent_timeout",
         retryable=True,
-        user_visible_fallback="I need a moment. Please try again.",
+        metadata={"stage": "agent"},
     )
 
     assert error.code == "agent_timeout"
     assert error.retryable is True
-    assert error.user_visible_fallback == "I need a moment. Please try again."
+    assert error.metadata["stage"] == "agent"
 
 
 def test_sequence_fields_are_immutable_after_construction():

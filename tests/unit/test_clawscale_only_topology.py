@@ -139,6 +139,64 @@ def test_retired_billing_auth_and_usage_cleanup_surfaces_are_removed():
     assert "UsageCapabilityPort" not in capability_exports
 
 
+def test_retired_output_repair_rollback_and_provider_compensation_are_removed():
+    agent_runtime = (ROOT / "agent" / "agno_agent" / "runtime" / "agent_runtime.py").read_text()
+    domain_results = (
+        ROOT / "agent" / "agno_agent" / "runtime" / "domain_results.py"
+    ).read_text()
+    runtime_result = (
+        ROOT / "agent" / "agno_agent" / "runtime" / "result.py"
+    ).read_text()
+    reminder_intent = (
+        ROOT / "agent" / "agno_agent" / "capabilities" / "reminder_intent.py"
+    ).read_text()
+    scheduling = (
+        ROOT / "agent" / "agno_agent" / "capabilities" / "scheduling.py"
+    ).read_text()
+    smoke_runner = (
+        ROOT
+        / "tools"
+        / "agent_smoke"
+        / "_runner_phase_cross_feature_long_conversation.py"
+    ).read_text()
+    bridge_app = (ROOT / "connector" / "clawscale_bridge" / "app.py").read_text()
+    shared_channel_routes = (
+        ROOT / "gateway" / "packages" / "api" / "src" / "routes" / "admin-shared-channels.ts"
+    ).read_text()
+
+    assert not (ROOT / "agent" / "runner" / "rollback_detection.py").exists()
+    assert "rollback_count" not in (ROOT / "agent" / "runner" / "message_processor.py").read_text()
+    assert "retry_count" not in (ROOT / "agent" / "runner" / "message_processor.py").read_text()
+    assert "compensate_rolled_back" not in (ROOT / "agent" / "runner" / "agent_handler.py").read_text()
+
+    assert "user_visible_fallback" not in runtime_result
+    assert "prohibited_claims" not in domain_results
+    assert "required_questions" not in domain_results
+    assert "_UNCONFIRMED_DURABLE_WRITE_PATTERNS" not in agent_runtime
+    assert "_COMPLETED_WRITE_CLAIM_PATTERNS" not in agent_runtime
+    assert "_STALE_SHARED_REMINDER_INVITE_CLAIM_PATTERNS" not in agent_runtime
+    assert "_VISIBLE_IDENTIFIER_LEAK_PATTERNS" not in agent_runtime
+    assert "check_prohibited_claims" not in agent_runtime
+    assert "_FENCED_JSON_RE" not in agent_runtime
+    assert "_resolve_domain_visible_text" not in agent_runtime
+    assert "_domain_visible_text_result" not in agent_runtime
+    assert "domain_summary" not in agent_runtime
+    assert "_recover_explicit_duration_minutes" not in agent_runtime
+
+    assert "OUTPUT SAFETY NET" not in reminder_intent
+    assert "_should_reject_" not in reminder_intent
+    assert "_normalize_point_reminder_duration" not in reminder_intent
+    assert "_unbounded_high_frequency_cadence" not in reminder_intent
+    assert "_recover_shared_reminder_receiver_name" not in scheduling
+    assert "EMPTY_FALLBACK_TOKENS" not in smoke_runner
+    assert "real_empty_fallback" not in smoke_runner
+
+    assert "LateReplyFallbackPromoter" not in bridge_app
+    assert "late_reply_fallback" not in bridge_app
+    assert "rollbackEvolution" not in shared_channel_routes
+    assert "rollbackLinq" not in shared_channel_routes
+
+
 def test_runtime_sources_remove_legacy_wechat_identity_fallbacks():
     message_processor = (ROOT / "agent" / "runner" / "message_processor.py").read_text()
     background_handler = (

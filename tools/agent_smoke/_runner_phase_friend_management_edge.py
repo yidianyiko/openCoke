@@ -37,7 +37,6 @@ EVIDENCE_DIR = Path("artifacts/evidence/shared-reminder-agent-smoke")
 EVIDENCE_PATH = EVIDENCE_DIR / f"{BATCH_ID}.json"
 MODEL = "GLM-5.1 thinking-off"
 
-EMPTY_FALLBACK_TOKENS = ("我没接住你刚才的意思", "我这次没能及时整理")
 SUCCESS_CLAIM_TOKENS = ("已", "已经", "成功", "通过", "拒绝", "撤回", "删除", "取消", "创建", "发送")
 CLARIFY_OR_REFUSE_TOKENS = (
     "哪一个",
@@ -546,7 +545,7 @@ def _bug_pattern(
     text = _reply_text(turns)
     if RAW_ENVELOPE_RE.search(text):
         return "A"
-    if _has_any(text, EMPTY_FALLBACK_TOKENS) or not text.strip():
+    if not text.strip():
         return "B"
     if "ValidationError" in text or "Tool call limit" in text:
         return "D1"

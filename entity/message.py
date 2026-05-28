@@ -115,51 +115,6 @@ def update_message_status_safe(message_id, new_status, expected_status="pending"
     return modified_count > 0
 
 
-def increment_retry_count(message_id, error_msg=None):
-    """
-    增加消息重试计数
-
-    Args:
-        message_id: 消息ID
-        error_msg: 错误信息（可选，截断到500字符）
-
-    Returns:
-        int: 更新后的重试次数，失败返回 -1
-    """
-    update_data = {"$inc": {"retry_count": 1}}
-    if error_msg:
-        update_data["$set"] = {"last_error": str(error_msg)[:500]}
-
-    modified_count = _mongo.update_one(
-        "inputmessages", {"_id": message_id}, update_data
-    )
-
-    if modified_count > 0:
-        msg = _mongo.find_one("inputmessages", {"_id": message_id})
-        return msg.get("retry_count", 0) if msg else -1
-    return -1
-
-
-def increment_rollback_count(message_id):
-    """
-    增加消息 rollback 计数
-
-    Args:
-        message_id: 消息ID
-
-    Returns:
-        int: 更新后的 rollback 次数，失败返回 -1
-    """
-    modified_count = _mongo.update_one(
-        "inputmessages", {"_id": message_id}, {"$inc": {"rollback_count": 1}}
-    )
-
-    if modified_count > 0:
-        msg = _mongo.find_one("inputmessages", {"_id": message_id})
-        return msg.get("rollback_count", 0) if msg else -1
-    return -1
-
-
 def set_hold_status(message_id):
     """
     设置消息为 hold 状态，并记录 hold 开始时间

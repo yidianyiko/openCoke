@@ -34,8 +34,6 @@ from agent.runner import message_history, output_delivery, runtime_lock
 from agent.agno_agent.runtime.post_analyze import run_post_analyze
 from agent.agno_agent.runtime.session import initialize_agent_session_db
 from agent.runner.context import context_prepare
-from agent.runner.identity import get_agent_entity_id
-from agent.runner.rollback_detection import is_new_message_coming_in
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
@@ -48,8 +46,6 @@ from util.message_log_util import (
 
 # ========== 配置 ==========
 max_handle_age = 3600 * 12  # 只处理12小时以内的消息
-MAX_RETRIES = 3  # 最大重试次数
-MAX_ROLLBACK = 4  # 最大 rollback 次数
 HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
 target_user_alias = CONF.get("default_character_alias", "coke")
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
@@ -205,65 +201,6 @@ def _extract_user_turn_runtime_metadata(input_messages: List[Dict]) -> Dict[str,
     return {}
 
 
-def _cancel_visible_reminder_for_rollback(
-    *, owner_user_id: str, reminder_id: str
-) -> None:
-    from agent.reminder.runtime_contract import ReminderRuntimeContract
-
-    ReminderRuntimeContract().cancel_visible_reminder(
-        owner_user_id=owner_user_id,
-        reminder_id=reminder_id,
-    )
-
-
-def _rolled_back_visible_reminder_create_ids(result: Any) -> List[str]:
-    reminder_ids: List[str] = []
-    for domain_result in getattr(result, "domain_results", ()) or ():
-        if getattr(domain_result, "domain", None) != "reminder":
-            continue
-        for operation in getattr(domain_result, "operations", ()) or ():
-            if (
-                getattr(operation, "action", None) == "create"
-                and getattr(operation, "ok", None) is True
-                and getattr(operation, "effect", None) == "write"
-                and getattr(operation, "entity_type", None) == "reminder"
-                and getattr(operation, "entity_id", None)
-            ):
-                reminder_ids.append(str(operation.entity_id))
-    return reminder_ids
-
-
-def _compensate_rolled_back_domain_writes(
-    *, result: Any, context: dict, worker_tag: str
-) -> None:
-    reminder_ids = _rolled_back_visible_reminder_create_ids(result)
-    if not reminder_ids:
-        return
-
-    owner_user_id = get_agent_entity_id(context.get("user"))
-    if not owner_user_id:
-        logger.warning(
-            f"{worker_tag} rollback compensation skipped: missing owner user id"
-        )
-        return
-
-    for reminder_id in reminder_ids:
-        try:
-            _cancel_visible_reminder_for_rollback(
-                owner_user_id=owner_user_id,
-                reminder_id=reminder_id,
-            )
-            logger.info(
-                f"{worker_tag} rollback compensation cancelled reminder "
-                f"{reminder_id}"
-            )
-        except Exception as exc:
-            logger.warning(
-                f"{worker_tag} rollback compensation failed for reminder "
-                f"{reminder_id}: {exc}"
-            )
-
-
 # ========== 核心消息处理函数 ==========
 
 
@@ -277,7 +214,7 @@ async def handle_message(
     lock_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
     current_message_ids: Optional[List[str]] = None,
-) -> Tuple[List[dict], dict, bool, bool]:
+) -> Tuple[list[dict], dict, bool]:
     """
     核心消息处理逻辑-Phase 1 → 2 → 3
 
@@ -297,10 +234,9 @@ async def handle_message(
         current_message_ids: 当前正在处理的消息ID列表（用于排除新消息检测）
 
     Returns:
-        Tuple[resp_messages, context, is_rollback, is_content_blocked]:
+        Tuple[resp_messages, context, is_content_blocked]:
            -resp_messages: 发送的消息列表
            -context: 更新后的上下文
-           -is_rollback: 是否因新消息而回滚
            -is_content_blocked: 是否因内容安全审核失败
     """
     # 标记消息来源，供 Workflow 识别
@@ -335,28 +271,9 @@ async def handle_message(
     context["recent_chat_history"] = recent_chat_history
 
     resp_messages = []
-    is_rollback = False
     is_content_blocked = False  # 内容安全审核失败标志
 
     try:
-        user = context.get("user", {})
-        character = context.get("character", {})
-        current_platform = (
-            context.get("platform")
-            or context.get("conversation", {}).get("platform")
-            or "business"
-        )
-
-        if check_new_message and message_source == "user":
-            if is_new_message_coming_in(
-                get_agent_entity_id(user),
-                get_agent_entity_id(character),
-                current_platform,
-                current_message_ids,
-            ):
-                logger.info(f"{worker_tag} rollback: new message before agent runtime")
-                return resp_messages, context, True, False
-
         if lock_id and conversation_id:
             runtime_lock.lock_manager.renew_lock(
                 "conversation",
@@ -409,12 +326,7 @@ async def handle_message(
         ):
             logger.warning(f"{worker_tag} 锁已丢失，停止接受 single-Agent runtime 结果")
             context["MultiModalResponses"] = all_multimodal_responses
-            _compensate_rolled_back_domain_writes(
-                result=result,
-                context=context,
-                worker_tag=worker_tag,
-            )
-            return resp_messages, context, True, False
+            return resp_messages, context, False
 
         for visible_message in result.visible_messages:
             multimodal_response = {
@@ -427,48 +339,16 @@ async def handle_message(
                 if not runtime_lock.verify_lock_ownership(conversation_id, lock_id):
                     logger.warning(f"{worker_tag} 锁已丢失，停止发送 runtime 消息")
                     context["MultiModalResponses"] = all_multimodal_responses
-                    _compensate_rolled_back_domain_writes(
-                        result=result,
-                        context=context,
-                        worker_tag=worker_tag,
-                    )
-                    return resp_messages, context, True, False
+                    return resp_messages, context, False
 
-            try:
-                outputmessage, expect_output_timestamp = (
-                    output_delivery.send_single_message(
-                        context=context,
-                        multimodal_response=multimodal_response,
-                        expect_output_timestamp=expect_output_timestamp,
-                        is_first=(len(all_multimodal_responses) == 0),
-                        interrupt_check=(
-                            (
-                                lambda: is_new_message_coming_in(
-                                    get_agent_entity_id(user),
-                                    get_agent_entity_id(character),
-                                    current_platform,
-                                    current_message_ids,
-                                )
-                            )
-                            if check_new_message and message_source == "user"
-                            else None
-                        ),
-                    )
-                )
-            except output_delivery.OutboundSendInterrupted as exc:
-                resp_messages.extend(exc.sent_messages)
-                if exc.sent_messages:
-                    all_multimodal_responses.append(multimodal_response)
-                logger.info(
-                    f"{worker_tag} rollback: new message during runtime message send"
-                )
-                context["MultiModalResponses"] = all_multimodal_responses
-                _compensate_rolled_back_domain_writes(
-                    result=result,
+            outputmessage, expect_output_timestamp = (
+                output_delivery.send_single_message(
                     context=context,
-                    worker_tag=worker_tag,
+                    multimodal_response=multimodal_response,
+                    expect_output_timestamp=expect_output_timestamp,
+                    is_first=(len(all_multimodal_responses) == 0),
                 )
-                return resp_messages, context, True, False
+            )
             if outputmessage is not None:
                 all_multimodal_responses.append(multimodal_response)
                 resp_messages.append(outputmessage)
@@ -498,7 +378,7 @@ async def handle_message(
             f"(visible_messages={len(result.visible_messages)}, "
             f"status={result.output_disposition.status})"
         )
-        return resp_messages, context, is_rollback, is_content_blocked
+        return resp_messages, context, is_content_blocked
 
     except Exception as e:
         logger.error(f"{worker_tag} handle_message failed: {e}")
@@ -550,7 +430,6 @@ def create_handler(worker_id: int = 0):
             dispatch_type, _ = dispatcher.dispatch(msg_ctx)
 
             resp_messages = []
-            is_rollback = False
             is_content_blocked = False
 
             if dispatch_type == "hold":
@@ -572,7 +451,7 @@ def create_handler(worker_id: int = 0):
                         str(m["_id"]) for m in msg_ctx.input_messages
                     ]
 
-                    resp_messages, msg_ctx.context, is_rollback, is_content_blocked = (
+                    resp_messages, msg_ctx.context, is_content_blocked = (
                         await handle_message(
                             context=msg_ctx.context,
                             input_message_str=input_message_str,
@@ -591,17 +470,6 @@ def create_handler(worker_id: int = 0):
                     # Step 3: 后处理
                     if is_content_blocked:
                         finalizer.finalize_blocked(msg_ctx)
-                    elif is_rollback:
-                        should_rollback = finalizer.finalize_rollback(
-                            msg_ctx, resp_messages
-                        )
-                        if not should_rollback:
-                            # 达到最大 rollback 次数，强制完成
-                            finalizer.finalize_success(
-                                msg_ctx,
-                                resp_messages,
-                                message_history.store_messages_background,
-                            )
                     else:
                         finalizer.finalize_success(
                             msg_ctx,

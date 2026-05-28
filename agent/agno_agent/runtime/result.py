@@ -94,7 +94,6 @@ class OutputDisposition:
 class RuntimeErrorDisposition:
     code: str
     retryable: bool
-    user_visible_fallback: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

@@ -389,35 +389,6 @@ def test_create_shared_reminder_injects_account_timezone_when_model_omits_it():
     assert captured["payload"]["timezone"] == "Asia/Shanghai"
 
 
-def test_create_shared_reminder_recovers_receiver_name_from_direct_invite_utterance():
-    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
-
-    captured = {}
-
-    def handler(tool_name, payload):
-        captured.update({"tool_name": tool_name, "payload": payload})
-        return {
-            "ok": True,
-            "data": {"id": "srr_1", "status": "active"},
-        }
-
-    port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
-    result = port.run(
-        "帮我约李梓豪，上海时间2029年1月1日10:00，标题是验收测试，持续5分钟。",
-        _run_context(user_id="acct_b"),
-        {
-            "title": "验收测试",
-            "fire_at": "2029-01-01T10:00:00",
-            "timezone": "Asia/Shanghai",
-            "duration_minutes": 5,
-            "idempotency_key": "shared-1",
-        },
-    )
-
-    assert result.ok is True
-    assert captured["payload"]["receiver_name"] == "李梓豪"
-
-
 def test_create_shared_reminder_preserves_explicit_timezone():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

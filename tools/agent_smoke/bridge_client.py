@@ -13,7 +13,7 @@ import requests
 
 from tools.agent_smoke import _config
 
-SYNC_REPLY_TIMEOUT_FALLBACK_REPLY = "正在处理中，稍后把结果发给你。"
+SYNC_REPLY_TIMEOUT_ACK_REPLY = "正在处理中，稍后把结果发给你。"
 FINAL_OUTPUT_STATUSES = {"handled", "failed"}
 
 
@@ -101,7 +101,7 @@ def send_as(
     reply_text = body.get("reply") or ""
     output_id = body.get("output_id")
     event_id = body.get("causal_inbound_event_id") or payload["inbound_event_id"]
-    placeholder_received = SYNC_REPLY_TIMEOUT_FALLBACK_REPLY in reply_text
+    placeholder_received = SYNC_REPLY_TIMEOUT_ACK_REPLY in reply_text
     late_reply_landed = False
     placeholder_reply = reply_text if placeholder_received else None
     placeholder_output_id = output_id if placeholder_received else None
@@ -171,7 +171,7 @@ def poll_late_reply_text(
                 ]
             },
             {"status": {"$in": sorted(FINAL_OUTPUT_STATUSES)}},
-            {"message": {"$nin": ["", SYNC_REPLY_TIMEOUT_FALLBACK_REPLY]}},
+            {"message": {"$nin": ["", SYNC_REPLY_TIMEOUT_ACK_REPLY]}},
         ]
     }
     try:
@@ -180,7 +180,7 @@ def poll_late_reply_text(
                 if not _is_final_output_doc(doc):
                     continue
                 reply_text = _output_reply_text(doc)
-                if reply_text and reply_text != SYNC_REPLY_TIMEOUT_FALLBACK_REPLY:
+                if reply_text and reply_text != SYNC_REPLY_TIMEOUT_ACK_REPLY:
                     return reply_text, doc
             time.sleep(poll_interval_seconds)
     finally:

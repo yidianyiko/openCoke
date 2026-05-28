@@ -35,7 +35,6 @@ CASE_TIMEOUT_SECONDS = 15 * 60
 
 LINK_CODE_RE = re.compile(r"/u/([A-Za-z0-9_-]+)|邀请码[:：\s]*([A-Za-z0-9_-]{6,})")
 RAW_ENVELOPE_RE = re.compile(r"```json|MultiModalResponses|\"message_type\"")
-EMPTY_FALLBACK_TOKENS = ("我没接住你刚才的意思", "我这次没能及时整理")
 SUCCESS_CLAIM_TOKENS = ("已", "已经", "成功", "帮你", "创建", "设置", "发送", "通过", "改", "删除", "取消", "完成")
 CLARIFY_OR_REFUSE_TOKENS = ("哪一个", "哪个", "请确认", "请明确", "无法", "不能", "不支持", "没有", "未找到", "找不到", "先加")
 
@@ -237,23 +236,23 @@ def _reply_for(ctx: "CaseContext", note: str) -> str:
     return ""
 
 
-def _is_empty_fallback_text(text: str) -> bool:
-    return not text.strip() or any(token in text for token in EMPTY_FALLBACK_TOKENS)
+def _is_empty_reply_text(text: str) -> bool:
+    return not text.strip()
 
 
-def _fallback_turns(turns: list[Turn]) -> list[dict[str, Any]]:
+def _delivery_anomaly_turns(turns: list[Turn]) -> list[dict[str, Any]]:
     evidence: list[dict[str, Any]] = []
     for case_turn, turn in enumerate(turns, start=1):
         reply_text = turn.reply_text or ""
         is_sync_placeholder = turn.placeholder_received and not turn.late_reply_landed
         is_late_reply = turn.placeholder_received and turn.late_reply_landed
-        is_real_empty_fallback = _is_empty_fallback_text(reply_text) and not is_sync_placeholder
-        if not (turn.placeholder_received or is_real_empty_fallback):
+        is_empty_reply = _is_empty_reply_text(reply_text) and not is_sync_placeholder
+        if not (turn.placeholder_received or is_empty_reply):
             continue
         if is_sync_placeholder:
             output_kind = "sync_placeholder"
-        elif is_real_empty_fallback:
-            output_kind = "real_empty_fallback"
+        elif is_empty_reply:
+            output_kind = "empty_reply"
         else:
             output_kind = "late_real_reply"
         evidence.append(
@@ -264,7 +263,7 @@ def _fallback_turns(turns: list[Turn]) -> list[dict[str, Any]]:
                 "reply_text": reply_text,
                 "placeholder_received": turn.placeholder_received,
                 "late_reply_landed": turn.late_reply_landed,
-                "is_real_empty_fallback": is_real_empty_fallback,
+                "is_empty_reply": is_empty_reply,
                 "output_kind": output_kind,
             }
         )
@@ -315,7 +314,7 @@ def _base_bug_pattern(turns: list[Turn], default: str, mutation_expected: bool, 
         return "D2"
     if mutation_expected and not mutation_happened and any(token in text for token in SUCCESS_CLAIM_TOKENS):
         return "C"
-    if _is_empty_fallback_text(text):
+    if _is_empty_reply_text(text):
         return "B" if default in ("", "B") else default
     return default
 
@@ -340,7 +339,7 @@ def _active_reminders(after: dict[str, Any], account: SmokeAccount) -> list[dict
 
 def _result(ctx: "CaseContext", before: dict[str, Any], after: dict[str, Any], *, verdict: str, expected: str, observed: str, bug_pattern: str = "", severity: str = "", product_contract_unclear: bool = False, extra: dict[str, Any] | None = None) -> dict[str, Any]:
     delta = _diff_snapshot(before, after)
-    fallback_turns = _fallback_turns(ctx.turns)
+    delivery_anomaly_turns = _delivery_anomaly_turns(ctx.turns)
     payload = {
         "batch_id": BATCH_ID,
         "model": MODEL,
@@ -360,9 +359,11 @@ def _result(ctx: "CaseContext", before: dict[str, Any], after: dict[str, Any], *
         "snapshot_before": _clean(before),
         "snapshot_after": _clean(after),
     }
-    if fallback_turns:
-        payload["fallback_turns"] = fallback_turns
-        payload["secondary_evidence"] = {"fallback_turns": fallback_turns}
+    if delivery_anomaly_turns:
+        payload["delivery_anomaly_turns"] = delivery_anomaly_turns
+        payload["secondary_evidence"] = {
+            "delivery_anomaly_turns": delivery_anomaly_turns
+        }
     if extra:
         payload["extra"] = _clean(extra)
     return payload
@@ -373,13 +374,13 @@ def _judge_result(ctx: "CaseContext", before: dict[str, Any], after: dict[str, A
     if any(turn.placeholder_received and not turn.late_reply_landed for turn in ctx.turns):
         return _result(ctx, before, after, verdict="BLOCKED", expected=expected, observed="BLOCKED-LATE-REPLY-TIMEOUT", bug_pattern="BLOCKED-LATE-REPLY-TIMEOUT", severity="smoke-infra", product_contract_unclear=product_contract_unclear, extra=extra)
     raw_envelope_leaked = bool(RAW_ENVELOPE_RE.search(text))
-    fallback_turns = _fallback_turns(ctx.turns)
-    real_empty_fallback = any(item["is_real_empty_fallback"] for item in fallback_turns)
-    if ok and not raw_envelope_leaked and not real_empty_fallback:
+    delivery_anomaly_turns = _delivery_anomaly_turns(ctx.turns)
+    empty_reply = any(item["is_empty_reply"] for item in delivery_anomaly_turns)
+    if ok and not raw_envelope_leaked and not empty_reply:
         return _result(ctx, before, after, verdict="PASSED", expected=expected, observed=observed, product_contract_unclear=product_contract_unclear, extra=extra)
     if raw_envelope_leaked:
         observed = f"{observed}; raw envelope leaked"
-    classification_default = "B" if ok and real_empty_fallback and not raw_envelope_leaked else bug_pattern
+    classification_default = "B" if ok and empty_reply and not raw_envelope_leaked else bug_pattern
     return _result(
         ctx,
         before,
@@ -704,7 +705,7 @@ def _run_cases(transcript: Transcript) -> list[dict[str, Any]]:
         jin = _reply_for(ctx, "L7_jin") + "\n" + _reply_for(ctx, "L7_why")
         final_shared = _reply_for(ctx, "L7_final_shared")
         status = _reply_for(ctx, "L7_status")
-        route_ok = "提醒" in route and not any(token in route for token in (*EMPTY_FALLBACK_TOKENS, "加好友", "不太确定", "哪个", "哪一个"))
+        route_ok = "提醒" in route and not any(token in route for token in ("加好友", "不太确定", "哪个", "哪一个"))
         pending_visible = "Mei" in pending or "Alice" in pending or "约" in pending
         jin_closed = bool(jin.strip()) and len(shared) == 1
         final_time_ok = "10" in final_shared or "十" in final_shared
