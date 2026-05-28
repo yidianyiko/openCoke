@@ -16,12 +16,6 @@ sys.path.append(".")
 
 from conf.config import CONF
 
-# ========== 测试账号配置 ==========
-# 使用现有测试账号
-TEST_USER_ID = "692c14aaa538f0baad5561b3"  # 不辣的皮皮
-TEST_CHARACTER_ID = "692c147e972f64f2b65da6ee"  # kap
-
-
 def _mongo_is_available() -> bool:
     mongo_uri = (
         "mongodb://"
@@ -72,43 +66,6 @@ def require_e2e_prerequisites(request):
     if request.node.get_closest_marker("llm") is None:
         return
     _skip_if_llm_e2e_prerequisites_unavailable()
-
-
-@pytest.fixture(scope="module")
-def terminal_client():
-    """
-    提供 TerminalTestClient 实例
-
-    scope=module: 同一测试模块内复用，减少连接开销
-    """
-    _skip_if_llm_e2e_prerequisites_unavailable()
-
-    from connector.terminal.terminal_test_client import TerminalTestClient
-
-    client = TerminalTestClient(
-        user_id=TEST_USER_ID,
-        character_id=TEST_CHARACTER_ID,
-    )
-
-    # 测试前重置残留消息和会话上下文
-    client.reset_test_state()
-
-    yield client
-
-    # 测试后重置，避免污染本地环境
-    client.reset_test_state()
-    client.close()
-
-
-@pytest.fixture(scope="function")
-def clean_terminal_client(terminal_client):
-    """
-    每个测试函数前重置消息和会话上下文
-
-    用于需要干净状态的测试
-    """
-    terminal_client.reset_test_state()
-    yield terminal_client
 
 
 @pytest.fixture(scope="session", autouse=True)

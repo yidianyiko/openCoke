@@ -278,21 +278,6 @@ class UserDAO:
 
         return self.characters_collection.find_one({"_id": object_id})
 
-    def get_user_by_phone_number(self, _phone_number: str) -> Optional[Dict]:
-        return None
-
-    def get_user_by_email(self, _email: str) -> Optional[Dict]:
-        return None
-
-    def update_user(self, user_id: str, update_data: Dict) -> bool:
-        return False
-
-    def delete_user(self, user_id: str) -> bool:
-        return False
-
-    def change_status(self, user_id: str, status: str) -> bool:
-        return False
-
     def find_users(
         self, query: Dict = None, limit: int = 0, skip: int = 0, sort=None
     ) -> List[Dict]:
