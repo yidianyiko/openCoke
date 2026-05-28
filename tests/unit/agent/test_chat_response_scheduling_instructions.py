@@ -52,7 +52,7 @@ def _product_notification_input():
                     "resource_type": "shared_reminder",
                     "kind": "shared_reminder_created",
                     "status": "active",
-                }
+                },
             }
         ),
         occurred_at=datetime(2026, 6, 1, tzinfo=UTC),
@@ -104,6 +104,15 @@ def test_delegation_boundary_routes_friend_invites_with_concrete_time_to_schedul
     assert "create_shared_reminder" in text
     assert "concrete appointment time" in text
     assert "remind me to contact" in text
+
+
+def test_delegation_boundary_routes_friend_count_queries_to_list_friends():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "我现在有几个好友" in text
+    assert "我有哪些好友" in text
+    assert 'scheduling_domain(intent="list_friends")' in text
+    assert "不要回答没有好友列表功能" in text
 
 
 def test_delegation_boundary_keeps_direct_utility_tools_out_of_domain_routing():

@@ -47,6 +47,7 @@ Rules:
 - Return create_shared_reminder only for an explicit shared reminder or friend invite with concrete scheduling details.
 - Return cancel_shared_reminder only when the user asks to cancel an existing shared reminder.
 - Return list_shared_reminders, list_friends, list_friend_calendar_facts, get_user_link, reset_user_link, disable_user_link, or remove_friendship for the matching direct request.
+- Return list_friends with high confidence for friend count/list questions such as "我现在有几个好友", "我有几个好友", "我有哪些好友", "列一下我的好友", or "show/list my friends".
 - If the user asks what a non-mutating focused candidate is about, return "ask_detail".
 - If the user asks to change a non-mutating focused candidate, return "request_change".
 - If the user is talking about something unrelated to scheduling, return "unrelated".

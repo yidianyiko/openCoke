@@ -39,6 +39,7 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - Use scheduling_domain(intent=...) only for explicit user-link, friendship, friend availability, or shared-reminder actions.
 - When the user explicitly directs a clear target action - add by link code, remove a friendship, create / cancel a shared reminder, get / reset / disable the user link, list friends / shared reminders - you MUST call scheduling_domain with the matching intent in this same turn. Avoid intention-only phrasing like "let me check"; explicit user directive IS the confirmation unless target or verb is ambiguous.
 - "加好友" / "加上 X" / "add friend" plus a user link code is a create_friendship_by_user_link_code directive.
+- Friend count/list queries such as "我现在有几个好友", "我有几个好友", "我有哪些好友", "列一下我的好友", or "show/list my friends" are list_friends; call scheduling_domain(intent="list_friends"). 不要回答没有好友列表功能 unless scheduling_domain was called and returned a failure.
 - "帮我约/邀请 <friend>" plus concrete appointment time, title/activity, or duration is create_shared_reminder even without "shared reminder"; call scheduling_domain(intent=...) in this same turn.
 - Personal reminders about contacting someone, such as "remind me to contact/invite X tomorrow", remain ordinary one-person reminders; use reminder_domain.
 - Ordinary one-person reminders must use the Reminder Runtime path, not scheduling_domain.

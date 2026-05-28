@@ -114,6 +114,14 @@ _EXPLICIT_SCHEDULING_INTERPRETER_PATTERNS = (
         r"(?:帮我|帮忙|麻烦你)\s*(?:约|邀请)\s*[\w\u4e00-\u9fff@._-]{1,64}",
         re.IGNORECASE,
     ),
+    re.compile(
+        r"(?:几个|多少|哪些|列(?:一下)?|show|list).{0,16}(?:好友|朋友|friends?)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:好友|朋友|friends?).{0,16}(?:几个|多少|哪些|列表|清单)",
+        re.IGNORECASE,
+    ),
 )
 _SCHEDULING_FORCED_ARG_KEYS = {
     "user_link_code",

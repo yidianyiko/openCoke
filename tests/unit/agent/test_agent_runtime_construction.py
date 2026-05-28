@@ -1057,6 +1057,113 @@ async def test_run_agent_runtime_runs_semantic_interpreter_for_explicit_shared_i
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_runs_semantic_interpreter_for_friend_count_query(
+    monkeypatch,
+):
+    semantic_client = object()
+    captured = {}
+    preloaded_domain_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="list_friends",
+                ok=True,
+                effect="read",
+                entity_type="friendship",
+                entity_id="friendships",
+                facts={"visible_summary": "你现在有 1 个好友：olivers。"},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="answer_from_tool_facts",
+            prohibited_claims=("missing_tool",),
+        ),
+    )
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context
+        captured["intent"] = intent
+        captured["forced_args"] = forced_args
+        domain_results.append(preloaded_domain_result)
+        return preloaded_domain_result.to_dict()
+
+    async def fake_interpret_semantic_intent(**kwargs):
+        captured["semantic_client"] = kwargs["client"]
+        captured["current_utterance"] = kwargs["current_utterance"]
+        if kwargs["client"] is None:
+            return agent_runtime.SemanticIntentResult(
+                intent="ambiguous",
+                confidence="low",
+                args={},
+            )
+        return agent_runtime.SemanticIntentResult(
+            intent="list_friends",
+            confidence="high",
+            args={},
+        )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            del kwargs
+            return SimpleNamespace(
+                content=_text_payload("你现在有 1 个好友：olivers。"),
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        captured["preloaded"] = kwargs["preloaded_scheduling_domain_result"]
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_semantic_intent_client", lambda: semantic_client
+    )
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "interpret_semantic_intent",
+        fake_interpret_semantic_intent,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="我现在有几个好友？",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured["semantic_client"] is semantic_client
+    assert captured["current_utterance"] == "我现在有几个好友？"
+    assert captured["intent"] == "list_friends"
+    assert captured["forced_args"] is None
+    assert captured["preloaded"]["operations"][0]["action"] == "list_friends"
+    assert [message.content for message in result.visible_messages] == [
+        "你现在有 1 个好友：olivers。"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_does_not_preselect_personal_contact_reminder(
     monkeypatch,
 ):
