@@ -298,6 +298,30 @@ def _text_payload(content: str) -> str:
 
 
 @pytest.mark.asyncio
+async def test_valid_envelope_content_that_looks_like_tool_markup_is_visible(
+    monkeypatch,
+):
+    model_text = _segments_payload(
+        {
+            "type": "text",
+            "content": '<minimax:tool_call><invoke name="noop"></invoke></minimax:tool_call>',
+        }
+    )
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": model_text}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content=model_text,
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        '<minimax:tool_call><invoke name="noop"></invoke></minimax:tool_call>'
+    ]
+    assert result.error_disposition is None
+
+
+@pytest.mark.asyncio
 async def test_raw_plain_text_triggers_output_protocol_retry(monkeypatch):
     outputs = [
         "ordinary chat",
@@ -719,7 +743,7 @@ async def test_multimodal_parser_ignores_non_text_and_caps_at_three(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_reminder_fire_serialized_tool_call_fails_closed(monkeypatch):
+async def test_reminder_fire_raw_serialized_tool_call_protocol_violation(monkeypatch):
     model_text = (
         "<minimax:tool_call>\n"
         '<invoke name="scheduling_domain">\n'

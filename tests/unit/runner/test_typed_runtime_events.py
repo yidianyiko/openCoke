@@ -91,3 +91,56 @@ async def test_reminder_event_handler_can_route_through_typed_runtime():
     assert captured["message_source"] == "reminder"
     assert captured["context"]["conversation"]["_id"] == "conv-1"
     assert captured["context"]["message_source"] == "reminder"
+
+
+@pytest.mark.asyncio
+async def test_reminder_event_handler_typed_runtime_no_output_fails_without_template():
+    from agent.runner.reminder_event_handler import ReminderFireEventHandler
+
+    async def runtime_event_handler(**_kwargs):
+        return AgentRunResult(
+            visible_messages=[],
+            post_analyze_input=None,
+            domain_results=[],
+            capability_results=[],
+            metrics={},
+            trace={"runtime": "agent_runtime"},
+            output_disposition=OutputDisposition(status="empty"),
+        )
+
+    output_writer = Mock(return_value={"_id": "out-1"})
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(
+            get_conversation_by_id=Mock(
+                return_value={
+                    "_id": "conv-1",
+                    "talkers": [
+                        {"db_user_id": "user-1"},
+                        {"db_user_id": "char-1"},
+                    ],
+                }
+            )
+        ),
+        user_dao=Mock(
+            get_user_by_id=Mock(
+                side_effect=[
+                    {"_id": "user-1"},
+                    {"_id": "char-1"},
+                ]
+            )
+        ),
+        lock_manager=Mock(
+            acquire_lock_async=AsyncMock(return_value="lock-1"),
+            release_lock_safe_async=AsyncMock(return_value=(True, "released")),
+        ),
+        context_builder=Mock(return_value={"conversation": {"_id": "conv-1"}}),
+        output_writer=output_writer,
+        existing_output_lookup=Mock(return_value=None),
+        runtime_event_handler=runtime_event_handler,
+    )
+
+    result = await handler.handle(_event())
+
+    assert result.ok is False
+    assert result.error_code == "OutputUnavailable"
+    output_writer.assert_not_called()
