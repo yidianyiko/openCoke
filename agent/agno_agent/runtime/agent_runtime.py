@@ -7,7 +7,7 @@ import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -1143,7 +1143,7 @@ _SERIALIZED_TOOL_CALL_OUTPUT_RE = re.compile(
 def _try_parse_envelope_json(final_text: str) -> Any:
     """Parse a MultiModalResponses envelope, transparently stripping markdown
     code fences the model sometimes wraps it in. Returns the parsed object or
-    None when nothing JSON-shaped can be recovered."""
+    None when the final text is not parseable JSON."""
     try:
         return json.loads(final_text)
     except json.JSONDecodeError:
@@ -1154,54 +1154,34 @@ def _try_parse_envelope_json(final_text: str) -> Any:
             return json.loads(match.group("body"))
         except json.JSONDecodeError:
             pass
-    return _recover_lenient_envelope(final_text)
+    return None
 
 
-_LENIENT_ENVELOPE_RE = re.compile(r'"MultiModalResponses"\s*:\s*\[')
-_LENIENT_CONTENT_RE = re.compile(
-    r'"type"\s*:\s*"text"[^{}]*?"content"\s*:\s*"((?:\\.|[^"\\])*)"',
-    re.DOTALL,
-)
+@dataclass(frozen=True)
+class _VisibleOutputParseResult:
+    ok: bool
+    segments: tuple[str, ...] = ()
+    violation_reason: str | None = None
 
 
-def _recover_lenient_envelope(final_text: str) -> Any:
-    """Last-resort recovery when the model emits a malformed envelope (e.g.
-    extra brace, missing comma). We don't try to repair the JSON; we just pull
-    out the text segments verbatim. Returns a synthetic envelope dict or None
-    when no plausible envelope signature is present."""
-    if _LENIENT_ENVELOPE_RE.search(final_text) is None:
-        return None
-    segments: list[dict[str, str]] = []
-    for match in _LENIENT_CONTENT_RE.finditer(final_text):
-        raw = match.group(1)
-        try:
-            decoded = json.loads(f'"{raw}"')
-        except json.JSONDecodeError:
-            decoded = raw
-        decoded = decoded.strip()
-        if decoded:
-            segments.append({"type": "text", "content": decoded})
-    if not segments:
-        return None
-    return {"MultiModalResponses": segments}
-
-
-def _parse_visible_text_segments(final_text: str) -> tuple[str, ...]:
+def _parse_visible_output_protocol(final_text: str) -> _VisibleOutputParseResult:
     if not final_text:
-        return ()
+        return _VisibleOutputParseResult(False, violation_reason="empty_output")
 
     payload = _try_parse_envelope_json(final_text)
     if payload is None:
-        return (final_text,)
+        return _VisibleOutputParseResult(False, violation_reason="not_parseable_json")
 
     if not isinstance(payload, Mapping):
-        return (final_text,)
+        return _VisibleOutputParseResult(False, violation_reason="not_json_object")
 
     responses = payload.get("MultiModalResponses")
     if not isinstance(responses, Sequence) or isinstance(
         responses, (str, bytes, bytearray)
     ):
-        return (final_text,)
+        return _VisibleOutputParseResult(
+            False, violation_reason="missing_multimodal_responses"
+        )
 
     segments: list[str] = []
     for item in responses:
@@ -1216,20 +1196,36 @@ def _parse_visible_text_segments(final_text: str) -> tuple[str, ...]:
                 break
         if len(segments) >= _MAX_VISIBLE_TEXT_SEGMENTS:
             break
-    return tuple(segments)
+    if not segments:
+        return _VisibleOutputParseResult(
+            False, violation_reason="no_usable_text_content"
+        )
+    return _VisibleOutputParseResult(True, tuple(segments))
 
 
 def _visible_text_for_guardrails(segments: Sequence[str]) -> str:
     return "\n".join(segment for segment in segments if segment)
 
 
-def _check_serialized_tool_call_output(final_text: str) -> RuntimeErrorDisposition | None:
+def _check_serialized_tool_call_output(
+    final_text: str,
+) -> RuntimeErrorDisposition | None:
     if not final_text or _SERIALIZED_TOOL_CALL_OUTPUT_RE.search(final_text) is None:
         return None
     return RuntimeErrorDisposition(
         code="serialized_tool_call_output",
         retryable=False,
         metadata={"reason": "model emitted tool-call markup as visible text"},
+    )
+
+
+def _output_protocol_violation(
+    reason: str, *, attempted_retry: bool
+) -> RuntimeErrorDisposition:
+    return RuntimeErrorDisposition(
+        code="output_protocol_violation",
+        retryable=not attempted_retry,
+        metadata={"reason": reason, "attempted_retry": attempted_retry},
     )
 
 
@@ -2290,7 +2286,54 @@ async def run_agent_runtime(
         final_text = _string_content(getattr(run_output, "content", None))
         if not final_text:
             final_text = _latest_assistant_text(run_output)
-        final_text_segments = _parse_visible_text_segments(final_text)
+        parse_result = _parse_visible_output_protocol(final_text)
+        attempted_output_protocol_retry = False
+        if not parse_result.ok:
+            attempted_output_protocol_retry = True
+            retry_input = (
+                f"{input_message}\n\n"
+                "Your previous response violated the visible output protocol: "
+                f"{parse_result.violation_reason}. "
+                "Reply again using only a parseable JSON object with a "
+                "MultiModalResponses array of text items."
+            )
+            try:
+                run_output = await asyncio.wait_for(
+                    agent.arun(
+                        input=retry_input,
+                        session_id=run_context.conversation.id,
+                    ),
+                    timeout=timeout_seconds,
+                )
+                logger.info(
+                    "agent.arun protocol retry returned: session_id=%s",
+                    run_context.conversation.id,
+                )
+            except asyncio.TimeoutError:
+                return _timeout_result(
+                    agent_input=agent_input,
+                    run_context=run_context,
+                    input_message=input_message,
+                    started_at=started_at,
+                    timeout_seconds=timeout_seconds,
+                    preselected_scheduling_intent=preselected_scheduling_intent,
+                    forced_args_present=bool(preselected_scheduling_args),
+                    capability_results=capability_results,
+                    domain_results=domain_results,
+                )
+            final_text = _string_content(getattr(run_output, "content", None))
+            if not final_text:
+                final_text = _latest_assistant_text(run_output)
+            parse_result = _parse_visible_output_protocol(final_text)
+        final_text_segments = parse_result.segments if parse_result.ok else ()
+        output_protocol_error = (
+            None
+            if parse_result.ok
+            else _output_protocol_violation(
+                parse_result.violation_reason or "unknown",
+                attempted_retry=attempted_output_protocol_retry,
+            )
+        )
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,
             final_text=_visible_text_for_guardrails(final_text_segments),
@@ -2304,7 +2347,9 @@ async def run_agent_runtime(
             captured_capability_results,
             captured_domain_results,
         )
-        runtime_contract_error = durable_write_error or unconfirmed_promise_error
+        runtime_contract_error = (
+            output_protocol_error or durable_write_error or unconfirmed_promise_error
+        )
         visible_text_segments = final_text_segments
         output_source = "model"
         fallback_reason = None

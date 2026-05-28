@@ -18,7 +18,11 @@ from agent.agno_agent.runtime.domain_results import (
     ReplyContract,
     ReplyFactRequirement,
 )
-from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload, UserTurnPayload
+from agent.agno_agent.runtime.inputs import (
+    AgentInput,
+    ReminderFirePayload,
+    UserTurnPayload,
+)
 from agent.agno_agent.runtime.result import CapabilityResult
 
 
@@ -268,6 +272,58 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
 
 def _segments_payload(*segments: object) -> str:
     return json.dumps({"MultiModalResponses": list(segments)}, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_raw_plain_text_triggers_output_protocol_retry(monkeypatch):
+    outputs = [
+        "ordinary chat",
+        _segments_payload({"type": "text", "content": "repaired chat"}),
+    ]
+    calls = []
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            calls.append(kwargs["input"])
+            return type("FakeOutput", (), {"content": outputs.pop(0), "messages": []})()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv1",
+            text="hi",
+            payload=UserTurnPayload(current_message_ids=["msg1"]),
+            occurred_at=datetime.now(UTC),
+        ),
+        run_context=_ctx(),
+    )
+
+    assert len(calls) == 2
+    assert "previous response violated" in calls[1]
+    assert [message.content for message in result.visible_messages] == ["repaired chat"]
+    assert result.error_disposition is None
+
+
+@pytest.mark.asyncio
+async def test_malformed_envelope_json_is_protocol_violation_not_lenient_recovery(
+    monkeypatch,
+):
+    raw = '{"MultiModalResponses": [{"type": "text", "content": "缺了括号"}'
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": raw}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content=raw,
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -558,9 +614,9 @@ async def test_multimodal_parser_ignores_non_text_and_caps_at_three(monkeypatch)
 async def test_reminder_fire_serialized_tool_call_fails_closed(monkeypatch):
     model_text = (
         "<minimax:tool_call>\n"
-        "<invoke name=\"scheduling_domain\">\n"
-        "<parameter name=\"_model_supplied_args\">"
-        "{\"intent\":\"list_shared_reminders\"}"
+        '<invoke name="scheduling_domain">\n'
+        '<parameter name="_model_supplied_args">'
+        '{"intent":"list_shared_reminders"}'
         "</parameter>\n"
         "</invoke>\n"
         "</minimax:tool_call>"
