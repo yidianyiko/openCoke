@@ -97,10 +97,12 @@ does not apply to a rebuild.
 
 | Data | Store |
 |---|---|
-| Control plane (tenants, customers, identities, delivery_routes, agent_bindings, ai_backends, end_users) | **Postgres** |
-| Social Scheduling + product domain (UserLink, Friendship, SharedReminder, events, ReminderProjection, ProductNotification) | **Postgres** |
-| Runtime messages (input/output message content + audit evidence) | **Postgres** |
+| Account/profile/session/settings | **Postgres** |
+| Provider identity, channel, delivery route | **Postgres** |
+| Runtime messages, outbound delivery, and audit evidence | **Postgres** |
 | Reminder runtime (reminders, fire/replay evidence) | **Postgres** |
+| Social Scheduling product domain (links, friendships, shared reminders, projections, notification facts) | **Postgres** |
+| Optional calendar import runs, if retained by the product matrix | **Postgres** |
 | Agno session/history | **Postgres** (`agno.db.postgres`) |
 | Embeddings / knowledge | **Postgres** + pgvector via Agno knowledge (§13) |
 | Work-wake signal / queue | **Redis Streams** |
@@ -112,6 +114,41 @@ does not apply to a rebuild.
 Redis stops being dead weight (`dbsize=0` today) and earns a real job: bus,
 locks, and reply pub/sub. Nothing durable lives only in Redis; losing Redis on
 restart is acceptable.
+
+### 2.1 Target Data Model Cut Line
+
+The legacy server is not the target model, but it is useful negative evidence:
+its live core is small (`users`, `conversations`, `inputmessages`,
+`outputmessages`, `reminders`, `relations`). The problem with legacy is that it
+packs unrelated concerns into Mongo documents: future/proactive scheduling,
+photo/media history, relationship scores, busy/hold state, and reminder context
+all leak into conversation or relation documents. The rebuild keeps the small
+surface-area lesson, not those embedded product features.
+
+The current Gateway schema has the opposite failure mode: it over-normalizes a
+simple personal product into a platform/SaaS graph (tenant, member, customer,
+membership, agent binding, AI backend, end-user backend, parked inbound, link
+code, subscription) while the Python runtime still keeps Mongo collections for
+users, messages, conversations, reminders, locks, memory, relations, and billing.
+That dual expression of the same concepts is deleted. The target has one
+authoritative data model for each concept:
+
+| Concept | Target shape | Explicitly not carried forward |
+|---|---|---|
+| User/account | One Coke account/profile/settings model, plus sessions. | Separate `Tenant` / `Member` / `Customer` / `Membership` graph unless a future product spec makes organizations real. |
+| Provider identity | Provider identities map to a Coke account at the adapter edge. | `ClawscaleUser`, `EndUserBackend`, compatibility identities, and provider-specific user concepts as first-class domain models. |
+| Channel/delivery | `channel` and `delivery_route` are kept because reminders and shared reminders need deterministic delivery. | Parked-inbound/link-code/provisioning tables unless the current user journey explicitly needs anonymous channel claiming. |
+| Conversation/message | One Postgres conversation/message/output-disposition/outbound-delivery model. | Mongo `inputmessages`, `outputmessages`, embedded `conversation_info.future`, `photo_history`, and ad-hoc turn history fields. |
+| Reminder | Typed reminder rows with owner, schedule, timezone, recurrence, lifecycle, next-fire, route target, and fire evidence. | Legacy duplicate-reminder heuristics, inbox/task list semantics unless named by product, and Mongo reminder storage. |
+| Friends/shared reminders | Direct `user_link`, `friendship`, `shared_reminder`, `reminder_projection`, and notification facts. | Pending friend/shared-reminder workflows, accept/reject tools, focus multi-candidate state. |
+| Notification facts | Immutable facts + idempotency + lifecycle + outbox evidence. | `payload.text` or any product-notification path that owns final chat prose. |
+| Memory/relationship | Agno-backed memory/knowledge only where the requirements matrix needs it. | Legacy numeric relationship simulation, dislike/trust/closeness fields, busy/hold, daily proactive chance, LangBot surfaces. |
+| Billing/access | No core runtime model. | `Subscription`, `OrderDAO`, `UsageDAO`, quota enforcement, checkout/renewal gates. |
+
+This is a product data model, not a generic platform data model. New tables are
+allowed only when they protect a current invariant: reminder firing, friendship
+uniqueness, shared-reminder projection consistency, outbound delivery idempotency,
+or auditability of a user-visible turn.
 
 ## 3. Message Flow, Bus, and Outbox
 
@@ -366,8 +403,15 @@ not resurrected.)
 - **No subscription/quota access gate in the core product:** checkout/renewal
   flows, subscription-required branches, quota enforcement, and Mongo `OrderDAO`
   / `UsageDAO` access-gate paths are removed from the runtime architecture.
-  Customer identity remains; monetization can be designed later as a separate
-  product surface.
+  Coke account identity remains; monetization can be designed later as a
+  separate product surface.
+- **No SaaS/platform data graph in the core product:** `Tenant`, `Member`,
+  `Customer`, `Membership`, `AgentBinding`, `AiBackend`, `EndUserBackend`,
+  `ParkedInbound`, `LinkCode`, and compatibility identity tables are not
+  rebuilt unless a current product journey names the corresponding capability.
+  The core product starts from account/profile/session, provider identity,
+  channel, delivery route, conversation/message, reminder, and Social
+  Scheduling tables only.
 - **No pending shared-reminder workflow:** friend requests, shared-reminder
   requests, accept/reject tools, pending-request ambiguity handling, and
   `multi_candidate` focus binding are deleted. The current product contract is
