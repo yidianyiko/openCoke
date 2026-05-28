@@ -41,4 +41,56 @@ Result after fix: 635 passed.
 
 ## Deploy Smoke
 
-Pending.
+```text
+./scripts/deploy-compose-to-gcp.sh --restart
+Result: Deploy script completed; remote health endpoints and public site verified.
+
+ssh gcp-coke 'cd /home/whoami/coke && docker compose -f docker-compose.prod.yml ps'
+Result: coke-agent up, coke-bridge healthy, gateway healthy, mongo/postgres/redis healthy.
+```
+
+Production smoke used active route:
+
+```text
+coke_account_id: ck_CsFu-A91jbCSBwtizPx1K
+display_name: 李梓豪
+channel_id: ch_ICWrBoOhpB_3TA65OZwPM
+business_conversation_key: bc_6a1019b60fedec4719365fd5
+```
+
+Precondition:
+
+```text
+Recent delivered product_notifications existed for this account and business conversation within 24 hours.
+```
+
+Smoke input through production gateway `routeInboundMessage`:
+
+```text
+text: 我有几个提醒
+smokeMarker: prod-smoke-20260528T1035Z
+```
+
+Smoke result:
+
+```text
+ok: true
+conversationId: conv_Q6aTCJx3mVTPZFT_nitO9
+reply:
+你有 5 个提醒：
+- 数学课（2026-05-28 20:00）
+- 数学课（2026-05-28 20:00）
+- 数学课（2026-05-28 20:00）
+- 思考会（2026-05-28 21:00）
+- 篮球课（2026-05-30 15:30）
+```
+
+Persistence and log checks:
+
+```text
+messages.metadata ? 'product_notification' for smoke user row: false
+agent log: tools=5
+agent log: AgentRuntime 完成 (visible_messages=1, status=ok)
+agent warning search after deploy: no AgentRuntime 未产出用户可见回复 entries
+gateway fallback search after deploy: no new fallback send entries
+```

@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: open
+status: resolved
 surface:
   - gateway-api
   - worker-runtime
@@ -33,9 +33,11 @@ Recent delivered product notifications were threaded into unrelated user turns. 
 
 ## Current Status
 
-- Fix implemented locally.
-- Deployment and production smoke pending.
+- Resolved and deployed.
 
 ## Resolution
 
-- Pending commit, deploy, and production verification.
+- Gateway fix commit: `52d5231` (`fix(api): scope product notification context to replies`).
+- Root fix commit: `070f0471` (`fix(runtime): keep tools for normal turns with notification context`).
+- Deployed with `./scripts/deploy-compose-to-gcp.sh --restart` on 2026-05-28.
+- Production smoke on the affected route returned a normal reminder list reply for `我有几个提醒`; persisted user metadata had no `product_notification`; worker logs showed `tools=5`, `visible_messages=1`, `status=ok`.
