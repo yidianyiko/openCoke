@@ -21,12 +21,15 @@ raw reminder titles, raw prompts, tool-call protocol text, or whole model
 outputs directly.
 
 If the interaction LLM does not return a parseable `MultiModalResponses`
-envelope, the runtime retries the same interaction LLM once with an explicit
-protocol-repair instruction. The retry still uses the same input type and tool
-exposure rules for reminder fires, which have no tools. For user turns, the
-retry must not replay durable writes that already executed. If the retry also
-violates the output protocol, the turn produces no user-visible message and
-records a protocol violation.
+envelope, the runtime treats that output as a protocol violation. For
+`reminder.fired`, the runtime retries the same interaction LLM once with an
+explicit protocol-repair instruction because reminder fires expose no tools. For
+`user.turn`, the runtime may retry only when the first attempt did not execute a
+durable write. If a user-turn attempt already executed a durable write, the
+current implementation must fail closed until a response-only repair pass exists
+that can reuse trusted domain results without re-exposing write tools. If the
+retry also violates the output protocol, the turn produces no user-visible
+message and records a protocol violation.
 
 Once valid `MultiModalResponses[*].content` values have been produced, the
 runtime does not reject them because their text resembles JSON, tool-call
@@ -62,7 +65,8 @@ interaction LLM
 ```
 
 The unsafe ambiguity is that malformed or non-envelope model output can be
-treated as visible text. That makes it hard to distinguish a valid
+treated as visible text, and the current runtime has lenient envelope recovery
+for malformed JSON. Both behaviors make it hard to distinguish a valid
 user-visible message from an LLM output-protocol failure.
 
 The previous serialized-tool-call guard addressed one symptom by blocking
@@ -94,7 +98,7 @@ flowchart TD
   L --> N[outputmessages and delivery]
   M --> N
 
-  H -->|no| O[retry same interaction LLM once]
+  H -->|no| O[retry when safe]
   O --> P{parseable MultiModalResponses?}
   P -->|yes| I
   P -->|no| Q[no user-visible output]
@@ -140,8 +144,8 @@ Runtime rules:
 - Convert each non-empty text `content` value into a `VisibleMessage`.
 - Preserve ordered multi-message output from the envelope.
 - Enforce the configured maximum visible segment count.
-- Treat raw plain text, arbitrary JSON, empty output, or an envelope with no
-  usable text content as an output protocol violation.
+- Treat raw plain text, arbitrary JSON, malformed envelope JSON, empty output,
+  or an envelope with no usable text content as an output protocol violation.
 - Retry one time on protocol violation.
 - Do not send anything if both attempts violate the protocol.
 
@@ -179,10 +183,13 @@ Because user turns can include tools and durable writes, implementation should
 handle retry carefully:
 
 - If no tools or durable writes ran, a full interaction retry is acceptable.
-- If domain tools ran, prefer a response-only repair pass that receives trusted
-  domain results and exposes no write tools.
-- If a safe repair pass is not available, fail closed instead of replaying a
-  write.
+- If domain tools ran but no durable write ran, a full interaction retry is
+  acceptable, with the same tool exposure rules.
+- If domain tools or capability tools performed a durable write, do not run a
+  full interaction retry. Prefer a response-only repair pass that receives
+  trusted domain/capability results and exposes no write tools.
+- If a safe response-only repair pass is not available, fail closed instead of
+  replaying a write.
 
 Reminder fires are simpler because they expose no tools and can safely retry
 the same interaction generation once.
@@ -205,6 +212,12 @@ For `user.turn`, existing user-turn fallback behavior should be reviewed during
 implementation. If the fallback bypasses the interaction LLM visible-output
 protocol, it must be removed or rewritten to use a valid `VisibleMessage`
 contract before this design is complete.
+
+Existing runtime guardrail responses that intentionally do not call the
+interaction LLM, such as pre-run safety rejections, are out of scope for the
+first implementation. They must remain visible as explicit runtime outputs and
+should be covered by a separate design if the product requires the interaction
+LLM to rephrase them.
 
 ## Prompt Contract
 
