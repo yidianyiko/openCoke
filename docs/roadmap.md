@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-04-28
+Last updated: 2026-05-28
 
 This document is the primary product and platform direction view for this
 repository.
@@ -8,8 +8,8 @@ repository.
 Use this file when you want to understand:
 
 - what Coke is trying to become as a product
-- which phase the current codebase primarily serves
-- which platform capabilities are supporting those product phases
+- which product direction the current codebase primarily serves
+- which platform capabilities are supporting current product work
 
 Detailed design docs, implementation notes, and migration history remain under
 `docs/superpowers/specs/` and `docs/superpowers/plans/`.
@@ -57,77 +57,9 @@ Near-term focus for Phase 1:
   gateway restarts
 - keep the ClawScale-backed deployment path stable and repeatable
 
-### Phase 2: TOB Supervision Solution
-
-Goal:
-
-- evolve from a single-user companion into a B2B supervision solution
-- serve an organizational operator rather than only an end user
-- first prove the model in a vertical scenario, then extract reusable TOB
-  capabilities
-
-Execution strategy:
-
-- start with one vertical scenario
-- use that scenario to validate the operational workflow, product value, and
-  deployment model
-- then distill the reusable parts into general TOB capabilities
-
-First vertical scenario:
-
-- learning institutions
-
-First product shape:
-
-- a single-sided product for managers, class teachers, coaches, or similar
-  operator roles
-- not a separate student-facing product in the first step
-
-What this phase should enable in the learning-institution scenario:
-
-- view learner progress, habits, completion status, and exceptions
-- identify who is falling behind or breaking expected routines
-- trigger supervision, reminders, follow-up, and intervention from the operator
-  side
-
-What this phase should leave behind as reusable capability:
-
-- organization and member modeling
-- progress and habit tracking abstractions
-- reporting, alerting, and exception detection
-- batch supervision and operator workflows
-- reusable TOB configuration and delivery patterns
-
-Status:
-
-- not yet started as a dedicated product phase
-- currently only implied by some of the existing personal-supervision
-  primitives, not yet modeled as a true TOB system
-
-### Phase 3: OpenClaw-Like Assistant Platform
-
-Goal:
-
-- move from a specific supervision product toward a more general assistant
-  platform
-- support broader assistant use cases, more flexible workflows, and a cleaner
-  platform boundary similar in spirit to OpenClaw
-
-Status:
-
-- still in design
-- this phase should remain intentionally high-level until the product and
-  architecture are clearer
-
-Current expectation:
-
-- Phase 3 should build on capabilities proven in Phases 1 and 2
-- it should not become the primary roadmap driver before the TOB direction is
-  better defined
-
 ## Platform Track
 
-The platform track exists to support the product phases above. It is not the
+The platform track exists to support the product direction above. It is not the
 main storyline of the roadmap, but it determines how safely and how fast the
 product can evolve.
 
@@ -189,7 +121,7 @@ product can evolve.
 2. 在用 Coke 之前，你怎么管这件事的？
 3. 有没有哪次 Coke 提醒你了但你觉得烦？那次是什么情况？
 
-目的：在推进 Phase 2 之前，确认 Phase 1 的留存衰减是产品问题还是运营缺位，
+目的：在继续产品方向投入前，确认 Phase 1 的留存衰减是产品问题还是运营缺位，
 并从留下来的用户身上提取真正的产品价值点。
 
 ### 创始人 Dogfooding（优先级：最高，与迭代并行）
@@ -206,9 +138,6 @@ If you need a simple summary of where the codebase stands today:
 - the current engineering backlog is mostly Phase 1 stabilization and migration
   cleanup, plus active shared-channel experiments around Evolution WhatsApp,
   Ecloud private WeChat, and Linq
-- Phase 2 is the next product phase: a TOB supervision solution, starting with
-  learning institutions and a manager-side product
-- Phase 3 remains exploratory and should be treated as design-stage only
 
 ## Canonical References
 

@@ -36,8 +36,6 @@ Phase 1 当前用户：
 
 已确认不作为当前 Phase 1 需求和 clean rebuild 驱动：
 
-- Phase 2 学习机构 TOB 监督；作为后续产品阶段另行定义，不进入当前 Phase 1 需求矩阵。
-- Phase 3 平台化/通用 assistant platform；作为探索阶段另行定义，不进入当前 Phase 1 需求矩阵。
 - 为旧数据、旧协议、旧 runtime shape 做复杂迁移。
 
 旅程命名口径：
@@ -84,8 +82,6 @@ Phase 1 当前用户：
 
 | 能力 | 当前结论 |
 |---|---|
-| Phase 2 学习机构 TOB 监督 | 不作为当前 Phase 1 需求或 clean rebuild 驱动；作为后续产品阶段另行定义。 |
-| Phase 3 平台化/通用 assistant platform | 不作为当前 Phase 1 需求或 clean rebuild 驱动；作为探索阶段另行定义。 |
 | 语音输入理解 | 媒体/语音/图片功能当前一律暂缓，不加入 Phase 1 当前需求，以后再考虑。当前 Coke 仅支持文本输入与文字回复。 |
 | 图片输入理解 | 媒体/语音/图片功能当前一律暂缓，不加入 Phase 1 当前需求，以后再考虑。 |
 | 图片生成 | 暂不加入 Phase 1 当前需求。 |
@@ -298,7 +294,7 @@ Phase 1 当前用户：
 4. 好友和共享提醒是否是 Phase 1 核心社交监督能力，还是支撑个人监督的扩展能力。
 5. Google Calendar import 是否是 Phase 1 必须能力；如果保留，是一次性 import 足够，还是需要持续 sync。
 6. Agent settings 的字段级保留范围：persona/background/speaking_style/extra_rules/status/proactive/memory 哪些真实用户理解并使用。
-7. Admin surface 是否只服务内部运维和调试；不要再把它解释为废弃 TOB 方向的产品原型。
+7. Admin surface 是否只服务内部运维和调试；不要再把它解释为其他产品方向的原型。
 
 ### 不应优先驱动核心架构的能力
 
@@ -318,16 +314,14 @@ Phase 1 当前用户：
 
 - 对话/提醒 path 的 bus/store 解耦：优先服务日常对话和个人提醒。
 - 数据访问连接管理和可观测性：优先服务日常对话、个人提醒、日历导入、agent 设置的稳定性。
-- Agent runtime 拆分：只围绕当前 tools 和旅程拆 intent、scheduling、envelope、guardrail，不为未来平台化抽象。
+- Agent runtime 拆分：只围绕当前 tools 和旅程拆 intent、scheduling、envelope、guardrail，不做脱离当前旅程的抽象。
 - Reminder + Scheduling 的 per-turn compensation/outbox：优先覆盖个人提醒、好友关系、共享提醒。
 - Gateway write path 的 product notification/outbound 异步化：优先覆盖好友关系、共享提醒。
-- web auth hardening：先覆盖 admin/customer 当前页面，不做面向非当前 Phase 1 驱动的 Phase 2/3 复杂权限平台。
+- web auth hardening：先覆盖 admin/customer 当前页面，不做脱离当前页面的复杂权限平台。
 - cross-process tracing：围绕 inbound、agent turn、reminder fire、shared-reminder create/cancel、calendar import run 建 trace。
 
 ### 应暂缓的重构
 
-- Phase 3 平台化边界和通用 assistant platform 抽象。
-- TOB organization/member/progress/reporting 大模型。
 - 完整迁移系统、旧数据兼容层、旧协议 adapter。
 
 ## 7. 待确认事项
