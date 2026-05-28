@@ -81,4 +81,4 @@ durable write in the same agent call.
 
 ## Resolution
 
-Fix commit: `5c594e09`.
+Fix commit: `0c25ec95`.
