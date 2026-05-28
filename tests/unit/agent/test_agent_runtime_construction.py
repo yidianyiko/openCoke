@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -56,6 +57,14 @@ def _run_context() -> AgentRunContext:
 class _IgnoredAgent:
     async def arun(self, **_kwargs):
         return SimpleNamespace(content="ignored", messages=[])
+
+
+def _segments_payload(*segments: object) -> str:
+    return json.dumps({"MultiModalResponses": list(segments)}, ensure_ascii=False)
+
+
+def _text_payload(content: str) -> str:
+    return _segments_payload({"type": "text", "content": content})
 
 
 def _use_legacy_product_notification_focus(monkeypatch):
@@ -153,7 +162,7 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
             model_inputs.append(kwargs["input"])
             assert kwargs["session_id"] == "conv-1"
             return SimpleNamespace(
-                content="fallback content",
+                content=_text_payload("fallback content"),
                 messages=[
                     SimpleNamespace(role="user", content="hi"),
                     SimpleNamespace(role="assistant", content="hi back"),
@@ -201,10 +210,10 @@ async def test_run_agent_runtime_emits_trace_from_runtime_metadata_without_env(
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="ok",
+                content=_text_payload("ok"),
                 messages=[
                     SimpleNamespace(role="user", content="hi"),
-                    SimpleNamespace(role="assistant", content="ok"),
+                    SimpleNamespace(role="assistant", content=_text_payload("ok")),
                 ],
             )
 
@@ -245,11 +254,13 @@ async def test_run_agent_runtime_emits_trace_from_runtime_metadata_without_env(
         },
     )
 
-    await agent_runtime.run_agent_runtime(
+    result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
         run_context=run_context,
     )
 
+    assert result.output_disposition.status == "ok"
+    assert [message.content for message in result.visible_messages] == ["ok"]
     assert emitted["path"].as_posix() == (
         "artifacts/evidence/agent-turn-traces/reminder-normal/"
         "reminder-normal-first-loop.jsonl"
@@ -263,7 +274,7 @@ async def test_run_agent_runtime_uses_captured_capability_results(monkeypatch):
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="ignored",
+                content=_text_payload("ignored"),
                 messages=[
                     SimpleNamespace(role="tool", content='{"ok": true}'),
                     SimpleNamespace(role="assistant", content=""),
@@ -338,7 +349,7 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent_tool(
             created["input_message"] = kwargs["input"]
             self.domain_results.append(reminder_result)
             return SimpleNamespace(
-                content="已创建提醒：出门（2026-05-10 18:05）",
+                content=_text_payload("已创建提醒：出门（2026-05-10 18:05）"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -475,7 +486,7 @@ async def test_run_agent_runtime_visible_text_prefers_final_text_over_visible_su
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="character voiced reply",
+                content=_text_payload("character voiced reply"),
                 messages=[
                     SimpleNamespace(role="assistant", content=""),
                 ],
@@ -506,7 +517,7 @@ async def test_run_agent_runtime_visible_text_prefers_final_text_over_visible_su
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_visible_text_falls_back_to_visible_summary_when_final_text_empty(
+async def test_run_agent_runtime_fails_closed_when_capability_write_lacks_visible_envelope(
     monkeypatch,
 ):
     class FakeAgent:
@@ -538,7 +549,10 @@ async def test_run_agent_runtime_visible_text_falls_back_to_visible_summary_when
         run_context=_run_context(),
     )
 
-    assert result.visible_messages[0].content == "port summary used as fallback"
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -583,7 +597,7 @@ async def test_run_agent_runtime_keeps_agent_text_for_explicit_scheduling_action
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="哎呀，系统刚才出了点状况，没能成功添加好友。",
+                content=_text_payload("哎呀，系统刚才出了点状况，没能成功添加好友。"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -639,7 +653,7 @@ async def test_run_agent_runtime_does_not_regex_preselect_friend_invite_with_con
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="我会按正常对话路径处理。",
+                content=_text_payload("我会按正常对话路径处理。"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -699,7 +713,7 @@ async def test_run_agent_runtime_does_not_preselect_personal_contact_reminder(
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="direct reminder path",
+                content=_text_payload("direct reminder path"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -750,7 +764,7 @@ async def test_run_agent_runtime_does_not_preselect_activity_reservation_phrase(
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="direct agent reply",
+                content=_text_payload("direct agent reply"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -790,7 +804,7 @@ async def test_run_agent_runtime_does_not_preselect_activity_reservation_phrase(
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_falls_back_to_explicit_past_reminder_failure_text(
+async def test_run_agent_runtime_uses_agent_envelope_for_explicit_past_reminder_failure_text(
     monkeypatch,
 ):
     past_result = DomainExecutionResult(
@@ -826,7 +840,9 @@ async def test_run_agent_runtime_falls_back_to_explicit_past_reminder_failure_te
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="",
+                content=_text_payload(
+                    "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+                ),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -886,7 +902,7 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
             captured["input_message"] = kwargs["input"]
             self.domain_results.append(reminder_result)
             return SimpleNamespace(
-                content="已创建提醒：喝水（2029-01-06 10:00）",
+                content=_text_payload("已创建提醒：喝水（2029-01-06 10:00）"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -961,7 +977,7 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
             captured["input_message"] = kwargs["input"]
             self.domain_results.append(reminder_result)
             return SimpleNamespace(
-                content="已完成提醒：做俯卧撑",
+                content=_text_payload("已完成提醒：做俯卧撑"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -999,7 +1015,7 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_falls_back_to_reminder_list_visible_summary(
+async def test_run_agent_runtime_uses_authoritative_reminder_list_visible_summary(
     monkeypatch,
 ):
     list_result = DomainExecutionResult(
@@ -1033,7 +1049,7 @@ async def test_run_agent_runtime_falls_back_to_reminder_list_visible_summary(
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="",
+                content=_text_payload("我查到了你的提醒列表。"),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -1087,7 +1103,9 @@ async def test_run_agent_runtime_uses_reminder_list_summary_over_polluted_model_
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="你有 1 个提醒。\n\n之前列表有技术问题，不过现在好了。",
+                content=_text_payload(
+                    "你有 1 个提醒。\n\n之前列表有技术问题，不过现在好了。"
+                ),
                 messages=[],
             )
 
@@ -1151,7 +1169,7 @@ async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promi
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="好的，18:00 我会提醒你喝水。",
+                content=_text_payload("好的，18:00 我会提醒你喝水。"),
                 messages=[
                     SimpleNamespace(
                         role="assistant",
@@ -1213,7 +1231,7 @@ async def test_run_agent_runtime_uses_agent_synthesis_for_superseding_batched_wr
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content=synthesized_reply,
+                content=_text_payload(synthesized_reply),
                 messages=[
                     SimpleNamespace(
                         role="assistant",
@@ -1289,7 +1307,9 @@ async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content=("好的呀！17:57 我会提醒你喝水，" "还有什么需要我帮忙的吗？"),
+                content=_text_payload(
+                    "好的呀！17:57 我会提醒你喝水，还有什么需要我帮忙的吗？"
+                ),
                 messages=[
                     SimpleNamespace(
                         role="assistant",
@@ -1449,6 +1469,74 @@ def test_create_interaction_agent_uses_chat_response_model_role(monkeypatch):
     )
 
     assert captured == {"role": "chat_response", "max_tokens": 2000}
+
+
+def test_create_interaction_agent_user_turn_includes_visible_output_prompt_contract(
+    monkeypatch,
+):
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        capability_results=[],
+        domain_results=[],
+    )
+
+    instructions = agent.kwargs["instructions"]
+    assert "Output exactly one parseable JSON object" in instructions
+    assert "MultiModalResponses" in instructions
+    assert "Do not output any text outside the JSON object" in instructions
+
+
+def test_create_interaction_agent_reminder_fired_includes_visible_output_prompt_contract(
+    monkeypatch,
+):
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+    reminder_input = AgentInput(
+        input_type="reminder.fired",
+        conversation_id="conv-1",
+        text="提醒：喝水",
+        payload=ReminderFirePayload(
+            fire_id="fire-1",
+            reminder_id="rem-1",
+            title="喝水",
+            scheduled_for=datetime(2026, 5, 22, 8, 0, tzinfo=UTC),
+        ),
+        occurred_at=datetime(2026, 5, 22, 8, 0, tzinfo=UTC),
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=reminder_input,
+        input_message="提醒：喝水",
+        capability_results=[],
+        domain_results=[],
+    )
+
+    instructions = agent.kwargs["instructions"]
+    assert "Output exactly one parseable JSON object" in instructions
+    assert "MultiModalResponses" in instructions
+    assert "Do not output any text outside the JSON object" in instructions
+    assert "system reminder delivery" in instructions
+    assert "do not create, update, cancel, or list reminders" in instructions
 
 
 def test_create_interaction_agent_sets_tool_call_limit_four(monkeypatch):
