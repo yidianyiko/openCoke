@@ -827,6 +827,7 @@ def _create_interaction_agent(
     domain_results: list[DomainExecutionResult],
     preloaded_scheduling_domain_result: dict[str, Any] | None = None,
     preselected_scheduling_intent: str | None = None,
+    force_no_tools: bool = False,
     session_db: Any | None = None,
 ) -> Any:
     from agno.agent import Agent
@@ -841,8 +842,10 @@ def _create_interaction_agent(
         run_scheduling_domain,
     )
 
-    if agent_input.input_type == "reminder.fired" or _has_product_notification_hint(
-        agent_input
+    if (
+        force_no_tools
+        or agent_input.input_type == "reminder.fired"
+        or _has_product_notification_hint(agent_input)
     ):
         final_tools = []
     elif preloaded_scheduling_domain_result is not None:
@@ -1295,6 +1298,45 @@ def _interaction_input_with_preloaded_scheduling_result(
             (
                 "Reply from this trusted result. Do not call tools or claim the "
                 "operation failed when the trusted result outcome is executed."
+            ),
+        ]
+    )
+
+
+def _interaction_input_with_trusted_runtime_results(
+    input_message: str,
+    *,
+    capability_results: Sequence[CapabilityResult],
+    domain_results: Sequence[DomainExecutionResult],
+) -> str:
+    trusted_results: dict[str, Any] = {}
+    durable_capability_results = [
+        result.to_manager_payload()
+        for result in capability_results
+        if result.ok and result.durable_write
+    ]
+    durable_domain_results = [
+        result.to_dict()
+        for result in domain_results
+        if any(
+            operation.ok and operation.effect == "write"
+            for operation in result.operations
+        )
+    ]
+    if durable_capability_results:
+        trusted_results["capability_results"] = durable_capability_results
+    if durable_domain_results:
+        trusted_results["domain_results"] = durable_domain_results
+    if not trusted_results:
+        return input_message
+    return "\n\n".join(
+        [
+            input_message,
+            "Trusted executed runtime results:",
+            json.dumps(_jsonable(trusted_results), ensure_ascii=False, sort_keys=True),
+            (
+                "Reply from these trusted results. Do not call tools or claim the "
+                "operation failed when a trusted result records an executed write."
             ),
         ]
     )
@@ -2318,7 +2360,10 @@ async def run_agent_runtime(
             )
         timeout_seconds = _agent_runtime_timeout_seconds()
 
-        def create_interaction_agent_for_attempt() -> Any:
+        def create_interaction_agent_for_attempt(
+            *,
+            force_no_tools: bool = False,
+        ) -> Any:
             create_agent_kwargs: dict[str, Any] = {
                 "run_context": run_context,
                 "agent_input": agent_input,
@@ -2326,6 +2371,7 @@ async def run_agent_runtime(
                 "capability_results": capability_results,
                 "domain_results": domain_results,
                 "preloaded_scheduling_domain_result": preloaded_scheduling_domain_result,
+                "force_no_tools": force_no_tools,
             }
             if preselected_scheduling_intent is not None:
                 create_agent_kwargs["preselected_scheduling_intent"] = (
@@ -2349,8 +2395,13 @@ async def run_agent_runtime(
             preloaded_scheduling_domain_result,
         )
 
-        async def run_interaction_attempt(attempt_input: str, *, retry: bool) -> Any:
-            agent = create_interaction_agent_for_attempt()
+        async def run_interaction_attempt(
+            attempt_input: str,
+            *,
+            retry: bool,
+            force_no_tools: bool = False,
+        ) -> Any:
+            agent = create_interaction_agent_for_attempt(force_no_tools=force_no_tools)
             agent_instructions = getattr(agent, "instructions", "") or ""
             logger.info(
                 "agent.arun%s start: timeout=%.1fs, instructions_len=%d, tools=%d, "
@@ -2401,31 +2452,40 @@ async def run_agent_runtime(
                 capability_results,
                 domain_results,
             )
-            can_retry_after_write = preloaded_scheduling_domain_result is not None
-            if not durable_write_executed or can_retry_after_write:
-                attempted_output_protocol_retry = True
-                retry_input = _protocol_repair_input(
+            attempted_output_protocol_retry = True
+            repair_base_input = interaction_input
+            if durable_write_executed:
+                repair_base_input = _interaction_input_with_trusted_runtime_results(
                     interaction_input,
-                    parse_result.violation_reason or "unknown",
+                    capability_results=capability_results,
+                    domain_results=domain_results,
                 )
-                try:
-                    run_output = await run_interaction_attempt(retry_input, retry=True)
-                except asyncio.TimeoutError:
-                    return _timeout_result(
-                        agent_input=agent_input,
-                        run_context=run_context,
-                        input_message=input_message,
-                        started_at=started_at,
-                        timeout_seconds=timeout_seconds,
-                        preselected_scheduling_intent=preselected_scheduling_intent,
-                        forced_args_present=bool(preselected_scheduling_args),
-                        capability_results=capability_results,
-                        domain_results=domain_results,
-                    )
-                final_text = _string_content(getattr(run_output, "content", None))
-                if not final_text:
-                    final_text = _latest_assistant_text(run_output)
-                parse_result = _parse_visible_output_protocol(final_text)
+            retry_input = _protocol_repair_input(
+                repair_base_input,
+                parse_result.violation_reason or "unknown",
+            )
+            try:
+                run_output = await run_interaction_attempt(
+                    retry_input,
+                    retry=True,
+                    force_no_tools=durable_write_executed,
+                )
+            except asyncio.TimeoutError:
+                return _timeout_result(
+                    agent_input=agent_input,
+                    run_context=run_context,
+                    input_message=input_message,
+                    started_at=started_at,
+                    timeout_seconds=timeout_seconds,
+                    preselected_scheduling_intent=preselected_scheduling_intent,
+                    forced_args_present=bool(preselected_scheduling_args),
+                    capability_results=capability_results,
+                    domain_results=domain_results,
+                )
+            final_text = _string_content(getattr(run_output, "content", None))
+            if not final_text:
+                final_text = _latest_assistant_text(run_output)
+            parse_result = _parse_visible_output_protocol(final_text)
         durable_write_executed = _has_successful_durable_write(
             capability_results,
             domain_results,

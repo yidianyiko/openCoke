@@ -406,7 +406,7 @@ async def test_protocol_retry_failure_returns_no_visible_message(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_user_turn_protocol_violation_after_durable_write_does_not_retry(
+async def test_user_turn_protocol_violation_after_durable_write_retries_without_tools(
     monkeypatch,
 ):
     write_result = DomainExecutionResult(
@@ -424,16 +424,38 @@ async def test_user_turn_protocol_violation_after_durable_write_does_not_retry(
         ),
     )
     calls = []
+    force_no_tools_values = []
 
     class FakeAgent:
         async def arun(self, **kwargs):
             calls.append(kwargs["input"])
+            if len(calls) == 2:
+                return type(
+                    "FakeOutput",
+                    (),
+                    {
+                        "content": json.dumps(
+                            {
+                                "MultiModalResponses": [
+                                    {
+                                        "type": "text",
+                                        "content": "已创建提醒：喝水",
+                                    }
+                                ]
+                            },
+                            ensure_ascii=False,
+                        ),
+                        "messages": [],
+                    },
+                )()
             return type(
                 "FakeOutput", (), {"content": "raw after write", "messages": []}
             )()
 
     def fake_create(**kwargs):
-        kwargs["domain_results"].append(write_result)
+        force_no_tools_values.append(kwargs.get("force_no_tools"))
+        if not kwargs.get("force_no_tools"):
+            kwargs["domain_results"].append(write_result)
         return FakeAgent()
 
     monkeypatch.setattr(agent_runtime, "_create_interaction_agent", fake_create)
@@ -449,12 +471,14 @@ async def test_user_turn_protocol_violation_after_durable_write_does_not_retry(
         run_context=_ctx(),
     )
 
-    assert len(calls) == 1
-    assert result.visible_messages == ()
-    assert result.error_disposition is not None
-    assert result.error_disposition.code == "output_protocol_violation"
-    assert result.error_disposition.retryable is False
-    assert result.error_disposition.metadata["durable_write_executed"] is True
+    assert len(calls) == 2
+    assert force_no_tools_values == [False, True]
+    assert "Trusted executed runtime results:" in calls[1]
+    assert "已创建提醒：喝水" in calls[1]
+    assert [message.content for message in result.visible_messages] == [
+        "已创建提醒：喝水"
+    ]
+    assert result.error_disposition is None
 
 
 @pytest.mark.asyncio
