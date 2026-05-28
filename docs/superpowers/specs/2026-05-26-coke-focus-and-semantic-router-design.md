@@ -8,6 +8,7 @@ related:
   - docs/issues/2026-05-26-product-action-context-model.md
   - docs/issues/2026-05-25-product-notification-outbound.md
   - docs/issues/2026-05-25-shared-reminder-notification-missing-context.md
+  - docs/design-docs/prompt-rule-ownership.md
   - docs/superpowers/specs/2026-05-26-coke-context-system-design.md
 ---
 
@@ -41,6 +42,38 @@ typed current-action focus, does not syntactically separate trusted product
 context from ordinary transcript text, and relies on deterministic
 keyword/regex routing over user utterances before the authoritative domain
 state is rechecked.
+
+This document is the governing design for the decision-layer boundary. When
+other architecture docs, prompt-ownership docs, or dated specs are ambiguous
+about whether the final response model should classify intent, choose business
+tools, or only render the final user-visible answer, this spec wins.
+
+The target contract is:
+
+- A decision layer, implemented as the semantic interpreter or a domain-specific
+  detector, is the first and only owner of user-utterance intent classification
+  for product actions.
+- Domain executors and capability ports own business tool execution, permission
+  checks, freshness checks, concrete arguments, and durable writes.
+- The Interaction Agent owns final user-visible prose. It consumes trusted
+  Focus, semantic intent, and `DomainExecutionResult` facts; it does not decide
+  whether a business action should be routed to scheduling, reminder, friendship,
+  or another product domain.
+- Any remaining `chat_response` delegation prompt, Interaction Agent business
+  tool exposure, or response-prompt domain selection is transitional
+  compatibility and must be migrated toward this boundary.
+- Provider/model configuration must preserve the same ownership split. A model
+  role named `chat_response` is for response synthesis, not scheduling or
+  reminder execution. Executor agents should use executor-specific roles when
+  provider selection matters.
+
+The target user-visible behavior is that an explicit action request such as
+`帮我和 olivers 约一个明天上午九点的测试会议` is classified before response
+synthesis, executed by the scheduling domain when valid, and then confirmed from
+trusted execution facts. A fact query such as `我现在有几个好友？` is likewise
+classified as a domain read before the final response is generated; the response
+model must not answer from a missing-capability assumption when the domain has a
+read capability.
 
 ## 2. In-scope
 
@@ -115,6 +148,14 @@ The semantic interpreter fully replaces the deterministic pre-router for user
 utterance intent classification. It reads `(focus, current_utterance)` and
 returns a typed intent.
 
+It also replaces the final response prompt as the first business-action
+classifier. The main response model may phrase a clarification or final answer,
+but it must not be the first component that decides whether a turn is a
+friendship action, shared-reminder action, reminder action, availability query,
+or ordinary conversation. If a domain action or domain read is possible, the
+decision layer emits the typed domain intent or an explicit `ambiguous` /
+`unrelated` result before response synthesis.
+
 When `focus` is present with `ambiguity=none`, the intent enum is:
 
 - `accept`
@@ -153,6 +194,12 @@ arguments such as `request_id`, `user_link_code`, `friend_name`,
 validators may reject malformed values after semantic classification, but they
 must not classify user intent through keyword or regex matching.
 
+The interpreter output is the routing contract, not a hint for the response
+prompt. Runtime code should pass a valid domain intent to the matching executor,
+or pass a no-action/clarification decision to response synthesis. The response
+model should receive the resulting trusted facts and reply contract, normally
+with no business write tools exposed.
+
 Two implementation options are allowed:
 
 1. **Fused structured-output call alongside the main response LLM.** The
@@ -188,6 +235,12 @@ trusted candidate summaries.
 Every domain mutation re-queries authoritative DB state immediately before
 writing. The executor must treat Focus as a pointer, not as fresh state.
 
+Executors are responsible for concrete tool choice inside their domain. For
+example, scheduling execution maps `list_friends` to the friendship read
+capability and `create_shared_reminder` to the shared-reminder write capability.
+This mapping belongs to executor code, schemas, tool signatures, and domain
+prompts, not to the final response prompt.
+
 For each write:
 
 1. Read `focus.action_id`, `focus.kind`, and the semantic intent.
@@ -201,6 +254,33 @@ For each write:
 State moved cases include accepted by someone else, rejected elsewhere,
 expired, canceled, missing, wrong recipient, or action no longer allowing the
 requested verb.
+
+### E. Response synthesis boundary
+
+The Interaction Agent is the only owner of final chat prose, but final prose
+ownership is not tool-routing ownership. Response synthesis receives:
+
+- trusted identity, environment, and Focus blocks;
+- the semantic intent or clarification decision;
+- trusted `DomainExecutionResult` or `CapabilityResult` facts;
+- a reply contract describing required facts, required questions, prohibited
+  claims, and whether rephrasing is allowed.
+
+The response model must:
+
+- explain completed reads and writes from trusted facts;
+- ask required clarification questions when the decision layer or executor
+  reports ambiguity;
+- report structured domain failures without inventing missing capabilities;
+- never claim a durable write unless the domain result reports a successful
+  write effect;
+- never retry or choose an alternate business domain after a trusted executor
+  result unless the runtime explicitly starts a new decision pass.
+
+In the steady-state architecture, response-only repair or protocol retries may
+reuse trusted domain results, but they must not re-expose durable-write tools.
+This preserves user-visible wording flexibility without letting the response
+model become a hidden router.
 
 ## 3. Out-of-scope (Spec B')
 

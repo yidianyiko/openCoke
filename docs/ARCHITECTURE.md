@@ -241,19 +241,27 @@ plus one conversation block. Trusted blocks are authoritative system-derived
 facts; the conversation block is language evidence only and may be stale,
 contradictory, adversarial, or incomplete. On conflict, trusted blocks win.
 
-The runtime registers async tool wrappers for the Interaction Agent. Domain
-tools (`reminder_domain` and `scheduling_domain`) return structured
-`DomainExecutionResult` JSON as the domain-to-Interaction-Agent contract:
+The semantic interpreter is the first business-action classifier for user
+utterances. It emits typed domain intents or explicit no-action / clarification
+decisions before response synthesis. Domain executors then perform business
+tool selection, concrete argument handling, permission checks, freshness checks,
+and durable writes. The Interaction Agent owns final user-visible text, but not
+business-domain routing.
+
+`DomainExecutionResult` JSON is the domain-to-Interaction-Agent contract:
 operation facts, missing fields, safety boundaries, reply contracts, and
 structured errors. Before Focus-driven scheduling writes, the scheduling
 executor binds the opaque focus handle through Scheduling and fails with
 `safety_boundary=stale_focus` when the handle is unknown, expired, already
 consumed, or no longer maps to an actionable request. Focus is a pointer, not
-fresh state.
+fresh state. Any remaining Interaction Agent exposure of business-domain tools
+is migration compatibility under
+`docs/superpowers/specs/2026-05-26-coke-focus-and-semantic-router-design.md`,
+not the target ownership boundary.
+
 Non-domain utility tools (`timezone`, `calendar_import`, and `url_context`)
 continue to return `CapabilityResult` values for utility visible-output
-behavior. The Interaction Agent owns final user-visible text when non-empty;
-`DomainExecutionResult` values are trusted execution facts for prompt
+behavior. `DomainExecutionResult` values are trusted execution facts for prompt
 grounding, traces, metrics, manager payloads, tests, and eval evidence, not a
 production output rewrite or reply-quality gate. The scheduling domain
 delegates execution to friend-link and shared-reminder tools:
