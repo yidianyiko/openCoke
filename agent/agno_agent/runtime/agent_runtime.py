@@ -908,19 +908,33 @@ def _create_interaction_agent(
                         }.items()
                         if value is not None and value != ""
                     }
-                    direct_args = (
-                        _normalize_scheduling_intent_args(
-                            scheduling_intent,
-                            direct_raw_args,
-                        )
-                        if direct_raw_args
-                        else {}
-                    )
-                    if direct_args:
+                    if (
+                        scheduling_intent == "create_shared_reminder"
+                        and forced_scheduling_args is not None
+                        and direct_raw_args
+                    ):
                         forced_scheduling_args = {
-                            **(forced_scheduling_args or {}),
-                            **direct_args,
+                            **forced_scheduling_args,
+                            **direct_raw_args,
                         }
+                        forced_scheduling_args = _normalize_scheduling_intent_args(
+                            scheduling_intent,
+                            forced_scheduling_args,
+                        )
+                    else:
+                        direct_args = (
+                            _normalize_scheduling_intent_args(
+                                scheduling_intent,
+                                direct_raw_args,
+                            )
+                            if direct_raw_args
+                            else {}
+                        )
+                        if direct_args:
+                            forced_scheduling_args = {
+                                **(forced_scheduling_args or {}),
+                                **direct_args,
+                            }
                 except _SchedulingIntentError as error:
                     result = _scheduling_failure_result(
                         code=error.code,

@@ -2267,6 +2267,72 @@ async def test_create_interaction_agent_scheduling_domain_delegates_tool_key_cre
 
 
 @pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_merges_direct_timezone_into_create_args(
+    monkeypatch,
+):
+    captured = {}
+    envelope = {
+        "ok": True,
+        "domain": "scheduling",
+        "visible_summary": "已创建共享提醒。",
+        "synthesis_context": None,
+        "content": {"visible_summary": "已创建共享提醒。"},
+        "error": None,
+    }
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results
+        captured.update({"intent": intent, "forced_args": forced_args})
+        return envelope
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="帮我和olivers约一个今天晚上十点去喝酒",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    result = await scheduling_domain(
+        intent={
+            "action": "create_shared_reminder",
+            "receiver_name": "olivers",
+            "title": "喝酒",
+            "fire_at": "2026-05-28T22:00:00",
+            "duration_minutes": 120,
+        },
+        timezone="Asia/Shanghai",
+    )
+
+    assert result is envelope
+    assert captured == {
+        "intent": "create_shared_reminder",
+        "forced_args": {
+            "receiver_name": "olivers",
+            "title": "喝酒",
+            "fire_at": "2026-05-28T22:00:00",
+            "duration_minutes": 120,
+            "timezone": "Asia/Shanghai",
+        },
+    }
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("payload", "error_code"),
     [
