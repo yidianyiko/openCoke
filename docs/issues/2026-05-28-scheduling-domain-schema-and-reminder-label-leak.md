@@ -106,4 +106,4 @@ X" turns and external activity reservation wording remain outside this routing.
 
 ## Resolution
 
-Fix commit: `0c25ec95`.
+Fix commits: `0c25ec95`, `d38aeaae`.
