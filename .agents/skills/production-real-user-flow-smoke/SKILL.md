@@ -12,6 +12,23 @@ and live services. Use this only when the user explicitly asks for server-side
 simulation or production verification. Prefer a marked test title and clean up
 future reminders created by the smoke.
 
+The current product-notification happy path is:
+
+1. Gateway creates a domain row such as `shared_reminders`.
+2. Gateway stores a `product_notifications` row with structured
+   `payload.facts` and `payload.facts_hash`; Gateway must not store final
+   user-visible prose there.
+3. Gateway enqueues a `message_type=product_notification` event to
+   `/bridge/inbound`.
+4. The worker Interaction Agent writes a push `outputmessages` row whose
+   metadata contains `notification_id` and the same product-notification facts.
+5. The bridge output dispatcher posts that output to Gateway `/api/outbound`.
+6. Gateway sends through the provider and reconciles the matching
+   `product_notifications.status` to `delivered`.
+
+A passing smoke must verify the end-to-end chain above. A created domain row or
+a `product_notifications` row by itself is not enough.
+
 ## Safety Rules
 
 - State before running that this can send real push messages to real accounts.
@@ -22,6 +39,8 @@ future reminders created by the smoke.
 - After active shared-reminder verification, cancel the marked shared reminder
   through Scheduling. Do not manually delete unmarked user data.
 - Do not delete unmarked user data.
+- If an interrupted run may have partially executed, first query by marker and
+  clean up any active marked shared reminder before starting a fresh marker.
 
 ## Required Context
 
@@ -87,7 +106,7 @@ console.log(await res.text());
 JS"
 ```
 
-Verify the active friendship and owner notification:
+Verify the active friendship:
 
 ```sql
 select id, account_a_id, account_b_id, status, updated_at
@@ -96,9 +115,18 @@ where status = 'active'
   and ((account_a_id = '<creator_account_id>' and account_b_id = '<receiver_account_id>')
     or (account_a_id = '<receiver_account_id>' and account_b_id = '<creator_account_id>'))
 order by updated_at desc;
+```
 
+If the friendship call returned `created=false`, do not use old friendship
+notifications as delivery evidence. That only proves the friendship idempotency
+path. If it returned `created=true`, verify the fresh friendship notification
+with the same product-notification checks used for shared reminders below.
+
+For a freshly created friendship only:
+
+```sql
 select id, recipient_account_id, kind, status, attempts, last_error,
-       friendship_id, delivered_at
+       friendship_id, payload, business_conversation_key, delivered_at
 from product_notifications
 where friendship_id = '<friendship_id>'
 order by created_at desc;
@@ -152,11 +180,66 @@ where title like '%<marker>%'
 order by created_at desc;
 
 select id, recipient_account_id, kind, status, attempts, last_error,
-       shared_reminder_id, payload, delivered_at
+       shared_reminder_id, payload, business_conversation_key, delivered_at
 from product_notifications
 where shared_reminder_id = '<shared_reminder_id>'
 order by created_at;
 ```
+
+For each fresh product notification, verify the current outbound chain:
+
+```sql
+select id, kind, status, attempts, last_error, business_conversation_key,
+       delivered_at, payload
+from product_notifications
+where id = '<product_notification_id>';
+```
+
+Required checks:
+
+- `payload` contains `facts` and `facts_hash`.
+- `payload` does not contain final prose such as `text`.
+- `facts.title` includes the smoke marker for shared reminder notifications.
+- After dispatcher delivery, `status='delivered'`,
+  `business_conversation_key` is set, and `delivered_at is not null`.
+
+Then verify the worker-produced push output in production MongoDB:
+
+```bash
+ssh gcp-coke 'cd /home/whoami/coke && docker compose -f docker-compose.prod.yml exec -T mongo mongosh --quiet --eval '\''
+const notificationId = "<product_notification_id>";
+const rows = db.getSiblingDB("mymongo").outputmessages.find({
+  $or: [
+    {"metadata.notification_id": notificationId},
+    {"metadata.product_notification.notification_id": notificationId},
+  ],
+}).sort({timestamp: -1}).limit(5).toArray();
+printjson(rows.map((row) => ({
+  id: String(row._id),
+  status: row.status,
+  message: row.message,
+  metadata: row.metadata,
+})));
+'\'''
+```
+
+Required checks:
+
+- At least one row exists.
+- `metadata.notification_id` or
+  `metadata.product_notification.notification_id` equals the notification id.
+- `metadata.business_protocol.delivery_mode='push'`.
+- `metadata.business_protocol.idempotency_key` is
+  `product_notification:<product_notification_id>`.
+- `metadata.product_notification.facts_hash` matches the Postgres
+  notification row.
+- `status` is not `failed`.
+- The visible `message` is derived from the product-notification facts. For a
+  shared reminder create, it should mention the reminder title or scheduled
+  local date/time and must not be a generic onboarding or unrelated chat reply.
+
+If the output row is missing, failed, or has unrelated visible text, stop and
+report the layer where the chain failed. Continue only with cleanup.
 
 5. If natural-language routing fails, isolate the layer by calling the
    canonical gateway tool with the same accounts. A successful canonical call
@@ -220,15 +303,23 @@ where shared_reminder_id = '<shared_reminder_id>'
 order by created_at;
 ```
 
+Apply the same product-notification outbound-chain checks to the cancellation
+notification row. If the creator cancels, the receiver should receive the
+cancel notification; if the receiver cancels, the creator should receive it.
+
 ## Evidence To Report
 
 - bridge response and late output if the bridge returned the placeholder
 - direct friendship id/status and owner notification status
 - created shared reminder id and active status
-- receiver creation notification status
+- receiver creation notification id/status plus facts/facts_hash
+- worker `outputmessages` id/status/message for the creation notification
+- `/api/outbound` reconciliation evidence: notification status `delivered`,
+  `business_conversation_key`, and `delivered_at`
 - cancel result and final cancelled status
 - receiver cancellation-notification status when creator cancels, or creator
   cancellation-notification status when receiver cancels
+- worker `outputmessages` id/status/message for the cancellation notification
 - cleanup evidence showing the marked runtime reminders were cancelled through
   Scheduling
 - any layer isolation result: natural-language route vs canonical tool
