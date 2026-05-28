@@ -154,6 +154,22 @@ class CokeMessageGateway:
 
         attachments = _normalized_attachments_from_inbound(inbound)
         product_notification = inbound.get("product_notification")
+        if (
+            inbound_message_type == "product_notification"
+            and isinstance(product_notification, dict)
+        ):
+            notification_id = _read_clean_string(
+                product_notification.get("notification_id")
+            )
+            if notification_id:
+                business_protocol.update(
+                    {
+                        "delivery_mode": "push",
+                        "output_id": notification_id,
+                        "idempotency_key": f"product_notification:{notification_id}",
+                        "trace_id": f"product_notification:{notification_id}",
+                    }
+                )
         metadata = {
             "source": "clawscale",
             "business_protocol": business_protocol,

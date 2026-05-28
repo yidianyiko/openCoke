@@ -99,7 +99,8 @@ class ClawScaleOutputDispatcher:
         customer_id = message.get("customer_id")
         if not isinstance(customer_id, str) or not customer_id.strip():
             raise ValueError("customer_id_required")
-        return {
+        product_notification_id = self._read_product_notification_id(metadata)
+        payload = {
             "output_id": metadata["output_id"],
             "customer_id": customer_id.strip(),
             "business_conversation_key": metadata["business_conversation_key"],
@@ -113,6 +114,22 @@ class ClawScaleOutputDispatcher:
             "media_urls": media_urls,
             "audio_as_voice": audio_as_voice,
         }
+        if product_notification_id is not None:
+            payload["product_notification_id"] = product_notification_id
+        return payload
+
+    def _read_product_notification_id(self, metadata):
+        notification_id = metadata.get("notification_id")
+        if isinstance(notification_id, str) and notification_id.strip():
+            return notification_id.strip()
+
+        product_notification = metadata.get("product_notification")
+        if isinstance(product_notification, dict):
+            nested_notification_id = product_notification.get("notification_id")
+            if isinstance(nested_notification_id, str) and nested_notification_id.strip():
+                return nested_notification_id.strip()
+
+        return None
 
     def dispatch_once(self) -> bool:
         now = int(time.time())

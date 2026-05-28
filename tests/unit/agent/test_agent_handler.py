@@ -241,6 +241,43 @@ def test_send_chat_response_fallback_is_typed_system_failure(monkeypatch):
     assert sent_calls[0]["is_first"] is True
 
 
+def test_output_delivery_passes_visible_text_metadata_to_message_util(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner import output_delivery
+
+    send_calls = []
+
+    def fake_send_message_via_context(*args, **kwargs):
+        send_calls.append({"args": args, "kwargs": kwargs})
+        return {"message": kwargs["message"], "metadata": kwargs.get("metadata")}
+
+    monkeypatch.setattr(
+        output_delivery,
+        "send_message_via_context",
+        fake_send_message_via_context,
+    )
+
+    outputmessage, next_timestamp = output_delivery.send_single_message(
+        context=sample_context,
+        multimodal_response={
+            "type": "text",
+            "content": "Runtime reply",
+            "metadata": {"notification_id": "pn_1"},
+        },
+        expect_output_timestamp=1710000000,
+        is_first=True,
+    )
+
+    assert outputmessage == {
+        "message": "Runtime reply",
+        "metadata": {"notification_id": "pn_1"},
+    }
+    assert next_timestamp == 1710000000
+    assert send_calls[0]["kwargs"]["metadata"] == {"notification_id": "pn_1"}
+
+
 def test_agent_runtime_user_turn_occurred_at_uses_future_message_timestamp(
     monkeypatch, sample_context
 ):

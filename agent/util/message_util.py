@@ -281,6 +281,7 @@ def send_message_via_context(
                 metadata=metadata,
             )
         )
+        customer_id, metadata = _normalize_clawscale_push_output_metadata(metadata)
     elif get_agent_entity_id(context.get("user")):
         customer_id = get_agent_entity_id(context.get("user"))
         clawscale_metadata = build_clawscale_push_metadata(customer_id, context=context)
@@ -338,18 +339,24 @@ def send_message_via_context(
 
 def _select_reply_metadata_input_message(input_messages: list[dict]) -> dict:
     """Choose the inbound event a request-response output should answer."""
+    product_notification_push_messages: list[tuple[int, int, dict]] = []
     request_response_messages: list[tuple[int, int, dict]] = []
     for index, message in enumerate(input_messages):
         if not isinstance(message, dict):
             continue
         metadata = message.get("metadata")
-        if not _is_clawscale_request_response_metadata(metadata):
-            continue
         try:
             timestamp = int(message.get("input_timestamp") or 0)
         except (TypeError, ValueError):
             timestamp = 0
+        if _is_clawscale_product_notification_push_metadata(metadata):
+            product_notification_push_messages.append((timestamp, index, message))
+            continue
+        if not _is_clawscale_request_response_metadata(metadata):
+            continue
         request_response_messages.append((timestamp, index, message))
+    if product_notification_push_messages:
+        return max(product_notification_push_messages, key=lambda item: (item[0], item[1]))[2]
     if request_response_messages:
         return max(request_response_messages, key=lambda item: (item[0], item[1]))[2]
     return input_messages[0]
@@ -452,6 +459,88 @@ def _is_clawscale_request_response_metadata(metadata: dict | None) -> bool:
         "delivery_mode"
     )
     return delivery_mode == "request_response"
+
+
+def _is_clawscale_product_notification_push_metadata(metadata: dict | None) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get("source") != "clawscale":
+        return False
+
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(business_protocol, dict):
+        return False
+    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+        "delivery_mode"
+    )
+    if delivery_mode != "push":
+        return False
+
+    product_notification = metadata.get("product_notification")
+    if not isinstance(product_notification, dict):
+        return False
+    notification_id = product_notification.get("notification_id")
+    return isinstance(notification_id, str) and bool(notification_id.strip())
+
+
+def _normalize_clawscale_push_output_metadata(
+    metadata: dict | None,
+) -> tuple[str | None, dict]:
+    if not isinstance(metadata, dict):
+        return None, {} if metadata is None else metadata
+    if metadata.get("source") != "clawscale":
+        return None, metadata
+
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(business_protocol, dict):
+        return None, metadata
+
+    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+        "delivery_mode"
+    )
+    if delivery_mode != "push":
+        return None, metadata
+
+    customer = metadata.get("customer")
+    if not isinstance(customer, dict):
+        customer = metadata.get("coke_account")
+    if not isinstance(customer, dict):
+        return None, metadata
+    raw_customer_id = customer.get("id")
+    if not isinstance(raw_customer_id, str) or not raw_customer_id.strip():
+        return None, metadata
+    customer_id = raw_customer_id.strip()
+
+    flattened = dict(metadata)
+    for key in (
+        "business_conversation_key",
+        "delivery_mode",
+        "output_id",
+        "idempotency_key",
+        "trace_id",
+        "causal_inbound_event_id",
+    ):
+        value = business_protocol.get(key)
+        if value is not None:
+            flattened[key] = value
+
+    product_notification = metadata.get("product_notification")
+    if isinstance(product_notification, dict):
+        flattened["product_notification"] = product_notification
+        notification_id = product_notification.get("notification_id")
+        if notification_id is not None:
+            flattened["notification_id"] = notification_id
+        notification_kind = product_notification.get("notification_kind")
+        if notification_kind is None:
+            notification_kind = product_notification.get("kind")
+        if notification_kind is not None:
+            flattened["notification_kind"] = notification_kind
+        for key in ("resource_type", "facts_hash"):
+            value = product_notification.get(key)
+            if value is not None:
+                flattened[key] = value
+
+    return customer_id, flattened
 
 
 def _inject_business_key_into_clawscale_reply_metadata(

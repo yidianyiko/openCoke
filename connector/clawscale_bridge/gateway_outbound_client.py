@@ -33,6 +33,7 @@ class GatewayOutboundClient:
         causal_inbound_event_id: str | None = None,
         media_urls: list[str] | None = None,
         audio_as_voice: bool = False,
+        product_notification_id: str | None = None,
     ):
         if isinstance(expect_output_timestamp, str):
             normalized_expect_output_timestamp = expect_output_timestamp
@@ -59,6 +60,8 @@ class GatewayOutboundClient:
         }
         if causal_inbound_event_id is not None:
             payload["causal_inbound_event_id"] = causal_inbound_event_id
+        if product_notification_id is not None:
+            payload["product_notification_id"] = product_notification_id
         if media_urls is not None:
             payload["mediaUrls"] = media_urls
         if audio_as_voice:

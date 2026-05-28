@@ -284,6 +284,152 @@ def test_message_util_does_not_auto_inject_clawscale_metadata_for_non_proactive_
     assert "customer_id" not in message
 
 
+def test_message_util_flattens_product_notification_push_metadata(
+    sample_context, monkeypatch
+):
+    from agent.util import message_util
+
+    sample_context["message_source"] = "user"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["platform"] = "business"
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {
+            "input_timestamp": 1710000000,
+            "metadata": {
+                "source": "clawscale",
+                "customer": {"id": "acct_1"},
+                "business_protocol": {
+                    "delivery_mode": "push",
+                    "business_conversation_key": "bc_1",
+                    "output_id": "pn_1",
+                    "idempotency_key": "product_notification:pn_1",
+                    "trace_id": "product_notification:pn_1",
+                    "causal_inbound_event_id": "pn_1",
+                },
+                "product_notification": {
+                    "notification_id": "pn_1",
+                    "notification_kind": "shared_reminder_created",
+                    "resource_type": "shared_reminder",
+                    "facts_hash": "sha256:facts",
+                    "facts": {"shared_reminder_id": "sr_1"},
+                },
+            },
+        }
+    ]
+
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
+        output = {
+            "message": message,
+            "metadata": kwargs["metadata"],
+        }
+        if kwargs.get("customer_id") is not None:
+            output["customer_id"] = kwargs["customer_id"]
+        if platform is not None:
+            output["platform"] = platform
+        return output
+
+    monkeypatch.setattr(message_util, "send_message", fake_send_message)
+
+    output = message_util.send_message_via_context(
+        sample_context,
+        "LLM phrasing",
+        message_type="text",
+    )
+
+    assert output["customer_id"] == "acct_1"
+    assert output["metadata"]["delivery_mode"] == "push"
+    assert output["metadata"]["business_conversation_key"] == "bc_1"
+    assert output["metadata"]["output_id"] == "pn_1"
+    assert output["metadata"]["idempotency_key"] == "product_notification:pn_1"
+    assert output["metadata"]["trace_id"] == "product_notification:pn_1"
+    assert output["metadata"]["causal_inbound_event_id"] == "pn_1"
+    assert output["metadata"]["notification_id"] == "pn_1"
+    assert output["metadata"]["notification_kind"] == "shared_reminder_created"
+    assert output["metadata"]["resource_type"] == "shared_reminder"
+    assert output["metadata"]["facts_hash"] == "sha256:facts"
+    assert output["metadata"]["product_notification"] == {
+        "notification_id": "pn_1",
+        "notification_kind": "shared_reminder_created",
+        "resource_type": "shared_reminder",
+        "facts_hash": "sha256:facts",
+        "facts": {"shared_reminder_id": "sr_1"},
+    }
+
+
+def test_message_util_prefers_product_notification_push_over_batched_sync_reply(
+    sample_context, monkeypatch
+):
+    from agent.util import message_util
+
+    sample_context["message_source"] = "user"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["platform"] = "business"
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {
+            "input_timestamp": 1710000000,
+            "metadata": {
+                "source": "clawscale",
+                "customer": {"id": "acct_push"},
+                "business_protocol": {
+                    "delivery_mode": "push",
+                    "business_conversation_key": "bc_push",
+                    "output_id": "pn_1",
+                    "idempotency_key": "product_notification:pn_1",
+                    "trace_id": "product_notification:pn_1",
+                    "causal_inbound_event_id": "pn_1",
+                },
+                "product_notification": {
+                    "notification_id": "pn_1",
+                    "notification_kind": "shared_reminder_created",
+                    "resource_type": "shared_reminder",
+                    "facts_hash": "sha256:facts",
+                },
+            },
+        },
+        {
+            "input_timestamp": 1710000001,
+            "metadata": {
+                "source": "clawscale",
+                "customer": {"id": "acct_sync"},
+                "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "business_conversation_key": "bc_sync",
+                    "causal_inbound_event_id": "sync_1",
+                    "sync_reply_token": "sync_tok_1",
+                },
+            },
+        },
+    ]
+
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
+        output = {
+            "message": message,
+            "metadata": kwargs["metadata"],
+        }
+        if kwargs.get("customer_id") is not None:
+            output["customer_id"] = kwargs["customer_id"]
+        return output
+
+    monkeypatch.setattr(message_util, "send_message", fake_send_message)
+
+    output = message_util.send_message_via_context(
+        sample_context,
+        "LLM phrasing",
+        message_type="text",
+    )
+
+    assert output["customer_id"] == "acct_push"
+    assert output["metadata"]["delivery_mode"] == "push"
+    assert output["metadata"]["business_conversation_key"] == "bc_push"
+    assert output["metadata"]["output_id"] == "pn_1"
+    assert output["metadata"]["notification_id"] == "pn_1"
+    assert "sync_reply_token" not in output["metadata"]
+
+
 def test_message_util_injects_business_key_into_clawscale_sync_reply_metadata(
     sample_context, monkeypatch
 ):

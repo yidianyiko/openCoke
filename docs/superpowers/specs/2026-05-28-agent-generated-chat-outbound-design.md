@@ -74,7 +74,10 @@ facts and lifecycle.
 For migrated chat notifications, the notification payload must contain an
 immutable structured facts snapshot instead of final prose. The snapshot should
 include the facts needed for the Interaction Agent to generate the message and
-for later turns to recover trusted context.
+for later turns to recover trusted context. Gateway may build a neutral
+generation instruction from these facts when it enqueues the runtime turn, but
+that instruction is not the final user-visible chat text and must not be stored
+as authoritative notification prose.
 
 Example:
 
@@ -127,24 +130,29 @@ The target chat notification flow is:
 
 ```text
 Gateway domain service
-  -> write product_notifications pending_generation with immutable facts
-  -> trigger internal system turn for recipient
-  -> worker builds trusted product-notification AgentInput from facts
+  -> write product_notifications pending_delivery with immutable facts
+  -> trigger /bridge/inbound as message_type=product_notification for recipient
+  -> bridge writes one async inputmessage with trusted product_notification facts
+  -> worker handles that input through the normal Interaction Agent user.turn path
   -> Interaction Agent generates final visible text
   -> Mongo outputmessages stores visible output with notification_id metadata
   -> Bridge/Gateway outbound delivers the output to the chat channel
-  -> Gateway marks product_notifications delivered via idempotent callback
+  -> Gateway marks product_notifications delivered from the outbound success path
 ```
 
-The internal system turn should reuse the existing system-event machinery used
-by reminder delivery where practical: conversation lookup, conversation lock,
-replay detection, typed AgentInput construction, visible message writing, and
-output failure classification.
+Product notifications are system-originated chat events, not user-authored
+messages, but their final prose must still come from the same user-interaction
+LLM runtime that handles normal chat turns. The implementation should therefore
+reuse the current bridge inbound, inputmessage acquisition, conversation lock,
+`AgentInput(input_type="user.turn")`, visible message writing, and outbound
+dispatcher path. Do not introduce a third message source or a separate
+product-notification LLM.
 
-Do not create an unrelated second handler that duplicates the reminder fire
-handler's lock, replay, runtime, and output behavior. If a new event type such
-as `product_notification.received` is introduced, it must share the same
-system-turn delivery machinery rather than creating a parallel path.
+Do not create an unrelated second handler that duplicates the worker lock,
+replay, runtime, and output behavior. If a future typed event such as
+`product_notification.received` is introduced, it must remain an adapter over
+the same Interaction Agent turn machinery rather than becoming a parallel
+generation path.
 
 ## Idempotency
 
@@ -159,8 +167,9 @@ It must appear in:
 - `product_notifications.id`
 - the internal system-turn event payload
 - Mongo `outputmessages.metadata.notification_id`
+- Mongo `outputmessages.metadata.product_notification.notification_id`
 - outbound `output_id` / idempotency key
-- the delivered callback payload
+- the Gateway outbound delivery request
 
 Retries must first check whether an output already exists for the
 `notification_id` and `facts_hash`. If it exists, the system must not generate
@@ -177,10 +186,12 @@ Gateway remains the owner of `product_notifications.status`. Worker and Agent
 runtime must not write Postgres directly.
 
 Delivery state should be updated by the layer that observes final outbound
-delivery success. The clean target is an idempotent Gateway callback invoked
-after outbound delivery succeeds or returns a duplicate-success response.
+delivery success. In the current topology that layer is the Gateway
+`/api/outbound` route, because the bridge dispatcher posts final Mongo
+`outputmessages` there and Gateway owns both `outbound_deliveries` and
+`product_notifications`.
 
-Required callback facts:
+Required outbound/callback facts:
 
 - `notification_id`
 - output message reference
@@ -188,8 +199,9 @@ Required callback facts:
 - delivered timestamp
 - optional outbound provider response metadata
 
-The callback must be idempotent. Repeating it for an already-delivered
-notification is a no-op if the identifiers match.
+The update must be idempotent. Repeating it for an already-delivered
+notification is a no-op if the identifiers match. A duplicate-success response
+from outbound idempotency must also reconcile the notification as delivered.
 
 If Interaction Agent generation succeeds but the delivered callback fails, the
 system must retry reconciliation without regenerating a second message. The
@@ -301,4 +313,3 @@ Implementation must include focused tests before deployment:
 - Production or staging smoke verifies receiver-visible text, Mongo output
   metadata, and Postgres delivered state for at least one real shared-reminder
   create path.
-

@@ -18,7 +18,10 @@ from connector.clawscale_bridge.inbound_attachments import (
     format_input_with_attachments,
     normalize_inbound_attachments,
 )
-from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+from connector.clawscale_bridge.message_gateway import (
+    CokeMessageGateway,
+    _read_clean_string,
+)
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
 from dao.mongo import MongoDBBase
@@ -27,6 +30,16 @@ from dao.user_dao import UserDAO
 logger = logging.getLogger(__name__)
 MAX_BRIDGE_INBOUND_REQUEST_BYTES = MAX_ATTACHMENT_JSON_BYTES
 SYNC_REPLY_TIMEOUT_FALLBACK_REPLY = "正在处理中，稍后把结果发给你。"
+
+
+def _valid_product_notification_payload(inbound: dict) -> bool:
+    if inbound.get("message_type") != "product_notification":
+        return True
+    product_notification = inbound.get("product_notification")
+    if not isinstance(product_notification, dict):
+        return False
+    notification_id = product_notification.get("notification_id")
+    return _read_clean_string(notification_id) is not None
 
 
 def _is_unresolved_bridge_setting(value) -> bool:
@@ -541,6 +554,11 @@ class BusinessOnlyBridgeGateway:
                 "status": "error",
                 "error": inbound.get("attachments_rejected_reason")
                 or "attachment_payload_too_large",
+            }
+        if not _valid_product_notification_payload(inbound):
+            return {
+                "status": "error",
+                "error": "invalid_product_notification",
             }
         if not inbound.get("input", "").strip() and not inbound.get("attachments"):
             return {

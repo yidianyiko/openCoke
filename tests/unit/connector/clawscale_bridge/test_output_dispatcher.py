@@ -100,6 +100,108 @@ def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_ga
     )
 
 
+def test_output_dispatcher_forwards_product_notification_id_from_flat_metadata(
+    monkeypatch,
+):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = _build_message_doc(
+        status="dispatching",
+        metadata={
+            "business_conversation_key": "bc_1",
+            "delivery_mode": "push",
+            "idempotency_key": "idem_1",
+            "trace_id": "trace_1",
+            "output_id": "out_1",
+            "notification_id": "pn_1",
+        },
+    )
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway_client = MagicMock()
+    gateway_client.post_output.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        gateway_client=gateway_client,
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    gateway_client.post_output.assert_called_once_with(
+        output_id="out_1",
+        customer_id="ck_1",
+        business_conversation_key="bc_1",
+        text="记得开会",
+        message_type="text",
+        delivery_mode="push",
+        expect_output_timestamp=1710000000,
+        idempotency_key="idem_1",
+        trace_id="trace_1",
+        causal_inbound_event_id=None,
+        media_urls=None,
+        audio_as_voice=False,
+        product_notification_id="pn_1",
+    )
+
+
+def test_output_dispatcher_forwards_product_notification_id_from_nested_metadata(
+    monkeypatch,
+):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = _build_message_doc(
+        status="dispatching",
+        metadata={
+            "business_conversation_key": "bc_1",
+            "delivery_mode": "push",
+            "idempotency_key": "idem_1",
+            "trace_id": "trace_1",
+            "output_id": "out_1",
+            "product_notification": {"notification_id": "pn_nested"},
+        },
+    )
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway_client = MagicMock()
+    gateway_client.post_output.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        gateway_client=gateway_client,
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    gateway_client.post_output.assert_called_once_with(
+        output_id="out_1",
+        customer_id="ck_1",
+        business_conversation_key="bc_1",
+        text="记得开会",
+        message_type="text",
+        delivery_mode="push",
+        expect_output_timestamp=1710000000,
+        idempotency_key="idem_1",
+        trace_id="trace_1",
+        causal_inbound_event_id=None,
+        media_urls=None,
+        audio_as_voice=False,
+        product_notification_id="pn_nested",
+    )
+
+
 def test_output_dispatcher_dispatches_pending_push_outputs_when_due(monkeypatch):
     import connector.clawscale_bridge.output_dispatcher as output_dispatcher
 

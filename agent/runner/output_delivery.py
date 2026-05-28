@@ -39,6 +39,9 @@ def send_single_message(
     sent_messages = []
     msg_type = multimodal_response.get("type", "text")
     content = multimodal_response.get("content", "")
+    response_metadata = multimodal_response.get("metadata")
+    if not isinstance(response_metadata, dict):
+        response_metadata = {}
 
     # ========== 去重检查：跳过 rollback 恢复场景中已发送的内容 ==========
     turn_sent = (
@@ -67,7 +70,11 @@ def send_single_message(
                 message=content,
                 message_type="voice",
                 expect_output_timestamp=expect_output_timestamp,
-                metadata={"url": voice_url, "voice_length": voice_length},
+                metadata={
+                    **response_metadata,
+                    "url": voice_url,
+                    "voice_length": voice_length,
+                },
             )
             if outputmessage is not None:
                 sent_messages.append(outputmessage)
@@ -94,7 +101,7 @@ def send_single_message(
                 message=content,
                 message_type="image",
                 expect_output_timestamp=expect_output_timestamp,
-                metadata={"url": image_url},
+                metadata={**response_metadata, "url": image_url},
             )
     else:  # text
         text_message = str(content).replace("<换行>", "\n")
@@ -108,6 +115,7 @@ def send_single_message(
             message=text_message,
             message_type="text",
             expect_output_timestamp=expect_output_timestamp,
+            metadata=response_metadata,
         )
     return outputmessage, expect_output_timestamp
 

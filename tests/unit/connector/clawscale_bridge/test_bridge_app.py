@@ -1339,9 +1339,11 @@ def test_bridge_inbound_uses_top_level_text_for_product_notifications(monkeypatc
             "text": "你有一个新的好友请求，请确认或拒绝。",
             "message_type": "product_notification",
             "product_notification": {
-                "request_id": "fr_1",
-                "request_type": "friend_request",
-                "allowed_actions": ["accept", "reject"],
+                "notification_id": "pn_1",
+                "notification_kind": "direct_friendship_created",
+                "kind": "direct_friendship_created",
+                "resource_type": "friendship",
+                "facts_hash": "sha256:facts",
             },
         },
     )
@@ -1353,10 +1355,117 @@ def test_bridge_inbound_uses_top_level_text_for_product_notifications(monkeypatc
     inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
     assert inbound["message_type"] == "product_notification"
     assert inbound["product_notification"] == {
-        "request_id": "fr_1",
-        "request_type": "friend_request",
-        "allowed_actions": ["accept", "reject"],
+        "notification_id": "pn_1",
+        "notification_kind": "direct_friendship_created",
+        "kind": "direct_friendship_created",
+        "resource_type": "friendship",
+        "facts_hash": "sha256:facts",
     }
+    reply_waiter.wait_for_reply.assert_not_called()
+
+
+def test_bridge_inbound_rejects_product_notification_without_notification_id(
+    monkeypatch,
+):
+    app, message_gateway, reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "customer_id": "acct_1",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_id": "wxid_123",
+            "end_user_id": "eu_1",
+            "channel_scope": "personal",
+            "clawscale_user_id": "csu_1",
+            "inbound_event_id": "friend-request:fr_1:target",
+            "text": "Generate a notification.",
+            "message_type": "product_notification",
+            "product_notification": {
+                "notification_kind": "direct_friendship_created",
+                "resource_type": "friendship",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "invalid_product_notification",
+    }
+    message_gateway.enqueue.assert_not_called()
+    reply_waiter.wait_for_reply.assert_not_called()
+
+
+def test_bridge_inbound_rejects_product_notification_with_control_character_id(
+    monkeypatch,
+):
+    app, message_gateway, reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "customer_id": "acct_1",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_id": "wxid_123",
+            "end_user_id": "eu_1",
+            "channel_scope": "personal",
+            "clawscale_user_id": "csu_1",
+            "inbound_event_id": "pn_1",
+            "text": "Generate a notification.",
+            "message_type": "product_notification",
+            "product_notification": {
+                "notification_id": "\u0001",
+                "notification_kind": "direct_friendship_created",
+                "resource_type": "friendship",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "invalid_product_notification",
+    }
+    message_gateway.enqueue.assert_not_called()
+    reply_waiter.wait_for_reply.assert_not_called()
+
+
+def test_bridge_inbound_rejects_product_notification_without_metadata_object(
+    monkeypatch,
+):
+    app, message_gateway, reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "customer_id": "acct_1",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_id": "wxid_123",
+            "end_user_id": "eu_1",
+            "channel_scope": "personal",
+            "clawscale_user_id": "csu_1",
+            "inbound_event_id": "pn_1",
+            "text": "Generate a notification.",
+            "message_type": "product_notification",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "invalid_product_notification",
+    }
+    message_gateway.enqueue.assert_not_called()
     reply_waiter.wait_for_reply.assert_not_called()
 
 
@@ -1387,6 +1496,41 @@ def test_bridge_inbound_preserves_snake_case_product_notification_metadata(monke
         "allowed_actions": ["accept", "reject"],
     }
     reply_waiter.wait_for_reply.assert_called_once()
+
+
+def test_message_gateway_stores_product_notification_as_push_protocol():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="acct_1",
+        character_id="char_1",
+        text="Deliver the shared reminder notification from trusted facts.",
+        causal_inbound_event_id="pn_1",
+        inbound={
+            "timestamp": 1710000000,
+            "customer_id": "acct_1",
+            "business_conversation_key": "bc_1",
+            "message_type": "product_notification",
+            "product_notification": {
+                "notification_id": "pn_1",
+                "notification_kind": "shared_reminder_created",
+                "resource_type": "shared_reminder",
+                "facts_hash": "sha256:facts",
+            },
+        },
+    )
+
+    business_protocol = doc["metadata"]["business_protocol"]
+    assert business_protocol["message_type"] == "product_notification"
+    assert business_protocol["delivery_mode"] == "push"
+    assert business_protocol["business_conversation_key"] == "bc_1"
+    assert business_protocol["output_id"] == "pn_1"
+    assert business_protocol["idempotency_key"] == "product_notification:pn_1"
+    assert business_protocol["trace_id"] == "product_notification:pn_1"
+    assert business_protocol["causal_inbound_event_id"] == "pn_1"
+    assert doc["metadata"]["product_notification"]["notification_id"] == "pn_1"
 
 
 def test_bridge_inbound_invalid_attachment_only_is_ignored_after_account_validation(
