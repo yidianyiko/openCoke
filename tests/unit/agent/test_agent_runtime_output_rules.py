@@ -18,7 +18,7 @@ from agent.agno_agent.runtime.domain_results import (
     ReplyContract,
     ReplyFactRequirement,
 )
-from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
+from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload, UserTurnPayload
 from agent.agno_agent.runtime.result import CapabilityResult
 
 
@@ -44,6 +44,7 @@ async def _run_with_fake_agent(
     input_text: str = "hi",
     content: str = "",
     domain_results: list[DomainExecutionResult] | None = None,
+    input_type: str = "user.turn",
 ):
     class FakeOutput:
         def __init__(self, msgs, text):
@@ -72,12 +73,23 @@ async def _run_with_fake_agent(
     captured_results = list(capability_results)
     captured_domain_results = list(domain_results or [])
     monkeypatch.setattr(agent_runtime, "_create_interaction_agent", patched_create)
+    payload = (
+        ReminderFirePayload(
+            fire_id="reminder-1:2026-05-28T00:30:00+00:00",
+            reminder_id="reminder-1",
+            title="follow up",
+            scheduled_for=datetime.now(UTC),
+            metadata={"fire_mode": "followup", "kind": "internal_followup"},
+        )
+        if input_type == "reminder.fired"
+        else UserTurnPayload(current_message_ids=["msg1"])
+    )
     return await agent_runtime.run_agent_runtime(
         agent_input=AgentInput(
-            input_type="user.turn",
+            input_type=input_type,
             conversation_id="conv1",
             text=input_text,
-            payload=UserTurnPayload(current_message_ids=["msg1"]),
+            payload=payload,
             occurred_at=datetime.now(UTC),
         ),
         run_context=_ctx(),
@@ -540,6 +552,33 @@ async def test_multimodal_parser_ignores_non_text_and_caps_at_three(monkeypatch)
         "二",
         "三",
     ]
+
+
+@pytest.mark.asyncio
+async def test_reminder_fire_serialized_tool_call_fails_closed(monkeypatch):
+    model_text = (
+        "<minimax:tool_call>\n"
+        "<invoke name=\"scheduling_domain\">\n"
+        "<parameter name=\"_model_supplied_args\">"
+        "{\"intent\":\"list_shared_reminders\"}"
+        "</parameter>\n"
+        "</invoke>\n"
+        "</minimax:tool_call>"
+    )
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": model_text}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        input_text="提醒用户确认具体的数学课邀请",
+        content=model_text,
+        input_type="reminder.fired",
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "serialized_tool_call_output"
 
 
 @pytest.mark.asyncio

@@ -1133,6 +1133,11 @@ _FENCED_JSON_RE = re.compile(
     r"^\s*```(?:json|JSON)?\s*\n?(?P<body>.*?)\n?```\s*$",
     re.DOTALL,
 )
+_SERIALIZED_TOOL_CALL_OUTPUT_RE = re.compile(
+    r"(<\s*(?:minimax:)?tool_call\b|</\s*(?:minimax:)?tool_call\s*>|"
+    r"<\s*invoke\s+name\s*=|<\s*parameter\s+name\s*=\s*[\"']_model_supplied_args[\"'])",
+    re.IGNORECASE,
+)
 
 
 def _try_parse_envelope_json(final_text: str) -> Any:
@@ -1216,6 +1221,16 @@ def _parse_visible_text_segments(final_text: str) -> tuple[str, ...]:
 
 def _visible_text_for_guardrails(segments: Sequence[str]) -> str:
     return "\n".join(segment for segment in segments if segment)
+
+
+def _check_serialized_tool_call_output(final_text: str) -> RuntimeErrorDisposition | None:
+    if not final_text or _SERIALIZED_TOOL_CALL_OUTPUT_RE.search(final_text) is None:
+        return None
+    return RuntimeErrorDisposition(
+        code="serialized_tool_call_output",
+        retryable=False,
+        metadata={"reason": "model emitted tool-call markup as visible text"},
+    )
 
 
 def _resolve_visible_text(
@@ -2317,6 +2332,9 @@ async def run_agent_runtime(
         identifier_leak_error = _check_visible_identifier_leak(
             _visible_text_for_guardrails(visible_text_segments)
         )
+        serialized_tool_call_error = _check_serialized_tool_call_output(
+            _visible_text_for_guardrails(visible_text_segments)
+        )
         domain_reply_contract_error = _check_domain_reply_contract(
             final_text=_visible_text_for_guardrails(visible_text_segments),
             domain_results=captured_domain_results,
@@ -2325,6 +2343,7 @@ async def run_agent_runtime(
             runtime_contract_error
             or domain_reply_contract_error
             or identifier_leak_error
+            or serialized_tool_call_error
         )
         if runtime_contract_error is not None:
             visible_text_segments = ()
