@@ -105,6 +105,16 @@ _EXPLICIT_DURATION_RE = re.compile(
     r"(?:持续|时长|历时|用时)\s*(?P<minutes>\d{1,3})\s*(?:分钟|分|minutes?|mins?)",
     re.IGNORECASE,
 )
+_EXPLICIT_SCHEDULING_INTERPRETER_PATTERNS = (
+    re.compile(
+        r"(?:帮我|帮忙|麻烦你)?\s*(?:和|跟)\s*[\w\u4e00-\u9fff@._-]{1,64}\s*(?:约|邀|邀请)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:帮我|帮忙|麻烦你)\s*(?:约|邀请)\s*[\w\u4e00-\u9fff@._-]{1,64}",
+        re.IGNORECASE,
+    ),
+)
 _SCHEDULING_FORCED_ARG_KEYS = {
     "user_link_code",
     "friend_name",
@@ -595,6 +605,20 @@ def _semantic_scheduling_intent_and_args(
             )
         return semantic_result.intent, normalized_args
     return None, {}
+
+
+def _should_run_scheduling_semantic_interpreter(
+    input_message: str,
+    focus: Any,
+) -> bool:
+    if _focus_has_actionable_candidates(focus):
+        return True
+    if not isinstance(input_message, str) or not input_message.strip():
+        return False
+    return any(
+        pattern.search(input_message)
+        for pattern in _EXPLICIT_SCHEDULING_INTERPRETER_PATTERNS
+    )
 
 
 def _recover_explicit_duration_minutes(
@@ -2414,7 +2438,7 @@ async def run_agent_runtime(
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
         semantic_client = (
             _create_semantic_intent_client()
-            if _focus_has_actionable_candidates(focus)
+            if _should_run_scheduling_semantic_interpreter(input_message, focus)
             else None
         )
         semantic_result = await interpret_semantic_intent(

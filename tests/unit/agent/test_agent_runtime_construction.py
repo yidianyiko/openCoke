@@ -952,6 +952,111 @@ async def test_run_agent_runtime_retries_preselected_scheduling_reply_with_trust
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_runs_semantic_interpreter_for_explicit_shared_invite_without_focus(
+    monkeypatch,
+):
+    semantic_client = object()
+    captured = {}
+    preloaded_domain_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder",
+                entity_id="sr_1",
+                facts={"visible_summary": "已创建共享提醒：测试会议。"},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("needs_more_info",),
+        ),
+    )
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, intent, run_context
+        captured["forced_args"] = forced_args
+        domain_results.append(preloaded_domain_result)
+        return preloaded_domain_result.to_dict()
+
+    async def fake_interpret_semantic_intent(**kwargs):
+        captured["semantic_client"] = kwargs["client"]
+        return agent_runtime.SemanticIntentResult(
+            intent="create_shared_reminder",
+            confidence="high",
+            args={
+                "receiver_name": "eva",
+                "title": "测试会议",
+                "fire_at": "2029-01-05T10:00:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "duration_minutes": 60,
+            },
+        )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content=_text_payload(
+                    "已创建共享提醒：测试会议，2029年1月5日10:00，60分钟。"
+                ),
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_semantic_intent_client", lambda: semantic_client
+    )
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "interpret_semantic_intent",
+        fake_interpret_semantic_intent,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="帮我和 eva 约一个明天上午九点的测试会议",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured["semantic_client"] is semantic_client
+    assert captured["forced_args"] == {
+        "receiver_name": "eva",
+        "title": "测试会议",
+        "fire_at": "2029-01-05T10:00:00+08:00",
+        "timezone": "Asia/Shanghai",
+        "duration_minutes": 60,
+    }
+    assert [message.content for message in result.visible_messages] == [
+        "已创建共享提醒：测试会议，2029年1月5日10:00，60分钟。"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_does_not_preselect_personal_contact_reminder(
     monkeypatch,
 ):
