@@ -887,6 +887,52 @@ async def test_reminder_fire_raw_serialized_tool_call_protocol_violation(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_reminder_fire_internal_label_leak_triggers_visible_content_repair(
+    monkeypatch,
+):
+    outputs = [
+        _text_payload("reminders:思考会"),
+        _text_payload("思考会时间到了。"),
+    ]
+    calls = []
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            calls.append(kwargs["input"])
+            return type("FakeOutput", (), {"content": outputs.pop(0), "messages": []})()
+
+    monkeypatch.setattr(
+        agent_runtime,
+        "_create_interaction_agent",
+        lambda **kwargs: FakeAgent(),
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="reminder.fired",
+            conversation_id="conv1",
+            text="提醒：思考会",
+            payload=ReminderFirePayload(
+                fire_id="reminder-1:2026-05-28T13:00:00+00:00",
+                reminder_id="reminder-1",
+                title="思考会",
+                scheduled_for=datetime.now(UTC),
+                metadata={"fire_mode": "notify"},
+            ),
+            occurred_at=datetime.now(UTC),
+        ),
+        run_context=_ctx(),
+    )
+
+    assert len(calls) == 2
+    assert "internal_protocol_label_leak" in calls[1]
+    assert [message.content for message in result.visible_messages] == [
+        "思考会时间到了。"
+    ]
+    assert result.error_disposition is None
+
+
+@pytest.mark.asyncio
 async def test_segmented_reminder_promise_guardrail_uses_joined_visible_text(
     monkeypatch,
 ):

@@ -175,6 +175,7 @@ _REPAIRABLE_VISIBLE_CONTENT_ERROR_CODES = frozenset(
     {
         "unconfirmed_durable_write_promise",
         "domain_reply_contract_violation",
+        "internal_protocol_label_leak",
         "visible_identifier_leak",
     }
 )
@@ -216,6 +217,9 @@ _COMPLETED_WRITE_CLAIM_PATTERNS = (
     re.compile(
         r"(好嘞|好的|收到).{0,80}(提醒你|通知你|叫你).{0,80}(告诉我|补充).{0,32}(设好|设置好|安排好)"
     ),
+)
+_INTERNAL_PROTOCOL_LABEL_LEAK_PATTERNS = (
+    re.compile(r"^\s*reminders?\s*[:：]", re.IGNORECASE),
 )
 
 
@@ -935,11 +939,27 @@ def _create_interaction_agent(
 
         async def scheduling_domain(
             intent: Any = None,
+            user_link_code: str = "",
             friend_name: str = "",
+            requester_name: str = "",
+            target_name: str = "",
             target_account_id: str = "",
+            receiver_name: str = "",
+            receiver_account_id: str = "",
+            friend_account_id: str = "",
+            friendship_id: str = "",
+            shared_reminder_id: str = "",
+            focus_token: str = "",
+            focus_handle: str = "",
+            title: str = "",
+            message: str = "",
+            status: str = "",
+            fire_at: str = "",
             from_date: str = "",
             to_date: str = "",
             timezone: str = "",
+            duration_minutes: int | str | None = None,
+            idempotency_key: str = "",
         ) -> dict[str, Any]:
             """Use for explicit user-link, friendship, friend availability, or shared-reminder actions. For friend availability, use intent=list_friend_calendar_facts and pass friend_name, from_date, to_date, and timezone. For friend invites like "帮我约/邀请 <friend>" with a concrete appointment time, call create_shared_reminder using canonical fields receiver_name, title, fire_at, timezone, and duration_minutes."""
             async with scheduling_domain_lock:
@@ -966,14 +986,38 @@ def _create_interaction_agent(
                     direct_raw_args = {
                         key: value
                         for key, value in {
+                            "user_link_code": user_link_code,
                             "friend_name": friend_name,
+                            "requester_name": requester_name,
+                            "target_name": target_name,
                             "target_account_id": target_account_id,
+                            "receiver_name": receiver_name,
+                            "receiver_account_id": receiver_account_id,
+                            "friend_account_id": friend_account_id,
+                            "friendship_id": friendship_id,
+                            "shared_reminder_id": shared_reminder_id,
+                            "focus_token": focus_token,
+                            "focus_handle": focus_handle,
+                            "title": title,
+                            "message": message,
+                            "status": status,
+                            "fire_at": fire_at,
                             "from_date": from_date,
                             "to_date": to_date,
                             "timezone": timezone,
+                            "duration_minutes": duration_minutes,
+                            "idempotency_key": idempotency_key,
                         }.items()
                         if value is not None and value != ""
                     }
+                    if (
+                        scheduling_intent == "create_shared_reminder"
+                        and "receiver_name" not in direct_raw_args
+                        and "friend_name" in direct_raw_args
+                    ):
+                        direct_raw_args["receiver_name"] = direct_raw_args.pop(
+                            "friend_name"
+                        )
                     if (
                         scheduling_intent == "create_shared_reminder"
                         and forced_scheduling_args is not None
@@ -1748,6 +1792,22 @@ def _check_visible_identifier_leak(final_text: str) -> RuntimeErrorDisposition |
     return RuntimeErrorDisposition(
         code="visible_identifier_leak",
         retryable=False,
+        metadata={},
+    )
+
+
+def _check_internal_protocol_label_leak(
+    final_text: str,
+) -> RuntimeErrorDisposition | None:
+    if not final_text:
+        return None
+    if not any(
+        pattern.search(final_text) for pattern in _INTERNAL_PROTOCOL_LABEL_LEAK_PATTERNS
+    ):
+        return None
+    return RuntimeErrorDisposition(
+        code="internal_protocol_label_leak",
+        retryable=True,
         metadata={},
     )
 
@@ -2584,29 +2644,33 @@ async def run_agent_runtime(
                 output_source = "capability_summary"
                 fallback_reason = "empty_agent_output"
             visible_text_segments = (fallback_text,) if fallback_text else ()
-        identifier_leak_error = _check_visible_identifier_leak(
-            _visible_text_for_guardrails(visible_text_segments)
+        visible_guardrail_text = _visible_text_for_guardrails(visible_text_segments)
+        identifier_leak_error = _check_visible_identifier_leak(visible_guardrail_text)
+        internal_label_leak_error = _check_internal_protocol_label_leak(
+            visible_guardrail_text
         )
         domain_reply_contract_error = _check_domain_reply_contract(
-            final_text=_visible_text_for_guardrails(visible_text_segments),
+            final_text=visible_guardrail_text,
             domain_results=captured_domain_results,
         )
         runtime_contract_error = (
             runtime_contract_error
             or domain_reply_contract_error
+            or internal_label_leak_error
             or identifier_leak_error
         )
         if (
             parse_result.ok
-            and durable_write_executed
             and runtime_contract_error is not None
             and runtime_contract_error.code in _REPAIRABLE_VISIBLE_CONTENT_ERROR_CODES
         ):
-            repair_base_input = _interaction_input_with_trusted_runtime_results(
-                interaction_input,
-                capability_results=captured_capability_results,
-                domain_results=captured_domain_results,
-            )
+            repair_base_input = interaction_input
+            if durable_write_executed:
+                repair_base_input = _interaction_input_with_trusted_runtime_results(
+                    interaction_input,
+                    capability_results=captured_capability_results,
+                    domain_results=captured_domain_results,
+                )
             retry_input = _visible_content_repair_input(
                 repair_base_input,
                 runtime_contract_error,
@@ -2682,16 +2746,21 @@ async def run_agent_runtime(
                     output_source = "capability_summary"
                     fallback_reason = "empty_agent_output"
                 visible_text_segments = (fallback_text,) if fallback_text else ()
+            visible_guardrail_text = _visible_text_for_guardrails(visible_text_segments)
             identifier_leak_error = _check_visible_identifier_leak(
-                _visible_text_for_guardrails(visible_text_segments)
+                visible_guardrail_text
+            )
+            internal_label_leak_error = _check_internal_protocol_label_leak(
+                visible_guardrail_text
             )
             domain_reply_contract_error = _check_domain_reply_contract(
-                final_text=_visible_text_for_guardrails(visible_text_segments),
+                final_text=visible_guardrail_text,
                 domain_results=captured_domain_results,
             )
             runtime_contract_error = (
                 runtime_contract_error
                 or domain_reply_contract_error
+                or internal_label_leak_error
                 or identifier_leak_error
             )
         if runtime_contract_error is not None:

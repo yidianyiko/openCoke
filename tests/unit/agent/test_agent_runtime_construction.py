@@ -810,7 +810,9 @@ async def test_run_agent_runtime_recovers_explicit_duration_for_preselected_shar
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content=_text_payload("已创建共享提醒：方向验证喝茶，2029年1月4日10:00，5分钟。"),
+                content=_text_payload(
+                    "已创建共享提醒：方向验证喝茶，2029年1月4日10:00，5分钟。"
+                ),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -906,7 +908,9 @@ async def test_run_agent_runtime_retries_preselected_scheduling_reply_with_trust
                     messages=[SimpleNamespace(role="assistant", content="")],
                 )
             return SimpleNamespace(
-                content=_text_payload("已创建共享提醒：饭后散步，2029年1月5日10:00，5分钟。"),
+                content=_text_payload(
+                    "已创建共享提醒：饭后散步，2029年1月5日10:00，5分钟。"
+                ),
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -2437,6 +2441,123 @@ async def test_create_interaction_agent_scheduling_domain_forces_complete_shared
             "duration_minutes": 60,
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_accepts_top_level_create_args(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results
+        captured.update({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="帮我和 Eva 约一个明天上午九点的测试会议",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent="create_shared_reminder",
+        friend_name="Eva",
+        title="测试会议",
+        fire_at="2026-05-29T09:00:00+08:00",
+        timezone="Asia/Shanghai",
+        duration_minutes=60,
+    )
+
+    assert captured == {
+        "intent": "create_shared_reminder",
+        "forced_args": {
+            "receiver_name": "Eva",
+            "title": "测试会议",
+            "fire_at": "2026-05-29T09:00:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "duration_minutes": 60,
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_accepts_top_level_action_args(
+    monkeypatch,
+):
+    captured = []
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results
+        captured.append({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="取消和 Eva 的测试会议",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent="cancel_shared_reminder",
+        shared_reminder_id="sr_1",
+        title="测试会议",
+        friend_name="Eva",
+        timezone="Asia/Shanghai",
+    )
+    await scheduling_domain(
+        intent="create_friendship_by_user_link_code", user_link_code="kap_123"
+    )
+
+    assert captured == [
+        {
+            "intent": "cancel_shared_reminder",
+            "forced_args": {
+                "shared_reminder_id": "sr_1",
+                "title": "测试会议",
+                "friend_name": "Eva",
+                "timezone": "Asia/Shanghai",
+            },
+        },
+        {
+            "intent": "create_friendship_by_user_link_code",
+            "forced_args": {"user_link_code": "kap_123"},
+        },
+    ]
 
 
 @pytest.mark.asyncio
