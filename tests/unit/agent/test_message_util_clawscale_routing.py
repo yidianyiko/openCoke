@@ -316,6 +316,11 @@ def test_message_util_flattens_product_notification_push_metadata(
             },
         }
     ]
+    monkeypatch.setattr(
+        message_util.uuid,
+        "uuid4",
+        lambda: SimpleNamespace(hex="seg_1"),
+    )
 
     def fake_send_message(
         platform, from_user, to_user, chatroom_name, message, **kwargs
@@ -341,9 +346,11 @@ def test_message_util_flattens_product_notification_push_metadata(
     assert output["customer_id"] == "acct_1"
     assert output["metadata"]["delivery_mode"] == "push"
     assert output["metadata"]["business_conversation_key"] == "bc_1"
-    assert output["metadata"]["output_id"] == "pn_1"
-    assert output["metadata"]["idempotency_key"] == "product_notification:pn_1"
-    assert output["metadata"]["trace_id"] == "product_notification:pn_1"
+    assert output["metadata"]["output_id"] == "seg_1"
+    assert output["metadata"]["idempotency_key"] == (
+        "product_notification:pn_1:output:seg_1"
+    )
+    assert output["metadata"]["trace_id"] == "product_notification:pn_1:output:seg_1"
     assert output["metadata"]["causal_inbound_event_id"] == "pn_1"
     assert output["metadata"]["notification_id"] == "pn_1"
     assert output["metadata"]["notification_kind"] == "shared_reminder_created"
@@ -356,6 +363,69 @@ def test_message_util_flattens_product_notification_push_metadata(
         "facts_hash": "sha256:facts",
         "facts": {"shared_reminder_id": "sr_1"},
     }
+
+
+def test_product_notification_segments_get_distinct_outbound_idempotency(
+    sample_context, monkeypatch
+):
+    from agent.util import message_util
+
+    sample_context["message_source"] = "user"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["platform"] = "business"
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {
+            "input_timestamp": 1710000000,
+            "metadata": {
+                "source": "clawscale",
+                "customer": {"id": "acct_1"},
+                "business_protocol": {
+                    "delivery_mode": "push",
+                    "business_conversation_key": "bc_1",
+                    "output_id": "pn_1",
+                    "idempotency_key": "product_notification:pn_1",
+                    "trace_id": "product_notification:pn_1",
+                    "causal_inbound_event_id": "pn_1",
+                },
+                "product_notification": {
+                    "notification_id": "pn_1",
+                    "notification_kind": "shared_reminder_created",
+                },
+            },
+        }
+    ]
+    generated = iter(["seg_1", "seg_2"])
+    monkeypatch.setattr(
+        message_util.uuid,
+        "uuid4",
+        lambda: SimpleNamespace(hex=next(generated)),
+    )
+
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
+        del platform, from_user, to_user, chatroom_name
+        return {
+            "message": message,
+            "metadata": kwargs["metadata"],
+            "customer_id": kwargs["customer_id"],
+        }
+
+    monkeypatch.setattr(message_util, "send_message", fake_send_message)
+
+    first = message_util.send_message_via_context(sample_context, "第一句")
+    second = message_util.send_message_via_context(sample_context, "第二句")
+
+    assert first["metadata"]["notification_id"] == "pn_1"
+    assert second["metadata"]["notification_id"] == "pn_1"
+    assert first["metadata"]["output_id"] == "seg_1"
+    assert second["metadata"]["output_id"] == "seg_2"
+    assert first["metadata"]["idempotency_key"] == (
+        "product_notification:pn_1:output:seg_1"
+    )
+    assert second["metadata"]["idempotency_key"] == (
+        "product_notification:pn_1:output:seg_2"
+    )
 
 
 def test_message_util_prefers_product_notification_push_over_batched_sync_reply(
@@ -402,6 +472,11 @@ def test_message_util_prefers_product_notification_push_over_batched_sync_reply(
             },
         },
     ]
+    monkeypatch.setattr(
+        message_util.uuid,
+        "uuid4",
+        lambda: SimpleNamespace(hex="seg_1"),
+    )
 
     def fake_send_message(
         platform, from_user, to_user, chatroom_name, message, **kwargs
@@ -425,7 +500,7 @@ def test_message_util_prefers_product_notification_push_over_batched_sync_reply(
     assert output["customer_id"] == "acct_push"
     assert output["metadata"]["delivery_mode"] == "push"
     assert output["metadata"]["business_conversation_key"] == "bc_push"
-    assert output["metadata"]["output_id"] == "pn_1"
+    assert output["metadata"]["output_id"] == "seg_1"
     assert output["metadata"]["notification_id"] == "pn_1"
     assert "sync_reply_token" not in output["metadata"]
 

@@ -530,6 +530,13 @@ def _normalize_clawscale_push_output_metadata(
         notification_id = product_notification.get("notification_id")
         if notification_id is not None:
             flattened["notification_id"] = notification_id
+            if isinstance(notification_id, str) and notification_id.strip():
+                output_id = uuid.uuid4().hex
+                flattened["output_id"] = output_id
+                flattened["idempotency_key"] = (
+                    f"product_notification:{notification_id.strip()}:output:{output_id}"
+                )
+                flattened["trace_id"] = flattened["idempotency_key"]
         notification_kind = product_notification.get("notification_kind")
         if notification_kind is None:
             notification_kind = product_notification.get("kind")
