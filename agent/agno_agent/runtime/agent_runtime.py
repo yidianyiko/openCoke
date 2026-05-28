@@ -1220,12 +1220,39 @@ def _check_serialized_tool_call_output(
 
 
 def _output_protocol_violation(
-    reason: str, *, attempted_retry: bool
+    reason: str, *, attempted_retry: bool, durable_write_executed: bool = False
 ) -> RuntimeErrorDisposition:
     return RuntimeErrorDisposition(
         code="output_protocol_violation",
-        retryable=not attempted_retry,
-        metadata={"reason": reason, "attempted_retry": attempted_retry},
+        retryable=not attempted_retry and not durable_write_executed,
+        metadata={
+            "reason": reason,
+            "attempted_retry": attempted_retry,
+            "durable_write_executed": durable_write_executed,
+        },
+    )
+
+
+def _protocol_repair_input(input_message: str, reason: str) -> str:
+    return (
+        f"{input_message}\n\n"
+        "System protocol repair: the previous response violated the visible output "
+        f"protocol ({reason}). Return only one JSON object with this shape: "
+        '{"MultiModalResponses": [{"type": "text", "content": "message text"}]}. '
+        "Do not include markdown fences or any text outside the JSON object."
+    )
+
+
+def _has_successful_durable_write(
+    capability_results: Sequence[CapabilityResult],
+    domain_results: Sequence[DomainExecutionResult],
+) -> bool:
+    if any(result.ok and result.durable_write for result in capability_results):
+        return True
+    return any(
+        operation.ok and operation.effect == "write"
+        for result in domain_results
+        for operation in result.operations
     )
 
 
@@ -2225,52 +2252,63 @@ async def run_agent_runtime(
             preloaded_scheduling_domain_result = await run_scheduling_domain(
                 **run_scheduling_kwargs
             )
-        create_agent_kwargs: dict[str, Any] = {
-            "run_context": run_context,
-            "agent_input": agent_input,
-            "input_message": input_message,
-            "capability_results": capability_results,
-            "domain_results": domain_results,
-            "preloaded_scheduling_domain_result": preloaded_scheduling_domain_result,
-        }
-        if preselected_scheduling_intent is not None:
-            create_agent_kwargs["preselected_scheduling_intent"] = (
-                preselected_scheduling_intent
-            )
-        create_agent_signature = inspect.signature(_create_interaction_agent)
-        accepts_arbitrary_kwargs = any(
-            parameter.kind == inspect.Parameter.VAR_KEYWORD
-            for parameter in create_agent_signature.parameters.values()
-        )
-        if not accepts_arbitrary_kwargs:
-            create_agent_kwargs = {
-                key: value
-                for key, value in create_agent_kwargs.items()
-                if key in create_agent_signature.parameters
-            }
-        agent = _create_interaction_agent(**create_agent_kwargs)
         timeout_seconds = _agent_runtime_timeout_seconds()
-        agent_instructions = getattr(agent, "instructions", "") or ""
-        logger.info(
-            "agent.arun start: timeout=%.1fs, instructions_len=%d, tools=%d, "
-            "has_preselected_intent=%s, session_id=%s",
-            timeout_seconds,
-            len(agent_instructions) if isinstance(agent_instructions, str) else -1,
-            len(getattr(agent, "tools", []) or []),
-            bool(preselected_scheduling_intent),
-            run_context.conversation.id,
-        )
-        try:
+
+        def create_interaction_agent_for_attempt() -> Any:
+            create_agent_kwargs: dict[str, Any] = {
+                "run_context": run_context,
+                "agent_input": agent_input,
+                "input_message": input_message,
+                "capability_results": capability_results,
+                "domain_results": domain_results,
+                "preloaded_scheduling_domain_result": preloaded_scheduling_domain_result,
+            }
+            if preselected_scheduling_intent is not None:
+                create_agent_kwargs["preselected_scheduling_intent"] = (
+                    preselected_scheduling_intent
+                )
+            create_agent_signature = inspect.signature(_create_interaction_agent)
+            accepts_arbitrary_kwargs = any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in create_agent_signature.parameters.values()
+            )
+            if not accepts_arbitrary_kwargs:
+                create_agent_kwargs = {
+                    key: value
+                    for key, value in create_agent_kwargs.items()
+                    if key in create_agent_signature.parameters
+                }
+            return _create_interaction_agent(**create_agent_kwargs)
+
+        async def run_interaction_attempt(attempt_input: str, *, retry: bool) -> Any:
+            agent = create_interaction_agent_for_attempt()
+            agent_instructions = getattr(agent, "instructions", "") or ""
+            logger.info(
+                "agent.arun%s start: timeout=%.1fs, instructions_len=%d, tools=%d, "
+                "has_preselected_intent=%s, session_id=%s",
+                " protocol retry" if retry else "",
+                timeout_seconds,
+                len(agent_instructions) if isinstance(agent_instructions, str) else -1,
+                len(getattr(agent, "tools", []) or []),
+                bool(preselected_scheduling_intent),
+                run_context.conversation.id,
+            )
             run_output = await asyncio.wait_for(
                 agent.arun(
-                    input=input_message,
+                    input=attempt_input,
                     session_id=run_context.conversation.id,
                 ),
                 timeout=timeout_seconds,
             )
             logger.info(
-                "agent.arun returned: session_id=%s", run_context.conversation.id
+                "agent.arun%s returned: session_id=%s",
+                " protocol retry" if retry else "",
+                run_context.conversation.id,
             )
+            return run_output
+
+        try:
+            run_output = await run_interaction_attempt(input_message, retry=False)
         except asyncio.TimeoutError:
             return _timeout_result(
                 agent_input=agent_input,
@@ -2283,48 +2321,45 @@ async def run_agent_runtime(
                 capability_results=capability_results,
                 domain_results=domain_results,
             )
+
         final_text = _string_content(getattr(run_output, "content", None))
         if not final_text:
             final_text = _latest_assistant_text(run_output)
         parse_result = _parse_visible_output_protocol(final_text)
         attempted_output_protocol_retry = False
         if not parse_result.ok:
-            attempted_output_protocol_retry = True
-            retry_input = (
-                f"{input_message}\n\n"
-                "Your previous response violated the visible output protocol: "
-                f"{parse_result.violation_reason}. "
-                "Reply again using only a parseable JSON object with a "
-                "MultiModalResponses array of text items."
+            durable_write_executed = _has_successful_durable_write(
+                capability_results,
+                domain_results,
             )
-            try:
-                run_output = await asyncio.wait_for(
-                    agent.arun(
-                        input=retry_input,
-                        session_id=run_context.conversation.id,
-                    ),
-                    timeout=timeout_seconds,
+            if not durable_write_executed:
+                attempted_output_protocol_retry = True
+                retry_input = _protocol_repair_input(
+                    input_message,
+                    parse_result.violation_reason or "unknown",
                 )
-                logger.info(
-                    "agent.arun protocol retry returned: session_id=%s",
-                    run_context.conversation.id,
-                )
-            except asyncio.TimeoutError:
-                return _timeout_result(
-                    agent_input=agent_input,
-                    run_context=run_context,
-                    input_message=input_message,
-                    started_at=started_at,
-                    timeout_seconds=timeout_seconds,
-                    preselected_scheduling_intent=preselected_scheduling_intent,
-                    forced_args_present=bool(preselected_scheduling_args),
-                    capability_results=capability_results,
-                    domain_results=domain_results,
-                )
-            final_text = _string_content(getattr(run_output, "content", None))
-            if not final_text:
-                final_text = _latest_assistant_text(run_output)
-            parse_result = _parse_visible_output_protocol(final_text)
+                try:
+                    run_output = await run_interaction_attempt(retry_input, retry=True)
+                except asyncio.TimeoutError:
+                    return _timeout_result(
+                        agent_input=agent_input,
+                        run_context=run_context,
+                        input_message=input_message,
+                        started_at=started_at,
+                        timeout_seconds=timeout_seconds,
+                        preselected_scheduling_intent=preselected_scheduling_intent,
+                        forced_args_present=bool(preselected_scheduling_args),
+                        capability_results=capability_results,
+                        domain_results=domain_results,
+                    )
+                final_text = _string_content(getattr(run_output, "content", None))
+                if not final_text:
+                    final_text = _latest_assistant_text(run_output)
+                parse_result = _parse_visible_output_protocol(final_text)
+        durable_write_executed = _has_successful_durable_write(
+            capability_results,
+            domain_results,
+        )
         final_text_segments = parse_result.segments if parse_result.ok else ()
         output_protocol_error = (
             None
@@ -2332,6 +2367,7 @@ async def run_agent_runtime(
             else _output_protocol_violation(
                 parse_result.violation_reason or "unknown",
                 attempted_retry=attempted_output_protocol_retry,
+                durable_write_executed=durable_write_executed,
             )
         )
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(

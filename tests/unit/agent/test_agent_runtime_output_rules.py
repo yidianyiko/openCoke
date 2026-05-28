@@ -119,11 +119,16 @@ async def test_rule1_synthesis_with_nonempty_final_text_wins(monkeypatch):
         messages=[
             {"role": "user", "content": "hi"},
             {"role": "tool", "content": "..."},
-            {"role": "assistant", "content": "synthesized reply"},
+            {
+                "role": "assistant",
+                "content": _segments_payload(
+                    {"type": "text", "content": "synthesized reply"}
+                ),
+            },
         ],
         capability_results=[url_result, timezone_result],
         monkeypatch=monkeypatch,
-        content="synthesized reply",
+        content=_segments_payload({"type": "text", "content": "synthesized reply"}),
     )
 
     assert [message.content for message in result.visible_messages] == [
@@ -156,7 +161,10 @@ async def test_rule2_visible_summary_when_synthesis_text_empty(monkeypatch):
         monkeypatch=monkeypatch,
     )
 
-    assert [message.content for message in result.visible_messages] == ["已设好提醒"]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -180,7 +188,10 @@ async def test_rule2_joins_multiple_visible_summaries(monkeypatch):
         monkeypatch=monkeypatch,
     )
 
-    assert [message.content for message in result.visible_messages] == ["一\n二"]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -203,9 +214,10 @@ async def test_failed_tool_message_is_not_joined_with_success_summary(monkeypatc
         monkeypatch=monkeypatch,
     )
 
-    assert [message.content for message in result.visible_messages] == [
-        "已创建提醒：离开时手机（2026-05-10 11:00）"
-    ]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -261,10 +273,17 @@ async def test_reminder_write_domain_summary_does_not_replace_nonempty_agent_tex
 @pytest.mark.asyncio
 async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": "ordinary chat"}],
+        messages=[
+            {
+                "role": "assistant",
+                "content": _segments_payload(
+                    {"type": "text", "content": "ordinary chat"}
+                ),
+            }
+        ],
         capability_results=[],
         monkeypatch=monkeypatch,
-        content="ordinary chat",
+        content=_segments_payload({"type": "text", "content": "ordinary chat"}),
     )
 
     assert [message.content for message in result.visible_messages] == ["ordinary chat"]
@@ -272,6 +291,10 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
 
 def _segments_payload(*segments: object) -> str:
     return json.dumps({"MultiModalResponses": list(segments)}, ensure_ascii=False)
+
+
+def _text_payload(content: str) -> str:
+    return _segments_payload({"type": "text", "content": content})
 
 
 @pytest.mark.asyncio
@@ -324,6 +347,90 @@ async def test_malformed_envelope_json_is_protocol_violation_not_lenient_recover
     assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None
     assert result.error_disposition.code == "output_protocol_violation"
+
+
+@pytest.mark.asyncio
+async def test_protocol_retry_failure_returns_no_visible_message(monkeypatch):
+    calls = []
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            calls.append(kwargs["input"])
+            return type("FakeOutput", (), {"content": "still raw", "messages": []})()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv1",
+            text="hi",
+            payload=UserTurnPayload(current_message_ids=["msg1"]),
+            occurred_at=datetime.now(UTC),
+        ),
+        run_context=_ctx(),
+    )
+
+    assert len(calls) == 2
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
+    assert result.error_disposition.metadata["attempted_retry"] is True
+
+
+@pytest.mark.asyncio
+async def test_user_turn_protocol_violation_after_durable_write_does_not_retry(
+    monkeypatch,
+):
+    write_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"visible_summary": "已创建提醒：喝水"},
+            ),
+        ),
+    )
+    calls = []
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            calls.append(kwargs["input"])
+            return type(
+                "FakeOutput", (), {"content": "raw after write", "messages": []}
+            )()
+
+    def fake_create(**kwargs):
+        kwargs["domain_results"].append(write_result)
+        return FakeAgent()
+
+    monkeypatch.setattr(agent_runtime, "_create_interaction_agent", fake_create)
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv1",
+            text="明天提醒我喝水",
+            payload=UserTurnPayload(current_message_ids=["msg1"]),
+            occurred_at=datetime.now(UTC),
+        ),
+        run_context=_ctx(),
+    )
+
+    assert len(calls) == 1
+    assert result.visible_messages == ()
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
+    assert result.error_disposition.retryable is False
+    assert result.error_disposition.metadata["durable_write_executed"] is True
 
 
 @pytest.mark.asyncio
@@ -412,9 +519,10 @@ async def test_preselected_scheduling_failure_summary_becomes_visible_text(monke
         run_context=_ctx(),
     )
 
-    assert [message.content for message in result.visible_messages] == [
-        "这个时间已经过去了，请给我一个未来的上课时间。"
-    ]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -535,9 +643,7 @@ async def test_fenced_envelope_in_assistant_message_is_used_when_content_empty(
 
 @pytest.mark.asyncio
 async def test_malformed_envelope_json_recovers_text_segments(monkeypatch):
-    """Model occasionally emits a MultiModalResponses envelope with broken
-    braces / commas. Regression: lenient recovery should still extract the
-    text contents so the user does not see raw JSON."""
+    """Malformed MultiModalResponses JSON fails closed instead of recovering."""
     # Real example from smoke batch 143020Z T5: extra closing `}` before `]`.
     raw = (
         '{"MultiModalResponses": [{"type": "text", "content": '
@@ -549,17 +655,15 @@ async def test_malformed_envelope_json_recovers_text_segments(monkeypatch):
         monkeypatch=monkeypatch,
         content=raw,
     )
-    assert [m.content for m in result.visible_messages] == [
-        "没有共享提醒，目前都是清空的。",
-    ]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
 async def test_malformed_multimodal_json_recovers_text_lenient(monkeypatch):
-    """When the envelope signature is present but the JSON is truncated /
-    malformed, we still recover the user-visible content rather than leak
-    the raw envelope. Updated from the previous fall-back-to-raw behavior
-    after observing real malformed envelopes in production smoke runs."""
+    """Truncated envelopes are protocol violations, not visible text."""
     raw = '{"MultiModalResponses": [{"type": "text", "content": "缺了括号"}'
 
     result = await _run_with_fake_agent(
@@ -569,14 +673,15 @@ async def test_malformed_multimodal_json_recovers_text_lenient(monkeypatch):
         content=raw,
     )
 
-    assert [message.content for message in result.visible_messages] == ["缺了括号"]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
 async def test_non_envelope_invalid_json_still_falls_back_to_raw(monkeypatch):
-    """Sanity: random invalid JSON without the MultiModalResponses signature
-    must not trigger lenient recovery — it would silently swallow user-meant
-    content. Pass it through unchanged."""
+    """Non-envelope text is a protocol violation under the strict contract."""
     raw = "just broken JSON {{ }}"
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": raw}],
@@ -584,7 +689,10 @@ async def test_non_envelope_invalid_json_still_falls_back_to_raw(monkeypatch):
         monkeypatch=monkeypatch,
         content=raw,
     )
-    assert [message.content for message in result.visible_messages] == [raw]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -634,7 +742,7 @@ async def test_reminder_fire_serialized_tool_call_fails_closed(monkeypatch):
     assert result.visible_messages == ()
     assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None
-    assert result.error_disposition.code == "serialized_tool_call_output"
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -696,11 +804,11 @@ async def test_direct_reminder_promise_fails_closed_without_confirmed_write(
     monkeypatch, model_text
 ):
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": model_text}],
+        messages=[{"role": "assistant", "content": _text_payload(model_text)}],
         capability_results=[],
         monkeypatch=monkeypatch,
         input_text="明天九点提醒我喝水",
-        content=model_text,
+        content=_text_payload(model_text),
     )
 
     assert result.visible_messages == ()
@@ -742,12 +850,12 @@ async def test_failed_reminder_domain_result_blocks_created_claim(monkeypatch):
     text = "提醒已创建：喝水-fire-real-20260527T073551Z，今天下午3点39分提醒。"
 
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": text}],
+        messages=[{"role": "assistant", "content": _text_payload(text)}],
         capability_results=[],
         domain_results=[failed_result],
         monkeypatch=monkeypatch,
         input_text="2分钟后提醒我喝水-fire-real-20260527T073551Z。",
-        content=text,
+        content=_text_payload(text),
     )
 
     assert result.visible_messages == ()
@@ -799,14 +907,16 @@ async def test_rejected_reminder_domain_summary_overrides_ambiguous_model_text(
         messages=[
             {
                 "role": "assistant",
-                "content": "你是想让我提醒你约课，还是让我直接帮你约课？",
+                "content": _text_payload(
+                    "你是想让我提醒你约课，还是让我直接帮你约课？"
+                ),
             }
         ],
         capability_results=[],
         domain_results=[rejected_result],
         monkeypatch=monkeypatch,
         input_text="周日15:00帮我约一节羽毛球教练课",
-        content="你是想让我提醒你约课，还是让我直接帮你约课？",
+        content=_text_payload("你是想让我提醒你约课，还是让我直接帮你约课？"),
     )
 
     assert [message.content for message in result.visible_messages] == [visible_summary]
@@ -852,14 +962,16 @@ async def test_booking_refusal_can_offer_reminder_help_without_write_claim(
     monkeypatch, model_text
 ):
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": model_text}],
+        messages=[{"role": "assistant", "content": _text_payload(model_text)}],
         capability_results=[],
         monkeypatch=monkeypatch,
         input_text="周日下午 3 点帮我约彭教练",
-        content=model_text,
+        content=_text_payload(model_text),
     )
 
-    assert [message.content for message in result.visible_messages] == [model_text]
+    assert [message.content for message in result.visible_messages] == [
+        segment.strip() for segment in model_text.splitlines() if segment.strip()
+    ]
     assert result.output_disposition.status == "ok"
 
 
@@ -868,11 +980,11 @@ async def test_booking_refusal_still_blocks_completed_reminder_claim(monkeypatch
     model_text = "我不能帮你预约教练，但已经帮你设置好了周日下午3点约课提醒。"
 
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": model_text}],
+        messages=[{"role": "assistant", "content": _text_payload(model_text)}],
         capability_results=[],
         monkeypatch=monkeypatch,
         input_text="周日下午 3 点帮我约彭教练",
-        content=model_text,
+        content=_text_payload(model_text),
     )
 
     assert result.visible_messages == ()
@@ -886,11 +998,16 @@ async def test_direct_reminder_promise_does_not_invoke_recovery_port(monkeypatch
     calls = 0
 
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": "我会在明天早上九点提醒你。"}],
+        messages=[
+            {
+                "role": "assistant",
+                "content": _text_payload("我会在明天早上九点提醒你。"),
+            }
+        ],
         capability_results=[],
         monkeypatch=monkeypatch,
         input_text="明天九点提醒我喝水",
-        content="我会在明天早上九点提醒你。",
+        content=_text_payload("我会在明天早上九点提醒你。"),
     )
 
     assert calls == 0
@@ -906,12 +1023,15 @@ async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_wri
 ):
     result = await _run_with_fake_agent(
         messages=[
-            {"role": "assistant", "content": "好啦，已经帮你和 Nora 建了共享提醒。"}
+            {
+                "role": "assistant",
+                "content": _text_payload("好啦，已经帮你和 Nora 建了共享提醒。"),
+            }
         ],
         capability_results=[],
         monkeypatch=monkeypatch,
         input_text="我们聊一下共享提醒能力",
-        content="好啦，已经帮你和 Nora 建了共享提醒。",
+        content=_text_payload("好啦，已经帮你和 Nora 建了共享提醒。"),
     )
 
     assert result.visible_messages == ()
@@ -927,11 +1047,11 @@ async def test_stale_shared_reminder_invite_claim_fails_closed(
     text = "搞定了！今天上午11点去奇迹创坛的邀请已经发给 eva 了，等他确认～"
 
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": text}],
+        messages=[{"role": "assistant", "content": _text_payload(text)}],
         capability_results=[],
         monkeypatch=monkeypatch,
         input_text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
-        content=text,
+        content=_text_payload(text),
     )
 
     assert result.visible_messages == ()
@@ -961,12 +1081,12 @@ async def test_stale_shared_reminder_invite_claim_rejected_after_other_write(
     text = "邀请已经发给 eva 了，等他确认。"
 
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": text}],
+        messages=[{"role": "assistant", "content": _text_payload(text)}],
         capability_results=[],
         domain_results=[unrelated_write],
         monkeypatch=monkeypatch,
         input_text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
-        content=text,
+        content=_text_payload(text),
     )
 
     assert result.visible_messages == ()
@@ -996,12 +1116,12 @@ async def test_shared_reminder_creation_claim_allowed_after_create_write(
     text = "已创建和 eva 的共享提醒。"
 
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": text}],
+        messages=[{"role": "assistant", "content": _text_payload(text)}],
         capability_results=[],
         domain_results=[create_write],
         monkeypatch=monkeypatch,
         input_text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
-        content=text,
+        content=_text_payload(text),
     )
 
     assert result.output_disposition.status == "ok"
@@ -1026,12 +1146,12 @@ async def test_scheduling_write_without_visible_summary_fails_closed(monkeypatch
     )
 
     result = await _run_with_fake_agent(
-        messages=[{"role": "assistant", "content": "完成了。"}],
+        messages=[{"role": "assistant", "content": _text_payload("完成了。")}],
         capability_results=[],
         domain_results=[scheduling_write],
         monkeypatch=monkeypatch,
         input_text="约 eva 明天 11 点",
-        content="完成了。",
+        content=_text_payload("完成了。"),
     )
 
     assert result.visible_messages == ()
@@ -1048,7 +1168,9 @@ async def test_visible_identifier_leak_guardrail_trips_on_account_id_patterns(
         messages=[{"role": "assistant", "content": ""}],
         capability_results=[],
         monkeypatch=monkeypatch,
-        content="你有 1 个待处理的共享提醒：ck_smoke_20260525t045815z_alice 发来的“打羽毛球”。",
+        content=_text_payload(
+            "你有 1 个待处理的共享提醒：ck_smoke_20260525t045815z_alice 发来的“打羽毛球”。"
+        ),
     )
 
     assert result.visible_messages == ()

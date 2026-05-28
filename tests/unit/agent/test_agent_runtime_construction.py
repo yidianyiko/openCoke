@@ -1335,7 +1335,7 @@ async def test_reminder_fired_input_passes_raw_input_to_model(monkeypatch):
         async def arun(self, **kwargs):
             model_inputs.append(kwargs["input"])
             return SimpleNamespace(
-                content="该喝水了。",
+                content='{"MultiModalResponses": [{"type": "text", "content": "该喝水了。"}]}',
                 messages=[SimpleNamespace(role="assistant", content="ignored")],
             )
 
