@@ -12,10 +12,10 @@ from agent.agno_agent.runtime import post_analyze
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_chat_response_config_uses_siliconflow_minimax_m25():
+def test_chat_response_config_uses_siliconflow_kimi_k26():
     expected = {
         "provider": "siliconflow",
-        "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
+        "model_id": "Pro/moonshotai/Kimi-K2.6",
         "api_key": "${SiliconFlow_API_KEY}",
         "base_url": "https://api.siliconflow.cn/v1",
     }
@@ -30,6 +30,26 @@ def test_chat_response_config_uses_siliconflow_minimax_m25():
         assert chat_response["model_id"] == expected["model_id"], config_path
         assert chat_response["api_key"] == expected["api_key"], config_path
         assert chat_response["base_url"] == expected["base_url"], config_path
+
+
+def test_semantic_interpreter_config_uses_siliconflow_kimi_k26():
+    expected = {
+        "provider": "siliconflow",
+        "model_id": "Pro/moonshotai/Kimi-K2.6",
+        "api_key": "${SiliconFlow_API_KEY}",
+        "base_url": "https://api.siliconflow.cn/v1",
+    }
+
+    for config_path in (
+        ROOT / "conf" / "config.json",
+        ROOT / "deploy" / "config" / "coke.config.json",
+    ):
+        config = json.loads(config_path.read_text())
+        semantic_interpreter = config["llm"]["roles"]["semantic_interpreter"]
+        assert semantic_interpreter["provider"] == expected["provider"], config_path
+        assert semantic_interpreter["model_id"] == expected["model_id"], config_path
+        assert semantic_interpreter["api_key"] == expected["api_key"], config_path
+        assert semantic_interpreter["base_url"] == expected["base_url"], config_path
 
 
 def test_reminder_detect_config_uses_siliconflow_glm_51():

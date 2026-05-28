@@ -78,7 +78,14 @@
             },
             "chat_response": {
                 "provider": "siliconflow",
-                "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
+                "model_id": "Pro/moonshotai/Kimi-K2.6",
+                "api_key": "${SiliconFlow_API_KEY}",
+                "base_url": "https://api.siliconflow.cn/v1",
+                "max_retries": 2
+            },
+            "semantic_interpreter": {
+                "provider": "siliconflow",
+                "model_id": "Pro/moonshotai/Kimi-K2.6",
                 "api_key": "${SiliconFlow_API_KEY}",
                 "base_url": "https://api.siliconflow.cn/v1",
                 "max_retries": 2
