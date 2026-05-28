@@ -3,7 +3,7 @@ kind: verification_report
 status: active
 title: Real-user happy-path production smoke matrix
 created_at: 2026-05-27
-updated_at: 2026-05-27
+updated_at: 2026-05-28
 surface:
   - production-smoke
   - agent-runtime
@@ -40,6 +40,31 @@ used.
 - `agent-local-only`: represented in local or agent smoke artifacts only.
 - `missing-production`: no current production real-user evidence.
 
+## Evidence Standard Update - 2026-05-28
+
+The previous matrix was too coarse for shared-reminder/product-notification
+flows. A shared-reminder happy path now requires separate evidence for:
+
+- requester synchronous Interaction Agent reply for the original user turn,
+  with no `fallback_kind=system_failure`;
+- durable shared-reminder row and both runtime projections;
+- structured `product_notifications.payload.facts` plus `facts_hash`, with no
+  stored final prose `text`;
+- worker product-notification `outputmessages` row with matching
+  `notification_id`, matching facts, and `status` not `failed`;
+- Gateway/provider reconciliation to `product_notifications.status='delivered'`;
+- cleanup by Scheduling cancellation, not manual deletion.
+
+Provider failures such as `wechat_send_failed ret=-2`, only failed Mongo
+output rows for a notification, or notification rows stuck at
+`pending_delivery` do not count as delivery passes, even if the domain row was
+created. A notification with both successful and failed output rows is not
+clean happy-path evidence; record it as partial and investigate the duplicate
+or retry path. For recently changed shared-reminder paths, use at least two
+marked natural-language phrasings: one machine-like smoke title and one normal
+chat title. Record each marker as `passed-production`, `partial-production`, or
+`failed-production` by layer.
+
 ## Matrix
 
 | Scenario | Source case or marker | Surface | Status | Evidence / Notes |
@@ -59,6 +84,10 @@ used.
 | Friend availability query | `happy-availability-fix4-20260527T124245Z` | production bridge, gateway scheduling domain | passed-production | Fixed timezone injection, required tool schema, explicit agent arguments, and date-only normalization; production bridge reply confirmed 李梓豪 was free, gateway returned `200`, and marker checks found no shared-reminder or notification side effects. |
 | Friend/user-link happy path | `happy-friend-link-20260527T124508Z` | production bridge, gateway scheduling domain | passed-production | Production bridge returned olivers user-link and 李梓豪 friend list confirmed olivers; existing active friendship and active user links verified with no destructive cleanup needed. |
 | Coach-booking unsupported/decline happy path | `happy-coach-decline-fix3-20260527T130832Z` | production bridge, reminder intent boundary, runtime output contract | passed-production | Fixed external booking boundary as a reminder-domain rejection with authoritative visible summary; production bridge reply declined direct booking, no visible reminder/shared request/product notification was created, and PostAnalyze logged no internal follow-up. |
+| Direct active shared reminder receiver delivery/cleanup after direct-friendship migration | `server-smoke-20260528T072443Z` | production bridge, gateway scheduling domain, product notifications, provider outbound | partial-production | Post-deploy create wrote active `shared_reminders` row `sr_a0315788583d121c33986771b885bee5c3f78b79`; receiver `shared_reminder_created` notification `cmpp66ybn0007nv1uob2cfqb0` had `facts/facts_hash`, no payload `text`, worker output `6a17ee5082acc95e8d838c96`, and reconciled `delivered`; cleanup cancel succeeded and receiver cancellation notification `cmpp68hvc000env1uf66hpfys` delivered. The requester sync reply was fallback, so this is receiver-delivery evidence only, not a full shared-reminder happy-path pass. |
+| Direct active shared reminder normal-title requester reply | `zhsmoke073047` | production bridge, gateway scheduling domain, requester interaction LLM, provider outbound | partial-production | Normal chat title created and requester got non-fallback LLM reply output `6a17efbb82acc95e8d838e38`; durable shared reminder `sr_c56e8a3b2864163d9d15eb5bdba7ad7632fe8a3c` was created and then cancelled through Scheduling. Receiver notification output `6a17efbb82acc95e8d838e3d` failed at provider with `wechat_send_failed ret=-2`, leaving notification rows pending, so this does not count as receiver delivery evidence. |
+| Direct active shared reminder reverse direction with normal phrasing | `dirsmoke074102` | production bridge, gateway scheduling domain, requester interaction LLM, product notifications, provider outbound | partial-production | `olivers -> 李梓豪` created `sr_3ff9d3cf41a1c05ae354ceda8f5e3001052bd15c` and cleanup cancellation succeeded. Receiver create and cancel notification rows delivered with facts/hash and no payload `text`. The requester output `6a17f22482acc95e8d8390d6` was system fallback, the create notification output `6a17f22a82acc95e8d8390e1` was generic onboarding text instead of facts-derived reminder text, and `duration_minutes` was null despite the user saying `持续5分钟`. Cancellation also produced mixed output rows for the same notification, including one failed row, so this is not clean happy-path evidence. |
+| Direct active shared reminder alternate receiver route | `multismoke075200` | production bridge, gateway scheduling domain, requester interaction LLM, product notifications, provider outbound | partial-production | Interrupted smoke still reached production. `李梓豪 -> eva` created `sr_094f735558746f6aed1af28df14058a87b05481e` with correct `duration_minutes=5`; cleanup cancellation succeeded. The requester output `6a17f30382acc95e8d8391ee` was system fallback. Receiver create notification `cmpp6wrwh001pnv1uuzoddfk2` and cancel notification `cmpp7vb1h001wnv1ufnfwy90s` stayed `pending_delivery`; create output `6a17f30a82acc95e8d8391fb` failed and gateway logs showed `wechat_send_failed ret=-2`. This proves durable creation/cancel but not requester reply or receiver delivery. |
 
 ## Next Queue
 
@@ -66,5 +95,11 @@ Run one production case at a time. Stop on the first product or harness bug,
 preserve evidence, fix the root cause, deploy if needed, then rerun the same
 case before continuing.
 
-All queued happy-path production cases in this matrix are now
-`passed-production`.
+The 2026-05-28 direct shared-reminder path is not a single blanket pass. The
+newer stricter checks split requester reply, durable creation, facts payload,
+worker text generation, provider delivery, and cleanup. More marked cases have
+already found requester fallback, facts-to-text drift, a dropped duration in
+one direction, mixed output rows for one notification, and provider `ret=-2`.
+Continue running one case at a time under the stricter evidence standard, and
+do not promote the direct shared-reminder path to full happy-path pass until a
+single marker satisfies every required layer.

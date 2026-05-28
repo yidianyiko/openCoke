@@ -29,6 +29,21 @@ The current product-notification happy path is:
 A passing smoke must verify the end-to-end chain above. A created domain row or
 a `product_notifications` row by itself is not enough.
 
+For user-initiated chat flows, the happy path has two independent output
+obligations:
+
+- The requester must receive a non-placeholder Interaction Agent reply for the
+  original user turn. The bridge `reply` and the requester `outputmessages`
+  row must not be the system fallback
+  `系统刚才没能生成回复，请稍后再试一次。`.
+- The counterparty product notification must complete the product-notification
+  chain above and reconcile to `product_notifications.status='delivered'`.
+
+Do not collapse those obligations into one pass/fail signal. A domain row plus
+a requester reply proves creation, but not counterparty delivery. A delivered
+counterparty notification proves push delivery, but not that the original user
+turn got a good synchronous reply.
+
 ## Safety Rules
 
 - State before running that this can send real push messages to real accounts.
@@ -41,6 +56,23 @@ a `product_notifications` row by itself is not enough.
 - Do not delete unmarked user data.
 - If an interrupted run may have partially executed, first query by marker and
   clean up any active marked shared reminder before starting a fresh marker.
+- Do not treat provider errors as a pass. In particular,
+  `wechat_send_failed ret=-2`, a `product_notifications` row that remains
+  `pending_delivery`, or only failed Mongo output rows for the notification
+  means the receiver delivery obligation failed even if the domain row was
+  created. If the same notification has both successful and failed output rows,
+  do not call it a clean pass; record it as partial evidence and investigate
+  the duplicate or retry behavior.
+- Do not rely on a single marker, single phrasing, or single direction for a
+  broad happy-path claim. Use at least two marked natural-language create
+  phrasings when validating a recently changed shared-reminder path: one
+  machine-like smoke title and one normal chat title. When account routes allow
+  it, run both account directions or explicitly record why one direction is not
+  valid evidence.
+- A normal chat title should avoid punctuation-heavy marker shapes such as
+  `server-smoke-...` in the main title. Put the unique marker in a compact
+  suffix, for example `验收喝茶<marker>`, so the test also samples ordinary LLM
+  reply behavior.
 
 ## Required Context
 
@@ -170,6 +202,17 @@ with urllib.request.urlopen(req, timeout=180) as resp:
 PY"
 ```
 
+Required requester checks after the bridge call:
+
+- The bridge response has `ok=true`.
+- The bridge `reply` is non-empty and is not the system fallback
+  `系统刚才没能生成回复，请稍后再试一次。`.
+- The requester `outputmessages` row for the inbound event exists, has
+  `status` not `failed`, has no `fallback_kind=system_failure`, and its visible
+  `message` is grounded in the requested action.
+- If the requester reply fails but the domain row is created, report the row as
+  `partial-production`: creation passed, requester chat reply failed.
+
 4. Verify active create by marker:
 
 ```sql
@@ -234,12 +277,27 @@ Required checks:
 - `metadata.product_notification.facts_hash` matches the Postgres
   notification row.
 - `status` is not `failed`.
+- Gateway logs for the marker do not show provider send failure such as
+  `wechat_send_failed ret=-2`.
 - The visible `message` is derived from the product-notification facts. For a
   shared reminder create, it should mention the reminder title or scheduled
   local date/time and must not be a generic onboarding or unrelated chat reply.
+- If multiple output rows exist for the same notification, record all statuses.
+  A successful row plus a failed row is not clean happy-path evidence, even
+  when the final `product_notifications` row reconciles to `delivered`.
 
 If the output row is missing, failed, or has unrelated visible text, stop and
 report the layer where the chain failed. Continue only with cleanup.
+
+For each marker, classify evidence before moving on:
+
+- `passed-production`: requester reply passed, domain row/projections passed,
+  product notification facts passed, worker output passed, provider
+  reconciliation reached `delivered`, and cleanup passed.
+- `partial-production`: at least one core layer passed, but a separate
+  obligation failed or stayed pending. State exactly which layer failed.
+- `failed-production`: no durable domain write happened, or the requested
+  operation completed the wrong user-visible behavior.
 
 5. If natural-language routing fails, isolate the layer by calling the
    canonical gateway tool with the same accounts. A successful canonical call
