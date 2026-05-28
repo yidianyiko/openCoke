@@ -236,6 +236,43 @@ machines. This keeps the user-visible contract clear without multiplying fields.
   table write. The single physical Postgres is a deployment fact, not a license
   to cross module ownership.
 
+### 4.1 Validation, Retry, and Recovery Cut Line
+
+The target keeps validation where it protects a real boundary, not where it
+papers over historical runtime uncertainty. Strong validation is valid at:
+
+- **Ingress boundary:** identity tuple, channel/provider envelope, route key,
+  request body shape, timezone, RRULE, duration, and reminder schedule.
+- **Durable fact boundary:** unique constraints, idempotency keys, state
+  transitions, outbox append, and delivery lifecycle.
+- **Agent output boundary:** the agent must satisfy the current structured output
+  contract. Invalid output gets one safe retry when no durable write has
+  happened; otherwise it becomes `failed`. It is not converted into prose by a
+  template fallback.
+
+Everything else should become simpler observability plus explicit failure. The
+target does not rebuild business rollback, compatibility recovery, or
+migration-era compensation as product behavior:
+
+- No business rollback compensation: once Reminder or Social Scheduling commits a
+  fact, later message interruption, lock loss, output parsing, or delivery
+  failure does not silently cancel or mutate that fact.
+- No generic chat prose fallback: `empty`, malformed, or blocked agent output
+  records `no_reply` or `failed`; only the fixed processing-status message in
+  `pending_async_reply` may be sent by the ingress/egress tier.
+- No Mongo-style retry/rollback counters on input messages. Work retry belongs
+  to outbox/stream delivery and bounded worker failure handling, not to message
+  documents that re-enter the whole business workflow.
+- No hand-written provider rollback as a synchronous business transaction.
+  Provider connect/disconnect is modeled as desired state plus observed state;
+  a reconciler repairs drift or exposes failure.
+- No migration-only invalidation/recovery paths. This rebuild starts clean, so
+  destructive migration guards, legacy terminal-state recovery, and compatibility
+  validation are deleted rather than ported.
+- No schema inflation to defend against every LLM mistake. Prompt/agent
+  contracts handle semantic quality; schemas protect only executable boundaries
+  and persisted facts.
+
 ## 5. Deep Agno Binding (Hosted Model)
 
 Decision: bind deeply to Agno as the runtime substrate, and host Coke's custom
@@ -416,6 +453,24 @@ not resurrected.)
   requests, accept/reject tools, pending-request ambiguity handling, and
   `multi_candidate` focus binding are deleted. The current product contract is
   direct friendship plus active shared reminders.
+- **No business rollback/recovery maze:** rollback compensation that cancels
+  already-created reminders, Mongo input-message `retry_count` / `rollback_count`,
+  partial-send de-duplication fields, and old `OutputDisposition` states such as
+  `rollback` / generic `fallback` are deleted. The target has four dispositions
+  only (§4) and treats committed domain facts as durable.
+- **No provider synchronous rollback choreography:** Evolution/Linq-style
+  connect/disconnect rollback helpers are not rebuilt. Channel management writes
+  desired state and reconciles provider drift asynchronously or surfaces a clear
+  operator-visible failure.
+- **No migration/compatibility recovery tests as product requirements:**
+  destructive-migration invalidation, legacy terminal-state recovery,
+  compatibility schema guards, and platformization regression tests are not
+  ported to the clean rebuild unless they guard a current table or current user
+  journey.
+- **No over-defensive LLM schema fields:** executable schedule fields, ids,
+  route targets, and persisted fact shape stay validated; prompt-quality and
+  semantic-classification misses are handled in the agent contract, not by
+  adding permanent schema fields for every past mistake.
 - `memo-runtime` (replaced by Agno memory storage/retrieval — §5).
 - All media: the `framework/tool/*` vendor modules and the `voice_tools` /
   `image_tools` adapters are deleted. Image input/understanding, image
