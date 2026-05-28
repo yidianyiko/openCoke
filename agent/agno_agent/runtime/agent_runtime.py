@@ -189,14 +189,6 @@ _VISIBLE_IDENTIFIER_LEAK_PATTERNS = (
     re.compile(r"ck_[a-zA-Z0-9_]{8,}"),
     re.compile(r"acct_[a-zA-Z0-9_]{8,}"),
 )
-_REPAIRABLE_VISIBLE_CONTENT_ERROR_CODES = frozenset(
-    {
-        "unconfirmed_durable_write_promise",
-        "domain_reply_contract_violation",
-        "internal_protocol_label_leak",
-        "visible_identifier_leak",
-    }
-)
 _CAPABILITY_BOUNDARY_MARKERS = (
     "不能",
     "无法",
@@ -889,7 +881,6 @@ def _create_interaction_agent(
     domain_results: list[DomainExecutionResult],
     preloaded_scheduling_domain_result: dict[str, Any] | None = None,
     preselected_scheduling_intent: str | None = None,
-    force_no_tools: bool = False,
     session_db: Any | None = None,
 ) -> Any:
     from agno.agent import Agent
@@ -905,8 +896,7 @@ def _create_interaction_agent(
     )
 
     if (
-        force_no_tools
-        or agent_input.input_type == "reminder.fired"
+        agent_input.input_type == "reminder.fired"
         or _is_product_notification_delivery_turn(agent_input)
     ):
         final_tools = []
@@ -1359,44 +1349,15 @@ def _visible_text_for_guardrails(segments: Sequence[str]) -> str:
 
 
 def _output_protocol_violation(
-    reason: str, *, attempted_retry: bool, durable_write_executed: bool = False
+    reason: str, *, durable_write_executed: bool = False
 ) -> RuntimeErrorDisposition:
     return RuntimeErrorDisposition(
         code="output_protocol_violation",
-        retryable=not attempted_retry and not durable_write_executed,
+        retryable=False,
         metadata={
             "reason": reason,
-            "attempted_retry": attempted_retry,
             "durable_write_executed": durable_write_executed,
         },
-    )
-
-
-def _protocol_repair_input(input_message: str, reason: str) -> str:
-    return (
-        f"{input_message}\n\n"
-        "System protocol repair: the previous response violated the visible output "
-        f"protocol ({reason}). Return only one JSON object with this shape: "
-        '{"MultiModalResponses": [{"type": "text", "content": "message text"}]}. '
-        "Do not include markdown fences or any text outside the JSON object."
-    )
-
-
-def _visible_content_repair_input(
-    input_message: str,
-    error: RuntimeErrorDisposition,
-) -> str:
-    return (
-        f"{input_message}\n\n"
-        "System visible-content repair: the previous JSON parsed, but the visible "
-        "text violated the runtime contract "
-        f"({error.code}: {json.dumps(_jsonable(error.metadata), ensure_ascii=False, sort_keys=True)}). "
-        "Return only one JSON object with this shape: "
-        '{"MultiModalResponses": [{"type": "text", "content": "message text"}]}. '
-        "Reply only from the trusted executed runtime results. Do not call tools. "
-        "Do not say the recipient still needs to confirm, accept, or agree unless "
-        "a trusted result explicitly says the operation is pending recipient "
-        "confirmation. Do not include internal identifiers."
     )
 
 
@@ -1423,45 +1384,6 @@ def _interaction_input_with_preloaded_scheduling_result(
     )
 
 
-def _interaction_input_with_trusted_runtime_results(
-    input_message: str,
-    *,
-    capability_results: Sequence[CapabilityResult],
-    domain_results: Sequence[DomainExecutionResult],
-) -> str:
-    trusted_results: dict[str, Any] = {}
-    durable_capability_results = [
-        result.to_manager_payload()
-        for result in capability_results
-        if result.ok and result.durable_write
-    ]
-    durable_domain_results = [
-        result.to_dict()
-        for result in domain_results
-        if any(
-            operation.ok and operation.effect == "write"
-            for operation in result.operations
-        )
-    ]
-    if durable_capability_results:
-        trusted_results["capability_results"] = durable_capability_results
-    if durable_domain_results:
-        trusted_results["domain_results"] = durable_domain_results
-    if not trusted_results:
-        return input_message
-    return "\n\n".join(
-        [
-            input_message,
-            "Trusted executed runtime results:",
-            json.dumps(_jsonable(trusted_results), ensure_ascii=False, sort_keys=True),
-            (
-                "Reply from these trusted results. Do not call tools or claim the "
-                "operation failed when a trusted result records an executed write."
-            ),
-        ]
-    )
-
-
 def _has_successful_durable_write(
     capability_results: Sequence[CapabilityResult],
     domain_results: Sequence[DomainExecutionResult],
@@ -1475,32 +1397,8 @@ def _has_successful_durable_write(
     )
 
 
-def _resolve_visible_text(
-    final_text: str,
-    capability_results: Sequence[CapabilityResult],
-) -> str:
-    if capability_results and any(
-        result.requires_response_synthesis for result in capability_results
-    ):
-        if final_text:
-            return final_text
-
-    summaries = [
-        summary for result in capability_results if (summary := result.visible_summary)
-    ]
-    if summaries:
-        return "\n".join(summaries)
-
-    if not capability_results:
-        return final_text
-
-    return ""
-
-
 def _resolve_domain_visible_text(
     domain_results: Sequence[DomainExecutionResult],
-    *,
-    include_failed_generic: bool = False,
 ) -> str:
     for result in reversed(domain_results):
         if result.outcome != "executed":
@@ -1526,8 +1424,6 @@ def _resolve_domain_visible_text(
                 value = facts.get(key)
                 if _is_safe_scheduling_failure_summary(value):
                     return str(value).strip()
-        if include_failed_generic:
-            return "日程操作暂时无法完成。"
     for result in reversed(domain_results):
         if (
             result.domain != "reminder"
@@ -1544,42 +1440,6 @@ def _resolve_domain_visible_text(
         error = result.error
         if error is not None and error.message.strip():
             return error.message.strip()
-    return ""
-
-
-def _authoritative_domain_visible_text(
-    domain_results: Sequence[DomainExecutionResult],
-) -> str:
-    for result in reversed(domain_results):
-        if (
-            result.domain != "reminder"
-            or result.outcome != "rejected"
-            or not result.safety_boundary
-        ):
-            continue
-        for operation in result.operations:
-            if operation.ok or operation.effect != "none":
-                continue
-            facts = operation.facts
-            for key in ("visible_summary", "summary", "message"):
-                value = facts.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-    for result in reversed(domain_results):
-        if result.domain != "reminder" or result.outcome != "executed":
-            continue
-        for operation in result.operations:
-            if (
-                operation.action != "list"
-                or not operation.ok
-                or operation.effect != "read"
-            ):
-                continue
-            facts = operation.facts
-            for key in ("visible_summary", "summary", "message"):
-                value = facts.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
     return ""
 
 
@@ -1892,7 +1752,6 @@ def _exception_result(
             visible_message_count=0,
             output_reference_count=0,
             post_analyze_requested=False,
-            fallback_reason=None,
         ),
         output_disposition=output_disposition,
         error_disposition=error_disposition,
@@ -2005,7 +1864,6 @@ def _domain_visible_text_result(
             visible_message_count=len(visible_messages),
             output_reference_count=0,
             post_analyze_requested=bool(visible_text),
-            fallback_reason=None,
         ),
         output_disposition=output_disposition,
         error_disposition=None,
@@ -2074,7 +1932,6 @@ def _unknown_tool_result(
             visible_message_count=0,
             output_reference_count=0,
             post_analyze_requested=False,
-            fallback_reason=None,
         ),
         output_disposition=output_disposition,
         error_disposition=error_disposition,
@@ -2115,63 +1972,6 @@ def _timeout_result(
         retryable=True,
         metadata={"timeout_seconds": timeout_seconds},
     )
-    visible_text = _resolve_visible_text("", captured_capability_results)
-    if durable_write_error is not None:
-        visible_text = ""
-    visible_messages = (
-        (VisibleMessage(message_type="text", content=visible_text),)
-        if visible_text
-        else ()
-    )
-    if visible_messages and durable_write_error is None:
-        output_disposition = OutputDisposition(status="ok")
-        trace = _build_runtime_trace(
-            agent_input=agent_input,
-            run_context=run_context,
-            input_message=input_message,
-            started_at=started_at,
-            status="timeout",
-            failure_stage="agent_run",
-            timeout_seconds=timeout_seconds,
-            preselected_scheduling_intent=preselected_scheduling_intent,
-            forced_args_present=forced_args_present,
-            tool_names=_available_tool_names(
-                agent_input, preselected_scheduling_intent
-            ),
-            selected_tool_names=_selected_tool_names(
-                captured_domain_results,
-                captured_capability_results,
-            ),
-            capability_results=captured_capability_results,
-            domain_results=captured_domain_results,
-            output=TraceOutput(
-                disposition_status=output_disposition.status,
-                output_source="capability_summary",
-                visible_message_count=len(visible_messages),
-                output_reference_count=0,
-                post_analyze_requested=True,
-                fallback_reason="timeout_visible_summary",
-            ),
-            output_disposition=output_disposition,
-            error_disposition=timeout_error,
-        )
-        return AgentRunResult(
-            visible_messages=visible_messages,
-            post_analyze_input={
-                "input_message": input_message,
-                "message_source": _message_source(agent_input, run_context),
-            },
-            domain_results=captured_domain_results,
-            capability_results=captured_capability_results,
-            metrics={
-                "capability_result_count": len(captured_capability_results),
-                "domain_result_count": len(captured_domain_results),
-            },
-            trace=trace,
-            output_disposition=output_disposition,
-            error_disposition=timeout_error,
-        )
-
     output_disposition = OutputDisposition(status="empty")
     error_disposition = durable_write_error or timeout_error
     trace = _build_runtime_trace(
@@ -2197,7 +1997,6 @@ def _timeout_result(
             visible_message_count=0,
             output_reference_count=0,
             post_analyze_requested=False,
-            fallback_reason=None,
         ),
         output_disposition=output_disposition,
         error_disposition=error_disposition,
@@ -2258,7 +2057,6 @@ def _trace_route(
         "scheduling_domain",
         "utility_capability",
         "reminder_fired",
-        "fallback",
         "unknown",
     ],
     str,
@@ -2273,8 +2071,6 @@ def _trace_route(
         return "reminder_domain", "reminder_domain_result"
     if capability_results:
         return "utility_capability", "capability_result_present"
-    if output_disposition.status in {"fallback", "rollback"}:
-        return "fallback", "runtime_fallback"
     return "direct_reply", "no_tool_requested"
 
 
@@ -2306,12 +2102,6 @@ def _build_runtime_trace(
         preselected_scheduling_intent=preselected_scheduling_intent,
         output_disposition=output_disposition,
     )
-    if (
-        status in {"exception", "unknown_tool", "timeout"}
-        and reason == "no_tool_requested"
-    ):
-        route = "fallback"
-        reason = "runtime_fallback"
     trace = build_agent_turn_trace(
         agent_input=agent_input,
         run_context=run_context,
@@ -2496,10 +2286,7 @@ async def run_agent_runtime(
             )
         timeout_seconds = _agent_runtime_timeout_seconds()
 
-        def create_interaction_agent_for_attempt(
-            *,
-            force_no_tools: bool = False,
-        ) -> Any:
+        def create_interaction_agent_for_attempt() -> Any:
             create_agent_kwargs: dict[str, Any] = {
                 "run_context": run_context,
                 "agent_input": agent_input,
@@ -2507,7 +2294,6 @@ async def run_agent_runtime(
                 "capability_results": capability_results,
                 "domain_results": domain_results,
                 "preloaded_scheduling_domain_result": preloaded_scheduling_domain_result,
-                "force_no_tools": force_no_tools,
             }
             if preselected_scheduling_intent is not None:
                 create_agent_kwargs["preselected_scheduling_intent"] = (
@@ -2531,18 +2317,12 @@ async def run_agent_runtime(
             preloaded_scheduling_domain_result,
         )
 
-        async def run_interaction_attempt(
-            attempt_input: str,
-            *,
-            retry: bool,
-            force_no_tools: bool = False,
-        ) -> Any:
-            agent = create_interaction_agent_for_attempt(force_no_tools=force_no_tools)
+        async def run_interaction_attempt(attempt_input: str) -> Any:
+            agent = create_interaction_agent_for_attempt()
             agent_instructions = getattr(agent, "instructions", "") or ""
             logger.info(
-                "agent.arun%s start: timeout=%.1fs, instructions_len=%d, tools=%d, "
+                "agent.arun start: timeout=%.1fs, instructions_len=%d, tools=%d, "
                 "has_preselected_intent=%s, session_id=%s",
-                " protocol retry" if retry else "",
                 timeout_seconds,
                 len(agent_instructions) if isinstance(agent_instructions, str) else -1,
                 len(getattr(agent, "tools", []) or []),
@@ -2557,14 +2337,13 @@ async def run_agent_runtime(
                 timeout=timeout_seconds,
             )
             logger.info(
-                "agent.arun%s returned: session_id=%s",
-                " protocol retry" if retry else "",
+                "agent.arun returned: session_id=%s",
                 run_context.conversation.id,
             )
             return run_output
 
         try:
-            run_output = await run_interaction_attempt(interaction_input, retry=False)
+            run_output = await run_interaction_attempt(interaction_input)
         except asyncio.TimeoutError:
             return _timeout_result(
                 agent_input=agent_input,
@@ -2582,46 +2361,6 @@ async def run_agent_runtime(
         if not final_text:
             final_text = _latest_assistant_text(run_output)
         parse_result = _parse_visible_output_protocol(final_text)
-        attempted_output_protocol_retry = False
-        if not parse_result.ok:
-            durable_write_executed = _has_successful_durable_write(
-                capability_results,
-                domain_results,
-            )
-            attempted_output_protocol_retry = True
-            repair_base_input = interaction_input
-            if durable_write_executed:
-                repair_base_input = _interaction_input_with_trusted_runtime_results(
-                    interaction_input,
-                    capability_results=capability_results,
-                    domain_results=domain_results,
-                )
-            retry_input = _protocol_repair_input(
-                repair_base_input,
-                parse_result.violation_reason or "unknown",
-            )
-            try:
-                run_output = await run_interaction_attempt(
-                    retry_input,
-                    retry=True,
-                    force_no_tools=durable_write_executed,
-                )
-            except asyncio.TimeoutError:
-                return _timeout_result(
-                    agent_input=agent_input,
-                    run_context=run_context,
-                    input_message=input_message,
-                    started_at=started_at,
-                    timeout_seconds=timeout_seconds,
-                    preselected_scheduling_intent=preselected_scheduling_intent,
-                    forced_args_present=bool(preselected_scheduling_args),
-                    capability_results=capability_results,
-                    domain_results=domain_results,
-                )
-            final_text = _string_content(getattr(run_output, "content", None))
-            if not final_text:
-                final_text = _latest_assistant_text(run_output)
-            parse_result = _parse_visible_output_protocol(final_text)
         durable_write_executed = _has_successful_durable_write(
             capability_results,
             domain_results,
@@ -2632,7 +2371,6 @@ async def run_agent_runtime(
             if parse_result.ok
             else _output_protocol_violation(
                 parse_result.violation_reason or "unknown",
-                attempted_retry=attempted_output_protocol_retry,
                 durable_write_executed=durable_write_executed,
             )
         )
@@ -2654,28 +2392,6 @@ async def run_agent_runtime(
         )
         visible_text_segments = final_text_segments
         output_source = "model"
-        fallback_reason = None
-        authoritative_domain_text = _authoritative_domain_visible_text(
-            captured_domain_results
-        )
-        if authoritative_domain_text:
-            visible_text_segments = (authoritative_domain_text,)
-            output_source = "domain_summary"
-            fallback_reason = "authoritative_read_result"
-        elif not final_text:
-            fallback_text = _resolve_visible_text("", captured_capability_results)
-            if not fallback_text:
-                fallback_text = _resolve_domain_visible_text(
-                    captured_domain_results,
-                    include_failed_generic=True,
-                )
-                if fallback_text:
-                    output_source = "domain_summary"
-                    fallback_reason = "empty_agent_output"
-            elif fallback_text:
-                output_source = "capability_summary"
-                fallback_reason = "empty_agent_output"
-            visible_text_segments = (fallback_text,) if fallback_text else ()
         visible_guardrail_text = _visible_text_for_guardrails(visible_text_segments)
         identifier_leak_error = _check_visible_identifier_leak(visible_guardrail_text)
         internal_label_leak_error = _check_internal_protocol_label_leak(
@@ -2691,110 +2407,6 @@ async def run_agent_runtime(
             or internal_label_leak_error
             or identifier_leak_error
         )
-        if (
-            parse_result.ok
-            and runtime_contract_error is not None
-            and runtime_contract_error.code in _REPAIRABLE_VISIBLE_CONTENT_ERROR_CODES
-        ):
-            repair_base_input = interaction_input
-            if durable_write_executed:
-                repair_base_input = _interaction_input_with_trusted_runtime_results(
-                    interaction_input,
-                    capability_results=captured_capability_results,
-                    domain_results=captured_domain_results,
-                )
-            retry_input = _visible_content_repair_input(
-                repair_base_input,
-                runtime_contract_error,
-            )
-            try:
-                run_output = await run_interaction_attempt(
-                    retry_input,
-                    retry=True,
-                    force_no_tools=True,
-                )
-            except asyncio.TimeoutError:
-                return _timeout_result(
-                    agent_input=agent_input,
-                    run_context=run_context,
-                    input_message=input_message,
-                    started_at=started_at,
-                    timeout_seconds=timeout_seconds,
-                    preselected_scheduling_intent=preselected_scheduling_intent,
-                    forced_args_present=bool(preselected_scheduling_args),
-                    capability_results=capability_results,
-                    domain_results=domain_results,
-                )
-            final_text = _string_content(getattr(run_output, "content", None))
-            if not final_text:
-                final_text = _latest_assistant_text(run_output)
-            parse_result = _parse_visible_output_protocol(final_text)
-            final_text_segments = parse_result.segments if parse_result.ok else ()
-            output_protocol_error = (
-                None
-                if parse_result.ok
-                else _output_protocol_violation(
-                    parse_result.violation_reason or "unknown",
-                    attempted_retry=True,
-                    durable_write_executed=durable_write_executed,
-                )
-            )
-            unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
-                agent_input=agent_input,
-                final_text=_visible_text_for_guardrails(final_text_segments),
-                capability_results=captured_capability_results,
-                domain_results=captured_domain_results,
-            )
-            durable_write_error = _check_durable_write_contract(
-                captured_capability_results,
-                captured_domain_results,
-            )
-            runtime_contract_error = (
-                output_protocol_error
-                or durable_write_error
-                or unconfirmed_promise_error
-            )
-            visible_text_segments = final_text_segments
-            output_source = "model"
-            fallback_reason = None
-            if authoritative_domain_text:
-                visible_text_segments = (authoritative_domain_text,)
-                output_source = "domain_summary"
-                fallback_reason = "authoritative_read_result"
-            elif not final_text:
-                fallback_text = _resolve_visible_text(
-                    "",
-                    captured_capability_results,
-                )
-                if not fallback_text:
-                    fallback_text = _resolve_domain_visible_text(
-                        captured_domain_results,
-                        include_failed_generic=True,
-                    )
-                    if fallback_text:
-                        output_source = "domain_summary"
-                        fallback_reason = "empty_agent_output"
-                elif fallback_text:
-                    output_source = "capability_summary"
-                    fallback_reason = "empty_agent_output"
-                visible_text_segments = (fallback_text,) if fallback_text else ()
-            visible_guardrail_text = _visible_text_for_guardrails(visible_text_segments)
-            identifier_leak_error = _check_visible_identifier_leak(
-                visible_guardrail_text
-            )
-            internal_label_leak_error = _check_internal_protocol_label_leak(
-                visible_guardrail_text
-            )
-            domain_reply_contract_error = _check_domain_reply_contract(
-                final_text=visible_guardrail_text,
-                domain_results=captured_domain_results,
-            )
-            runtime_contract_error = (
-                runtime_contract_error
-                or domain_reply_contract_error
-                or internal_label_leak_error
-                or identifier_leak_error
-            )
         if runtime_contract_error is not None:
             visible_text_segments = ()
         visible_messages = tuple(
@@ -2830,7 +2442,6 @@ async def run_agent_runtime(
                     visible_message_count=len(visible_messages),
                     output_reference_count=0,
                     post_analyze_requested=True,
-                    fallback_reason=fallback_reason,
                 ),
                 output_disposition=output_disposition,
                 error_disposition=None,
@@ -2883,7 +2494,6 @@ async def run_agent_runtime(
                 visible_message_count=len(visible_messages),
                 output_reference_count=0,
                 post_analyze_requested=False,
-                fallback_reason=None,
             ),
             output_disposition=output_disposition,
             error_disposition=runtime_contract_error,

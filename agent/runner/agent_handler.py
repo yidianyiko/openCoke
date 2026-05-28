@@ -416,16 +416,6 @@ async def handle_message(
             )
             return resp_messages, context, True, False
 
-        if result.output_disposition.status == "rollback":
-            logger.info(f"{worker_tag} AgentRuntime rollback")
-            context["MultiModalResponses"] = all_multimodal_responses
-            _compensate_rolled_back_domain_writes(
-                result=result,
-                context=context,
-                worker_tag=worker_tag,
-            )
-            return resp_messages, context, True, False
-
         for visible_message in result.visible_messages:
             multimodal_response = {
                 "type": visible_message.message_type,
@@ -481,57 +471,6 @@ async def handle_message(
                 return resp_messages, context, True, False
             if outputmessage is not None:
                 all_multimodal_responses.append(multimodal_response)
-                resp_messages.append(outputmessage)
-
-        if (
-            not resp_messages
-            and not result.visible_messages
-            and result.output_disposition.status == "empty"
-        ):
-            logger.warning(
-                f"{worker_tag} AgentRuntime 未产出用户可见回复，发送兜底回复"
-            )
-            if (
-                lock_id
-                and conversation_id
-                and not runtime_lock.verify_lock_ownership(conversation_id, lock_id)
-            ):
-                logger.warning(f"{worker_tag} 锁已丢失，跳过 runtime 兜底回复")
-                context["MultiModalResponses"] = all_multimodal_responses
-                _compensate_rolled_back_domain_writes(
-                    result=result,
-                    context=context,
-                    worker_tag=worker_tag,
-                )
-                return resp_messages, context, True, False
-
-            if check_new_message and message_source == "user":
-                if is_new_message_coming_in(
-                    get_agent_entity_id(user),
-                    get_agent_entity_id(character),
-                    current_platform,
-                    current_message_ids,
-                ):
-                    logger.info(
-                        f"{worker_tag} rollback: new message before runtime fallback send"
-                    )
-                    context["MultiModalResponses"] = all_multimodal_responses
-                    _compensate_rolled_back_domain_writes(
-                        result=result,
-                        context=context,
-                        worker_tag=worker_tag,
-                    )
-                    return resp_messages, context, True, False
-
-            outputmessage, expect_output_timestamp = (
-                output_delivery.send_chat_response_fallback(
-                    context=context,
-                    input_message=input_message_str,
-                    expect_output_timestamp=expect_output_timestamp,
-                    all_multimodal_responses=all_multimodal_responses,
-                )
-            )
-            if outputmessage is not None:
                 resp_messages.append(outputmessage)
 
         context["MultiModalResponses"] = all_multimodal_responses

@@ -173,19 +173,15 @@ def _build_findings(
             }
         )
 
-    fallback_or_empty_count = sum(
-        count
-        for source, count in output_source_counts.items()
-        if source in {"fallback", "empty"}
+    empty_output_count = sum(
+        count for source, count in output_source_counts.items() if source == "empty"
     )
-    if fallback_or_empty_count:
+    if empty_output_count:
         findings.append(
             {
                 "severity": "medium",
-                "code": "fallback_or_empty_output",
-                "summary": (
-                    f"{fallback_or_empty_count} trace records produced fallback or empty output."
-                ),
+                "code": "empty_output",
+                "summary": f"{empty_output_count} trace records produced empty output.",
                 "recommended_next_step": (
                     "Check route handling and output synthesis before adding examples."
                 ),

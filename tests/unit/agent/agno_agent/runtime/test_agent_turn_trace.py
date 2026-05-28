@@ -107,7 +107,6 @@ def _trace(profile: str = "server", content_level: str = "metadata") -> AgentTur
             visible_message_count=1,
             output_reference_count=0,
             post_analyze_requested=True,
-            fallback_reason=None,
         ),
         error_disposition=None,
         profile=profile,

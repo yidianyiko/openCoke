@@ -502,7 +502,9 @@ def test_agent_runtime_default_timeout_stays_inside_user_path_budget(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypatch):
+async def test_run_agent_runtime_timeout_fails_closed_even_with_captured_tool_summary(
+    monkeypatch,
+):
     class HangingAgent:
         async def arun(self, **kwargs):
             await asyncio.sleep(1)
@@ -528,10 +530,8 @@ async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypat
         run_context=_run_context(),
     )
 
-    assert result.output_disposition.status == "ok"
-    assert [message.content for message in result.visible_messages] == [
-        "已创建提醒：喝水（2026-05-09 17:57）"
-    ]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None
     assert result.error_disposition.code == "agent_runtime_timeout"
 
@@ -851,7 +851,7 @@ async def test_run_agent_runtime_recovers_explicit_duration_for_preselected_shar
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_retries_preselected_scheduling_reply_with_trusted_result(
+async def test_run_agent_runtime_fails_closed_on_invalid_preselected_scheduling_reply(
     monkeypatch,
 ):
     seen_inputs = []
@@ -902,15 +902,8 @@ async def test_run_agent_runtime_retries_preselected_scheduling_reply_with_trust
     class FakeAgent:
         async def arun(self, **kwargs):
             seen_inputs.append(kwargs["input"])
-            if len(seen_inputs) == 1:
-                return SimpleNamespace(
-                    content="已创建共享提醒：饭后散步。",
-                    messages=[SimpleNamespace(role="assistant", content="")],
-                )
             return SimpleNamespace(
-                content=_text_payload(
-                    "已创建共享提醒：饭后散步，2029年1月5日10:00，5分钟。"
-                ),
+                content="已创建共享提醒：饭后散步。",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -942,13 +935,13 @@ async def test_run_agent_runtime_retries_preselected_scheduling_reply_with_trust
         run_context=_run_context(),
     )
 
-    assert len(seen_inputs) == 2
+    assert len(seen_inputs) == 1
     assert "Trusted pre-executed scheduling result:" in seen_inputs[0]
     assert "已创建共享提醒：饭后散步。" in seen_inputs[0]
-    assert "Trusted pre-executed scheduling result:" in seen_inputs[1]
-    assert [message.content for message in result.visible_messages] == [
-        "已创建共享提醒：饭后散步，2029年1月5日10:00，5分钟。"
-    ]
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "output_protocol_violation"
 
 
 @pytest.mark.asyncio
@@ -1477,7 +1470,7 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_uses_authoritative_reminder_list_visible_summary(
+async def test_run_agent_runtime_does_not_rewrite_reminder_list_model_text(
     monkeypatch,
 ):
     list_result = DomainExecutionResult(
@@ -1529,63 +1522,7 @@ async def test_run_agent_runtime_uses_authoritative_reminder_list_visible_summar
     )
 
     assert [message.content for message in result.visible_messages] == [
-        "你今天有 2 个提醒：\n- 买菜（2026-05-26 10:00）\n- 喝水（2026-05-26 12:00）"
-    ]
-
-
-@pytest.mark.asyncio
-async def test_run_agent_runtime_uses_reminder_list_summary_over_polluted_model_text(
-    monkeypatch,
-):
-    list_result = DomainExecutionResult(
-        domain="reminder",
-        outcome="executed",
-        operations=(
-            DomainOperationResult(
-                action="list",
-                ok=True,
-                effect="read",
-                entity_type="reminder",
-                entity_id=None,
-                facts={
-                    "count": 1,
-                    "reminders": ({"title": "查列表修复", "local_date": "2029-01-24"},),
-                    "visible_summary": "你有 1 个提醒：\n- 查列表修复（2029年1月24日 10:00）",
-                },
-            ),
-        ),
-        reply_contract=ReplyContract(
-            intent="direct_answer",
-            required_facts=(),
-            required_questions=(),
-            prohibited_claims=("reminder_created",),
-        ),
-    )
-
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            return SimpleNamespace(
-                content=_text_payload(
-                    "你有 1 个提醒。\n\n之前列表有技术问题，不过现在好了。"
-                ),
-                messages=[],
-            )
-
-    def fake_create_interaction_agent(**kwargs):
-        kwargs["domain_results"].append(list_result)
-        return FakeAgent()
-
-    monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
-    )
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=_agent_input(),
-        run_context=_run_context(),
-    )
-
-    assert [message.content for message in result.visible_messages] == [
-        "你有 1 个提醒：\n- 查列表修复（2029年1月24日 10:00）"
+        "我查到了你的提醒列表。"
     ]
 
 

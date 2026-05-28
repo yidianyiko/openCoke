@@ -108,9 +108,9 @@ def test_analyze_trace_records_counts_routes_tools_errors_and_findings(tmp_path:
             ),
             _record(
                 trace_id="two",
-                route="fallback",
+                route="unknown",
                 status="exception",
-                output_source="fallback",
+                output_source="empty",
                 exposed_tools=["create_reminder", "cancel_reminder"],
                 selected_tools=[],
                 error_code="agent_runtime_exception",
@@ -126,9 +126,9 @@ def test_analyze_trace_records_counts_routes_tools_errors_and_findings(tmp_path:
     assert summary["schema_version"] == "agent_trace_analysis.v1"
     assert summary["record_count"] == 2
     assert summary["invalid_record_count"] == 1
-    assert summary["route_counts"] == {"fallback": 1, "reminder_domain": 1}
+    assert summary["route_counts"] == {"reminder_domain": 1, "unknown": 1}
     assert summary["status_counts"] == {"exception": 1, "ok": 1}
-    assert summary["output_source_counts"] == {"fallback": 1, "model": 1}
+    assert summary["output_source_counts"] == {"empty": 1, "model": 1}
     assert summary["error_counts"] == {"agent_runtime_exception": 1}
     assert summary["guardrail_failure_counts"] == {"visible_identifier_leak": 1}
     assert summary["tool_exposure_counts"] == {
@@ -139,7 +139,7 @@ def test_analyze_trace_records_counts_routes_tools_errors_and_findings(tmp_path:
     assert summary["unused_exposed_tool_counts"] == {"cancel_reminder": 2}
     finding_codes = {finding["code"] for finding in summary["findings"]}
     assert "runtime_non_ok" in finding_codes
-    assert "fallback_or_empty_output" in finding_codes
+    assert "empty_output" in finding_codes
     assert "guardrail_failure" in finding_codes
     assert "unused_exposed_tools" in finding_codes
 

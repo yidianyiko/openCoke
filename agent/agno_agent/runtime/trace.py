@@ -32,14 +32,12 @@ TraceRoute = Literal[
     "scheduling_domain",
     "utility_capability",
     "reminder_fired",
-    "fallback",
     "unknown",
 ]
 TraceOutputSource = Literal[
     "model",
     "capability_summary",
     "domain_summary",
-    "fallback",
     "empty",
 ]
 
@@ -156,7 +154,6 @@ class TraceOutput:
     visible_message_count: int
     output_reference_count: int
     post_analyze_requested: bool
-    fallback_reason: str | None
 
 
 @dataclass(frozen=True)
@@ -417,7 +414,6 @@ def coerce_agent_turn_trace(
             visible_message_count=0,
             output_reference_count=0,
             post_analyze_requested=False,
-            fallback_reason=None,
         ),
         error=None,
         redaction=TraceRedaction(

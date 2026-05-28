@@ -321,40 +321,6 @@ async def test_valid_envelope_content_that_looks_like_tool_markup_is_visible(
 
 
 @pytest.mark.asyncio
-async def test_raw_plain_text_triggers_output_protocol_retry(monkeypatch):
-    outputs = [
-        "ordinary chat",
-        _segments_payload({"type": "text", "content": "repaired chat"}),
-    ]
-    calls = []
-
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            calls.append(kwargs["input"])
-            return type("FakeOutput", (), {"content": outputs.pop(0), "messages": []})()
-
-    monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
-    )
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=AgentInput(
-            input_type="user.turn",
-            conversation_id="conv1",
-            text="hi",
-            payload=UserTurnPayload(current_message_ids=["msg1"]),
-            occurred_at=datetime.now(UTC),
-        ),
-        run_context=_ctx(),
-    )
-
-    assert len(calls) == 2
-    assert "previous response violated" in calls[1]
-    assert [message.content for message in result.visible_messages] == ["repaired chat"]
-    assert result.error_disposition is None
-
-
-@pytest.mark.asyncio
 async def test_malformed_envelope_json_is_protocol_violation_not_lenient_recovery(
     monkeypatch,
 ):
@@ -370,114 +336,6 @@ async def test_malformed_envelope_json_is_protocol_violation_not_lenient_recover
     assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None
     assert result.error_disposition.code == "output_protocol_violation"
-
-
-@pytest.mark.asyncio
-async def test_protocol_retry_failure_returns_no_visible_message(monkeypatch):
-    calls = []
-
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            calls.append(kwargs["input"])
-            return type("FakeOutput", (), {"content": "still raw", "messages": []})()
-
-    monkeypatch.setattr(
-        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
-    )
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=AgentInput(
-            input_type="user.turn",
-            conversation_id="conv1",
-            text="hi",
-            payload=UserTurnPayload(current_message_ids=["msg1"]),
-            occurred_at=datetime.now(UTC),
-        ),
-        run_context=_ctx(),
-    )
-
-    assert len(calls) == 2
-    assert result.visible_messages == ()
-    assert result.output_disposition.status == "empty"
-    assert result.error_disposition is not None
-    assert result.error_disposition.code == "output_protocol_violation"
-    assert result.error_disposition.metadata["attempted_retry"] is True
-
-
-@pytest.mark.asyncio
-async def test_user_turn_protocol_violation_after_durable_write_retries_without_tools(
-    monkeypatch,
-):
-    write_result = DomainExecutionResult(
-        domain="reminder",
-        outcome="executed",
-        operations=(
-            DomainOperationResult(
-                action="create",
-                ok=True,
-                effect="write",
-                entity_type="reminder",
-                entity_id="rem-1",
-                facts={"visible_summary": "已创建提醒：喝水"},
-            ),
-        ),
-    )
-    calls = []
-    force_no_tools_values = []
-
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            calls.append(kwargs["input"])
-            if len(calls) == 2:
-                return type(
-                    "FakeOutput",
-                    (),
-                    {
-                        "content": json.dumps(
-                            {
-                                "MultiModalResponses": [
-                                    {
-                                        "type": "text",
-                                        "content": "已创建提醒：喝水",
-                                    }
-                                ]
-                            },
-                            ensure_ascii=False,
-                        ),
-                        "messages": [],
-                    },
-                )()
-            return type(
-                "FakeOutput", (), {"content": "raw after write", "messages": []}
-            )()
-
-    def fake_create(**kwargs):
-        force_no_tools_values.append(kwargs.get("force_no_tools"))
-        if not kwargs.get("force_no_tools"):
-            kwargs["domain_results"].append(write_result)
-        return FakeAgent()
-
-    monkeypatch.setattr(agent_runtime, "_create_interaction_agent", fake_create)
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=AgentInput(
-            input_type="user.turn",
-            conversation_id="conv1",
-            text="明天提醒我喝水",
-            payload=UserTurnPayload(current_message_ids=["msg1"]),
-            occurred_at=datetime.now(UTC),
-        ),
-        run_context=_ctx(),
-    )
-
-    assert len(calls) == 2
-    assert force_no_tools_values == [False, True]
-    assert "Trusted executed runtime results:" in calls[1]
-    assert "已创建提醒：喝水" in calls[1]
-    assert [message.content for message in result.visible_messages] == [
-        "已创建提醒：喝水"
-    ]
-    assert result.error_disposition is None
 
 
 @pytest.mark.asyncio
@@ -790,52 +648,6 @@ async def test_reminder_fire_raw_serialized_tool_call_protocol_violation(monkeyp
     assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None
     assert result.error_disposition.code == "output_protocol_violation"
-
-
-@pytest.mark.asyncio
-async def test_reminder_fire_internal_label_leak_triggers_visible_content_repair(
-    monkeypatch,
-):
-    outputs = [
-        _text_payload("reminders:思考会"),
-        _text_payload("思考会时间到了。"),
-    ]
-    calls = []
-
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            calls.append(kwargs["input"])
-            return type("FakeOutput", (), {"content": outputs.pop(0), "messages": []})()
-
-    monkeypatch.setattr(
-        agent_runtime,
-        "_create_interaction_agent",
-        lambda **kwargs: FakeAgent(),
-    )
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=AgentInput(
-            input_type="reminder.fired",
-            conversation_id="conv1",
-            text="提醒：思考会",
-            payload=ReminderFirePayload(
-                fire_id="reminder-1:2026-05-28T13:00:00+00:00",
-                reminder_id="reminder-1",
-                title="思考会",
-                scheduled_for=datetime.now(UTC),
-                metadata={"fire_mode": "notify"},
-            ),
-            occurred_at=datetime.now(UTC),
-        ),
-        run_context=_ctx(),
-    )
-
-    assert len(calls) == 2
-    assert "internal_protocol_label_leak" in calls[1]
-    assert [message.content for message in result.visible_messages] == [
-        "思考会时间到了。"
-    ]
-    assert result.error_disposition is None
 
 
 @pytest.mark.asyncio

@@ -197,14 +197,13 @@ one durable output disposition per turn:
 - `replied`: a final Interaction Agent reply was produced and delivery either
   succeeded or is retryable from outbox state.
 - `no_reply`: the turn completed and intentionally produced no user message.
-- `pending_async_reply`: synchronous waiting timed out, the ingress/egress tier
-  may send a fixed operational fallback, and the final agent reply is still
-  pending async delivery.
+- `pending_async_reply`: synchronous waiting timed out and the final agent reply
+  remains pending async delivery.
 - `failed`: generation, output protocol validation, or outbound delivery failed
   and needs retry/reconciliation or operator-visible failure handling.
 
-The disposition carries a small `reason` code for observability, but timeout
-fallbacks, protocol violations, and delivery failures are not separate state
+The disposition carries a small `reason` code for observability, but timeouts,
+protocol violations, and delivery failures are not separate recovery state
 machines. This keeps the user-visible contract clear without multiplying fields.
 
 - `product_notifications` in Postgres stores immutable structured **facts** plus a
@@ -223,12 +222,10 @@ machines. This keeps the user-visible contract clear without multiplying fields.
 
 - When a user replies after a notification, trusted context is rebuilt from the
   Postgres facts, never from the previous LLM wording.
-- **Processing fallback:** the timeout fallback is a product-approved operational
-  status message, not final assistant prose and not a substitute for the final
-  Interaction Agent reply. A fallback only moves the turn to
-  `pending_async_reply`; the late reply path must keep trying to deliver the
-  final generated text unless the final disposition becomes `no_reply` or
-  `failed`.
+- **No processing fallback prose:** timeout, empty output, malformed output, and
+  blocked claims do not get a fixed operational chat message. They move the turn
+  to `pending_async_reply`, `no_reply`, or `failed` and are handled through
+  observability, retryable delivery state, or operator-visible failure.
 - **Strict write-ownership:** product/notification tables are owned by Social
   Scheduling; API routes, worker tools, and output delivery code do not write
   them directly. Delivered/lifecycle updates are local domain calls into Social
@@ -246,9 +243,10 @@ papers over historical runtime uncertainty. Strong validation is valid at:
 - **Durable fact boundary:** unique constraints, idempotency keys, state
   transitions, outbox append, and delivery lifecycle.
 - **Agent output boundary:** the agent must satisfy the current structured output
-  contract. Invalid output gets one safe retry when no durable write has
-  happened; otherwise it becomes `failed`. It is not converted into prose by a
-  template fallback.
+  contract on the first returned answer. Invalid, empty, or blocked output
+  becomes `no_reply` or `failed`. The runtime does not ask the model to rewrite
+  the answer, does not convert trusted facts into replacement prose, and does not
+  send template fallback text.
 
 Everything else should become simpler observability plus explicit failure. The
 target does not rebuild business rollback, compatibility recovery, or
@@ -257,9 +255,9 @@ migration-era compensation as product behavior:
 - No business rollback compensation: once Reminder or Social Scheduling commits a
   fact, later message interruption, lock loss, output parsing, or delivery
   failure does not silently cancel or mutate that fact.
-- No generic chat prose fallback: `empty`, malformed, or blocked agent output
-  records `no_reply` or `failed`; only the fixed processing-status message in
-  `pending_async_reply` may be sent by the ingress/egress tier.
+- No generic chat prose fallback: `empty`, malformed, timed-out, or blocked agent
+  output records `pending_async_reply`, `no_reply`, or `failed`; no ingress,
+  egress, worker, domain, or capability layer writes substitute chat text.
 - No Mongo-style retry/rollback counters on input messages. Work retry belongs
   to outbox/stream delivery and bounded worker failure handling, not to message
   documents that re-enter the whole business workflow.
@@ -471,6 +469,10 @@ not resurrected.)
   route targets, and persisted fact shape stay validated; prompt-quality and
   semantic-classification misses are handled in the agent contract, not by
   adding permanent schema fields for every past mistake.
+- **No model-output repair/rewrite tests:** tests must not assert protocol-repair
+  prompts, second-pass visible-content rewrites, domain-summary replacement, or
+  template fallback prose. Keep tests for strict validation and fail-closed
+  dispositions only.
 - `memo-runtime` (replaced by Agno memory storage/retrieval — §5).
 - All media: the `framework/tool/*` vendor modules and the `voice_tools` /
   `image_tools` adapters are deleted. Image input/understanding, image

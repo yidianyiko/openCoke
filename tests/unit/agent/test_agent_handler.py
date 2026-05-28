@@ -151,96 +151,6 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     return created_agent_session_dbs
 
 
-def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monkeypatch):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import chat_response_timeout_fallback
-
-    reply = chat_response_timeout_fallback("每天学习时间为晚上9点到12点")
-
-    assert reply == "系统刚才没能生成回复，请稍后再试一次。"
-    assert "具体时间和事项" not in reply
-    assert "换个说法" not in reply
-
-
-def test_chat_response_timeout_fallback_is_neutral_for_simple_greetings(monkeypatch):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import chat_response_timeout_fallback
-
-    reply = chat_response_timeout_fallback(
-        "你好，我刚登录。能简单介绍一下你能帮我做什么吗？"
-    )
-
-    assert reply == "系统刚才没能生成回复，请稍后再试一次。"
-    assert "Coke" not in reply
-    assert "提醒" not in reply
-    assert "换个说法" not in reply
-
-
-def test_chat_response_timeout_fallback_is_neutral_for_pure_greeting(monkeypatch):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import chat_response_timeout_fallback
-
-    reply = chat_response_timeout_fallback("你好，我是 Bob，我刚登录。")
-
-    assert reply == "系统刚才没能生成回复，请稍后再试一次。"
-    assert "Coke" not in reply
-    assert "换个说法" not in reply
-
-
-def test_chat_response_timeout_fallback_ignores_business_context(monkeypatch):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.output_delivery import chat_response_timeout_fallback
-
-    reply = chat_response_timeout_fallback(
-        "取消提醒",
-        {
-            "prepare_reminder_intent_hint": "stop_or_cancel",
-            "orchestrator": {"need_reminder_detect": True},
-            "tool_results": [],
-        },
-    )
-
-    assert reply == "系统刚才没能生成回复，请稍后再试一次。"
-    assert "提醒" not in reply
-    assert "哪条" not in reply
-
-
-def test_send_chat_response_fallback_is_typed_system_failure(monkeypatch):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner import output_delivery
-
-    all_multimodal_responses = []
-    sent_calls = []
-
-    def fake_send_single_message(**kwargs):
-        sent_calls.append(kwargs)
-        return {"message": kwargs["multimodal_response"]["content"]}, 123
-
-    monkeypatch.setattr(
-        output_delivery, "send_single_message", fake_send_single_message
-    )
-
-    outputmessage, expect_output_timestamp = (
-        output_delivery.send_chat_response_fallback(
-            context={"conversation": {"conversation_info": {}}},
-            input_message="你好，能介绍一下提醒功能吗？",
-            expect_output_timestamp=100,
-            all_multimodal_responses=all_multimodal_responses,
-        )
-    )
-
-    expected_response = {
-        "type": "text",
-        "content": "系统刚才没能生成回复，请稍后再试一次。",
-        "metadata": {"fallback_kind": "system_failure"},
-    }
-    assert outputmessage == {"message": expected_response["content"]}
-    assert expect_output_timestamp == 123
-    assert all_multimodal_responses == [expected_response]
-    assert sent_calls[0]["multimodal_response"] == expected_response
-    assert sent_calls[0]["is_first"] is True
-
-
 def test_output_delivery_passes_visible_text_metadata_to_message_util(
     monkeypatch, sample_context
 ):
@@ -597,14 +507,12 @@ async def test_handle_message_agent_runtime_sends_multiple_visible_messages_in_o
 
 
 @pytest.mark.asyncio
-async def test_handle_message_agent_runtime_empty_output_uses_chat_fallback(
+async def test_handle_message_agent_runtime_empty_output_sends_no_fallback(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
     from agent.agno_agent.runtime.result import AgentRunResult, OutputDisposition
     from agent.runner import agent_handler
-
-    sent_fallbacks = []
 
     async def fake_run_agent_runtime_event(**kwargs):
         return AgentRunResult(
@@ -617,17 +525,8 @@ async def test_handle_message_agent_runtime_empty_output_uses_chat_fallback(
             output_disposition=OutputDisposition(status="empty"),
         )
 
-    def fake_send_chat_response_fallback(**kwargs):
-        sent_fallbacks.append(kwargs)
-        return {"message": "fallback reply"}, kwargs["expect_output_timestamp"]
-
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
-    )
-    monkeypatch.setattr(
-        agent_handler.output_delivery,
-        "send_chat_response_fallback",
-        fake_send_chat_response_fallback,
     )
 
     resp_messages, context, is_rollback, is_content_blocked = (
@@ -641,10 +540,7 @@ async def test_handle_message_agent_runtime_empty_output_uses_chat_fallback(
         )
     )
 
-    assert resp_messages == [{"message": "fallback reply"}]
-    assert sent_fallbacks[0]["context"] is sample_context
-    assert sent_fallbacks[0]["input_message"] == "你好"
-    assert sent_fallbacks[0]["all_multimodal_responses"] == []
+    assert resp_messages == []
     assert context["MultiModalResponses"] == []
     assert is_rollback is False
     assert is_content_blocked is False

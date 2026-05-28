@@ -77,7 +77,7 @@ class CapabilityResult:
 
 @dataclass(frozen=True)
 class OutputDisposition:
-    status: Literal["ok", "empty", "rollback", "fallback"]
+    status: Literal["ok", "empty"]
     output_references: Sequence[str] = field(default_factory=tuple)
     metadata: Mapping[str, Any] = field(default_factory=dict)
 

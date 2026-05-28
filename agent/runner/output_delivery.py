@@ -4,7 +4,7 @@ Outbound message delivery helpers for the agent runner.
 """
 
 import random
-from typing import Callable, Optional, Tuple
+from typing import Callable
 
 from agent.tool.image import upload_image
 from agent.tool.voice import character_voice
@@ -14,9 +14,6 @@ from util.log_util import get_logger
 logger = get_logger(__name__)
 
 typing_speed = 2.2
-
-_SYSTEM_FAILURE_FALLBACK_MESSAGE = "系统刚才没能生成回复，请稍后再试一次。"
-_SYSTEM_FAILURE_FALLBACK_KIND = "system_failure"
 
 
 class OutboundSendInterrupted(Exception):
@@ -118,31 +115,3 @@ def send_single_message(
             metadata=response_metadata,
         )
     return outputmessage, expect_output_timestamp
-
-
-def chat_response_timeout_fallback(
-    input_message: str, context: dict | None = None
-) -> str:
-    # Empty runtime output is a system failure, not a product reply strategy.
-    return _SYSTEM_FAILURE_FALLBACK_MESSAGE
-
-
-def send_chat_response_fallback(
-    *,
-    context: dict,
-    input_message: str,
-    expect_output_timestamp: int,
-    all_multimodal_responses: list,
-) -> Tuple[Optional[dict], int]:
-    multimodal_response = {
-        "type": "text",
-        "content": chat_response_timeout_fallback(input_message, context),
-        "metadata": {"fallback_kind": _SYSTEM_FAILURE_FALLBACK_KIND},
-    }
-    all_multimodal_responses.append(multimodal_response)
-    return send_single_message(
-        context=context,
-        multimodal_response=multimodal_response,
-        expect_output_timestamp=expect_output_timestamp,
-        is_first=True,
-    )

@@ -248,6 +248,15 @@ tool selection, concrete argument handling, permission checks, freshness checks,
 and durable writes. The Interaction Agent owns final user-visible text, but not
 business-domain routing.
 
+Model-output repair is not an active runtime strategy. After the Interaction
+Agent returns, the runtime validates the visible-output envelope and current
+contract once. Malformed output, blocked claims, internal-label leaks, empty
+output, or timeout become `empty` output with a structured error disposition;
+the worker does not ask the model to rewrite the answer, does not synthesize a
+template fallback, and does not replace model prose with domain or capability
+summaries. Domain and capability summaries are trusted facts for grounding,
+traces, and eval evidence, not alternate producers of final chat prose.
+
 `DomainExecutionResult` JSON is the domain-to-Interaction-Agent contract:
 operation facts, missing fields, safety boundaries, reply contracts, and
 structured errors. Before Focus-driven scheduling writes, the scheduling
