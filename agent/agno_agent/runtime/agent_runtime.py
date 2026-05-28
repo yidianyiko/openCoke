@@ -247,8 +247,27 @@ def _product_notification_metadata(agent_input: AgentInput) -> Mapping[str, Any]
     return product_notification
 
 
-def _has_product_notification_hint(agent_input: AgentInput) -> bool:
-    return _product_notification_metadata(agent_input) is not None
+def _message_type_metadata(agent_input: AgentInput) -> str | None:
+    payload = agent_input.payload
+    metadata = getattr(payload, "metadata", None)
+    if not isinstance(metadata, Mapping):
+        return None
+    message_type = metadata.get("message_type")
+    if isinstance(message_type, str) and message_type.strip():
+        return message_type.strip()
+    business_protocol = metadata.get("business_protocol")
+    if isinstance(business_protocol, Mapping):
+        message_type = business_protocol.get("message_type")
+        if isinstance(message_type, str) and message_type.strip():
+            return message_type.strip()
+    return None
+
+
+def _is_product_notification_delivery_turn(agent_input: AgentInput) -> bool:
+    return (
+        _product_notification_metadata(agent_input) is not None
+        and _message_type_metadata(agent_input) == "product_notification"
+    )
 
 
 def _resolve_scheduling_focus(
@@ -266,7 +285,7 @@ def _resolve_scheduling_focus(
         )
         if _focus_has_actionable_candidates(focus):
             return focus
-    if not _has_product_notification_hint(agent_input):
+    if not _is_product_notification_delivery_turn(agent_input):
         return focus_from_agent_focus_binding(
             None, current_time=run_context.current_time
         )
@@ -852,7 +871,7 @@ def _create_interaction_agent(
     if (
         force_no_tools
         or agent_input.input_type == "reminder.fired"
-        or _has_product_notification_hint(agent_input)
+        or _is_product_notification_delivery_turn(agent_input)
     ):
         final_tools = []
     elif preloaded_scheduling_domain_result is not None:

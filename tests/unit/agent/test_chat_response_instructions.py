@@ -41,6 +41,16 @@ def _agent_input() -> AgentInput:
     )
 
 
+def _agent_input_with_metadata(metadata: dict) -> AgentInput:
+    return AgentInput(
+        input_type="user.turn",
+        conversation_id="conv1",
+        text="我有几个提醒",
+        payload=UserTurnPayload(current_message_ids=["msg1"], metadata=metadata),
+        occurred_at=datetime(2026, 5, 21, 1, 2, tzinfo=UTC),
+    )
+
+
 def test_assembled_prompt_excludes_retired_schema_artifacts():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
@@ -121,6 +131,50 @@ def test_prompt_does_not_roleplay_user_messages_as_due_reminders():
 
     assert "Delegation boundary:" in prompt
     assert "Use reminder_domain only when" in prompt
+
+
+def test_prompt_ignores_stale_product_notification_context_without_delivery_message_type():
+    prompt = build_chat_response_instructions(
+        _ctx(),
+        _agent_input_with_metadata(
+            {
+                "product_notification": {
+                    "ambiguity": "multi_notification",
+                    "candidates": [
+                        {
+                            "shared_reminder_id": "sr_1",
+                            "resource_type": "shared_reminder",
+                            "kind": "shared_reminder_created",
+                        }
+                    ],
+                }
+            }
+        ),
+    )
+
+    assert "Trusted product notification delivery:" not in prompt
+    assert "Product notification reply rules:" not in prompt
+
+
+def test_prompt_includes_product_notification_context_for_delivery_message_type():
+    prompt = build_chat_response_instructions(
+        _ctx(),
+        _agent_input_with_metadata(
+            {
+                "message_type": "product_notification",
+                "product_notification": {
+                    "notification_id": "pn_1",
+                    "kind": "shared_reminder_created",
+                    "resource_type": "shared_reminder",
+                    "facts": {"title": "篮球课"},
+                },
+            }
+        ),
+    )
+
+    assert "Trusted product notification delivery:" in prompt
+    assert "Product notification reply rules:" in prompt
+    assert "篮球课" in prompt
 
 
 def test_prompt_treats_complete_reminder_phrasing_as_domain_request():

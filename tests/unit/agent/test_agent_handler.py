@@ -306,6 +306,9 @@ def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkey
                 "message": "确认",
                 "metadata": {
                     "source": "clawscale",
+                    "business_protocol": {
+                        "message_type": "product_notification",
+                    },
                     "product_notification": {
                         "shared_reminder_id": "sr_1",
                         "resource_type": "shared_reminder",
@@ -324,6 +327,7 @@ def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkey
             "kind": "shared_reminder_created",
             "status": "active",
         },
+        "message_type": "product_notification",
         "product_notification_input_text": "确认",
     }
 

@@ -46,6 +46,7 @@ def _product_notification_input():
         text="好的",
         payload=UserTurnPayload(
             metadata={
+                "message_type": "product_notification",
                 "product_notification": {
                     "shared_reminder_id": "sr_1",
                     "resource_type": "shared_reminder",

@@ -179,6 +179,12 @@ def _trusted_product_notification_block(agent_input: AgentInput) -> str:
     metadata = getattr(payload, "metadata", None)
     if not isinstance(metadata, Mapping):
         return ""
+    message_type = metadata.get("message_type")
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(message_type, str) and isinstance(business_protocol, Mapping):
+        message_type = business_protocol.get("message_type")
+    if message_type != "product_notification":
+        return ""
     product_notification = metadata.get("product_notification")
     if not isinstance(product_notification, Mapping):
         return ""

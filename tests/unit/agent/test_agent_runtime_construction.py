@@ -93,6 +93,30 @@ def _product_notification_agent_input() -> AgentInput:
                         "receiver_name": "eva",
                     },
                     "facts_hash": "sha256:test",
+                },
+                "message_type": "product_notification",
+            }
+        ),
+        occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+    )
+
+
+def _stale_product_notification_agent_input() -> AgentInput:
+    return AgentInput(
+        input_type="user.turn",
+        conversation_id="conv-1",
+        text="我有几个提醒",
+        payload=UserTurnPayload(
+            metadata={
+                "product_notification": {
+                    "ambiguity": "multi_notification",
+                    "candidates": [
+                        {
+                            "shared_reminder_id": "sr_1",
+                            "resource_type": "shared_reminder",
+                            "kind": "shared_reminder_created",
+                        }
+                    ],
                 }
             }
         ),
@@ -2911,6 +2935,23 @@ def test_create_interaction_agent_product_notification_has_no_domain_tools():
     assert "Trusted product notification delivery:" in agent.instructions
     assert "饭后散步验收multismoke075200" in agent.instructions
     assert "Do not produce onboarding" in agent.instructions
+
+
+def test_create_interaction_agent_stale_product_notification_context_keeps_domain_tools():
+    agent_input = _stale_product_notification_agent_input()
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=agent_input,
+        input_message=agent_input.text or "",
+        capability_results=[],
+        domain_results=[],
+    )
+
+    tool_names = {tool.name for tool in agent.tools}
+    assert "reminder_domain" in tool_names
+    assert "scheduling_domain" in tool_names
+    assert "Trusted product notification delivery:" not in agent.instructions
 
 
 @pytest.mark.asyncio
