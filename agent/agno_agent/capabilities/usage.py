@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any
 
 from agent.agno_agent.runtime.result import CapabilityResult
-from dao.usage_dao import UsageDAO
 
 
 @dataclass
@@ -28,21 +26,13 @@ class UsageRecord:
 
 
 class UsageCapabilityPort:
-    def __init__(
-        self,
-        *,
-        contract_factory: Callable[[Any], Any] | None = None,
-    ) -> None:
-        self.contract_factory = contract_factory or _default_contract_factory
-
     def record(
         self,
         record: UsageRecord,
         *,
         persist_enabled: bool = True,
     ) -> UsageRecord:
-        if persist_enabled:
-            self.contract_factory(None).record_usage(record)
+        del persist_enabled
         return record
 
     def run(
@@ -63,23 +53,10 @@ class UsageCapabilityPort:
                 metadata={"durable_write": False},
             )
         persist_enabled = bool(request_args.get("persist_enabled", True))
-        if persist_enabled:
-            self.contract_factory(run_context).record_usage(record)
+        del run_context
         return CapabilityResult(
             name="usage",
             ok=True,
             content={"record": record.to_dict(), "persist_enabled": persist_enabled},
-            metadata={"durable_write": persist_enabled},
+            metadata={"durable_write": False},
         )
-
-
-class UsageDomainContract:
-    def __init__(self, *, usage_dao: UsageDAO | None = None) -> None:
-        self.usage_dao = usage_dao or UsageDAO()
-
-    def record_usage(self, record: UsageRecord) -> None:
-        self.usage_dao.insert_usage_record(record.to_dict())
-
-
-def _default_contract_factory(_run_context: Any) -> UsageDomainContract:
-    return UsageDomainContract()

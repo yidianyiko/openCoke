@@ -1,147 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for UsageDAO and UsageTracker"""
+"""Unit tests for non-persistent usage tracking."""
 
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from datetime import datetime
+from unittest.mock import MagicMock
 
 import pytest
-
-
-class TestUsageDAO:
-    """Tests for UsageDAO class"""
-
-    @pytest.fixture
-    def mock_collection(self):
-        """Create a mock MongoDB collection"""
-        return MagicMock()
-
-    @pytest.fixture
-    def usage_dao(self, mock_collection, monkeypatch):
-        """Create UsageDAO with mocked collection"""
-        from dao import usage_dao as usage_dao_module
-
-        mock_client = MagicMock()
-        mock_db = MagicMock()
-        mock_db.get_collection.return_value = mock_collection
-        mock_client.return_value.__getitem__.return_value = mock_db
-
-        monkeypatch.setattr(usage_dao_module, "MongoClient", mock_client)
-
-        from dao.usage_dao import UsageDAO
-
-        dao_instance = UsageDAO()
-        dao_instance.collection = mock_collection
-        return dao_instance
-
-    @pytest.mark.unit
-    def test_insert_usage_record_returns_inserted_id(self, usage_dao, mock_collection):
-        """Should insert record and return inserted ID"""
-        from bson import ObjectId
-
-        inserted_id = ObjectId()
-        mock_result = MagicMock()
-        mock_result.inserted_id = inserted_id
-        mock_collection.insert_one.return_value = mock_result
-
-        record = {
-            "timestamp": datetime.now(),
-            "agent_name": "TestAgent",
-            "input_tokens": 100,
-            "output_tokens": 50,
-            "total_tokens": 150,
-        }
-
-        result = usage_dao.insert_usage_record(record)
-
-        assert result == str(inserted_id)
-        mock_collection.insert_one.assert_called_once_with(record)
-
-    @pytest.mark.unit
-    def test_get_daily_summary_returns_aggregated_data(
-        self, usage_dao, mock_collection
-    ):
-        """Should return daily summary with aggregated token counts"""
-        mock_collection.aggregate.return_value = [
-            {
-                "_id": "OrchestratorAgent",
-                "total_input": 1000,
-                "total_output": 500,
-                "total_tokens": 1500,
-                "count": 10,
-                "avg_duration": 1.5,
-            },
-            {
-                "_id": "PostAnalyzeAgent",
-                "total_input": 800,
-                "total_output": 400,
-                "total_tokens": 1200,
-                "count": 10,
-                "avg_duration": 2.0,
-            },
-        ]
-
-        result = usage_dao.get_daily_summary()
-
-        assert result["total_tokens"] == 2700
-        assert result["total_input_tokens"] == 1800
-        assert result["total_output_tokens"] == 900
-        assert result["total_calls"] == 20
-        assert "OrchestratorAgent" in result["by_agent"]
-        assert "PostAnalyzeAgent" in result["by_agent"]
-
-    @pytest.mark.unit
-    def test_get_daily_summary_returns_zeros_when_no_data(
-        self, usage_dao, mock_collection
-    ):
-        """Should return zeros when no records exist for the day"""
-        mock_collection.aggregate.return_value = []
-
-        result = usage_dao.get_daily_summary()
-
-        assert result["total_tokens"] == 0
-        assert result["total_input_tokens"] == 0
-        assert result["total_output_tokens"] == 0
-        assert result["total_calls"] == 0
-        assert result["by_agent"] == {}
-
-    @pytest.mark.unit
-    def test_get_user_daily_summary(self, usage_dao, mock_collection):
-        """Should return user-specific daily summary"""
-        mock_collection.aggregate.return_value = [
-            {
-                "_id": None,
-                "total_input": 500,
-                "total_output": 250,
-                "total_tokens": 750,
-                "count": 5,
-            }
-        ]
-
-        result = usage_dao.get_user_daily_summary("user_123")
-
-        assert result["user_id"] == "user_123"
-        assert result["total_tokens"] == 750
-        assert result["total_calls"] == 5
-
-    @pytest.mark.unit
-    def test_get_user_daily_summary_returns_zeros_when_no_data(
-        self, usage_dao, mock_collection
-    ):
-        """Should return zeros when user has no records"""
-        mock_collection.aggregate.return_value = []
-
-        result = usage_dao.get_user_daily_summary("user_123")
-
-        assert result["user_id"] == "user_123"
-        assert result["total_tokens"] == 0
-        assert result["total_calls"] == 0
-
-    @pytest.mark.unit
-    def test_create_indexes(self, usage_dao, mock_collection):
-        """Should create all required indexes"""
-        usage_dao.create_indexes()
-
-        assert mock_collection.create_index.call_count == 4
 
 
 class TestUsageTracker:
@@ -238,3 +101,49 @@ class TestUsageTracker:
         assert result["user_id"] == "user_123"
         assert result["session_id"] == "session_456"
         assert result["workflow_name"] == "TestWorkflow"
+
+    @pytest.mark.unit
+    def test_persist_enabled_records_without_mongo_dependency(self, mock_metrics):
+        """Should keep recording metrics without importing the removed Mongo DAO."""
+        from agent.agno_agent.utils.usage_tracker import UsageTracker
+
+        tracker = UsageTracker(persist_enabled=True)
+
+        record = tracker.record_from_metrics(
+            agent_name="PostAnalyzeAgent",
+            metrics=mock_metrics,
+            user_id="user_123",
+            session_id="session_456",
+            workflow_name="post_analyze",
+        )
+
+        assert record is not None
+        assert record.agent_name == "PostAnalyzeAgent"
+        assert record.total_tokens == 150
+
+    @pytest.mark.unit
+    def test_usage_capability_marks_persist_as_non_durable(self):
+        """Should acknowledge persist requests without a durable write side effect."""
+        from agent.agno_agent.capabilities.usage import (
+            UsageCapabilityPort,
+            UsageRecord,
+        )
+
+        record = UsageRecord(
+            timestamp=datetime.now(),
+            agent_name="TestAgent",
+            input_tokens=10,
+            output_tokens=5,
+            total_tokens=15,
+        )
+
+        result = UsageCapabilityPort().run(
+            input_message="",
+            run_context=None,
+            args={"record": record, "persist_enabled": True},
+        )
+
+        assert result.ok is True
+        assert result.content["record"]["total_tokens"] == 15
+        assert result.content["persist_enabled"] is True
+        assert result.metadata["durable_write"] is False
