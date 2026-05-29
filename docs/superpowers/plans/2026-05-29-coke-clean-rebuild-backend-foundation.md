@@ -55,6 +55,19 @@ Out of scope:
 - Create `coke/infra/tracing.py`: W3C traceparent validation, extraction, generation, and OpenTelemetry tracer access.
 - Create `tests/unit/coke/test_backend_foundation.py`: focused contract tests for this foundation slice.
 
+## Execution Preflight
+
+Run this once before Task 1 and keep `python_cmd` set in the same shell session:
+
+```bash
+python_cmd=".venv/bin/python"
+if [[ ! -x "$python_cmd" ]]; then
+  python_cmd="python3"
+fi
+```
+
+Expected: `python_cmd` points to the repository virtualenv Python when present, otherwise to `python3`.
+
 ## Task 1: Write Backend Foundation Contract Tests
 
 **Files:**
@@ -202,8 +215,11 @@ def test_postgres_factories_are_lazy(monkeypatch):
     assert calls[0][0] == "engine"
     assert calls[0][1] == POSTGRES_URL
     assert calls[0][2]["pool_pre_ping"] is True
-    assert calls[0][2]["future"] is True
     assert calls[1][0] == "sessionmaker"
+    assert calls[1][1]["bind"] is fake_engine
+    assert calls[1][1]["autoflush"] is False
+    assert calls[1][1]["autocommit"] is False
+    assert calls[1][1]["expire_on_commit"] is False
 
 
 def test_redis_factory_is_lazy(monkeypatch):
@@ -236,7 +252,10 @@ def test_outbox_event_is_immutable_and_carries_traceparent():
         id="evt_1",
         topic="turn.inbound",
         idempotency_key="inbound:provider-message-1",
-        payload={"trigger_id": "inbound:provider-message-1"},
+        payload={
+            "trigger_id": "inbound:provider-message-1",
+            "nested": {"attempts": [1, 2], "tags": {"turn", "inbound"}},
+        },
         traceparent=TRACEPARENT,
     )
 
@@ -244,6 +263,8 @@ def test_outbox_event_is_immutable_and_carries_traceparent():
     assert event.topic == "turn.inbound"
     assert event.idempotency_key == "inbound:provider-message-1"
     assert event.payload["trigger_id"] == "inbound:provider-message-1"
+    assert event.payload["nested"]["attempts"] == (1, 2)
+    assert event.payload["nested"]["tags"] == frozenset({"turn", "inbound"})
     assert event.traceparent == TRACEPARENT
     assert event.created_at.tzinfo is not None
 
@@ -251,6 +272,10 @@ def test_outbox_event_is_immutable_and_carries_traceparent():
         event.topic = "changed"
     with pytest.raises(TypeError):
         event.payload["new"] = "value"
+    with pytest.raises(TypeError):
+        event.payload["nested"]["extra"] = "value"
+    with pytest.raises(TypeError):
+        event.payload["nested"]["attempts"][0] = 99
 
 
 @pytest.mark.parametrize(
@@ -285,6 +310,18 @@ def test_traceparent_helpers_validate_extract_and_generate():
 
     assert tracing.is_valid_traceparent(TRACEPARENT) is True
     assert tracing.extract_trace_id(TRACEPARENT) == "4bf92f3577b34da6a3ce929d0e0e4736"
+    assert (
+        tracing.is_valid_traceparent(
+            "00-00000000000000000000000000000000-00f067aa0ba902b7-01"
+        )
+        is False
+    )
+    assert (
+        tracing.is_valid_traceparent(
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01"
+        )
+        is False
+    )
 
     generated = tracing.generate_traceparent()
 
@@ -298,6 +335,25 @@ def test_traceparent_helpers_validate_extract_and_generate():
 
     with pytest.raises(ValueError, match="Invalid W3C traceparent"):
         tracing.extract_trace_id("not-a-traceparent")
+
+
+def test_traceparent_generation_retries_all_zero_random_parts(monkeypatch):
+    from coke.infra import tracing
+
+    uuid_values = iter(
+        [
+            type("FakeUUID", (), {"hex": "0" * 32})(),
+            type("FakeUUID", (), {"hex": "4bf92f3577b34da6a3ce929d0e0e4736"})(),
+        ]
+    )
+    token_values = iter(["0" * 16, "00f067aa0ba902b7"])
+
+    monkeypatch.setattr(tracing.uuid, "uuid4", lambda: next(uuid_values))
+    monkeypatch.setattr(tracing.secrets, "token_hex", lambda length: next(token_values))
+
+    generated = tracing.generate_traceparent()
+
+    assert generated == "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
 def test_coke_package_does_not_import_legacy_runtime_modules(monkeypatch):
@@ -336,7 +392,7 @@ def test_coke_package_does_not_import_legacy_runtime_modules(monkeypatch):
 Run:
 
 ```bash
-.venv/bin/python -m pytest tests/unit/coke/test_backend_foundation.py -v
+"$python_cmd" -m pytest tests/unit/coke/test_backend_foundation.py -v
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'coke'`.
@@ -361,7 +417,17 @@ opentelemetry-sdk>=1.28.0
 
 Keep `pymongo==4.12.0` in this task.
 
-- [ ] **Step 2: Add `coke` to coverage sources**
+- [ ] **Step 2: Install or update Python dependencies**
+
+Run:
+
+```bash
+"$python_cmd" -m pip install -r requirements.txt
+```
+
+Expected: pip installs or confirms the requirements successfully, including SQLAlchemy, Alembic, psycopg, and OpenTelemetry packages.
+
+- [ ] **Step 3: Add `coke` to coverage sources**
 
 In `pyproject.toml`, replace the existing coverage source line with:
 
@@ -369,7 +435,7 @@ In `pyproject.toml`, replace the existing coverage source line with:
 source = ["agent", "dao", "util", "entity", "connector", "coke"]
 ```
 
-- [ ] **Step 3: Inspect dependency and coverage diff**
+- [ ] **Step 4: Inspect dependency and coverage diff**
 
 Run:
 
@@ -475,7 +541,7 @@ def create_app(settings: Settings) -> Flask:
 Run:
 
 ```bash
-.venv/bin/python -m pytest tests/unit/coke/test_backend_foundation.py -v
+"$python_cmd" -m pytest tests/unit/coke/test_backend_foundation.py -v
 ```
 
 Expected: some settings and app tests PASS; tests that import `coke.infra` still FAIL because infrastructure files do not exist.
@@ -563,7 +629,7 @@ def create_redis_client(settings: Settings) -> Any:
 Run:
 
 ```bash
-.venv/bin/python -m pytest tests/unit/coke/test_backend_foundation.py -v
+"$python_cmd" -m pytest tests/unit/coke/test_backend_foundation.py -v
 ```
 
 Expected: settings, app, Postgres factory, and Redis factory tests PASS; outbox and tracing tests still FAIL because `coke.infra.outbox` and `coke.infra.tracing` do not exist.
@@ -584,6 +650,7 @@ from __future__ import annotations
 import re
 import secrets
 import uuid
+from collections.abc import Callable
 
 from opentelemetry import trace
 
@@ -618,9 +685,24 @@ def extract_trace_id(traceparent: str) -> str:
     return match.group("trace_id")
 
 
+def _nonzero_hex(producer: Callable[[], str], zero_value: str) -> str:
+    while True:
+        value = producer()
+        if value != zero_value:
+            return value
+
+
+def _new_trace_id() -> str:
+    return _nonzero_hex(lambda: uuid.uuid4().hex, "0" * 32)
+
+
+def _new_span_id() -> str:
+    return _nonzero_hex(lambda: secrets.token_hex(8), "0" * 16)
+
+
 def generate_traceparent(sampled: bool = True) -> str:
-    trace_id = uuid.uuid4().hex
-    span_id = secrets.token_hex(8)
+    trace_id = _new_trace_id()
+    span_id = _new_span_id()
     flags = "01" if sampled else "00"
     return f"00-{trace_id}-{span_id}-{flags}"
 
@@ -644,12 +726,25 @@ Create `coke/infra/outbox.py` with exactly this content:
 ```python
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any, Mapping
 
 from coke.infra.tracing import is_valid_traceparent
+
+
+def _freeze_payload(value: Any) -> Any:
+    if isinstance(value, MappingABC):
+        return MappingProxyType(
+            {key: _freeze_payload(item) for key, item in value.items()}
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_payload(item) for item in value)
+    if isinstance(value, set):
+        return frozenset(_freeze_payload(item) for item in value)
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -674,7 +769,7 @@ class OutboxEvent:
         object.__setattr__(self, "id", self.id.strip())
         object.__setattr__(self, "topic", self.topic.strip())
         object.__setattr__(self, "idempotency_key", self.idempotency_key.strip())
-        object.__setattr__(self, "payload", MappingProxyType(dict(self.payload)))
+        object.__setattr__(self, "payload", _freeze_payload(self.payload))
 
     @staticmethod
     def _require_nonblank(field_name: str, value: str) -> None:
@@ -687,7 +782,7 @@ class OutboxEvent:
 Run:
 
 ```bash
-.venv/bin/python -m pytest tests/unit/coke/test_backend_foundation.py -v
+"$python_cmd" -m pytest tests/unit/coke/test_backend_foundation.py -v
 ```
 
 Expected: PASS for all tests in `tests/unit/coke/test_backend_foundation.py`.
@@ -715,7 +810,7 @@ Run:
 zsh scripts/verify-surface clean-rebuild-backend
 ```
 
-Expected: PASS and the command runs `.venv/bin/python -m pytest tests/unit/coke -v`.
+Expected: PASS. The repository resolves the Python executable inside `scripts/verify-surface`; do not assume this surface always runs the virtualenv path directly.
 
 - [ ] **Step 2: Run diff-aware verification suggestion**
 
@@ -774,7 +869,11 @@ Expected: a commit is created on the current branch.
 When implementing this child plan, run:
 
 ```bash
-.venv/bin/python -m pytest tests/unit/coke/test_backend_foundation.py -v
+python_cmd=".venv/bin/python"
+if [[ ! -x "$python_cmd" ]]; then
+  python_cmd="python3"
+fi
+"$python_cmd" -m pytest tests/unit/coke/test_backend_foundation.py -v
 zsh scripts/verify-surface clean-rebuild-backend
 zsh scripts/suggest-verification --base HEAD~1
 zsh scripts/review-trigger --base HEAD~1
@@ -784,14 +883,14 @@ git diff --check
 Expected:
 
 - The focused pytest command passes all tests in `tests/unit/coke/test_backend_foundation.py`.
-- `zsh scripts/verify-surface clean-rebuild-backend` passes and runs `.venv/bin/python -m pytest tests/unit/coke -v`.
+- `zsh scripts/verify-surface clean-rebuild-backend` passes using the Python command resolved by `scripts/verify-surface`.
 - `zsh scripts/suggest-verification --base HEAD~1` routes the changed files to `clean-rebuild-backend`.
 - `zsh scripts/review-trigger --base HEAD~1` completes and produces a non-blocking risk report.
 - `git diff --check` exits 0.
 
 ## Self-Review Checklist
 
-- [ ] Confirm the plan starts with the required `superpowers:writing-plans` header.
+- [ ] Confirm the plan starts with the required agentic-workers header pattern.
 - [ ] Confirm the plan covers every required file and no unlisted implementation file.
 - [ ] Confirm settings fail closed for missing `DATABASE_URL` and missing `REDIS_URL`.
 - [ ] Confirm `APP_ENV` defaults to `local` and can be read from env.
