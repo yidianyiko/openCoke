@@ -13,6 +13,11 @@ python-dotenv>=1.0.0
 pydub==0.25.1
 pymongo==4.12.0
 redis==5.0.4
+SQLAlchemy>=2.0.0
+alembic>=1.13.0
+psycopg[binary]>=3.2.0
+opentelemetry-api>=1.28.0
+opentelemetry-sdk>=1.28.0
 silk-python==0.2.6
 stripe>=8.0.0
 volcengine-python-sdk==1.1.5
