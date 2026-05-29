@@ -18,7 +18,12 @@ target the owner account with fire-time route resolution, per-recipient
 notification delivery rows, occurrence-grain calendar dedupe, richer auth_artifact
 with deferred claim-code binding + handoff continuation, outbox-as-source-of-truth
 ack semantics, durable conversation sequence for stale-reply safety, no_reply
-reserved for intentional no-reply only, and the full required web surface list)
+reserved for intentional no-reply only, and the full required web surface list.
+Then architect-review round 3: occurrence-grain reminder_fire lifecycle split from
+the series lifecycle, friendship removal lifecycle, account_activation projection
+owning onboarding, pending_async_reply made an explicitly non-terminal transition,
+agent_settings/user_profile split from inferred memory, and the
+reconnection_required channel state)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -168,7 +173,10 @@ user reaches an authenticated web session. Realizes requirements §5.1, §5.13,
 
 | Table | Purpose / invariant |
 |---|---|
-| `account` | The Coke user. `origin ∈ {web_first, messaging_first}`, profile, one global default timezone, agent-settings fields, proactive switch, memory switch. |
+| `account` | The Coke user identity. `origin ∈ {web_first, messaging_first}`, one global default timezone. |
+| `agent_settings` | User-controlled, customer-scoped assistant configuration: assistant name, how it addresses the user, persona, background, speaking style, extra rules, **proactive switch**, **memory switch**. Reset restores defaults. These are durable user settings and are **not** gated by the memory switch (§5.11). |
+| `user_profile` | User-controlled personalization: real name / nickname / description and relationship description (§3 of requirements). Distinct from *inferred* long-term memory (§11) — preferences, boundaries, disturbance willingness, role goals/attitude — which is gated by the memory switch. |
+| `account_activation` | Derived activation projection: `first_inbound_received_at`, `activation_completed_at`, `first_guidance_sent_at`. Onboarding completes only when identity is bound, a usable channel exists, and the first inbound is received (§5.2); first-conversation guidance is injected exactly once, tracked by `first_guidance_sent_at` (§5.4). Owned by IdentityAccess, computed from reachability + conversation signals. |
 | `account_access` | Access state used as a **product gate**: email-verification state, subscription/access state, suspension state, and the derived `access_allowed` + denial reason. No order/usage/quota metering (§15). |
 | `credential` | Web-first only: email + password hash (+ forgot/reset). Messaging-first accounts have no credential; their only web auth path is a one-time claim. |
 | `session` | Web session / token. |
@@ -202,7 +210,7 @@ that decides what to say.
 
 | Table | Purpose / invariant |
 |---|---|
-| `channel` | The account's reachable personal channel. `provider_type`, connection state (`not_connected | connecting | connected | failed`), bound `channel_identity`. **Cardinality ≤ 1 active per account.** A messaging-first account's anchor channel is non-removable; a web-first user may remove/switch (remove old first). "Connected" means deliverable, not "upstream step succeeded". |
+| `channel` | The account's reachable personal channel. `provider_type`, connection state (`not_connected | connecting | connected | connection_failed | reconnection_required`, matching the user-visible recovery states in §5.3), bound `channel_identity`. **Cardinality ≤ 1 active per account.** A messaging-first account's anchor channel is non-removable; a web-first user may remove/switch (remove old first). "Connected" means deliverable, not "upstream step succeeded". |
 | `delivery_route` | The resolved, stable send target (provider + address) derived from `channel` + `channel_identity`. Reminders, shared-reminder projections, and notifications target a route, not channel internals. May be denormalized onto `channel`, but is modeled explicitly so delivery has one canonical target. |
 | `delivery_attempt` | Per-outbound send-attempt outcome (`sent | delivered | failed`) — the raw delivery evidence from which output-class-specific delivery state (§3.4 undelivered, proactive discard, per-projection, per-recipient) is computed. A failed/absent send is never "delivered". |
 
@@ -227,8 +235,8 @@ in §5.3.
 
 | Table | Purpose / invariant |
 |---|---|
-| `reminder` | `owner`, `content`, `kind ∈ {timed, no_trigger_time, recurring, proactive, shared_projection}`, `next_fire_at` (nullable for no-trigger-time), recurrence rule, **`captured_timezone`** (pinned at create/last-edit; recurrence windows expand in this tz, see §8), `duration` (default 15 min), lifecycle (`active | completed | deleted | undelivered`). The durable delivery target is the **owner account**, never a captured route: the usable `delivery_route` is resolved at fire/resend time so a relink to a new channel is honored (§5.3/§5.8). `proactive` reminders are hidden from the calendar and user-immutable. `shared_projection` reminders link to a `shared_reminder` (§3.5). |
-| `reminder_fire` | Fire/replay evidence: compare-and-set on fire state (atomic, idempotent, replay-safe), per-reminder delivery result (`delivered | undelivered`), and a **missed/catch-up marker** for triggers the system missed while unavailable. This is the reminder-class delivery state layered on top of the turn disposition (§4). The route actually used is snapshotted on `delivery_attempt` (§3.2), not on the reminder. |
+| `reminder` | `owner`, `content`, `kind ∈ {timed, no_trigger_time, recurring, proactive, shared_projection}`, `next_fire_at` (nullable for no-trigger-time), recurrence rule, **`captured_timezone`** (pinned at create/last-edit; recurrence windows expand in this tz, see §8), `duration` (default 15 min), **series-level** lifecycle (`active | completed | deleted`). Completion is terminal for one-time and no-trigger-time reminders; for a recurring series, completing an occurrence leaves the series `active` and advances the next trigger, while deletion removes the whole series (§5.8). Per-occurrence delivery and handled state live on `reminder_fire`, not here. The durable delivery target is the **owner account**, never a captured route: the usable `delivery_route` is resolved at fire/resend time so a relink to a new channel is honored (§5.3/§5.8). `proactive` reminders are hidden from the calendar and user-immutable. `shared_projection` reminders link to a `shared_reminder` (§3.5). |
+| `reminder_fire` | **Occurrence-grain** record (one per fired/expected occurrence): occurrence key, due time, compare-and-set fire state (atomic, idempotent, replay-safe), per-occurrence delivery result (`delivered | undelivered`), user `completed`/`handled` state, and a **missed/catch-up marker** for triggers missed while the system was down. The next valid trigger advances after this occurrence fires or is completed; an undelivered occurrence already handled on the calendar is not resent (§8). This occurrence + delivery state is separate from the series-level `reminder.lifecycle` and from the turn disposition (§4); the route actually used is snapshotted on `delivery_attempt` (§3.2), not here. |
 
 Duplicate prevention is a unique constraint, not a heuristic: same owner + same
 content + same trigger time (or same owner + same content + both no-trigger-time)
@@ -250,7 +258,7 @@ Owns: relationship-based scheduling. Realizes §5.6, §5.7, §5.9.
 | Table | Purpose / invariant |
 |---|---|
 | `friend_link` | Owner's public link + QR + link code; state `active | disabled`; reset rotates the token. Reset/disable affect only future new friendships. |
-| `friendship` | Unique active relationship per unordered pair; established directly (no pending request). Self-friendship forbidden. Establishment requires both sides authenticated/claimed **and** holding a usable channel. |
+| `friendship` | Per unordered pair, lifecycle `active | removed`. **Uniqueness is on the active relationship only**, so a removed pair can re-establish through a valid link/code. Established directly (no pending request); self-friendship forbidden; establishment requires both sides authenticated/claimed **and** holding a usable channel. Removal flips to `removed`: it drops the pair from active friend lists and blocks new shared reminders, but does not cancel existing shared reminders and does not delete accounts or reminders (§5.6/§5.12). |
 | `shared_reminder` | Group reminder: creator + participant set, title, trigger time, `captured_timezone`, duration, status (`active | cancelled`). Uniqueness key: creator + participant set + title + local trigger time + timezone + duration (order-insensitive). |
 | `reminder_projection` | Per-participant projection (a `kind=shared_projection` `reminder` row). Completion affects only that participant's projection; cancellation by any participant stops all projections. |
 | `notification_fact` | Immutable structured facts + `facts_hash` + idempotency key + outbox evidence. **No `payload.text`** — final chat prose is never stored here (§5). One fact can fan out to many recipients (friendship pair, shared-reminder participants). |
@@ -290,7 +298,7 @@ product context (§11).
 
 | Data | Store |
 |---|---|
-| Identity, access, credential, session, channel identity, auth artifacts | **Postgres** |
+| Identity, access, agent settings, user profile, activation, credential, session, channel identity, auth artifacts | **Postgres** |
 | Channel, delivery route, delivery attempts | **Postgres** |
 | Conversation, message, inbound media, turn/disposition | **Postgres** |
 | Reminder runtime (reminders + fire/replay evidence) | **Postgres** |
@@ -378,6 +386,13 @@ The interactive-mode stack, in order:
   automatic user-memory extraction is left off. Short-term and long-term memory
   are one merged subsystem, not two specs.
 
+**Activation / onboarding** is owned by the `account_activation` projection
+(§3.1), not scattered across handlers. The pre-LLM gate consults it: onboarding is
+complete only when identity is bound, a usable channel exists, and the first
+inbound is received (§5.2). On the first conversation, context assembly injects
+first-use guidance exactly once and stamps `first_guidance_sent_at`, so guidance
+is never re-injected on later turns (§5.4).
+
 Then the Interaction Agent runs with the full tool surface. Tools are adapters
 over the domain modules (Reminder, Social Scheduling, Identity & Access, Calendar
 Import); they do not own business rules and do not write other contexts' tables.
@@ -430,8 +445,11 @@ contract (§5.4), not a fallback: the waiting text is a typed delivery-status
 signal carrying no intent result and no assistant content, so it does not violate
 "only the Interaction Agent writes chat prose" (it is not prose *about the user's
 request*) and it is explicitly exempt from the no-fallback-prose rule. It is the
-only such exception; timeouts, empty output, and protocol violations otherwise
-move the turn to `no_reply` or `failed` with no substitute text.
+only such exception. `pending_async_reply` is the **only non-terminal**
+disposition: when the async work finishes, the turn **transitions**
+`pending_async_reply → replied` (the final outbound and its delivery evidence are
+linked to the same turn) or `→ failed`. Empty output and protocol violations are
+not waiting-text cases — they go straight to `failed` with no substitute text.
 
 **Turn disposition vs delivery state — two layers.** The four-state
 `output_disposition` (§3.3) records the *turn outcome* — was a reply produced, was
@@ -634,7 +652,11 @@ hop, no circuit breaker, no split ownership.
   hold a usable channel — so both sides always have a channel at establishment.
   Friend-link reset/disable affect only future new friendships. Establishment is
   idempotent; the same pair never creates a duplicate active friendship;
-  self-friendship is forbidden.
+  self-friendship is forbidden. **Remove-friend** is a domain command that flips
+  the friendship to `removed`: the pair leaves both active friend lists and can no
+  longer create new shared reminders, but existing shared reminders are not
+  cancelled and no accounts or reminders are deleted (§5.6/§5.12); the pair may
+  later re-establish an active friendship through a still-valid link or code.
 - **Shared reminders** are one group reminder (creator + receivers), not split
   pairwise. Creation resolves each receiver to a unique active friend (ambiguity →
   follow-up), then enforces two hard pre-creation constraints — receiver conflict
@@ -690,6 +712,14 @@ the pre-LLM gate; long-term memory
 extraction/injection via a custom `MemoryManager` (Agno auto-extraction off);
 executable-boundary validation as `pre_hooks` / `post_hooks` (but not semantic
 output repair or claim policing); and the trusted-or-invalid detector contract.
+
+Ownership boundary for personalization: user-controlled, user-visible
+configuration (`agent_settings`, `user_profile` — §3.1) is durable structured
+state and is **not** gated by the memory switch. *Inferred* facts — preferences,
+relationship nuance, boundaries, disturbance willingness, role goals/attitude —
+live in long-term memory and **are** gated by the memory switch (off = no use /
+add / update, existing memory retained; §5.11). The MemoryManager only governs the
+inferred-memory layer, never the explicit settings.
 
 ## 12. Cross-Cutting Runtime Concerns
 
@@ -750,21 +780,26 @@ These correctness properties are design requirements:
 - **Exactly one prose producer**: only the Interaction Agent writes chat text,
   across all seven turn types. The runtime-owned synchronous-timeout waiting text
   is the sole typed-signal exception and carries no intent result (§4).
-- **Exactly one disposition per turn**: `replied | no_reply | pending_async_reply
-  | failed` + reason; intentional no-reply is observable and distinct from
-  failure.
+- **Exactly one current disposition per turn**: `replied | no_reply |
+  pending_async_reply | failed` + reason. `pending_async_reply` is the only
+  non-terminal disposition and resolves to `replied | failed`, with the final
+  async outbound linked to the same turn; intentional no-reply is observable and
+  distinct from empty-output / system failure.
 - **Disposition and delivery state are separate layers**: the turn disposition is
   the turn outcome; per-target delivery (reminder undelivered, proactive discard,
   per-projection, per-recipient notification facts) is output-class-specific and
   never collapsed into one generic failure bucket (§4).
-- **Reminder lifecycle** is atomic, idempotent, replay-safe; missed triggers are
-  caught up (personal + shared); proactive is discarded on failure; recurrence
-  windows are timezone-pinned and never silently recomputed.
+- **Reminder lifecycle** is atomic, idempotent, replay-safe; series lifecycle is
+  distinct from occurrence/fire lifecycle (recurring completion is per-occurrence,
+  series advances; delete removes the series); missed triggers are caught up
+  (personal + shared); proactive is discarded on failure; recurrence windows are
+  timezone-pinned and never silently recomputed.
 - **Trust boundary** requires a coherent identity tuple before any enqueue
   (anti-corruption layer).
 - **Social Scheduling writes** are transactional with idempotency via unique
-  constraints and deterministic ids; friendship uniqueness and shared-reminder
-  projection consistency hold.
+  constraints and deterministic ids; friendship uniqueness is on the active
+  relationship (removal never cascades to shared reminders or accounts, and a
+  removed pair can re-establish); shared-reminder projection consistency holds.
 - **Lock release** verifies ownership and never releases another worker's lock.
 - The repo-OS governance layer and the clean eval↔product decoupling.
 - Tight network posture: services bind localhost; only the edge is public;
