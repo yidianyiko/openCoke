@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import math
 from types import MappingProxyType
 from typing import Any, Mapping
 
@@ -26,6 +27,8 @@ def _freeze_payload(value: Any, path: str = "payload") -> Any:
             _freeze_payload(item, f"{path}[{index}]")
             for index, item in enumerate(value)
         )
+    if isinstance(value, float) and not math.isfinite(value):
+        raise TypeError(f"{path} must be JSON-like")
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     raise TypeError(f"{path} must be JSON-like")

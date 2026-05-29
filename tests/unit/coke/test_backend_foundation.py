@@ -223,6 +223,20 @@ def test_outbox_event_rejects_non_json_like_payload_values():
         )
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_outbox_event_rejects_non_finite_float_payload_values(value):
+    from coke.infra.outbox import OutboxEvent
+
+    with pytest.raises(TypeError, match="payload.value must be JSON-like"):
+        OutboxEvent(
+            id="evt_1",
+            topic="turn.inbound",
+            idempotency_key="inbound:provider-message-1",
+            payload={"value": value},
+            traceparent=TRACEPARENT,
+        )
+
+
 def test_outbox_event_requires_string_payload_keys():
     from coke.infra.outbox import OutboxEvent
 
@@ -312,6 +326,77 @@ def test_traceparent_generation_retries_all_zero_random_parts(monkeypatch):
     generated = tracing.generate_traceparent()
 
     assert generated == "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+
+def test_traceparent_generation_bounds_all_zero_trace_id_retries(monkeypatch):
+    from coke.infra import tracing
+
+    calls = 0
+
+    def always_zero_uuid():
+        nonlocal calls
+        calls += 1
+        if calls > 20:
+            raise AssertionError("trace ID generation was not bounded")
+        return type("FakeUUID", (), {"hex": "0" * 32})()
+
+    monkeypatch.setattr(tracing.uuid, "uuid4", always_zero_uuid)
+
+    with pytest.raises(RuntimeError, match="Unable to generate non-zero trace ID"):
+        tracing.generate_traceparent()
+
+
+def test_traceparent_generation_bounds_all_zero_span_id_retries(monkeypatch):
+    from coke.infra import tracing
+
+    calls = 0
+
+    def always_zero_span(length):
+        nonlocal calls
+        calls += 1
+        if calls > 20:
+            raise AssertionError("span ID generation was not bounded")
+        return "0" * 16
+
+    monkeypatch.setattr(
+        tracing.uuid,
+        "uuid4",
+        lambda: type("FakeUUID", (), {"hex": "4bf92f3577b34da6a3ce929d0e0e4736"})(),
+    )
+    monkeypatch.setattr(tracing.secrets, "token_hex", always_zero_span)
+
+    with pytest.raises(RuntimeError, match="Unable to generate non-zero span ID"):
+        tracing.generate_traceparent()
+
+
+@pytest.mark.parametrize(
+    ("uuid_hex", "span_hex", "message"),
+    [
+        ("not-a-trace-id", "00f067aa0ba902b7", "trace ID producer emitted invalid hex"),
+        (
+            "4bf92f3577b34da6a3ce929d0e0e4736",
+            "notspan",
+            "span ID producer emitted invalid hex",
+        ),
+    ],
+)
+def test_traceparent_generation_rejects_invalid_random_part_shape(
+    monkeypatch,
+    uuid_hex,
+    span_hex,
+    message,
+):
+    from coke.infra import tracing
+
+    monkeypatch.setattr(
+        tracing.uuid,
+        "uuid4",
+        lambda: type("FakeUUID", (), {"hex": uuid_hex})(),
+    )
+    monkeypatch.setattr(tracing.secrets, "token_hex", lambda length: span_hex)
+
+    with pytest.raises(RuntimeError, match=message):
+        tracing.generate_traceparent()
 
 
 def test_coke_package_does_not_import_legacy_runtime_modules(monkeypatch):

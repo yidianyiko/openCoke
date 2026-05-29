@@ -14,6 +14,7 @@ _TRACEPARENT_RE = re.compile(
     r"(?P<span_id>[0-9a-f]{16})-"
     r"(?P<trace_flags>[0-9a-f]{2})$"
 )
+_MAX_GENERATION_ATTEMPTS = 16
 
 
 def is_valid_traceparent(value: str | None) -> bool:
@@ -38,19 +39,28 @@ def extract_trace_id(traceparent: str) -> str:
     return match.group("trace_id")
 
 
-def _nonzero_hex(producer: Callable[[], str], zero_value: str) -> str:
-    while True:
+def _nonzero_hex(
+    producer: Callable[[], str],
+    zero_value: str,
+    *,
+    label: str,
+) -> str:
+    expected_length = len(zero_value)
+    for _ in range(_MAX_GENERATION_ATTEMPTS):
         value = producer()
+        if not re.fullmatch(rf"[0-9a-f]{{{expected_length}}}", value):
+            raise RuntimeError(f"{label} producer emitted invalid hex")
         if value != zero_value:
             return value
+    raise RuntimeError(f"Unable to generate non-zero {label}")
 
 
 def _new_trace_id() -> str:
-    return _nonzero_hex(lambda: uuid.uuid4().hex, "0" * 32)
+    return _nonzero_hex(lambda: uuid.uuid4().hex, "0" * 32, label="trace ID")
 
 
 def _new_span_id() -> str:
-    return _nonzero_hex(lambda: secrets.token_hex(8), "0" * 16)
+    return _nonzero_hex(lambda: secrets.token_hex(8), "0" * 16, label="span ID")
 
 
 def generate_traceparent(sampled: bool = True) -> str:
