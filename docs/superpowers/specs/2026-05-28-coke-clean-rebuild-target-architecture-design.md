@@ -28,7 +28,13 @@ replay idempotency (trigger_id / turn_id+item_index / turn_id+segment_index),
 reminder past-time/incomplete-date validation states, trigger-time ↔
 no-trigger-time conversion transitions, per-occurrence calendar_import_item with
 status+reason, bounded AvailabilityQuery, a Reminder-domain ReminderCalendarReadModel,
-and narrowing the prose-producer invariant to chat/channel-visible product prose)
+and narrowing the prose-producer invariant to chat/channel-visible product prose.
+Then architect-review round 5: added a distinct `superseded` disposition (stale
+suppression no longer overloads `no_reply`), grouped reminder fire turn keyed by
+(owner, due_at), provider-edge outbound idempotency, email-verification /
+password-reset auth_artifact types, a sharper inbound-media contract
+(agent-visible typed reference + observable unsupported-processing), language as a
+non-authoritative hint, and explicit channel_identity ownership)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -76,7 +82,7 @@ seven trigger types, and only two execution modes:
 | Turn trigger | Source | Mode |
 |---|---|---|
 | `InboundTurn` | channel webhook → durable message → bus | Interactive (full tools) |
-| `ReminderFireTurn` (timed / recurring / shared projection) | scheduler | Render |
+| `ReminderFireTurn` — **grouped by `(owner, due_at)`**, ordered fire-id set (timed / recurring occurrence / shared projection) | scheduler | Render |
 | `ProactiveFireTurn` | scheduler | Render, **discard on delivery failure** |
 | `NightlySummaryTurn` (20:00, no-trigger-time reminders) | scheduler | Render |
 | `NotificationTurn` (friendship / shared-reminder / error facts) | domain event → outbox → bus | Render |
@@ -96,7 +102,7 @@ trigger
   → single Interaction Agent invocation (tool/context profile keyed by turn mode)
   → output protocol validation          (first answer; no rewrite, no fallback)
   → output disposition                  (replied | no_reply | pending_async_reply
-                                         | failed, + reason)
+                                         | failed | superseded, + reason)
   → outbound delivery + reply pub/sub    (channel adapter)
   → idempotent delivered callback        (local domain lifecycle update)
 ```
@@ -189,7 +195,7 @@ user reaches an authenticated web session. Realizes requirements §5.1, §5.13,
 | `credential` | Web-first only: email + password hash (+ forgot/reset). Messaging-first accounts have no credential; their only web auth path is a one-time claim. |
 | `session` | Web session / token. |
 | `channel_identity` | A provider-side identity (e.g. a WhatsApp sender address) mapped to exactly one `account`. For messaging-first accounts this is the **account anchor**; it is created atomically with the account on first contact and is non-removable while it is the account's only identity. |
-| `auth_artifact` | **Unified** one-time authentication artifact: `type ∈ {login_url, claim_code, pairing_code}`, `purpose`, `expires_at`, `consumed_at`. The account binding differs by type: `login_url` and `pairing_code` are bound to the issuing account at issuance; `claim_code` is issued from an **unauthenticated browser** with **no account yet** — it carries a `browser_session` binding and its `target_account` is **resolved at redemption** (the sender's `channel_identity` determines the account). An optional `continuation` payload (e.g. `friend_link_id`, `calendar_import_run_id`) preserves handoff context across the claim. One-time, time-limited; once redeemed it authenticates/binds exactly one account and is never reusable for another. |
+| `auth_artifact` | **Unified** one-time authentication artifact: `type ∈ {login_url, claim_code, pairing_code, email_verification, password_reset}`, `purpose`, `delivery` (in-conversation / web / **email**), `expires_at`, `consumed_at`, and resend tracking. `email_verification` and `password_reset` are the email-delivered web-first artifacts behind §5.1 (verify email, resend verification, forgot/reset password); they are bound to the issuing account, one-time, time-limited, resendable, with observable delivery state. The account binding differs by type: `login_url` and `pairing_code` are bound to the issuing account at issuance; `claim_code` is issued from an **unauthenticated browser** with **no account yet** — it carries a `browser_session` binding and its `target_account` is **resolved at redemption** (the sender's `channel_identity` determines the account). An optional `continuation` payload (e.g. `friend_link_id`, `calendar_import_run_id`) preserves handoff context across the claim. One-time, time-limited; once redeemed it authenticates/binds exactly one account and is never reusable for another. |
 
 Identity rules (from §5.13): auto-provisioning applies **only** to shared
 WhatsApp; a first-seen sender identity provisions a new messaging-first account, a
@@ -210,11 +216,17 @@ similarity. Claiming is bidirectional and runs entirely on `auth_artifact`:
 
 ### 3.2 Channel Reachability
 
-Owns: provider-identity binding, the single-channel-per-account rule, channel
-lifecycle, the delivery route, anchor-removal guards, and outbound send-attempt
-outcomes. Realizes §5.3 and the channel parts of §5.12. This is the "can we reach
-this user, and did a send land" module — distinct from the conversation runtime
-that decides what to say.
+Owns: the single-channel-per-account rule, channel lifecycle, the delivery route,
+and outbound send-attempt outcomes. Realizes §5.3 and the channel parts of §5.12.
+This is the "can we reach this user, and did a send land" module — distinct from
+the conversation runtime that decides what to say.
+
+Ownership boundary with IdentityAccess: the `channel_identity` table — the
+identity↔account mapping, including auto-provisioning, pairing-code binding, and
+anchor protection — is owned by **IdentityAccess** (§3.1). ChannelReachability owns
+the `channel`/`delivery_route`/`delivery_attempt` lifecycle and **consults**
+IdentityAccess (via its domain service) for the anchor constraint before allowing
+a channel removal; it never writes `channel_identity` itself.
 
 | Table | Purpose / invariant |
 |---|---|
@@ -233,7 +245,7 @@ and the conversation parts of §5.9.
 | `conversation` | The ongoing agent conversation for an account; stable identifier for locks and ordering. Carries a **durable monotonic `latest_inbound_seq`** — the ordering invariant that makes stale-reply safety concrete, not just lock-implied. |
 | `message` | Inbound + outbound messages. Inbound: normalized payload, sender `channel_identity`, `causal_inbound_event_id`, and a per-conversation `seq`. Outbound: rendered text, 1–3 segments, link to disposition + (optional) `notification_id` + `facts_hash`. |
 | `inbound_media` | Multimodal inbound (image/voice/etc.) preserved as **processable input** — reference/blob only. No understanding model, no media generation, no media reply (§10). |
-| `turn` + `output_disposition` | One row per turn, **keyed by a stable `trigger_id`** (unique per trigger source — inbound message, reminder fire, notification event, …) so replay reconciles the existing turn instead of creating a new one: trigger type, mode, timing, the `based_on_inbound_seq` it acted on, and exactly one **turn disposition** (`replied | no_reply | pending_async_reply | failed`) + small reason code. The audit spine of the runtime and the replay-idempotency anchor. Turn disposition is the turn outcome; per-target *delivery* state is output-class-specific (§4). |
+| `turn` + `output_disposition` | One row per turn, **keyed by a stable `trigger_id`** (unique per trigger source — inbound message, reminder fire, notification event, …) so replay reconciles the existing turn instead of creating a new one: trigger type, mode, timing, the `based_on_inbound_seq` it acted on, and exactly one **turn disposition** (`replied | no_reply | pending_async_reply | failed | superseded`) + small reason code. The audit spine of the runtime and the replay-idempotency anchor. Turn disposition is the turn outcome; per-target *delivery* state is output-class-specific (§4). |
 | `outbox` | Single shared transactional outbox; any producer appends in the same transaction as its domain write (§5). Listed here as the runtime's durable event ledger; it is shared infrastructure, not owned business state. |
 
 ### 3.4 Reminder
@@ -362,7 +374,10 @@ The interactive-mode stack, in order:
 - **SemanticInterpreter (front-gate)** — an LLM-semantic classification pass (no
   keyword/regex routing) that decides **reply-necessity**, intent family
   (chit-chat / reminder-op / scheduling / friend-op / settings / post-reminder
-  reply / claim), and language. If it classifies the turn as intentional
+  reply / claim), and a **non-authoritative `language_hint`** — final reply
+  language is the Interaction Agent's, identified from the user's language (§5.4),
+  not a fixed interpreter decision or settings field. If it classifies the turn as
+  intentional
   no-reply, the runtime records `no_reply` and **skips the expensive Interaction
   Agent entirely**. This keeps intentional no-reply cheap and separately
   evaluable, and keeps it distinguishable from empty-output failure.
@@ -389,8 +404,10 @@ The interactive-mode stack, in order:
   tracks `latest_inbound_seq`; a turn records the `based_on_inbound_seq` it acted
   on (§3.3). Before an outbound is inserted/delivered, it compare-and-sets against
   the current `latest_inbound_seq` — if a newer inbound has superseded this turn,
-  the stale reply is suppressed and the turn resolves to `no_reply`/superseded.
-  This prevents duplicate or stale replies after newer intent (§5.4).
+  the stale reply is suppressed and the turn resolves to the distinct
+  **`superseded`** disposition (never `no_reply`, which is reserved for intentional
+  no-reply, and never `failed`, which implies retry/operator attention). This
+  prevents duplicate or stale replies after newer intent (§5.4).
 - **Memory** — short-term recent context (always available, even when the memory
   switch is off, because it is needed to complete the current turn) plus
   long-term memory via Agno memory storage/retrieval. A custom `MemoryManager`
@@ -463,9 +480,11 @@ disposition: when the async work finishes, the turn **transitions**
 linked to the same turn) or `→ failed`. Empty output and protocol violations are
 not waiting-text cases — they go straight to `failed` with no substitute text.
 
-**Turn disposition vs delivery state — two layers.** The four-state
-`output_disposition` (§3.3) records the *turn outcome* — was a reply produced, was
-it intentional no-reply, did it time out to async, did it fail. It is deliberately
+**Turn disposition vs delivery state — two layers.** The five-state
+`output_disposition` (§3.3) records the *turn outcome* — was a reply produced
+(`replied`), was it intentional no-reply (`no_reply`), did it time out to async
+(`pending_async_reply`), did it fail and need retry/attention (`failed`), or was it
+suppressed because newer intent superseded it (`superseded`). It is deliberately
 not overloaded to express per-target delivery. Whether a produced message actually
 reached each recipient is **output-class-specific delivery state**, computed from
 `delivery_attempt` (§3.2):
@@ -519,6 +538,13 @@ dual-ownership at once.
   duplicate notification, or a duplicate chat segment. Freshness
   (`latest_inbound_seq`) handles *newer-intent* staleness; this handles
   *same-trigger* replay.
+- **Outbound-delivery idempotency at the provider edge.** Persisted-row uniqueness
+  (`turn_id + segment_index`) only dedups DB rows; it does not stop a re-send to the
+  external provider after a crash between the provider call and the worker ack. So
+  each outbound carries a **provider idempotency key**, and the egress step takes a
+  short send-lease and checks `delivery_attempt` (§3.2) state before calling the
+  provider — replay either rides the provider's own idempotent dedup or skips an
+  already-`delivered`/in-flight send rather than double-delivering to the channel.
 - **Locks:** per-conversation Redis lock with ownership token; TTL derived from
   the runtime walltime budget; heartbeat extends it; lock-loss is instrumented.
   Per-conversation ordering is enforced by the lock, not by stream partitioning.
@@ -625,10 +651,13 @@ adapters behind it, all peers, none a first-class architectural concept.
   (APScheduler, single process, Postgres jobstore), so there is no multi-replica
   duplicate-fire race. Message workers still scale to N; only the scheduler is
   singleton.
-- **Fire is atomic, idempotent, replay-safe** (compare-and-set on fire state).
-  Each due reminder forms a `ReminderFireTurn` that enters the Interaction Agent
-  in render mode and is delivered as role-toned text through the user's one usable
-  channel.
+- **Fire is atomic, idempotent, replay-safe** (compare-and-set per fire state), but
+  the fire *turn* is **grouped, not per-reminder**: due fires are collected into a
+  single `ReminderFireTurn` keyed by `(owner, due_at)` carrying the ordered set of
+  due fire ids. One turn → one merged role-toned message through the user's one
+  usable channel; per-fire lifecycle/delivery is updated individually. Keying by
+  `(owner, due_at)` makes `trigger_id`, the rendered message, and outbound
+  uniqueness (§5) deterministic, so the same-time merge cannot double-send.
 - **Recurrence timezone pinning.** Recurring windows expand using the reminder's
   `captured_timezone` (set at create/last-edit), not the user's current global
   timezone. A global timezone switch changes display and the timezone applied to
@@ -640,9 +669,10 @@ adapters behind it, all peers, none a first-class architectural concept.
 - **No-trigger-time reminders + nightly summary.** Reminders with no trigger time
   are first-class. A scheduled 20:00 per-owner `NightlySummaryTurn` summarizes
   them and asks whether to schedule times.
-- **Same-owner same-time merge.** Multiple reminders for the same owner at the
-  same trigger time are merged into one rendered reminder message; each reminder
-  and its fire evidence remain independent.
+- **Same-owner same-time merge.** The grouped `(owner, due_at)` fire turn renders
+  all due reminders into one message (its ordered fire-id set is the Focus subject
+  set, §4); each reminder and its fire evidence stay independent, and "done"
+  completes the whole rendered set.
 - **Undelivered lifecycle.** A reminder due with no usable channel, or whose send
   fails, is never marked delivered; it enters `undelivered`. On channel
   reconnect, an `UndeliveredResendTurn` re-renders pending undelivered reminders
@@ -728,13 +758,17 @@ hop, no circuit breaker, no split ownership.
 ## 10. Multimodal Input Handling
 
 Inbound media (image, voice, and other channel-carried content) is **received and
-preserved as processable input** — normalized and stored as `inbound_media`
-references/blobs and associated with the message (§5.4, §3). This satisfies the
-"receive into processable input" requirement. The current contract does **not**
-require an image-understanding model, media generation, or media replies: output
-is text-only. Image generation, photo album, Moments, and voice ASR/TTS are out
-of scope (§16). Whether the LLM reasons over preserved media beyond text is a
-prompt/agent concern, not a new runtime guarantee in this rebuild.
+preserved** — normalized and stored as `inbound_media` references/blobs linked to
+the message (§5.4, §3). "Processable input" here means two concrete guarantees, not
+hidden bytes: (1) the media is durably captured and never silently dropped, and
+(2) the Interaction Agent receives an **agent-visible typed reference** for it
+(e.g. "[image]", "[voice message]") so it knows media arrived and can respond about
+it. The current contract does **not** add an image-understanding model, speech
+transcription, media generation, or media replies (this is the round-1 decision:
+preserve, don't understand/generate). Output is text-only. When a user's intent
+depends on media content the system cannot interpret, that is an **observable
+unsupported-processing outcome** surfaced to the user, not a silent loss. Image
+generation, photo album, Moments, and voice ASR/TTS remain out of scope (§16).
 
 ## 11. Deep Agno Binding (Hosted Model)
 
@@ -829,10 +863,11 @@ These correctness properties are design requirements:
   waiting text is the sole typed-signal exception and carries no intent result
   (§4).
 - **Exactly one current disposition per turn**: `replied | no_reply |
-  pending_async_reply | failed` + reason. `pending_async_reply` is the only
-  non-terminal disposition and resolves to `replied | failed`, with the final
-  async outbound linked to the same turn; intentional no-reply is observable and
-  distinct from empty-output / system failure.
+  pending_async_reply | failed | superseded` + reason. `pending_async_reply` is the
+  only non-terminal disposition and resolves to `replied | failed`, with the final
+  async outbound linked to the same turn. The five are kept distinct on purpose:
+  intentional `no_reply` ≠ empty-output/system `failed` ≠ newer-intent
+  `superseded`.
 - **Disposition and delivery state are separate layers**: the turn disposition is
   the turn outcome; per-target delivery (reminder undelivered, proactive discard,
   per-projection, per-recipient notification facts) is output-class-specific and
@@ -896,7 +931,9 @@ deleted. Anything later wanted is designed fresh, not resurrected.
 - **No business rollback/recovery maze:** rollback compensation that cancels
   committed reminders, Mongo input-message `retry_count` / `rollback_count`,
   partial-send de-dup fields, and old dispositions like `rollback` / generic
-  `fallback` are deleted. Four dispositions only (§4); committed facts are durable.
+  `fallback` are deleted. The five dispositions of §4 are the only ones
+  (`replied | no_reply | pending_async_reply | failed | superseded`); committed
+  facts are durable.
 - **No provider synchronous rollback choreography:** connect/disconnect rollback
   helpers are not rebuilt. Channel management writes desired state and reconciles
   drift asynchronously or surfaces a clear operator-visible failure.
