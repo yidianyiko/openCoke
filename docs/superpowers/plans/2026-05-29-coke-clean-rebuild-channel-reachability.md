@@ -32,6 +32,8 @@ In scope:
 - Removal gate through `IdentityAccessService.can_remove_channel_identity(account_id, channel_identity_id)`.
 - Provider adapter protocol with `provider_type`, `normalize_inbound(payload) -> NormalizedInbound`, and `send_text(route, text, idempotency_key) -> DeliveryAttemptResult`.
 - Minimal contract-preserving adapters for `whatsapp_evolution`, `wechat_personal`, `wechat_ecloud`, and `linq`.
+- Product personal-channel allowlist for ChannelReachability creation and webhook binding: only `whatsapp_evolution` and `wechat_personal`.
+- Retained non-product provider adapters `wechat_ecloud` and `linq` remain behind the provider protocol but cannot be connected or auto-bound as personal channels in this slice.
 - Provider-edge send idempotency by `provider_type + provider_idempotency_key`.
 - Provider webhook ingress that normalizes inbound payloads, resolves or binds channel identity through IdentityAccess, updates reachability state, and returns structured facts without starting ConversationRuntime.
 - Thin Flask channel routes for status, create, connect, poll, remove, retry, resolve route, and send text.
@@ -133,7 +135,11 @@ from datetime import UTC, datetime
 
 import pytest
 
-from coke.domains.channel_reachability.models import DeliveryRoute
+from coke.domains.channel_reachability.models import (
+    DeliveryRoute,
+    PRODUCT_CHANNEL_PROVIDER_TYPES,
+    RETAINED_PROVIDER_TYPES,
+)
 from coke.providers.base import provider_registry
 from coke.providers.linq import LinqAdapter
 from coke.providers.wechat_ecloud import WeChatECloudAdapter
@@ -233,6 +239,16 @@ def test_registry_contains_all_retained_provider_adapters():
         "wechat_ecloud",
         "linq",
     }
+    assert RETAINED_PROVIDER_TYPES == {
+        "whatsapp_evolution",
+        "wechat_personal",
+        "wechat_ecloud",
+        "linq",
+    }
+    assert PRODUCT_CHANNEL_PROVIDER_TYPES == {
+        "whatsapp_evolution",
+        "wechat_personal",
+    }
 
 
 def test_fake_send_text_returns_provider_attempt_result():
@@ -283,6 +299,8 @@ from coke.domains.channel_reachability.models import (
     DeliveryAttemptResult,
     DeliveryRoute,
     NormalizedInbound,
+    PRODUCT_CHANNEL_PROVIDER_TYPES,
+    RETAINED_PROVIDER_TYPES,
 )
 
 __all__ = [
@@ -292,6 +310,8 @@ __all__ = [
     "DeliveryAttemptResult",
     "DeliveryRoute",
     "NormalizedInbound",
+    "PRODUCT_CHANNEL_PROVIDER_TYPES",
+    "RETAINED_PROVIDER_TYPES",
 ]
 ```
 
@@ -316,6 +336,16 @@ ChannelConnectionState = Literal[
 ChannelLifecycle = Literal["active", "removed"]
 DeliveryRouteLifecycle = Literal["active", "removed"]
 DeliveryAttemptStatus = Literal["sent", "delivered", "failed"]
+
+PRODUCT_CHANNEL_PROVIDER_TYPES = frozenset({"whatsapp_evolution", "wechat_personal"})
+RETAINED_PROVIDER_TYPES = frozenset(
+    {
+        "whatsapp_evolution",
+        "wechat_personal",
+        "wechat_ecloud",
+        "linq",
+    }
+)
 
 
 class ChannelReachabilityError(RuntimeError):
@@ -690,7 +720,11 @@ from itertools import count
 
 import pytest
 
-from coke.domains.channel_reachability.models import ChannelReachabilityError, DeliveryAttemptResult
+from coke.domains.channel_reachability.models import (
+    ChannelReachabilityError,
+    DeliveryAttemptResult,
+    NormalizedInbound,
+)
 from coke.domains.channel_reachability.repository import InMemoryChannelReachabilityRepository
 from coke.domains.channel_reachability.service import ChannelReachabilityService
 from coke.domains.identity_access.models import IdentityAccessError
@@ -733,6 +767,12 @@ class RecordingAdapter:
         )
 
 
+class PassiveAdapter(RecordingAdapter):
+    def __init__(self, provider_type: str) -> None:
+        super().__init__()
+        self.provider_type = provider_type
+
+
 @pytest.fixture
 def identity_service() -> IdentityAccessService:
     return IdentityAccessService(
@@ -747,10 +787,18 @@ def identity_service() -> IdentityAccessService:
 @pytest.fixture
 def reachability(identity_service):
     adapter = RecordingAdapter()
+    wechat_personal = PassiveAdapter("wechat_personal")
+    wechat_ecloud = PassiveAdapter("wechat_ecloud")
+    linq = PassiveAdapter("linq")
     service = ChannelReachabilityService(
         repository=InMemoryChannelReachabilityRepository(),
         identity_access=identity_service,
-        providers={adapter.provider_type: adapter},
+        providers={
+            adapter.provider_type: adapter,
+            wechat_personal.provider_type: wechat_personal,
+            wechat_ecloud.provider_type: wechat_ecloud,
+            linq.provider_type: linq,
+        },
         now=lambda: NOW,
         id_factory=sequence_factory("channel"),
     )
@@ -780,6 +828,15 @@ def messaging_first_account(identity_service):
         provider_subject="whatsapp:+15555550999",
     )
     return resolved.account, resolved.channel_identity
+
+
+def paired_identity(identity_service, account_id, provider_type, provider_subject):
+    pairing = identity_service.issue_pairing_code(account_id)
+    return identity_service.resolve_or_create_channel_identity(
+        provider_type=provider_type,
+        provider_subject=provider_subject,
+        pairing_code=pairing.code,
+    ).channel_identity
 
 
 def test_single_active_channel_requires_remove_before_switch(identity_service, reachability):
@@ -834,6 +891,47 @@ def test_connecting_is_not_reachable_and_connected_is_reachable(identity_service
     assert service.get_status(account.id).reachable is True
 
 
+def test_revoked_access_blocks_existing_channel_completion_from_webhook(
+    identity_service,
+    reachability,
+):
+    account, identity = verified_web_account(identity_service)
+    service, _adapter = reachability
+    channel = service.create_channel(
+        account_id=account.id,
+        provider_type="whatsapp_evolution",
+        channel_identity_id=identity.id,
+        removable=True,
+    )
+    identity_service.set_access_state(
+        account_id=account.id,
+        email_verification_state="verified",
+        subscription_state="inactive",
+        suspension_state="active",
+    )
+
+    with pytest.raises(ChannelReachabilityError, match="access_denied") as exc_info:
+        service.accept_provider_inbound(
+            NormalizedInbound(
+                provider_type="whatsapp_evolution",
+                provider_subject="whatsapp:+15555550123",
+                text="connection callback",
+                raw_event_id="wa_msg_after_revocation",
+                received_at=NOW,
+            )
+        )
+
+    assert exc_info.value.fact == {
+        "type": "account_access_denied",
+        "account_id": account.id,
+        "denial_reason": "subscription_inactive",
+        "checkout_url": None,
+    }
+    saved = service.repository.get_channel(channel.id)
+    assert saved.connection_state == "not_connected"
+    assert service.get_status(account.id).reachable is False
+
+
 def test_account_access_gate_blocks_channel_creation(identity_service):
     registered = identity_service.register_web_account("a@example.com", "hash_1")
     repository = InMemoryChannelReachabilityRepository()
@@ -861,6 +959,65 @@ def test_account_access_gate_blocks_channel_creation(identity_service):
         "checkout_url": None,
     }
     assert repository.list_channels(registered.account.id) == []
+
+
+@pytest.mark.parametrize("provider_type", ["wechat_ecloud", "linq"])
+def test_retained_non_product_adapters_cannot_be_connected_as_personal_channels(
+    identity_service,
+    reachability,
+    provider_type,
+):
+    account, _identity = verified_web_account(identity_service)
+    provider_subject = "gewe_alice" if provider_type == "wechat_ecloud" else "+15555550125"
+    retained_identity = paired_identity(
+        identity_service,
+        account.id,
+        provider_type,
+        provider_subject,
+    )
+    service, _adapter = reachability
+
+    with pytest.raises(ChannelReachabilityError, match="unsupported_product_channel"):
+        service.create_channel(
+            account_id=account.id,
+            provider_type=provider_type,
+            channel_identity_id=retained_identity.id,
+            removable=True,
+        )
+
+    assert service.get_status(account.id).reachable is False
+    assert service.repository.list_channels(account.id) == []
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "provider_subject"),
+    [
+        ("wechat_ecloud", "gewe_alice"),
+        ("linq", "+15555550125"),
+    ],
+)
+def test_retained_non_product_inbound_cannot_auto_bind_personal_channel(
+    identity_service,
+    reachability,
+    provider_type,
+    provider_subject,
+):
+    service, _adapter = reachability
+    before_identities = dict(identity_service.repository.channel_identities_by_id)
+
+    with pytest.raises(ChannelReachabilityError, match="unsupported_product_channel"):
+        service.accept_provider_inbound(
+            NormalizedInbound(
+                provider_type=provider_type,
+                provider_subject=provider_subject,
+                text="hello",
+                raw_event_id=f"{provider_type}_event_1",
+                received_at=NOW,
+            )
+        )
+
+    assert identity_service.repository.channel_identities_by_id == before_identities
+    assert service.repository.list_attempts() == []
 
 
 def test_non_removable_messaging_anchor_cannot_be_removed(identity_service, reachability):
@@ -1213,6 +1370,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryAttempt,
     DeliveryRoute,
     NormalizedInbound,
+    PRODUCT_CHANNEL_PROVIDER_TYPES,
     ProviderWebhookAcceptance,
 )
 from coke.domains.channel_reachability.repository import ChannelReachabilityRepository
@@ -1261,6 +1419,7 @@ class ChannelReachabilityService:
         removable: bool,
     ) -> Channel:
         self._require_provider(provider_type)
+        self._require_product_channel(provider_type)
         self._require_access(account_id)
         identity = self._require_owned_identity(account_id, channel_identity_id)
         if identity.provider_type != provider_type:
@@ -1292,6 +1451,7 @@ class ChannelReachabilityService:
         return self._require_channel(account_id, channel_id)
 
     def mark_connected(self, account_id: str, channel_id: str) -> Channel:
+        self._require_access(account_id)
         channel = self._require_channel(account_id, channel_id)
         updated = replace(
             channel,
@@ -1390,6 +1550,7 @@ class ChannelReachabilityService:
         return attempt
 
     def accept_provider_inbound(self, inbound: NormalizedInbound) -> ProviderWebhookAcceptance:
+        self._require_product_channel(inbound.provider_type)
         resolution = self.identity_access.resolve_or_create_channel_identity(
             provider_type=inbound.provider_type,
             provider_subject=inbound.provider_subject,
@@ -1442,6 +1603,17 @@ class ChannelReachabilityService:
         except KeyError as error:
             raise ChannelReachabilityError("unsupported_provider") from error
 
+    def _require_product_channel(self, provider_type: str) -> None:
+        if provider_type not in PRODUCT_CHANNEL_PROVIDER_TYPES:
+            raise ChannelReachabilityError(
+                "unsupported_product_channel",
+                fact={
+                    "type": "unsupported_product_channel",
+                    "provider_type": provider_type,
+                    "supported_provider_types": sorted(PRODUCT_CHANNEL_PROVIDER_TYPES),
+                },
+            )
+
     def _require_owned_identity(self, account_id: str, channel_identity_id: str):
         try:
             return self.identity_access.get_owned_channel_identity(account_id, channel_identity_id)
@@ -1471,6 +1643,8 @@ from coke.domains.channel_reachability.models import (
     DeliveryAttemptResult,
     DeliveryRoute,
     NormalizedInbound,
+    PRODUCT_CHANNEL_PROVIDER_TYPES,
+    RETAINED_PROVIDER_TYPES,
 )
 from coke.domains.channel_reachability.service import ChannelReachabilityService
 
@@ -1482,6 +1656,8 @@ __all__ = [
     "DeliveryAttemptResult",
     "DeliveryRoute",
     "NormalizedInbound",
+    "PRODUCT_CHANNEL_PROVIDER_TYPES",
+    "RETAINED_PROVIDER_TYPES",
 ]
 ```
 
@@ -1521,6 +1697,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 from flask import Flask
 
 from coke.api.provider_webhooks import create_provider_webhook_blueprint
@@ -1607,6 +1784,43 @@ def test_provider_webhook_rejects_unknown_provider_with_json_error():
     assert response.get_json() == {"error": {"code": "unsupported_provider"}}
 
 
+def test_provider_webhook_rejects_retained_non_product_provider_before_binding():
+    class WeChatECloudFakeAdapter:
+        provider_type = "wechat_ecloud"
+
+        def normalize_inbound(self, payload):
+            return SimpleNamespace(
+                provider_type="wechat_ecloud",
+                provider_subject=payload["sender_id"],
+                text=payload.get("content", ""),
+                raw_event_id=payload["msg_id"],
+                pairing_code=payload.get("pairing_code"),
+            )
+
+        def send_text(self, route, text, idempotency_key):
+            raise AssertionError("webhook ingress must not send")
+
+    client, service = make_client(adapters={"wechat_ecloud": WeChatECloudFakeAdapter()})
+
+    response = client.post(
+        "/api/provider-webhooks/wechat_ecloud/inbound",
+        json={"msg_id": "gewe_msg_1", "sender_id": "gewe_alice", "content": "hello"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "unsupported_product_channel",
+            "fact": {
+                "type": "unsupported_product_channel",
+                "provider_type": "wechat_ecloud",
+                "supported_provider_types": ["wechat_personal", "whatsapp_evolution"],
+            },
+        }
+    }
+    assert service.calls == []
+
+
 def test_provider_webhook_maps_reachability_error_to_json_error():
     class ErrorService(FakeReachabilityService):
         def accept_provider_inbound(self, inbound):
@@ -1650,7 +1864,10 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from coke.domains.channel_reachability.models import ChannelReachabilityError
+from coke.domains.channel_reachability.models import (
+    ChannelReachabilityError,
+    PRODUCT_CHANNEL_PROVIDER_TYPES,
+)
 
 
 def create_provider_webhook_blueprint(reachability_service, providers) -> Blueprint:
@@ -1665,6 +1882,15 @@ def create_provider_webhook_blueprint(reachability_service, providers) -> Bluepr
         adapter = providers.get(provider_type)
         if adapter is None:
             raise ChannelReachabilityError("unsupported_provider")
+        if provider_type not in PRODUCT_CHANNEL_PROVIDER_TYPES:
+            raise ChannelReachabilityError(
+                "unsupported_product_channel",
+                fact={
+                    "type": "unsupported_product_channel",
+                    "provider_type": provider_type,
+                    "supported_provider_types": sorted(PRODUCT_CHANNEL_PROVIDER_TYPES),
+                },
+            )
         payload = _json_payload()
         inbound_event = adapter.normalize_inbound(payload)
         accepted = reachability_service.accept_provider_inbound(inbound_event)
@@ -1746,6 +1972,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
 from flask import Flask
 
 from coke.app import create_app
@@ -1920,6 +2147,34 @@ def test_channel_action_routes_delegate_to_service_methods():
     ]
 
 
+@pytest.mark.parametrize("provider_type", ["wechat_ecloud", "linq"])
+def test_create_route_rejects_retained_non_product_provider_before_service_call(provider_type):
+    client, service = make_client()
+
+    response = client.post(
+        "/api/channels",
+        json={
+            "account_id": "acct_1",
+            "provider_type": provider_type,
+            "channel_identity_id": "ci_1",
+            "removable": True,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "unsupported_product_channel",
+            "fact": {
+                "type": "unsupported_product_channel",
+                "provider_type": provider_type,
+                "supported_provider_types": ["wechat_personal", "whatsapp_evolution"],
+            },
+        }
+    }
+    assert service.calls == []
+
+
 def test_channel_route_errors_are_json():
     client, _service = make_client(service=ErrorService())
 
@@ -2015,7 +2270,10 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from coke.domains.channel_reachability.models import ChannelReachabilityError
+from coke.domains.channel_reachability.models import (
+    ChannelReachabilityError,
+    PRODUCT_CHANNEL_PROVIDER_TYPES,
+)
 
 
 def create_channel_blueprint(reachability_service) -> Blueprint:
@@ -2041,9 +2299,19 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     @blueprint.post("")
     def create():
         payload = _json_payload()
+        provider_type = _body_field(payload, "provider_type")
+        if provider_type not in PRODUCT_CHANNEL_PROVIDER_TYPES:
+            raise ChannelReachabilityError(
+                "unsupported_product_channel",
+                fact={
+                    "type": "unsupported_product_channel",
+                    "provider_type": provider_type,
+                    "supported_provider_types": sorted(PRODUCT_CHANNEL_PROVIDER_TYPES),
+                },
+            )
         channel = reachability_service.create_channel(
             account_id=_body_field(payload, "account_id"),
-            provider_type=_body_field(payload, "provider_type"),
+            provider_type=provider_type,
             channel_identity_id=_body_field(payload, "channel_identity_id"),
             removable=bool(_body_field(payload, "removable")),
         )
@@ -2347,6 +2615,7 @@ Expected: commit succeeds if Task 5 produced additional owned edits. If there ar
 - States include `not_connected`, `connecting`, `connected`, `connection_failed`, `reconnection_required`, and `removed`: Task 2 models and lifecycle tests.
 - Connecting is not reachable; connected is reachable: Task 2 `test_connecting_is_not_reachable_and_connected_is_reachable`.
 - Account access gate for connection entry/actions: Task 2 `test_account_access_gate_blocks_channel_creation` plus `connect_channel` and `retry_connection` service gate.
+- Account access is rechecked before connection completion: Task 2 `test_revoked_access_blocks_existing_channel_completion_from_webhook` and `mark_connected`.
 - Removal consults IdentityAccess anchor check: Task 2 `test_non_removable_messaging_anchor_cannot_be_removed`.
 - Removable web-first removal keeps account/reminders outside this slice and stops future reachability: Task 2 `test_removable_web_first_channel_removal_keeps_account_and_stops_reachability`.
 - Retry and `reconnection_required`: Task 2 retry test.
@@ -2357,7 +2626,32 @@ Expected: commit succeeds if Task 5 produced additional owned edits. If there ar
 - Failed/absent send is never delivered: Task 2 failed-provider and no-connected-channel tests.
 - Provider adapter protocol follows parent contract exactly: Task 1 `ProviderAdapter`.
 - Minimal provider modules for all retained adapters: Task 1 four adapter modules.
+- Product personal-channel providers are only `whatsapp_evolution` and `wechat_personal`: Task 1 retained/product constant test, Task 2 service allowlist tests, Task 3 webhook allowlist test, and Task 4 create-route allowlist test.
+- Retained non-product adapters `wechat_ecloud` and `linq` normalize behind the provider protocol but cannot be connected or auto-bound as personal channels: Task 1 provider normalization tests and Task 2 retained-provider rejection tests.
 - Provider-edge idempotency avoids duplicate adapter calls: Task 2 idempotency test.
 - Provider webhook normalizes inbound and resolves/binds identity through IdentityAccess without ConversationRuntime: Task 3 route tests and Task 2 `accept_provider_inbound`.
 - Channel API routes are thin service adapters with JSON errors: Task 4 route tests.
 - SQL persistence boundary remains preserved for a future slice: Task 2 protocol boundary and Task 5 schema contract verification.
+
+## Self-Review
+
+Spec coverage:
+
+- Requirement rows 3 and 13 are covered by the one-active-channel tests, product provider allowlist, shared WhatsApp inbound binding, route resolution at send time, and no ConversationRuntime handoff from webhook ingress.
+- Account access and channel reachability interactions are covered by creation gate tests, retry/connect service gates, webhook completion revocation test, and JSON error route tests.
+- Message sending and outbound delivery are covered by route resolution at send time, provider-edge idempotency, sent/failed attempt records, and absent-send tests.
+- Channel removal/relinking and account/data lifecycle are covered by non-removable messaging-anchor tests, removable web-first removal tests, retry/reconnection tests, removed-channel status tests, and identity no-write tests.
+- Provider adapter boundary is covered by the exact `ProviderAdapter` protocol, all four retained adapter modules, retained/product provider constants, and webhook route normalization tests.
+
+Placeholder scan:
+
+- Before committing the implementation slice, run the repository's standard plan placeholder scan against this file.
+- Expected: no red-flag planning terms are reported.
+
+Type and boundary consistency:
+
+- `PRODUCT_CHANNEL_PROVIDER_TYPES` lives in `coke.domains.channel_reachability.models` and is imported by the service, channel route, and provider webhook route.
+- `RETAINED_PROVIDER_TYPES` documents all provider adapters; it is not used to authorize personal channel creation.
+- `ChannelReachabilityService.create_channel`, `accept_provider_inbound`, `coke/api/channel_routes.py`, and `coke/api/provider_webhooks.py` all reject retained non-product providers with `unsupported_product_channel`.
+- `mark_connected` calls `_require_access(account_id)` before setting `connected`, resolving a route, or calling `observe_usable_channel`.
+- `accept_provider_inbound` rejects non-product providers before calling IdentityAccess, so `wechat_ecloud` and `linq` inbound payloads cannot auto-create `channel_identity` through this slice.
