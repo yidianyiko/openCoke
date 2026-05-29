@@ -3,11 +3,16 @@
 Status: proposed (rewritten from first principles)
 Created: 2026-05-28
 Updated: 2026-05-29 (full first-principles rewrite: The Turn as the unifying
-runtime abstraction; data model derived from requirement invariants as four
-bounded contexts; agent orchestration with SemanticInterpreter front-gate +
-encapsulated Detector; account access gate, identity/web-claim, downtime
-catch-up, undelivered lifecycle, recurring-window timezone pinning, and
-multimodal-input preservation folded in as native design)
+runtime abstraction; data model derived from requirement invariants as six
+first-class product modules; agent orchestration with SemanticInterpreter
+front-gate + encapsulated Detector; account access gate, identity/web-claim,
+downtime catch-up, undelivered lifecycle, recurring-window timezone pinning, and
+multimodal-input preservation folded in as native design. Then architect-review
+round 1: split ChannelReachability from ConversationRuntime, promoted
+CalendarImport to a named module, made the runtime-owned waiting text an explicit
+typed exception, separated turn disposition from output-class-specific delivery
+state, framed Coke's orchestration contract as primary with Agno as substrate,
+and added an explicit ReferenceResolver)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -64,11 +69,12 @@ pipeline:
 
 ```text
 trigger
-  → identity & access resolution        (trust boundary; fail-closed gate, §6)
+  → pre-LLM gate                        (identity, access, reachability, handoff;
+                                         fail-closed, §6)
   → per-conversation lock               (Redis SET NX PX + ownership token)
-  → context assembly                    (TrustFraming, SemanticInterpreter,
-                                         Focus, Freshness, Memory — §4)
-  → single Agno Agent invocation        (tool/context profile keyed by turn mode)
+  → context assembly                    (TrustFraming, SemanticInterpreter, Focus,
+                                         ReferenceResolver, Freshness, Memory — §4)
+  → single Interaction Agent invocation (tool/context profile keyed by turn mode)
   → output protocol validation          (first answer; no rewrite, no fallback)
   → output disposition                  (replied | no_reply | pending_async_reply
                                          | failed, + reason)
@@ -134,10 +140,14 @@ product events through the agent so chat-visible text has a single producer (§5
 ## 3. Bounded Contexts And Data Model
 
 The data model is derived from the requirement invariants, not from any legacy
-schema. The system decomposes into four bounded contexts plus one feeding
-capability and the Agno substrate. Each context is a module with its own tables
-and exposes only in-process domain services; API routes and agent tools are
-adapters over those services and must not write another context's tables.
+schema. The system decomposes into **six first-class product modules** plus the
+Agno substrate: **IdentityAccess**, **ChannelReachability**, **ConversationRuntime**,
+**Reminder**, **SocialScheduling**, and **CalendarImport**. Identity, access,
+single-channel reachability, and tokenized handoff are core product invariants in
+their own right, not edge concerns hidden inside provider adapters — so they get
+first-class modules, not better adapters. Each module owns its tables and exposes
+only in-process domain services; API routes and agent tools are adapters over
+those services and must not write another module's tables.
 
 New tables are allowed only when they protect a current invariant: account
 access, identity-anchor integrity, single-channel reachability, reminder firing,
@@ -170,35 +180,49 @@ During a web-first user's channel-connection flow, an inbound carrying a valid
 `pairing_code` binds that `channel_identity` to the issuing account instead of
 auto-provisioning.
 
-### 3.2 Channel & Messaging
+### 3.2 Channel Reachability
 
-Owns: the conversation pipe and its audit trail. Realizes §5.3, §5.4, parts of
-§5.9.
+Owns: provider-identity binding, the single-channel-per-account rule, channel
+lifecycle, the delivery route, anchor-removal guards, and outbound send-attempt
+outcomes. Realizes §5.3 and the channel parts of §5.12. This is the "can we reach
+this user, and did a send land" module — distinct from the conversation runtime
+that decides what to say.
 
 | Table | Purpose / invariant |
 |---|---|
-| `channel` | The account's reachable personal channel. `provider_type`, connection state (`not_connected | connecting | connected | failed`), bound `channel_identity`, route info. **Cardinality ≤ 1 active per account.** A messaging-first account's anchor channel is non-removable; a web-first user may remove/switch (remove old first). "Connected" means deliverable, not "upstream step succeeded". |
+| `channel` | The account's reachable personal channel. `provider_type`, connection state (`not_connected | connecting | connected | failed`), bound `channel_identity`. **Cardinality ≤ 1 active per account.** A messaging-first account's anchor channel is non-removable; a web-first user may remove/switch (remove old first). "Connected" means deliverable, not "upstream step succeeded". |
+| `delivery_route` | The resolved, stable send target (provider + address) derived from `channel` + `channel_identity`. Reminders, shared-reminder projections, and notifications target a route, not channel internals. May be denormalized onto `channel`, but is modeled explicitly so delivery has one canonical target. |
+| `delivery_attempt` | Per-outbound send-attempt outcome (`sent | delivered | failed`) — the raw delivery evidence from which output-class-specific delivery state (§3.4 undelivered, proactive discard, per-projection, per-recipient) is computed. A failed/absent send is never "delivered". |
+
+### 3.3 Conversation Runtime
+
+Owns: the inbound turn ledger, conversation ordering / stale-reply suppression,
+the agent-orchestration handle, and the final output disposition. Realizes §5.4
+and the conversation parts of §5.9.
+
+| Table | Purpose / invariant |
+|---|---|
 | `conversation` | The ongoing agent conversation for an account; stable identifier for ordering and locks. |
 | `message` | Inbound + outbound messages. Inbound: normalized payload, sender `channel_identity`, `causal_inbound_event_id`. Outbound: rendered text, 1–3 segments, link to disposition + (optional) `notification_id` + `facts_hash`. |
 | `inbound_media` | Multimodal inbound (image/voice/etc.) preserved as **processable input** — reference/blob only. No understanding model, no media generation, no media reply (§10). |
-| `turn` + `output_disposition` | One row per turn: trigger type, mode, timing, and exactly one disposition (`replied | no_reply | pending_async_reply | failed`) + small reason code. The audit spine of the runtime. |
-| `outbox` | Single shared transactional outbox; any producer appends in the same transaction as its domain write (§5). |
+| `turn` + `output_disposition` | One row per turn: trigger type, mode, timing, and exactly one **turn disposition** (`replied | no_reply | pending_async_reply | failed`) + small reason code. The audit spine of the runtime. Turn disposition is the turn outcome; per-target *delivery* state is output-class-specific (§4). |
+| `outbox` | Single shared transactional outbox; any producer appends in the same transaction as its domain write (§5). Listed here as the runtime's durable event ledger; it is shared infrastructure, not owned business state. |
 
-### 3.3 Reminder
+### 3.4 Reminder
 
 Owns: temporal reminder execution. Realizes §5.5, §5.8, and reminder reachability
 in §5.3.
 
 | Table | Purpose / invariant |
 |---|---|
-| `reminder` | `owner`, `content`, `kind ∈ {timed, no_trigger_time, recurring, proactive, shared_projection}`, `next_fire_at` (nullable for no-trigger-time), recurrence rule, **`captured_timezone`** (pinned at create/last-edit; recurrence windows expand in this tz, see §8), `duration` (default 15 min), lifecycle (`active | completed | deleted | undelivered`), route target. `proactive` reminders are hidden from the calendar and user-immutable. `shared_projection` reminders link to a `shared_reminder` (§3.4). |
-| `reminder_fire` | Fire/replay evidence: compare-and-set on fire state (atomic, idempotent, replay-safe), delivery result (`delivered | undelivered`), and a **missed/catch-up marker** for triggers the system missed while unavailable. |
+| `reminder` | `owner`, `content`, `kind ∈ {timed, no_trigger_time, recurring, proactive, shared_projection}`, `next_fire_at` (nullable for no-trigger-time), recurrence rule, **`captured_timezone`** (pinned at create/last-edit; recurrence windows expand in this tz, see §8), `duration` (default 15 min), lifecycle (`active | completed | deleted | undelivered`), route target. `proactive` reminders are hidden from the calendar and user-immutable. `shared_projection` reminders link to a `shared_reminder` (§3.5). |
+| `reminder_fire` | Fire/replay evidence: compare-and-set on fire state (atomic, idempotent, replay-safe), per-reminder delivery result (`delivered | undelivered`), and a **missed/catch-up marker** for triggers the system missed while unavailable. This is the reminder-class delivery state layered on top of the turn disposition (§4). |
 
 Duplicate prevention is a unique constraint, not a heuristic: same owner + same
 content + same trigger time (or same owner + same content + both no-trigger-time)
 is rejected. Duration, entry point, and phrasing are not part of the key.
 
-### 3.4 Social Scheduling
+### 3.5 Social Scheduling
 
 Owns: relationship-based scheduling. Realizes §5.6, §5.7, §5.9.
 
@@ -215,18 +239,21 @@ Availability queries read each friend's personal + shared reminders and return
 participant channel availability are **hard pre-creation constraints**; the
 creator's own conflict is intentionally not checked.
 
-### 3.5 Calendar Import (capability feeding Reminder)
+### 3.6 Calendar Import
 
-Realizes §5.10. Retained, one-time import (not "optional"). `calendar_import_run`
-records the Google auth handle and result counts (imported / skipped / downgraded
-/ failed); a per-source-event dedup key makes repeated imports skip silently.
-Imported events become owner-scoped Coke `reminder` rows (title+description →
-content, start → trigger, duration → duration with 15-min default, all-day →
-00:00, recurring → recurring reminder, or downgraded to one-time future
-occurrences with an explained result). Revoking authorization affects only future
-reads and never deletes imported reminders.
+A first-class supporting module over Reminder, not a placeholder — its Google
+authorization handoff and dedupe rules are product-specific and need their own
+contract. Realizes §5.10; retained, one-time import. `calendar_import_run` records
+the Google auth handle and result counts (imported / skipped / downgraded /
+failed); a per-source-event dedup key makes repeated imports skip silently without
+user confirmation. Imported events become owner-scoped Coke `reminder` rows
+(title+description → content, start → trigger, duration → duration with 15-min
+default, all-day → 00:00, recurring → recurring reminder, or downgraded to
+one-time future occurrences with an explained result). Historical events are not
+imported. Revoking, stopping, or expiring authorization affects only future reads
+and never deletes imported reminders.
 
-### 3.6 Agno Substrate
+### 3.7 Agno Substrate
 
 Agno session/history, memory, and knowledge live in Postgres (`agno.db.postgres`
 + pgvector). These are substrate storage owned by the agent runtime, not a
@@ -237,7 +264,8 @@ product context (§11).
 | Data | Store |
 |---|---|
 | Identity, access, credential, session, channel identity, auth artifacts | **Postgres** |
-| Channel, conversation, message, inbound media, turn/disposition | **Postgres** |
+| Channel, delivery route, delivery attempts | **Postgres** |
+| Conversation, message, inbound media, turn/disposition | **Postgres** |
 | Reminder runtime (reminders + fire/replay evidence) | **Postgres** |
 | Social Scheduling (links, friendships, shared reminders, projections, notification facts) | **Postgres** |
 | Calendar import runs | **Postgres** |
@@ -253,10 +281,25 @@ Nothing durable lives only in Redis; losing Redis on restart is acceptable.
 ## 4. Agent Orchestration (The Turn Internals)
 
 This is the heart of the rebuild. There is exactly **one acting agent** — the
-Interaction Agent, an Agno `Agent` — and it is the only component with a persona,
-tools, and the authority to produce chat prose. "Single-Agent turn" (§5.4) means
-this: utility LLM calls for classification or extraction are *not* additional
-agents; they are context-construction and tool internals that feed the one agent.
+Interaction Agent — and it is the only component with a persona, tools, and the
+authority to produce chat prose. "Single-Agent turn" (§5.4) means this: utility
+LLM calls for classification or extraction are *not* additional agents; they are
+context-construction and tool internals that feed the one agent.
+
+**Coke's orchestration contract is primary; Agno is named second as the substrate
+that fills the agent-loop slot.** The contract, independent of any framework, is:
+
+```text
+pre-LLM gate  → context builder → reference resolver → domain executor
+              → response decision → output model
+```
+
+The **pre-LLM gate** must resolve before a normal turn proceeds — identity
+binding, account access status (§6), channel reachability, and token/handoff
+validation. A failed gate produces an `AccessDeniedTurn` or an explicit failure,
+never a guessed turn. Only after the gate passes does the rest of the contract
+run. Agno is the chosen implementation substrate for the agent-loop and storage
+slots (§0, §11); it implements this contract, it does not define it.
 
 Coke owns context construction and hosts it on Agno extension points
 (`pre_hooks` / `post_hooks`, custom `MemoryManager`, explicit context injection,
@@ -280,6 +323,15 @@ The interactive-mode stack, in order:
   product object (e.g. the reminder just fired), supporting post-reminder replies
   like "done" / "change it to tomorrow". No multi-candidate state, no pending
   accept/reject.
+- **ReferenceResolver** — resolve a user reference to a concrete target before any
+  action. Deleting `multi_candidate` focus state (§15) does not delete the need to
+  disambiguate: duplicate friend names (§5.6), ambiguous shared-reminder
+  cancellation (§5.7), and multi-operation or ambiguous reminder matching (§5.8)
+  all require clarification. The rule is uniform: resolve a reference to exactly
+  one active target; on zero or multiple candidates, ask a clarifying follow-up and
+  **mutate nothing** until the user confirms. This is distinct from Focus (the
+  single current object) — ReferenceResolver handles N-candidate disambiguation
+  through conversation, not a stored pending-workflow surface.
 - **Freshness** — stale-reply safety: before acting or sending, confirm this is
   still the latest intent in the conversation. Combined with the per-conversation
   lock and causal ordering, older in-progress work never overwrites a newer
@@ -329,15 +381,46 @@ runtime guard branches.
 contract on the **first** returned answer. Invalid, empty, or structurally
 blocked output becomes `no_reply` or `failed`; the runtime does not ask the model
 to rewrite, does not convert trusted facts into replacement prose, and does not
-send template fallback text. On synchronous timeout the runtime sends a visible
-waiting text, records `pending_async_reply`, and delivers the final agent reply
-asynchronously.
+send template fallback text.
+
+**The waiting text is the one runtime-owned typed message, and it is not
+optional.** When synchronous processing times out while the agent is still
+working, the runtime emits a visible waiting text, records `pending_async_reply`,
+and delivers the final agent reply asynchronously. This is a required product
+contract (§5.4), not a fallback: the waiting text is a typed delivery-status
+signal carrying no intent result and no assistant content, so it does not violate
+"only the Interaction Agent writes chat prose" (it is not prose *about the user's
+request*) and it is explicitly exempt from the no-fallback-prose rule. It is the
+only such exception; timeouts, empty output, and protocol violations otherwise
+move the turn to `no_reply` or `failed` with no substitute text.
+
+**Turn disposition vs delivery state — two layers.** The four-state
+`output_disposition` (§3.3) records the *turn outcome* — was a reply produced, was
+it intentional no-reply, did it time out to async, did it fail. It is deliberately
+not overloaded to express per-target delivery. Whether a produced message actually
+reached each recipient is **output-class-specific delivery state**, computed from
+`delivery_attempt` (§3.2):
+
+- **Personal reminder fire** → `reminder_fire.delivery_result` (`delivered |
+  undelivered`); undelivered reminders are resent on reconnect and caught up after
+  downtime (§8).
+- **Proactive follow-up** → no undelivered state at all; on send failure it is
+  **discarded** (§8).
+- **Shared reminder** → per-projection delivery; each participant's projection
+  succeeds or fails independently (§9).
+- **Product notification** → per-recipient delivery plus partial-failure *facts*;
+  a partial failure is recorded as notification fact state, not a turn failure
+  (§9).
+
+One generic failure bucket would erase these required differences; the turn
+disposition and the class-specific delivery state are separate on purpose.
 
 **Runtime decomposition.** The orchestration core (The Turn) is split into
-focused sibling modules: trigger intake, identity/access resolution, lock
-management, context assembly (TrustFraming / SemanticInterpreter / Focus /
-Freshness / Memory), agent invocation + output-protocol validation, disposition
-recording, and outbound delivery. No single ~2,500-line runtime file.
+focused sibling modules matching the contract: trigger intake, pre-LLM gate
+(identity/access/reachability/handoff), lock management, context assembly
+(TrustFraming / SemanticInterpreter / Focus / ReferenceResolver / Freshness /
+Memory), agent invocation + output-protocol validation, disposition recording, and
+outbound delivery. No single ~2,500-line runtime file.
 
 ## 5. Message Flow, Bus, And Outbox
 
@@ -431,11 +514,16 @@ account rather than registering a new one.
 Coke owns the canonical message and delivery contract; providers are edge
 adapters behind it, all peers, none a first-class architectural concept.
 
-- **All four channel adapters are retained** (implemented and live):
-  `whatsapp_evolution` (carries shared WhatsApp), `wechat_personal`
-  (ClawScale-backed personal WeChat), `wechat_ecloud` (gewe), `linq` (SMS). The
-  product currently surfaces personal WeChat and shared WhatsApp to users; the
-  other adapters remain peers behind the contract.
+- **"Current product channels" and "retained provider adapters" are explicitly
+  different layers.** The current product channels — what a user may connect as
+  their one personal channel (§5.3) — are **personal WeChat** (`wechat_personal`,
+  web-first, connection-first) and **shared WhatsApp** (`whatsapp_evolution`, the
+  only messaging-first auto-provisioning path). Separately, **all four provider
+  adapters are retained** behind the canonical contract (`whatsapp_evolution`,
+  `wechat_personal`, `wechat_ecloud` (gewe), `linq` (SMS)); `wechat_ecloud` and
+  `linq` are peer adapters not currently surfaced as product channels. Keeping the
+  two layers distinct stops accidental provider surface area from leaking into the
+  product contract.
 - **ClawScale is not a first-class module.** It decomposes into (1) the
   `wechat_personal` provider adapter, peer to the others; (2) the inbound/outbound
   anti-corruption responsibility, folded into the Python ingress/egress tier (no
@@ -509,7 +597,7 @@ hop, no circuit breaker, no split ownership.
   channel availability (creator + every receiver reachable). The creator's own
   conflict is not checked. Failing either reports who conflicts / who is
   unreachable and creates nothing partial. On success the reminder is immediately
-  active with a per-participant projection; uniqueness is enforced by the §3.4
+  active with a per-participant projection; uniqueness is enforced by the §3.5
   key. Any participant cancels the whole group (stops all projections, notifies
   others); completion affects only one's own projection.
 - **Availability** queries return privacy-safe busy/free only, sourced from Coke
@@ -545,9 +633,11 @@ on Postgres (`agno.db.postgres`); memory and knowledge storage + retrieval on
 Postgres + pgvector (replacing the hand-built `memo-runtime` and the dead
 brute-force vector search); the guardrail hook mechanism.
 
-Coke owns (custom logic on Agno extension points): TrustFraming,
-SemanticInterpreter, Focus, Freshness, and Memory injection policy (§4);
-LLM-semantic intent interpretation (never keyword/regex); long-term memory
+Coke owns (custom logic on Agno extension points): the orchestration contract
+itself (§4) — Agno fills the agent-loop slot but does not define the contract;
+TrustFraming, SemanticInterpreter, Focus, ReferenceResolver, Freshness, and Memory
+injection policy (§4); LLM-semantic intent interpretation (never keyword/regex);
+the pre-LLM gate; long-term memory
 extraction/injection via a custom `MemoryManager` (Agno auto-extraction off);
 executable-boundary validation as `pre_hooks` / `post_hooks` (but not semantic
 output repair or claim policing); and the trusted-or-invalid detector contract.
@@ -597,10 +687,15 @@ These correctness properties are design requirements:
   bound to one account; messaging-first anchor identity/channel is non-removable.
 - **Single reachable channel**: at most one usable personal channel per account.
 - **Exactly one prose producer**: only the Interaction Agent writes chat text,
-  across all seven turn types.
+  across all seven turn types. The runtime-owned synchronous-timeout waiting text
+  is the sole typed-signal exception and carries no intent result (§4).
 - **Exactly one disposition per turn**: `replied | no_reply | pending_async_reply
   | failed` + reason; intentional no-reply is observable and distinct from
   failure.
+- **Disposition and delivery state are separate layers**: the turn disposition is
+  the turn outcome; per-target delivery (reminder undelivered, proactive discard,
+  per-projection, per-recipient notification facts) is output-class-specific and
+  never collapsed into one generic failure bucket (§4).
 - **Reminder lifecycle** is atomic, idempotent, replay-safe; missed triggers are
   caught up (personal + shared); proactive is discarded on failure; recurrence
   windows are timezone-pinned and never silently recomputed.
@@ -644,7 +739,7 @@ deleted. Anything later wanted is designed fresh, not resurrected.
   concept in the current product). **Note:** identity/claim concepts the current
   journeys *do* name — auto-provisioning, `channel_identity` mapping, the unified
   `auth_artifact` (login URL / claim code / pairing code), and the friend
-  link/link-code — are **retained** per §3.1, §3.4, §6. The earlier blanket
+  link/link-code — are **retained** per §3.1, §3.5, §6. The earlier blanket
   deletion of `ParkedInbound` / `LinkCode` is superseded: those capabilities are
   now named by §5.6/§5.13 and are modeled, not deleted.
 - **No pending shared-reminder workflow:** friend requests, shared-reminder
@@ -701,21 +796,36 @@ deleted. Anything later wanted is designed fresh, not resurrected.
 
 - **The Turn** is the central runtime abstraction: seven triggers, two modes
   (interactive / render), one pipeline, one prose producer.
-- **Data model** is four bounded contexts derived from requirement invariants, not
-  a legacy cut line.
+- **Data model** is six first-class product modules (IdentityAccess,
+  ChannelReachability, ConversationRuntime, Reminder, SocialScheduling,
+  CalendarImport) plus the Agno substrate, derived from requirement invariants —
+  not a legacy cut line. Identity, access, reachability, and tokenized handoff are
+  modules, not adapter side effects.
 - **Account access gate**: minimal access-state gate (verification /
   subscription-access / suspension) as a fail-closed product gate; no metering /
   billing ledger; checkout is an external URL surfaced as a fact.
 - **Identity/claim**: unified `auth_artifact` table for login URL / claim code /
   pairing code; shared-WhatsApp-only auto-provisioning; no merge/unlink;
   non-removable anchor.
+- **Orchestration contract is primary, Agno is substrate**: the contract
+  (pre-LLM gate → context builder → reference resolver → domain executor →
+  response decision → output model) is defined independently; Agno fills the
+  agent-loop and storage slots but does not define the contract.
 - **Agent orchestration**: single Interaction Agent; SemanticInterpreter as the
   LLM-semantic front-gate (reply-necessity + intent family); the locked
   `reminder_detect` encapsulated inside Reminder/Social Scheduling tools, output
-  trusted-or-invalid.
+  trusted-or-invalid; an explicit **ReferenceResolver** does N-candidate
+  disambiguation (mutate nothing until confirmed), replacing the deleted
+  `multi_candidate` focus surface.
+- **Delivery model is two-layered**: turn disposition (turn outcome) is separate
+  from output-class-specific delivery state (reminder undelivered / proactive
+  discard / per-projection / per-recipient notification facts). The waiting text
+  is the sole runtime-owned typed-message exception to single-prose-producer.
 - **Multimodal input** preserved as processable input; understanding/generation
   out of scope.
-- **Channels**: all four adapters retained as peers; product surfaces two.
+- **Channels**: current product channels (personal WeChat, shared WhatsApp) are a
+  distinct layer from the four retained provider adapters; the extra adapters are
+  peers, not surfaced product channels.
 - **Embedding/knowledge** folded into Agno knowledge + pgvector from the start.
 - **Long-term memory**: Agno storage/retrieval with a custom extraction/injection
   policy; merged with short-term context; no separate memory spec.
