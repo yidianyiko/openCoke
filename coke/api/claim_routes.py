@@ -17,9 +17,9 @@ def create_claim_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/code")
     def issue_claim_code():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         result = identity_service.issue_web_claim_code(
-            browser_session=payload["browser_session"],
+            browser_session=_body_field(payload, "browser_session"),
             continuation=payload.get("continuation", {}),
         )
         return jsonify({"code": result.code, "artifact_id": result.artifact.id}), 201
@@ -28,7 +28,7 @@ def create_claim_blueprint(identity_service) -> Blueprint:
     def poll_claim_code(code: str):
         status = identity_service.get_claim_code_status(
             code=code,
-            browser_session=request.args["browser_session"],
+            browser_session=_query_field("browser_session"),
         )
         if not status.found:
             return (
@@ -53,11 +53,11 @@ def create_claim_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/code/redeem")
     def redeem_claim_code():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         redeemed = identity_service.redeem_claim_code_from_channel(
-            code=payload["code"],
-            provider_type=payload["provider_type"],
-            provider_subject=payload["provider_subject"],
+            code=_body_field(payload, "code"),
+            provider_type=_body_field(payload, "provider_type"),
+            provider_subject=_body_field(payload, "provider_subject"),
         )
         return jsonify(
             {
@@ -68,10 +68,10 @@ def create_claim_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/code/complete")
     def complete_claim_code():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         redeemed = identity_service.complete_web_claim_from_browser(
-            code=payload["code"],
-            browser_session=payload["browser_session"],
+            code=_body_field(payload, "code"),
+            browser_session=_body_field(payload, "browser_session"),
         )
         return jsonify(
             {
@@ -83,17 +83,17 @@ def create_claim_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/pairing-code")
     def issue_pairing_code():
-        payload = request.get_json(silent=True) or {}
-        result = identity_service.issue_pairing_code(account_id=payload["account_id"])
+        payload = _json_payload()
+        result = identity_service.issue_pairing_code(account_id=_body_field(payload, "account_id"))
         return jsonify({"code": result.code, "artifact_id": result.artifact.id}), 201
 
     @blueprint.post("/pairing-code/redeem")
     def redeem_pairing_code():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         resolved = identity_service.resolve_or_create_channel_identity(
-            provider_type=payload["provider_type"],
-            provider_subject=payload["provider_subject"],
-            pairing_code=payload["pairing_code"],
+            provider_type=_body_field(payload, "provider_type"),
+            provider_subject=_body_field(payload, "provider_subject"),
+            pairing_code=_body_field(payload, "pairing_code"),
         )
         return jsonify(
             {
@@ -103,3 +103,46 @@ def create_claim_blueprint(identity_service) -> Blueprint:
         )
 
     return blueprint
+
+
+def _json_payload() -> dict:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise IdentityAccessError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "body",
+                "reason": "json_body_required",
+            },
+        )
+    return payload
+
+
+def _body_field(payload: dict, field: str):
+    if field not in payload:
+        raise IdentityAccessError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "body",
+                "field": field,
+                "reason": "required_field_missing",
+            },
+        )
+    return payload[field]
+
+
+def _query_field(field: str) -> str:
+    value = request.args.get(field)
+    if value is None:
+        raise IdentityAccessError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "query",
+                "field": field,
+                "reason": "required_field_missing",
+            },
+        )
+    return value

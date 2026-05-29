@@ -155,13 +155,19 @@ class IdentityAccessService:
             existing = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
             if existing is not None:
                 raise IdentityAccessError("channel_identity_already_bound")
-            self._consume_artifact(pairing_code, expected_type=ArtifactType.PAIRING_CODE)
-            identity = self._create_channel_identity(
+            consumed = replace(
+                artifact,
+                consumed_at=self._now(),
+                delivery_state="consumed",
+                updated_at=self._now(),
+            )
+            identity = self._build_channel_identity(
                 account_id=account.id,
                 provider_type=provider_type,
                 provider_subject=provider_subject,
                 is_account_anchor=False,
             )
+            self.repository.add_channel_identity_and_save_artifact(identity, consumed)
             return ChannelIdentityResolution(
                 account=account,
                 channel_identity=identity,
@@ -373,6 +379,12 @@ class IdentityAccessService:
         artifact = self.repository.get_artifact_by_code(code)
         if artifact is None:
             raise IdentityAccessError("artifact_not_found")
+        if artifact.type not in {ArtifactType.EMAIL_VERIFICATION, ArtifactType.PASSWORD_RESET}:
+            raise IdentityAccessError("artifact_not_resendable")
+        if artifact.consumed_at is not None:
+            raise IdentityAccessError("artifact_consumed")
+        if artifact.expires_at <= self._now():
+            raise IdentityAccessError("artifact_expired")
         updated = replace(
             artifact,
             delivery_state="pending",
@@ -471,7 +483,23 @@ class IdentityAccessService:
         provider_subject: str,
         is_account_anchor: bool,
     ) -> ChannelIdentity:
-        identity = ChannelIdentity(
+        identity = self._build_channel_identity(
+            account_id=account_id,
+            provider_type=provider_type,
+            provider_subject=provider_subject,
+            is_account_anchor=is_account_anchor,
+        )
+        self.repository.add_channel_identity(identity)
+        return identity
+
+    def _build_channel_identity(
+        self,
+        account_id: str,
+        provider_type: str,
+        provider_subject: str,
+        is_account_anchor: bool,
+    ) -> ChannelIdentity:
+        return ChannelIdentity(
             id=self._id_factory("channel_identity"),
             account_id=account_id,
             provider_type=provider_type,
@@ -481,8 +509,6 @@ class IdentityAccessService:
             created_at=self._now(),
             updated_at=self._now(),
         )
-        self.repository.add_channel_identity(identity)
-        return identity
 
     def _create_session(self, account_id: str) -> Session:
         session = Session(

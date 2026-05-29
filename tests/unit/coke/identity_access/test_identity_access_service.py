@@ -872,6 +872,99 @@ def test_resend_artifact_increments_count_and_sets_pending(identity_service):
     assert resent.updated_at == NOW
 
 
+def test_resend_consumed_artifact_fails_closed(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.verify_email(token=registered.email_verification.code)
+
+    with pytest.raises(IdentityAccessError, match="artifact_consumed"):
+        identity_service.resend_artifact(code=registered.email_verification.code)
+
+
+def test_resend_expired_artifact_fails_closed(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    expired_service = IdentityAccessService(
+        repository=identity_service.repository,
+        now=lambda: NOW + timedelta(hours=25),
+        token_factory=sequence_factory("late_token"),
+        id_factory=sequence_factory("late_id"),
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_expired"):
+        expired_service.resend_artifact(code=registered.email_verification.code)
+
+    assert identity_service.repository.get_artifact_by_code(
+        registered.email_verification.code
+    ).resend_count == 0
+
+
+def test_resend_non_resendable_artifact_type_fails_closed(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    login_url = identity_service.issue_login_url(account_id=registered.account.id)
+
+    with pytest.raises(IdentityAccessError, match="artifact_not_resendable"):
+        identity_service.resend_artifact(code=login_url.code)
+
+    assert identity_service.repository.get_artifact_by_code(login_url.code).resend_count == 0
+
+
+def test_pairing_identity_collision_does_not_consume_artifact():
+    channel_identity_ids = count(1)
+    fallback_ids = count(1)
+
+    def colliding_identity_id_factory(prefix: str) -> str:
+        if prefix == "channel_identity":
+            return f"channel_identity_collision_{next(channel_identity_ids) % 1}"
+        return f"{prefix}_id_{next(fallback_ids)}"
+
+    service = IdentityAccessService(
+        repository=InMemoryIdentityAccessRepository(now=lambda: NOW),
+        now=lambda: NOW,
+        token_factory=sequence_factory("token"),
+        id_factory=colliding_identity_id_factory,
+        checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
+    )
+    service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    registered = service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = service.issue_pairing_code(account_id=registered.account.id)
+
+    with pytest.raises(ValueError, match="duplicate_channel_identity_id"):
+        service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550124",
+            pairing_code=pairing.code,
+        )
+
+    assert service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+    assert (
+        service.repository.get_channel_identity_by_provider(
+            "whatsapp_evolution",
+            "whatsapp:+15555550124",
+        )
+        is None
+    )
+
+
 def test_activation_web_first_requires_registration_channel_and_first_inbound(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",

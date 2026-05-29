@@ -432,6 +432,45 @@ def test_auth_route_errors_are_json_facts():
     assert response.get_json() == {"error": {"code": "invalid_credentials"}}
 
 
+def test_auth_route_missing_json_body_returns_invalid_request_fact():
+    client, service = make_client()
+
+    response = client.post("/api/auth/login")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "reason": "json_body_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
+def test_auth_route_missing_required_json_field_returns_invalid_request_fact():
+    client, service = make_client()
+
+    response = client.post("/api/auth/login", json={"email": "a@example.com"})
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "field": "password_hash",
+                "reason": "required_field_missing",
+            },
+        }
+    }
+    assert service.calls == []
+
+
 def test_claim_route_errors_are_json_facts():
     client, _service = make_client(ErrorService())
 
@@ -446,6 +485,65 @@ def test_claim_route_errors_are_json_facts():
 
     assert response.status_code == 400
     assert response.get_json() == {"error": {"code": "unknown_channel_identity"}}
+
+
+def test_claim_route_missing_json_body_returns_invalid_request_fact():
+    client, service = make_client()
+
+    response = client.post("/api/claim/code")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "reason": "json_body_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
+def test_claim_route_missing_required_json_field_returns_invalid_request_fact():
+    client, service = make_client()
+
+    response = client.post("/api/claim/code", json={"continuation": {}})
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "field": "browser_session",
+                "reason": "required_field_missing",
+            },
+        }
+    }
+    assert service.calls == []
+
+
+def test_claim_poll_route_missing_browser_session_query_returns_invalid_request_fact():
+    client, service = make_client()
+
+    response = client.get("/api/claim/code/claim_code/status")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "query",
+                "field": "browser_session",
+                "reason": "required_field_missing",
+            },
+        }
+    }
+    assert service.calls == []
 
 
 def test_pairing_code_issue_route_returns_json_error_when_service_rejects_origin():

@@ -48,6 +48,12 @@ class IdentityAccessRepository(Protocol):
 
     def add_channel_identity(self, channel_identity: ChannelIdentity) -> None: ...
 
+    def add_channel_identity_and_save_artifact(
+        self,
+        channel_identity: ChannelIdentity,
+        artifact: AuthArtifact,
+    ) -> None: ...
+
     def get_channel_identity_by_provider(
         self,
         provider_type: str,
@@ -168,6 +174,22 @@ class InMemoryIdentityAccessRepository:
             raise ValueError("duplicate_channel_identity_provider")
         self.channel_identities_by_id[channel_identity.id] = channel_identity
         self.channel_identities_by_provider[key] = channel_identity
+
+    def add_channel_identity_and_save_artifact(
+        self,
+        channel_identity: ChannelIdentity,
+        artifact: AuthArtifact,
+    ) -> None:
+        key = (channel_identity.provider_type, channel_identity.provider_subject)
+        if channel_identity.id in self.channel_identities_by_id:
+            raise ValueError("duplicate_channel_identity_id")
+        if key in self.channel_identities_by_provider:
+            raise ValueError("duplicate_channel_identity_provider")
+        if artifact.code not in self.artifacts_by_code:
+            raise ValueError("artifact_not_found")
+        self.channel_identities_by_id[channel_identity.id] = channel_identity
+        self.channel_identities_by_provider[key] = channel_identity
+        self.artifacts_by_code[artifact.code] = artifact
 
     def get_channel_identity_by_provider(
         self,

@@ -17,10 +17,10 @@ def create_auth_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/register")
     def register():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         result = identity_service.register_web_account(
-            email=payload["email"],
-            password_hash=payload["password_hash"],
+            email=_body_field(payload, "email"),
+            password_hash=_body_field(payload, "password_hash"),
             default_timezone=payload.get("default_timezone", "UTC"),
         )
         return (
@@ -36,31 +36,31 @@ def create_auth_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/login")
     def login():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         result = identity_service.login(
-            email=payload["email"],
-            password_hash=payload["password_hash"],
+            email=_body_field(payload, "email"),
+            password_hash=_body_field(payload, "password_hash"),
         )
         return jsonify({"account_id": result.account.id, "session_token": result.session.token})
 
     @blueprint.post("/email-verification/verify")
     def verify_email():
-        payload = request.get_json(silent=True) or {}
-        credential = identity_service.verify_email(token=payload["token"])
+        payload = _json_payload()
+        credential = identity_service.verify_email(token=_body_field(payload, "token"))
         return jsonify({"account_id": credential.account_id, "email": credential.email})
 
     @blueprint.post("/password-reset/request")
     def request_password_reset():
-        payload = request.get_json(silent=True) or {}
-        identity_service.issue_password_reset(email=payload["email"])
+        payload = _json_payload()
+        identity_service.issue_password_reset(email=_body_field(payload, "email"))
         return jsonify({"accepted": True}), 202
 
     @blueprint.post("/password-reset/complete")
     def complete_password_reset():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         credential = identity_service.reset_password(
-            token=payload["token"],
-            password_hash=payload["password_hash"],
+            token=_body_field(payload, "token"),
+            password_hash=_body_field(payload, "password_hash"),
         )
         return jsonify({"account_id": credential.account_id, "email": credential.email})
 
@@ -72,7 +72,7 @@ def create_auth_blueprint(identity_service) -> Blueprint:
 
     @blueprint.get("/access-status")
     def access_status():
-        account_id = request.args["account_id"]
+        account_id = _query_field("account_id")
         access = identity_service.get_access_status(account_id=account_id)
         return jsonify(
             {
@@ -84,10 +84,10 @@ def create_auth_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/login-url/redeem")
     def redeem_login_url():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_payload()
         redeemed = identity_service.redeem_login_url(
-            token=payload["token"],
-            browser_session=payload["browser_session"],
+            token=_body_field(payload, "token"),
+            browser_session=_body_field(payload, "browser_session"),
         )
         return jsonify(
             {
@@ -106,3 +106,46 @@ def _bearer_token() -> str:
     if not header.startswith(prefix):
         return ""
     return header[len(prefix) :]
+
+
+def _json_payload() -> dict:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise IdentityAccessError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "body",
+                "reason": "json_body_required",
+            },
+        )
+    return payload
+
+
+def _body_field(payload: dict, field: str):
+    if field not in payload:
+        raise IdentityAccessError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "body",
+                "field": field,
+                "reason": "required_field_missing",
+            },
+        )
+    return payload[field]
+
+
+def _query_field(field: str) -> str:
+    value = request.args.get(field)
+    if value is None:
+        raise IdentityAccessError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "query",
+                "field": field,
+                "reason": "required_field_missing",
+            },
+        )
+    return value
