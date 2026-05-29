@@ -233,9 +233,12 @@ def test_create_route_requires_boolean_removable_before_service_call():
     ("field", "value"),
     [
         ("account_id", 123),
+        ("account_id", " acct_1 "),
         ("provider_type", []),
         ("provider_type", ""),
+        ("provider_type", " whatsapp_evolution "),
         ("channel_identity_id", {}),
+        ("channel_identity_id", " ci_1 "),
     ],
 )
 def test_create_route_requires_string_body_fields_before_service_call(field, value):
@@ -297,8 +300,11 @@ def test_channel_body_action_routes_require_string_account_id_before_service_cal
     "path",
     [
         "/api/channels/status?account_id=",
+        "/api/channels/status?account_id=%20acct_1%20",
         "/api/channels/channel_1/poll?account_id=",
+        "/api/channels/channel_1/poll?account_id=%20acct_1%20",
         "/api/channels/resolve-route?account_id=",
+        "/api/channels/resolve-route?account_id=%20acct_1%20",
     ],
 )
 def test_channel_query_routes_require_non_empty_account_id_before_service_call(path):

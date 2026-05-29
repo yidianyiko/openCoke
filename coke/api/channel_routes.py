@@ -163,7 +163,7 @@ def _body_bool_field(payload: dict, field: str) -> bool:
 
 def _body_str_field(payload: dict, field: str) -> str:
     value = _body_field(payload, field)
-    if not isinstance(value, str) or value.strip() == "":
+    if not isinstance(value, str) or value.strip() == "" or value != value.strip():
         raise ChannelReachabilityError(
             "invalid_request",
             fact={
@@ -173,7 +173,7 @@ def _body_str_field(payload: dict, field: str) -> str:
                 "reason": "string_field_required",
             },
         )
-    return value.strip()
+    return value
 
 
 def _query_str_field(field: str) -> str:
@@ -188,7 +188,7 @@ def _query_str_field(field: str) -> str:
                 "reason": "required_field_missing",
             },
         )
-    if value.strip() == "":
+    if value.strip() == "" or value != value.strip():
         raise ChannelReachabilityError(
             "invalid_request",
             fact={
@@ -198,7 +198,7 @@ def _query_str_field(field: str) -> str:
                 "reason": "string_field_required",
             },
         )
-    return value.strip()
+    return value
 
 
 def _error_body(code: str, fact: dict | None = None) -> dict:
