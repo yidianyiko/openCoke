@@ -90,6 +90,9 @@ class InMemoryChannelReachabilityRepository:
         if existing is not None:
             if existing.lifecycle != "active":
                 raise ValueError("retired_route_key")
+            existing_by_id = self.routes_by_id.get(route.id)
+            if existing_by_id is not None and existing_by_id.id != existing.id:
+                raise ValueError("duplicate_delivery_route_id")
             updated = DeliveryRoute(
                 id=existing.id,
                 account_id=route.account_id,
@@ -104,6 +107,11 @@ class InMemoryChannelReachabilityRepository:
             self.routes_by_id[updated.id] = updated
             self.routes_by_key[updated.route_key] = updated
             return updated
+        if route.id in self.routes_by_id:
+            raise ValueError("duplicate_delivery_route_id")
+        active_for_channel = self.get_active_route_for_channel(route.channel_id)
+        if active_for_channel is not None:
+            raise ValueError("duplicate_active_route_for_channel")
         self.routes_by_id[route.id] = route
         self.routes_by_key[route.route_key] = route
         return route

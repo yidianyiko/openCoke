@@ -8,6 +8,7 @@ import pytest
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
     DeliveryAttemptResult,
+    DeliveryRoute,
     NormalizedInbound,
 )
 from coke.domains.channel_reachability.repository import (
@@ -272,6 +273,23 @@ def test_revoked_access_blocks_already_connected_channel_inbound(
     )
 
 
+def test_missing_account_access_error_maps_to_channel_error(
+    identity_service,
+    reachability,
+):
+    service, _adapter = reachability
+
+    with pytest.raises(ChannelReachabilityError, match="account_not_found"):
+        service.create_channel(
+            account_id="missing_account",
+            provider_type="whatsapp_evolution",
+            channel_identity_id="missing_identity",
+            removable=True,
+        )
+
+    assert service.repository.list_channels("missing_account") == []
+
+
 def test_account_access_gate_blocks_channel_creation(identity_service):
     registered = identity_service.register_web_account("a@example.com", "hash_1")
     repository = InMemoryChannelReachabilityRepository()
@@ -526,6 +544,26 @@ def test_reconnect_reuses_route_key_safely(identity_service, reachability):
     assert service.get_status(account.id).reachable is True
 
 
+def test_mark_connected_missing_activation_maps_error_without_connection_write(
+    identity_service,
+    reachability,
+):
+    account, identity = verified_web_account(identity_service)
+    service, _adapter = reachability
+    channel = service.create_channel(
+        account.id, "whatsapp_evolution", identity.id, removable=True
+    )
+    identity_service.repository.activations.pop(account.id)
+
+    with pytest.raises(ChannelReachabilityError, match="activation_not_found"):
+        service.mark_connected(account.id, channel.id)
+
+    saved = service.repository.get_channel(channel.id)
+    assert saved.connection_state == "not_connected"
+    assert service.repository.get_active_route_for_channel(channel.id) is None
+    assert account.id not in identity_service.repository.usable_channel_accounts
+
+
 def test_mark_connected_does_not_save_connected_state_when_route_resolution_fails(
     identity_service,
     reachability,
@@ -546,7 +584,9 @@ def test_mark_connected_does_not_save_connected_state_when_route_resolution_fail
     assert service.get_status(account.id).reachable is False
 
 
-def test_repository_refuses_to_reactivate_retired_route_key(identity_service, reachability):
+def test_repository_refuses_to_reactivate_retired_route_key(
+    identity_service, reachability
+):
     account, identity = verified_web_account(identity_service)
     service, _adapter = reachability
     channel = service.create_channel(
@@ -560,6 +600,64 @@ def test_repository_refuses_to_reactivate_retired_route_key(identity_service, re
         service.repository.upsert_route(route)
 
     assert service.repository.get_route(route.id).lifecycle == "removed"
+
+
+def test_repository_rejects_duplicate_route_id_for_different_route_key(
+    identity_service,
+    reachability,
+):
+    account, identity = verified_web_account(identity_service)
+    service, _adapter = reachability
+    channel = service.create_channel(
+        account.id, "whatsapp_evolution", identity.id, removable=True
+    )
+    service.mark_connected(account.id, channel.id)
+    route = service.resolve_route(account.id)
+    duplicate_id_route = DeliveryRoute(
+        id=route.id,
+        account_id=account.id,
+        channel_id=channel.id,
+        provider_type="whatsapp_evolution",
+        provider_address="whatsapp:+15555550124",
+        route_key=f"{channel.id}:whatsapp_evolution:whatsapp:+15555550124",
+        lifecycle="active",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+    with pytest.raises(ValueError, match="duplicate_delivery_route_id"):
+        service.repository.upsert_route(duplicate_id_route)
+
+    assert service.repository.get_route(route.id).route_key == route.route_key
+
+
+def test_repository_rejects_second_active_route_for_same_channel(
+    identity_service,
+    reachability,
+):
+    account, identity = verified_web_account(identity_service)
+    service, _adapter = reachability
+    channel = service.create_channel(
+        account.id, "whatsapp_evolution", identity.id, removable=True
+    )
+    service.mark_connected(account.id, channel.id)
+    existing = service.resolve_route(account.id)
+    competing_route = DeliveryRoute(
+        id="delivery_route_competing",
+        account_id=account.id,
+        channel_id=channel.id,
+        provider_type="whatsapp_evolution",
+        provider_address="whatsapp:+15555550124",
+        route_key=f"{channel.id}:whatsapp_evolution:whatsapp:+15555550124",
+        lifecycle="active",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+    with pytest.raises(ValueError, match="duplicate_active_route_for_channel"):
+        service.repository.upsert_route(competing_route)
+
+    assert service.repository.get_active_route_for_channel(channel.id).id == existing.id
 
 
 def test_remove_relink_same_address_retires_old_route_and_preserves_attempt_history(
@@ -800,6 +898,32 @@ def test_invalid_pairing_code_maps_identity_error_to_channel_error(
                 pairing_code="missing_pairing_code",
             )
         )
+
+
+def test_inbound_missing_activation_maps_identity_error_to_channel_error(
+    identity_service,
+    reachability,
+):
+    account, identity = verified_web_account(identity_service)
+    service, _adapter = reachability
+    channel = service.create_channel(
+        account.id, "whatsapp_evolution", identity.id, removable=True
+    )
+    service.mark_connected(account.id, channel.id)
+    identity_service.repository.activations.pop(account.id)
+
+    with pytest.raises(ChannelReachabilityError, match="activation_not_found"):
+        service.accept_provider_inbound(
+            NormalizedInbound(
+                provider_type="whatsapp_evolution",
+                provider_subject="whatsapp:+15555550123",
+                text="missing activation callback",
+                raw_event_id="wa_missing_activation",
+                received_at=NOW,
+            )
+        )
+
+    assert service.repository.get_channel(channel.id).connection_state == "connected"
 
 
 def test_channel_reachability_does_not_write_channel_identity(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import TypeVar
+from typing import Protocol, TypeVar
 from uuid import uuid4
 
 from coke.domains.channel_reachability.models import (
@@ -19,18 +19,59 @@ from coke.domains.channel_reachability.models import (
 from coke.domains.channel_reachability.repository import (
     ChannelReachabilityRepository,
 )
-from coke.domains.identity_access.models import IdentityAccessError
+from coke.domains.identity_access.models import (
+    AccessDecision,
+    AccountActivation,
+    ChannelIdentity,
+    ChannelIdentityResolution,
+    IdentityAccessError,
+)
 from coke.providers.base import ProviderAdapter
 
 
 IdentityCallResult = TypeVar("IdentityCallResult")
 
 
+class IdentityAccessPort(Protocol):
+    def check_access_for_action(self, account_id: str, action: str) -> AccessDecision:
+        ...
+
+    def get_activation(self, account_id: str) -> AccountActivation:
+        ...
+
+    def observe_usable_channel(self, account_id: str) -> AccountActivation:
+        ...
+
+    def mark_first_inbound_received(self, account_id: str) -> AccountActivation:
+        ...
+
+    def can_remove_channel_identity(
+        self, account_id: str, channel_identity_id: str
+    ) -> bool:
+        ...
+
+    def get_owned_channel_identity(
+        self, account_id: str, channel_identity_id: str
+    ) -> ChannelIdentity:
+        ...
+
+    def preview_pairing_code_account(self, pairing_code: str) -> str:
+        ...
+
+    def resolve_or_create_channel_identity(
+        self,
+        provider_type: str,
+        provider_subject: str,
+        pairing_code: str | None = None,
+    ) -> ChannelIdentityResolution:
+        ...
+
+
 class ChannelReachabilityService:
     def __init__(
         self,
         repository: ChannelReachabilityRepository,
-        identity_access,
+        identity_access: IdentityAccessPort,
         providers: Mapping[str, ProviderAdapter],
         now: Callable[[], datetime] | None = None,
         id_factory: Callable[[str], str] | None = None,
@@ -102,6 +143,7 @@ class ChannelReachabilityService:
     def mark_connected(self, account_id: str, channel_id: str) -> Channel:
         self._require_access(account_id)
         channel = self._require_channel(account_id, channel_id)
+        self._identity_call(lambda: self.identity_access.get_activation(account_id))
         self._resolve_route_for_channel(channel)
         now = self._now()
         updated = replace(
@@ -111,7 +153,9 @@ class ChannelReachabilityService:
             updated_at=now,
         )
         self.repository.save_channel(updated)
-        self.identity_access.observe_usable_channel(account_id)
+        self._identity_call(
+            lambda: self.identity_access.observe_usable_channel(account_id)
+        )
         return updated
 
     def mark_connection_failed(
@@ -286,7 +330,9 @@ class ChannelReachabilityService:
             raise ChannelReachabilityError("active_channel_exists")
         if channel.connection_state != "connected":
             channel = self.mark_connected(account_id=account_id, channel_id=channel.id)
-        self.identity_access.mark_first_inbound_received(account_id)
+        self._identity_call(
+            lambda: self.identity_access.mark_first_inbound_received(account_id)
+        )
         return ProviderWebhookAcceptance(
             accepted=True,
             provider_type=inbound.provider_type,
@@ -314,8 +360,10 @@ class ChannelReachabilityService:
         return updated
 
     def _require_access(self, account_id: str) -> None:
-        decision = self.identity_access.check_access_for_action(
-            account_id, "connect_channel"
+        decision = self._identity_call(
+            lambda: self.identity_access.check_access_for_action(
+                account_id, "connect_channel"
+            )
         )
         if not decision.allowed:
             raise ChannelReachabilityError("access_denied", fact=decision.fact)

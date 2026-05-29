@@ -1892,6 +1892,11 @@ Task 2 also must include the quality-hardening regressions from code review:
 - `test_invalid_pairing_code_maps_identity_error_to_channel_error`: invalid pairing artifacts are surfaced as `ChannelReachabilityError`, not leaked `IdentityAccessError`.
 - `test_remove_missing_identity_maps_identity_error_to_channel_error`: removal-time IdentityAccess failures map to `ChannelReachabilityError` and leave the channel active.
 - `test_repository_refuses_to_reactivate_retired_route_key`: a retired route key cannot be upserted back to active because retired routes are historical delivery evidence.
+- `test_missing_account_access_error_maps_to_channel_error`: access checks for missing or corrupted accounts raise `ChannelReachabilityError`, not `IdentityAccessError`.
+- `test_mark_connected_missing_activation_maps_error_without_connection_write`: missing activation records fail before route or connected-state writes.
+- `test_inbound_missing_activation_maps_identity_error_to_channel_error`: inbound activation updates are mapped at the ChannelReachability boundary.
+- `test_repository_rejects_duplicate_route_id_for_different_route_key`: route id collisions cannot corrupt route history.
+- `test_repository_rejects_second_active_route_for_same_channel`: a channel cannot have multiple active delivery routes.
 
 - [ ] **Step 2: Run the service tests to verify they fail**
 
@@ -2089,6 +2094,9 @@ class InMemoryChannelReachabilityRepository:
         if existing is not None:
             if existing.lifecycle != "active":
                 raise ValueError("retired_route_key")
+            existing_by_id = self.routes_by_id.get(route.id)
+            if existing_by_id is not None and existing_by_id.id != existing.id:
+                raise ValueError("duplicate_delivery_route_id")
             updated = DeliveryRoute(
                 id=existing.id,
                 account_id=route.account_id,
@@ -2103,6 +2111,11 @@ class InMemoryChannelReachabilityRepository:
             self.routes_by_id[updated.id] = updated
             self.routes_by_key[updated.route_key] = updated
             return updated
+        if route.id in self.routes_by_id:
+            raise ValueError("duplicate_delivery_route_id")
+        active_for_channel = self.get_active_route_for_channel(route.channel_id)
+        if active_for_channel is not None:
+            raise ValueError("duplicate_active_route_for_channel")
         self.routes_by_id[route.id] = route
         self.routes_by_key[route.route_key] = route
         return route
@@ -2189,7 +2202,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import TypeVar
+from typing import Protocol, TypeVar
 from uuid import uuid4
 
 from coke.domains.channel_reachability.models import (
@@ -2203,18 +2216,59 @@ from coke.domains.channel_reachability.models import (
     ProviderWebhookAcceptance,
 )
 from coke.domains.channel_reachability.repository import ChannelReachabilityRepository
-from coke.domains.identity_access.models import IdentityAccessError
+from coke.domains.identity_access.models import (
+    AccessDecision,
+    AccountActivation,
+    ChannelIdentity,
+    ChannelIdentityResolution,
+    IdentityAccessError,
+)
 from coke.providers.base import ProviderAdapter
 
 
 IdentityCallResult = TypeVar("IdentityCallResult")
 
 
+class IdentityAccessPort(Protocol):
+    def check_access_for_action(self, account_id: str, action: str) -> AccessDecision:
+        ...
+
+    def get_activation(self, account_id: str) -> AccountActivation:
+        ...
+
+    def observe_usable_channel(self, account_id: str) -> AccountActivation:
+        ...
+
+    def mark_first_inbound_received(self, account_id: str) -> AccountActivation:
+        ...
+
+    def can_remove_channel_identity(
+        self, account_id: str, channel_identity_id: str
+    ) -> bool:
+        ...
+
+    def get_owned_channel_identity(
+        self, account_id: str, channel_identity_id: str
+    ) -> ChannelIdentity:
+        ...
+
+    def preview_pairing_code_account(self, pairing_code: str) -> str:
+        ...
+
+    def resolve_or_create_channel_identity(
+        self,
+        provider_type: str,
+        provider_subject: str,
+        pairing_code: str | None = None,
+    ) -> ChannelIdentityResolution:
+        ...
+
+
 class ChannelReachabilityService:
     def __init__(
         self,
         repository: ChannelReachabilityRepository,
-        identity_access,
+        identity_access: IdentityAccessPort,
         providers: Mapping[str, ProviderAdapter],
         now: Callable[[], datetime] | None = None,
         id_factory: Callable[[str], str] | None = None,
@@ -2285,6 +2339,7 @@ class ChannelReachabilityService:
     def mark_connected(self, account_id: str, channel_id: str) -> Channel:
         self._require_access(account_id)
         channel = self._require_channel(account_id, channel_id)
+        self._identity_call(lambda: self.identity_access.get_activation(account_id))
         self._resolve_route_for_channel(channel)
         updated = replace(
             channel,
@@ -2293,7 +2348,9 @@ class ChannelReachabilityService:
             updated_at=self._now(),
         )
         self.repository.save_channel(updated)
-        self.identity_access.observe_usable_channel(account_id)
+        self._identity_call(
+            lambda: self.identity_access.observe_usable_channel(account_id)
+        )
         return updated
 
     def mark_connection_failed(self, account_id: str, channel_id: str, reason: str) -> Channel:
@@ -2435,7 +2492,9 @@ class ChannelReachabilityService:
             raise ChannelReachabilityError("active_channel_exists")
         if channel.connection_state != "connected":
             channel = self.mark_connected(account_id=account_id, channel_id=channel.id)
-        self.identity_access.mark_first_inbound_received(account_id)
+        self._identity_call(
+            lambda: self.identity_access.mark_first_inbound_received(account_id)
+        )
         return ProviderWebhookAcceptance(
             accepted=True,
             provider_type=inbound.provider_type,
@@ -2459,7 +2518,11 @@ class ChannelReachabilityService:
         return updated
 
     def _require_access(self, account_id: str) -> None:
-        decision = self.identity_access.check_access_for_action(account_id, "connect_channel")
+        decision = self._identity_call(
+            lambda: self.identity_access.check_access_for_action(
+                account_id, "connect_channel"
+            )
+        )
         if not decision.allowed:
             raise ChannelReachabilityError("access_denied", fact=decision.fact)
 
