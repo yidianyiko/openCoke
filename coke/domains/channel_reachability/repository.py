@@ -88,6 +88,8 @@ class InMemoryChannelReachabilityRepository:
     def upsert_route(self, route: DeliveryRoute) -> DeliveryRoute:
         existing = self.routes_by_key.get(route.route_key)
         if existing is not None:
+            if existing.lifecycle != "active":
+                raise ValueError("retired_route_key")
             updated = DeliveryRoute(
                 id=existing.id,
                 account_id=route.account_id,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import TypeVar
 from uuid import uuid4
 
 from coke.domains.channel_reachability.models import (
@@ -20,6 +21,9 @@ from coke.domains.channel_reachability.repository import (
 )
 from coke.domains.identity_access.models import IdentityAccessError
 from coke.providers.base import ProviderAdapter
+
+
+IdentityCallResult = TypeVar("IdentityCallResult")
 
 
 class ChannelReachabilityService:
@@ -98,6 +102,7 @@ class ChannelReachabilityService:
     def mark_connected(self, account_id: str, channel_id: str) -> Channel:
         self._require_access(account_id)
         channel = self._require_channel(account_id, channel_id)
+        self._resolve_route_for_channel(channel)
         now = self._now()
         updated = replace(
             channel,
@@ -106,7 +111,6 @@ class ChannelReachabilityService:
             updated_at=now,
         )
         self.repository.save_channel(updated)
-        self.resolve_route(account_id)
         self.identity_access.observe_usable_channel(account_id)
         return updated
 
@@ -134,8 +138,10 @@ class ChannelReachabilityService:
 
     def remove_channel(self, account_id: str, channel_id: str) -> Channel:
         channel = self._require_channel(account_id, channel_id)
-        if not self.identity_access.can_remove_channel_identity(
-            account_id, channel.channel_identity_id
+        if not self._identity_call(
+            lambda: self.identity_access.can_remove_channel_identity(
+                account_id, channel.channel_identity_id
+            )
         ):
             raise ChannelReachabilityError("channel_identity_not_removable")
         if not channel.removable:
@@ -156,12 +162,17 @@ class ChannelReachabilityService:
         channel = self.repository.get_active_channel(account_id)
         if channel is None or channel.connection_state != "connected":
             raise ChannelReachabilityError("no_connected_channel")
-        identity = self._require_owned_identity(account_id, channel.channel_identity_id)
+        return self._resolve_route_for_channel(channel)
+
+    def _resolve_route_for_channel(self, channel: Channel) -> DeliveryRoute:
+        identity = self._require_owned_identity(
+            channel.account_id, channel.channel_identity_id
+        )
         now = self._now()
         route_key = f"{channel.id}:{channel.provider_type}:{identity.provider_subject}"
         route = DeliveryRoute(
             id=self._id_factory("delivery_route"),
-            account_id=account_id,
+            account_id=channel.account_id,
             channel_id=channel.id,
             provider_type=channel.provider_type,
             provider_address=identity.provider_subject,
@@ -240,8 +251,10 @@ class ChannelReachabilityService:
         self._require_provider(inbound.provider_type)
         self._require_product_channel(inbound.provider_type)
         if inbound.pairing_code is not None:
-            target_account_id = self.identity_access.preview_pairing_code_account(
-                inbound.pairing_code
+            target_account_id = self._identity_call(
+                lambda: self.identity_access.preview_pairing_code_account(
+                    inbound.pairing_code
+                )
             )
             active = self.repository.get_active_channel(target_account_id)
             if active is not None:
@@ -252,12 +265,15 @@ class ChannelReachabilityService:
                         "account_id": target_account_id,
                     },
                 )
-        resolution = self.identity_access.resolve_or_create_channel_identity(
-            provider_type=inbound.provider_type,
-            provider_subject=inbound.provider_subject,
-            pairing_code=inbound.pairing_code,
+        resolution = self._identity_call(
+            lambda: self.identity_access.resolve_or_create_channel_identity(
+                provider_type=inbound.provider_type,
+                provider_subject=inbound.provider_subject,
+                pairing_code=inbound.pairing_code,
+            )
         )
         account_id = resolution.account.id
+        self._require_access(account_id)
         channel = self.repository.get_active_channel(account_id)
         if channel is None:
             channel = self.create_channel(
@@ -326,5 +342,13 @@ class ChannelReachabilityService:
             return self.identity_access.get_owned_channel_identity(
                 account_id, channel_identity_id
             )
+        except IdentityAccessError as error:
+            raise ChannelReachabilityError(error.code, fact=error.fact) from error
+
+    def _identity_call(
+        self, callback: Callable[[], IdentityCallResult]
+    ) -> IdentityCallResult:
+        try:
+            return callback()
         except IdentityAccessError as error:
             raise ChannelReachabilityError(error.code, fact=error.fact) from error
