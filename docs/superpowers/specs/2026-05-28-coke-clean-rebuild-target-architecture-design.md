@@ -34,7 +34,10 @@ suppression no longer overloads `no_reply`), grouped reminder fire turn keyed by
 (owner, due_at), provider-edge outbound idempotency, email-verification /
 password-reset auth_artifact types, a sharper inbound-media contract
 (agent-visible typed reference + observable unsupported-processing), language as a
-non-authoritative hint, and explicit channel_identity ownership)
+non-authoritative hint, and explicit channel_identity ownership. Then
+architect-review round 6: type-specific calendar action handles (no direct edit on
+shared reminders), subscription page/renewal in the web list, notification `status`
+fact, and idempotent shared-reminder cancellation)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -281,7 +284,7 @@ Owns: relationship-based scheduling. Realizes §5.6, §5.7, §5.9.
 | `friendship` | Per unordered pair, lifecycle `active | removed`. **Uniqueness is on the active relationship only**, so a removed pair can re-establish through a valid link/code. Established directly (no pending request); self-friendship forbidden; establishment requires both sides authenticated/claimed **and** holding a usable channel. Removal flips to `removed`: it drops the pair from active friend lists and blocks new shared reminders, but does not cancel existing shared reminders and does not delete accounts or reminders (§5.6/§5.12). |
 | `shared_reminder` | Group reminder: creator + participant set, title, trigger time, `captured_timezone`, duration, status (`active | cancelled`). Uniqueness key: creator + participant set + title + local trigger time + timezone + duration (order-insensitive). |
 | `reminder_projection` | Per-participant projection (a `kind=shared_projection` `reminder` row). Completion affects only that participant's projection; cancellation by any participant stops all projections. |
-| `notification_fact` | Immutable structured facts + `facts_hash` + idempotency key + outbox evidence. **No `payload.text`** — final chat prose is never stored here (§5). One fact can fan out to many recipients (friendship pair, shared-reminder participants). |
+| `notification_fact` | Immutable structured facts (who/what/object/time/timezone/duration/**status**, §5.9) + `facts_hash` (covering `status`) + idempotency key + outbox evidence. **No `payload.text`** — final chat prose is never stored here (§5). One fact can fan out to many recipients (friendship pair, shared-reminder participants). |
 | `notification_recipient` | Per-recipient delivery row keyed by `notification_fact` + recipient account + render turn + delivery state, plus user-safe error facts. A multi-recipient notification can be `delivered` to some and `undelivered`/`failed` to others; partial failure is recorded here, not collapsed into one fact lifecycle. This is the notification-class delivery state layered on the turn disposition (§4). |
 
 Availability queries read each friend's personal + shared reminders and return
@@ -705,9 +708,13 @@ adapters behind it, all peers, none a first-class architectural concept.
   `ReminderCalendarReadModel` query (Reminder domain) returns typed entries —
   one-time, recurring-occurrence-in-visible-range, shared projection (with friend
   identifiers), unscheduled, undelivered, and merged groups that expand into
-  per-reminder edit/complete/delete handles — all with stable action handles and
-  display times in the user's global timezone (§5.8). The thin web client renders
-  this read model; it does not re-derive reminder state.
+  per-entry actions — with display times in the user's global timezone (§5.8).
+  **Action handles are type-specific:** a personal reminder exposes
+  edit / complete / delete; a `shared_projection` exposes only
+  complete-own-projection and cancel-whole-shared-reminder — shared reminders are
+  **not directly editable** (changing time/content = cancel the group and recreate,
+  §5.7). The thin web client renders this read model; it does not re-derive
+  reminder state.
 
 ## 9. Social Scheduling
 
@@ -736,8 +743,11 @@ hop, no circuit breaker, no split ownership.
   conflict is not checked. Failing either reports who conflicts / who is
   unreachable and creates nothing partial. On success the reminder is immediately
   active with a per-participant projection; uniqueness is enforced by the §3.5
-  key. Any participant cancels the whole group (stops all projections, notifies
-  others); completion affects only one's own projection.
+  key. Any participant cancels the whole group: `cancel_shared_reminder` is
+  status-aware/idempotent — `active → cancelled` stops all projections and emits
+  cancellation facts to the others, while `cancelled → cancelled` returns a
+  user-safe already-cancelled result and emits no duplicate cancellation (§5.7).
+  Completion affects only one's own projection.
 - **Availability** is a bounded domain query, `AvailabilityQuery(friend_ids,
   local_date_range, requester_timezone)`: it resolves one or more **active**
   friends (authorize the friendship), expands each friend's personal + shared
@@ -751,9 +761,10 @@ hop, no circuit breaker, no split ownership.
   notification can land for some participants and fail/undeliver for others; the
   per-recipient partial failure is real state, rendered to the initiator as a
   user-safe error fact, not collapsed away. Facts carry who/what/object/time/
-  timezone/duration; errors map channel failures into product language and never
-  expose raw channel errors, internal codes, queue status, or delivery attempts.
-  Final visible text is the Interaction Agent rendering the facts (§5).
+  timezone/duration **and status** (§5.9); errors map channel failures into product
+  language and never expose raw channel errors, internal codes, queue status, or
+  delivery attempts. Final visible text is the Interaction Agent rendering the
+  facts (§5).
 
 ## 10. Multimodal Input Handling
 
@@ -826,9 +837,10 @@ de-brands its package scope. "Thin client" means the business logic moves to the
 Python domains, **not** that product pages are dropped. It retains/rebuilds every
 web surface the requirements name, all over the Python API:
 
-- registration / login / email-verification / account-access-status /
-  subscription-status and the web-claim surfaces — one-time `claim_code` entry,
-  login-URL landing (§5.1, §5.13);
+- registration / login / email-verification / account-access-status and the
+  **subscription page** (subscription/access status + the renewal/checkout next
+  step) and the web-claim surfaces — one-time `claim_code` entry, login-URL
+  landing (§5.1, §5.13);
 - channel management (§5.3);
 - reminder calendar page (§5.8);
 - friends page with friend link + QR (§5.6);
