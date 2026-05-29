@@ -1183,6 +1183,7 @@ Confirmed:
 - Auto-provisioning applies to all messaging channels, including the shared WhatsApp channel and personal WeChat. A first-seen sender identity provisions a new Coke user; a known sender identity routes to its existing Coke user.
 - A messaging-first account has no password. Its only web authentication path is a one-time login claim. A web-first account uses email and password (and forgot/reset per §5.1). The two credential types do not cross.
 - Each Coke user owns exactly one usable personal channel, so each messaging identity corresponds to its own Coke user. The system does not merge separate accounts and does not provide account unlinking.
+- If the same human uses two different messaging channels (for example WhatsApp and WeChat), each channel identity becomes its own separate Coke user. This is an accepted product outcome, not a defect; the system does not merge them.
 - A messaging user reaches an authenticated web session by claiming their existing account; no second account is created for them. One human who consistently uses the claim path keeps a single Coke user.
 - Claiming is bidirectional:
   - Chat-initiated: when the user needs a web-only action (for example calendar import), the assistant issues a one-time, time-limited, single-use login URL in the conversation; opening it authenticates the web session as that account.
