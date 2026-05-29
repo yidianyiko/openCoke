@@ -56,7 +56,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         payload = _json_payload()
         channel = reachability_service.connect_channel(
             account_id=_body_str_field(payload, "account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -64,7 +64,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     def poll(channel_id: str):
         channel = reachability_service.poll_channel(
             account_id=_query_str_field("account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -73,7 +73,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         payload = _json_payload()
         channel = reachability_service.remove_channel(
             account_id=_body_str_field(payload, "account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -82,7 +82,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         payload = _json_payload()
         channel = reachability_service.retry_connection(
             account_id=_body_str_field(payload, "account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -169,6 +169,20 @@ def _body_str_field(payload: dict, field: str) -> str:
             fact={
                 "type": "invalid_request",
                 "location": "body",
+                "field": field,
+                "reason": "string_field_required",
+            },
+        )
+    return value
+
+
+def _path_str_field(value: str, field: str) -> str:
+    if value.strip() == "" or value != value.strip():
+        raise ChannelReachabilityError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "path",
                 "field": field,
                 "reason": "string_field_required",
             },

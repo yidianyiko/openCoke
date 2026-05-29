@@ -3176,10 +3176,14 @@ def test_create_route_requires_string_body_fields_before_service_call(field, val
         "/api/channels/channel_1/retry",
     ],
 )
-def test_channel_body_action_routes_require_string_account_id_before_service_call(path):
+@pytest.mark.parametrize("account_id", [[], " acct_1 "])
+def test_channel_body_action_routes_require_string_account_id_before_service_call(
+    path,
+    account_id,
+):
     client, service = make_client()
 
-    response = client.post(path, json={"account_id": []})
+    response = client.post(path, json={"account_id": account_id})
 
     assert response.status_code == 400
     assert response.get_json() == {
@@ -3189,6 +3193,40 @@ def test_channel_body_action_routes_require_string_account_id_before_service_cal
                 "type": "invalid_request",
                 "location": "body",
                 "field": "account_id",
+                "reason": "string_field_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("post", "/api/channels/%20channel_1%20/connect"),
+        ("get", "/api/channels/%20channel_1%20/poll?account_id=acct_1"),
+        ("post", "/api/channels/%20channel_1%20/remove"),
+        ("post", "/api/channels/%20channel_1%20/retry"),
+    ],
+)
+def test_channel_action_routes_require_string_channel_id_before_service_call(
+    method,
+    path,
+):
+    client, service = make_client()
+    request = getattr(client, method)
+    kwargs = {"json": {"account_id": "acct_1"}} if method == "post" else {}
+
+    response = request(path, **kwargs)
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "path",
+                "field": "channel_id",
                 "reason": "string_field_required",
             },
         }
@@ -3374,7 +3412,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         payload = _json_payload()
         channel = reachability_service.connect_channel(
             account_id=_body_str_field(payload, "account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -3382,7 +3420,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     def poll(channel_id: str):
         channel = reachability_service.poll_channel(
             account_id=_query_str_field("account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -3391,7 +3429,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         payload = _json_payload()
         channel = reachability_service.remove_channel(
             account_id=_body_str_field(payload, "account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -3400,7 +3438,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         payload = _json_payload()
         channel = reachability_service.retry_connection(
             account_id=_body_str_field(payload, "account_id"),
-            channel_id=channel_id,
+            channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
@@ -3485,6 +3523,20 @@ def _body_str_field(payload: dict, field: str) -> str:
             fact={
                 "type": "invalid_request",
                 "location": "body",
+                "field": field,
+                "reason": "string_field_required",
+            },
+        )
+    return value
+
+
+def _path_str_field(value: str, field: str) -> str:
+    if value.strip() == "" or value != value.strip():
+        raise ChannelReachabilityError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "path",
                 "field": field,
                 "reason": "string_field_required",
             },
