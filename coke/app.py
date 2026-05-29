@@ -5,7 +5,12 @@ from flask import Flask, jsonify
 from coke.config import Settings
 
 
-def create_app(settings: Settings, identity_access_service=None) -> Flask:
+def create_app(
+    settings: Settings,
+    identity_access_service=None,
+    channel_reachability_service=None,
+    provider_adapters=None,
+) -> Flask:
     app = Flask(__name__)
     app.config["COKE_SETTINGS"] = settings
     app.config["APP_ENV"] = settings.app_env
@@ -16,6 +21,20 @@ def create_app(settings: Settings, identity_access_service=None) -> Flask:
 
         app.register_blueprint(create_auth_blueprint(identity_access_service))
         app.register_blueprint(create_claim_blueprint(identity_access_service))
+
+    if channel_reachability_service is not None:
+        from coke.api.channel_routes import create_channel_blueprint
+
+        app.register_blueprint(create_channel_blueprint(channel_reachability_service))
+        if provider_adapters is not None:
+            from coke.api.provider_webhooks import create_provider_webhook_blueprint
+
+            app.register_blueprint(
+                create_provider_webhook_blueprint(
+                    channel_reachability_service,
+                    provider_adapters,
+                )
+            )
 
     @app.get("/healthz")
     def healthz():

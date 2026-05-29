@@ -3101,6 +3101,34 @@ def test_create_route_rejects_retained_non_product_provider_before_service_call(
     assert service.calls == []
 
 
+def test_create_route_requires_boolean_removable_before_service_call():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/channels",
+        json={
+            "account_id": "acct_1",
+            "provider_type": "whatsapp_evolution",
+            "channel_identity_id": "ci_1",
+            "removable": "false",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "field": "removable",
+                "reason": "boolean_field_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
 def test_channel_route_errors_are_json():
     client, _service = make_client(service=ErrorService())
 
@@ -3239,7 +3267,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
             account_id=_body_field(payload, "account_id"),
             provider_type=provider_type,
             channel_identity_id=_body_field(payload, "channel_identity_id"),
-            removable=bool(_body_field(payload, "removable")),
+            removable=_body_bool_field(payload, "removable"),
         )
         return jsonify(_channel_body(channel)), 201
 
@@ -3334,6 +3362,21 @@ def _body_field(payload: dict, field: str):
             },
         )
     return payload[field]
+
+
+def _body_bool_field(payload: dict, field: str) -> bool:
+    value = _body_field(payload, field)
+    if not isinstance(value, bool):
+        raise ChannelReachabilityError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "body",
+                "field": field,
+                "reason": "boolean_field_required",
+            },
+        )
+    return value
 
 
 def _query_field(field: str) -> str:

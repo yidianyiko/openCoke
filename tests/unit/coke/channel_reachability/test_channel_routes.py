@@ -1,0 +1,315 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+from flask import Flask
+
+from coke.api.channel_routes import create_channel_blueprint
+from coke.app import create_app
+from coke.config import Settings
+from coke.domains.channel_reachability.models import ChannelReachabilityError
+
+
+DATABASE_URL = "postgresql+psycopg://coke:coke@localhost:5432/coke_test"
+REDIS_URL = "redis://localhost:6379/15"
+
+
+class FakeReachabilityService:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict]] = []
+
+    def get_status(self, account_id):
+        self.calls.append(("get_status", {"account_id": account_id}))
+        return SimpleNamespace(
+            account_id=account_id,
+            channel_id="channel_1",
+            provider_type="whatsapp_evolution",
+            connection_state="connected",
+            reachable=True,
+        )
+
+    def create_channel(self, account_id, provider_type, channel_identity_id, removable):
+        self.calls.append(
+            (
+                "create_channel",
+                {
+                    "account_id": account_id,
+                    "provider_type": provider_type,
+                    "channel_identity_id": channel_identity_id,
+                    "removable": removable,
+                },
+            )
+        )
+        return self._channel("not_connected")
+
+    def connect_channel(self, account_id, channel_id):
+        self.calls.append(
+            ("connect_channel", {"account_id": account_id, "channel_id": channel_id})
+        )
+        return self._channel("connecting")
+
+    def poll_channel(self, account_id, channel_id):
+        self.calls.append(
+            ("poll_channel", {"account_id": account_id, "channel_id": channel_id})
+        )
+        return self._channel("connected")
+
+    def remove_channel(self, account_id, channel_id):
+        self.calls.append(
+            ("remove_channel", {"account_id": account_id, "channel_id": channel_id})
+        )
+        return self._channel("removed")
+
+    def retry_connection(self, account_id, channel_id):
+        self.calls.append(
+            ("retry_connection", {"account_id": account_id, "channel_id": channel_id})
+        )
+        return self._channel("connecting")
+
+    def resolve_route(self, account_id):
+        self.calls.append(("resolve_route", {"account_id": account_id}))
+        return SimpleNamespace(
+            id="route_1",
+            account_id=account_id,
+            channel_id="channel_1",
+            provider_type="whatsapp_evolution",
+            provider_address="whatsapp:+15555550123",
+            route_key="whatsapp_evolution:whatsapp:+15555550123",
+            lifecycle="active",
+        )
+
+    def _channel(self, state):
+        return SimpleNamespace(
+            id="channel_1",
+            account_id="acct_1",
+            provider_type="whatsapp_evolution",
+            channel_identity_id="ci_1",
+            lifecycle="removed" if state == "removed" else "active",
+            connection_state=state,
+            removable=True,
+        )
+
+
+class ErrorService(FakeReachabilityService):
+    def remove_channel(self, account_id, channel_id):
+        raise ChannelReachabilityError(
+            "channel_identity_not_removable",
+            fact={"type": "channel_identity_anchor", "account_id": account_id},
+        )
+
+
+def make_client(service=None):
+    service = service or FakeReachabilityService()
+    app = Flask(__name__)
+    app.register_blueprint(create_channel_blueprint(service))
+    return app.test_client(), service
+
+
+def test_status_route_is_thin_service_adapter():
+    client, service = make_client()
+
+    response = client.get("/api/channels/status?account_id=acct_1")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "account_id": "acct_1",
+        "channel_id": "channel_1",
+        "provider_type": "whatsapp_evolution",
+        "connection_state": "connected",
+        "reachable": True,
+    }
+    assert service.calls == [("get_status", {"account_id": "acct_1"})]
+
+
+def test_channel_action_routes_delegate_to_service_methods():
+    client, service = make_client()
+
+    assert (
+        client.post(
+            "/api/channels",
+            json={
+                "account_id": "acct_1",
+                "provider_type": "whatsapp_evolution",
+                "channel_identity_id": "ci_1",
+                "removable": True,
+            },
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post("/api/channels/channel_1/connect", json={"account_id": "acct_1"})
+        .status_code
+        == 200
+    )
+    assert (
+        client.get("/api/channels/channel_1/poll?account_id=acct_1").status_code
+        == 200
+    )
+    assert (
+        client.post("/api/channels/channel_1/retry", json={"account_id": "acct_1"})
+        .status_code
+        == 200
+    )
+    assert (
+        client.post("/api/channels/channel_1/remove", json={"account_id": "acct_1"})
+        .status_code
+        == 200
+    )
+    assert client.get("/api/channels/resolve-route?account_id=acct_1").status_code == 200
+
+    assert [call[0] for call in service.calls] == [
+        "create_channel",
+        "connect_channel",
+        "poll_channel",
+        "retry_connection",
+        "remove_channel",
+        "resolve_route",
+    ]
+
+
+@pytest.mark.parametrize("provider_type", ["wechat_ecloud", "linq"])
+def test_create_route_rejects_retained_non_product_provider_before_service_call(
+    provider_type,
+):
+    client, service = make_client()
+
+    response = client.post(
+        "/api/channels",
+        json={
+            "account_id": "acct_1",
+            "provider_type": provider_type,
+            "channel_identity_id": "ci_1",
+            "removable": True,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "unsupported_product_channel",
+            "fact": {
+                "type": "unsupported_product_channel",
+                "provider_type": provider_type,
+                "supported_provider_types": [
+                    "wechat_personal",
+                    "whatsapp_evolution",
+                ],
+            },
+        }
+    }
+    assert service.calls == []
+
+
+def test_create_route_requires_boolean_removable_before_service_call():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/channels",
+        json={
+            "account_id": "acct_1",
+            "provider_type": "whatsapp_evolution",
+            "channel_identity_id": "ci_1",
+            "removable": "false",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "field": "removable",
+                "reason": "boolean_field_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
+def test_channel_route_errors_are_json():
+    client, _service = make_client(service=ErrorService())
+
+    response = client.post(
+        "/api/channels/channel_1/remove",
+        json={"account_id": "acct_1"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "channel_identity_not_removable",
+            "fact": {"type": "channel_identity_anchor", "account_id": "acct_1"},
+        }
+    }
+
+
+def test_create_app_registers_channel_routes_only_when_service_is_supplied():
+    settings = Settings(database_url=DATABASE_URL, redis_url=REDIS_URL, app_env="test")
+    bare_app = create_app(settings=settings)
+    assert (
+        bare_app.test_client().get("/api/channels/status?account_id=acct_1").status_code
+        == 404
+    )
+
+    service = FakeReachabilityService()
+    app = create_app(settings=settings, channel_reachability_service=service)
+    response = app.test_client().get("/api/channels/status?account_id=acct_1")
+
+    assert response.status_code == 200
+
+
+def test_create_app_registers_provider_webhooks_when_service_and_adapters_are_supplied():
+    class FakeAdapter:
+        provider_type = "whatsapp_evolution"
+
+        def normalize_inbound(self, payload):
+            return SimpleNamespace(
+                provider_type="whatsapp_evolution",
+                provider_subject=payload["sender"],
+                text=payload.get("text", ""),
+                raw_event_id=payload["message_id"],
+                pairing_code=payload.get("pairing_code"),
+            )
+
+        def send_text(self, route, text, idempotency_key):
+            raise AssertionError("webhook ingress must not send")
+
+    service = FakeReachabilityService()
+
+    def accept_provider_inbound(inbound):
+        return SimpleNamespace(
+            accepted=True,
+            provider_type=inbound.provider_type,
+            provider_subject=inbound.provider_subject,
+            account_id="acct_1",
+            channel_identity_id="ci_1",
+            channel_id="channel_1",
+            created_account=False,
+            raw_event_id=inbound.raw_event_id,
+        )
+
+    service.accept_provider_inbound = accept_provider_inbound
+    app = create_app(
+        settings=Settings(
+            database_url=DATABASE_URL,
+            redis_url=REDIS_URL,
+            app_env="test",
+        ),
+        channel_reachability_service=service,
+        provider_adapters={"whatsapp_evolution": FakeAdapter()},
+    )
+
+    response = app.test_client().post(
+        "/webhooks/whatsapp/evolution",
+        json={
+            "message_id": "wa_msg_1",
+            "sender": "whatsapp:+15555550123",
+            "text": "hello",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.get_json()["account_id"] == "acct_1"
