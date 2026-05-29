@@ -948,13 +948,18 @@ def test_pairing_identity_collision_does_not_consume_artifact():
     )
     pairing = service.issue_pairing_code(account_id=registered.account.id)
 
-    with pytest.raises(ValueError, match="duplicate_channel_identity_id"):
+    with pytest.raises(IdentityAccessError, match="channel_identity_write_conflict") as exc_info:
         service.resolve_or_create_channel_identity(
             provider_type="whatsapp_evolution",
             provider_subject="whatsapp:+15555550124",
             pairing_code=pairing.code,
         )
 
+    assert exc_info.value.fact == {
+        "type": "channel_identity_write_conflict",
+        "provider_type": "whatsapp_evolution",
+        "reason": "duplicate_channel_identity_id",
+    }
     assert service.repository.get_artifact_by_code(pairing.code).consumed_at is None
     assert (
         service.repository.get_channel_identity_by_provider(

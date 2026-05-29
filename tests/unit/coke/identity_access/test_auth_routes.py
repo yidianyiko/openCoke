@@ -197,6 +197,17 @@ class PairingRedemptionAccessDeniedService(FakeService):
         )
 
 
+class PairingRedemptionWriteConflictService(FakeService):
+    def resolve_or_create_channel_identity(self, provider_type, provider_subject, pairing_code=None):
+        raise IdentityAccessError(
+            "channel_identity_write_conflict",
+            fact={
+                "type": "channel_identity_write_conflict",
+                "provider_type": provider_type,
+            },
+        )
+
+
 def make_client(service=None):
     service = service or FakeService()
     app = Flask(__name__)
@@ -597,6 +608,30 @@ def test_pairing_code_redeem_route_returns_access_denied_fact():
                 "account_id": "acct_1",
                 "denial_reason": "subscription_inactive",
                 "checkout_url": None,
+            },
+        }
+    }
+
+
+def test_pairing_code_redeem_route_returns_write_conflict_json_fact():
+    client, _service = make_client(PairingRedemptionWriteConflictService())
+
+    response = client.post(
+        "/api/claim/pairing-code/redeem",
+        json={
+            "pairing_code": "pairing_code",
+            "provider_type": "whatsapp_evolution",
+            "provider_subject": "whatsapp:+15555550123",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "channel_identity_write_conflict",
+            "fact": {
+                "type": "channel_identity_write_conflict",
+                "provider_type": "whatsapp_evolution",
             },
         }
     }

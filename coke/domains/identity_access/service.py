@@ -167,7 +167,17 @@ class IdentityAccessService:
                 provider_subject=provider_subject,
                 is_account_anchor=False,
             )
-            self.repository.add_channel_identity_and_save_artifact(identity, consumed)
+            try:
+                self.repository.add_channel_identity_and_save_artifact(identity, consumed)
+            except ValueError as error:
+                raise IdentityAccessError(
+                    "channel_identity_write_conflict",
+                    fact={
+                        "type": "channel_identity_write_conflict",
+                        "provider_type": provider_type,
+                        "reason": str(error),
+                    },
+                ) from error
             return ChannelIdentityResolution(
                 account=account,
                 channel_identity=identity,
