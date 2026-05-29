@@ -229,21 +229,56 @@ def test_provider_adapters_normalize_inbound_payloads(
     assert inbound.payload is not payload
 
 
-def test_normalized_inbound_payload_is_immutable_copy():
+def test_normalized_inbound_payload_is_recursively_immutable_copy():
     adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
     payload = {
         "message_id": "wa_msg_1",
         "sender": "whatsapp:+15555550123",
         "text": "hello",
+        "metadata": {
+            "headers": {"x-provider": "evolution"},
+            "attachments": [{"id": "att_1", "labels": ["receipt", "image"]}],
+        },
     }
 
     inbound = adapter.normalize_inbound(payload)
     payload["text"] = "mutated"
+    payload["metadata"]["headers"]["x-provider"] = "mutated"
+    payload["metadata"]["attachments"][0]["labels"].append("mutated")
 
     assert inbound.text == "hello"
     assert inbound.payload["text"] == "hello"
+    assert inbound.payload["metadata"]["headers"]["x-provider"] == "evolution"
+    assert inbound.payload["metadata"]["attachments"][0]["labels"] == ("receipt", "image")
     with pytest.raises(TypeError):
         inbound.payload["text"] = "corrupt"
+    with pytest.raises(TypeError):
+        inbound.payload["metadata"]["headers"]["x-provider"] = "corrupt"
+    with pytest.raises(TypeError):
+        inbound.payload["metadata"]["attachments"][0]["id"] = "corrupt"
+    with pytest.raises(AttributeError):
+        inbound.payload["metadata"]["attachments"].append({"id": "corrupt"})
+
+
+def test_provider_adapters_reject_non_json_payload_evidence_values():
+    adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
+
+    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+        adapter.normalize_inbound(
+            {
+                "message_id": "wa_msg_1",
+                "sender": "whatsapp:+15555550123",
+                "text": "hello",
+                "metadata": {"raw_bytes": b"not-json"},
+            }
+        )
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": "whatsapp_evolution",
+        "field": "payload.metadata.raw_bytes",
+        "reason": "non_json_payload_value",
+    }
 
 
 @pytest.mark.parametrize(
@@ -379,6 +414,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryAttempt,
     DeliveryAttemptResult,
     DeliveryRoute,
+    ImmutableJsonValue,
     NormalizedInbound,
     PRODUCT_CHANNEL_PROVIDER_TYPES,
     RETAINED_PROVIDER_TYPES,
@@ -390,6 +426,7 @@ __all__ = [
     "DeliveryAttempt",
     "DeliveryAttemptResult",
     "DeliveryRoute",
+    "ImmutableJsonValue",
     "NormalizedInbound",
     "PRODUCT_CHANNEL_PROVIDER_TYPES",
     "RETAINED_PROVIDER_TYPES",
@@ -404,7 +441,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 
 ChannelConnectionState = Literal[
@@ -427,6 +464,9 @@ RETAINED_PROVIDER_TYPES = frozenset(
         "wechat_ecloud",
         "linq",
     }
+)
+ImmutableJsonValue: TypeAlias = (
+    str | int | float | bool | None | tuple["ImmutableJsonValue", ...] | Mapping[str, "ImmutableJsonValue"]
 )
 
 
@@ -503,8 +543,10 @@ class NormalizedInbound:
     raw_event_id: str
     received_at: datetime
     pairing_code: str | None = None
-    payload: Mapping[str, Any] | None = None
+    payload: Mapping[str, ImmutableJsonValue] | None = None
 ```
+
+`NormalizedInbound.payload` is provider evidence, not a mutable working object. Provider adapters must set it to an immutable mapping whose nested mappings are immutable, whose nested arrays are tuples, and whose scalar values are JSON scalars. The implementation helper below rejects non-JSON evidence values instead of storing opaque mutable objects.
 
 - [ ] **Step 4: Add the provider protocol and fakes**
 
@@ -514,11 +556,15 @@ Create `coke/providers/base.py`:
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from math import isfinite
+from types import MappingProxyType
 from typing import Protocol
 
 from coke.domains.channel_reachability.models import (
+    ChannelReachabilityError,
     DeliveryAttemptResult,
     DeliveryRoute,
+    ImmutableJsonValue,
     NormalizedInbound,
 )
 
@@ -545,6 +591,50 @@ def provider_registry(adapters: Iterable[ProviderAdapter]) -> dict[str, Provider
             raise ValueError(f"duplicate_provider_adapter:{adapter.provider_type}")
         registry[adapter.provider_type] = adapter
     return registry
+
+
+def freeze_json(value: object, provider_type: str, path: str = "payload") -> ImmutableJsonValue:
+    if isinstance(value, Mapping):
+        frozen: dict[str, ImmutableJsonValue] = {}
+        for key, nested_value in value.items():
+            if not isinstance(key, str):
+                raise ChannelReachabilityError(
+                    "invalid_provider_payload",
+                    fact={
+                        "type": "invalid_provider_payload",
+                        "provider_type": provider_type,
+                        "field": path,
+                        "reason": "non_json_payload_key",
+                    },
+                )
+            frozen[key] = freeze_json(nested_value, provider_type, f"{path}.{key}")
+        return MappingProxyType(frozen)
+    if isinstance(value, (list, tuple)):
+        return tuple(
+            freeze_json(nested_value, provider_type, f"{path}[{index}]")
+            for index, nested_value in enumerate(value)
+        )
+    if isinstance(value, float) and not isfinite(value):
+        raise ChannelReachabilityError(
+            "invalid_provider_payload",
+            fact={
+                "type": "invalid_provider_payload",
+                "provider_type": provider_type,
+                "field": path,
+                "reason": "non_json_payload_value",
+            },
+        )
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    raise ChannelReachabilityError(
+        "invalid_provider_payload",
+        fact={
+            "type": "invalid_provider_payload",
+            "provider_type": provider_type,
+            "field": path,
+            "reason": "non_json_payload_value",
+        },
+    )
 ```
 
 Create `coke/providers/whatsapp_evolution.py`:
@@ -554,7 +644,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from types import MappingProxyType
 
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
@@ -562,6 +651,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
+from coke.providers.base import freeze_json
 
 
 class WhatsAppEvolutionAdapter:
@@ -578,7 +668,7 @@ class WhatsAppEvolutionAdapter:
             raw_event_id=_required_string(self.provider_type, payload, "message_id"),
             received_at=self._now(),
             pairing_code=_optional_string(payload.get("pairing_code")),
-            payload=MappingProxyType(dict(payload)),
+            payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
     def send_text(
@@ -636,7 +726,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from types import MappingProxyType
 
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
@@ -644,6 +733,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
+from coke.providers.base import freeze_json
 
 
 class WeChatPersonalAdapter:
@@ -660,7 +750,7 @@ class WeChatPersonalAdapter:
             raw_event_id=_required_string(self.provider_type, payload, "message_id"),
             received_at=self._now(),
             pairing_code=_optional_string(payload.get("pairing_code")),
-            payload=MappingProxyType(dict(payload)),
+            payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
     def send_text(
@@ -718,7 +808,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from types import MappingProxyType
 
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
@@ -726,6 +815,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
+from coke.providers.base import freeze_json
 
 
 class WeChatECloudAdapter:
@@ -742,7 +832,7 @@ class WeChatECloudAdapter:
             raw_event_id=_required_string(self.provider_type, payload, "msg_id"),
             received_at=self._now(),
             pairing_code=_optional_string(payload.get("pairing_code")),
-            payload=MappingProxyType(dict(payload)),
+            payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
     def send_text(
@@ -800,7 +890,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from types import MappingProxyType
 
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
@@ -808,6 +897,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
+from coke.providers.base import freeze_json
 
 
 class LinqAdapter:
@@ -824,7 +914,7 @@ class LinqAdapter:
             raw_event_id=_required_string(self.provider_type, payload, "id"),
             received_at=self._now(),
             pairing_code=_optional_string(payload.get("pairing_code")),
-            payload=MappingProxyType(dict(payload)),
+            payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
     def send_text(
@@ -2155,6 +2245,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryAttempt,
     DeliveryAttemptResult,
     DeliveryRoute,
+    ImmutableJsonValue,
     NormalizedInbound,
     PRODUCT_CHANNEL_PROVIDER_TYPES,
     RETAINED_PROVIDER_TYPES,
@@ -2168,6 +2259,7 @@ __all__ = [
     "DeliveryAttempt",
     "DeliveryAttemptResult",
     "DeliveryRoute",
+    "ImmutableJsonValue",
     "NormalizedInbound",
     "PRODUCT_CHANNEL_PROVIDER_TYPES",
     "RETAINED_PROVIDER_TYPES",
@@ -3093,7 +3185,7 @@ Expected: commit succeeds if Task 5 produced additional owned edits. If there ar
 - Provider adapter protocol follows parent contract exactly: Task 1 `ProviderAdapter`.
 - Minimal provider modules for all retained adapters: Task 1 four adapter modules.
 - Provider adapters reject malformed payloads with structured `invalid_provider_payload` errors: Task 1 missing-field and malformed-field tests for each adapter.
-- `NormalizedInbound.payload` is an immutable copy: Task 1 payload mutation test.
+- `NormalizedInbound.payload` is a recursively immutable JSON evidence copy: Task 1 nested payload mutation and non-JSON rejection tests plus provider `freeze_json`.
 - Product personal-channel providers are only `whatsapp_evolution` and `wechat_personal`: Task 1 retained/product constant test, Task 2 service allowlist tests, Task 3 webhook allowlist test, and Task 4 create-route allowlist test.
 - Retained non-product adapters `wechat_ecloud` and `linq` normalize behind the provider protocol but cannot be connected or auto-bound as personal channels: Task 1 provider normalization tests and Task 2 retained-provider rejection tests.
 - Provider-edge idempotency avoids duplicate adapter calls: Task 2 idempotency test.
