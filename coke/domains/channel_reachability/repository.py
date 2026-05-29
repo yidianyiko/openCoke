@@ -93,12 +93,19 @@ class InMemoryChannelReachabilityRepository:
             existing_by_id = self.routes_by_id.get(route.id)
             if existing_by_id is not None and existing_by_id.id != existing.id:
                 raise ValueError("duplicate_delivery_route_id")
+            if (
+                route.account_id != existing.account_id
+                or route.channel_id != existing.channel_id
+                or route.provider_type != existing.provider_type
+                or route.provider_address != existing.provider_address
+            ):
+                raise ValueError("delivery_route_identity_mismatch")
             updated = DeliveryRoute(
                 id=existing.id,
-                account_id=route.account_id,
-                channel_id=route.channel_id,
-                provider_type=route.provider_type,
-                provider_address=route.provider_address,
+                account_id=existing.account_id,
+                channel_id=existing.channel_id,
+                provider_type=existing.provider_type,
+                provider_address=existing.provider_address,
                 route_key=route.route_key,
                 lifecycle="active",
                 created_at=existing.created_at,

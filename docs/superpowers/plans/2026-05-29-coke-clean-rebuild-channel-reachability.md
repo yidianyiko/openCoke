@@ -1897,6 +1897,7 @@ Task 2 also must include the quality-hardening regressions from code review:
 - `test_inbound_missing_activation_maps_identity_error_to_channel_error`: inbound activation updates are mapped at the ChannelReachability boundary.
 - `test_repository_rejects_duplicate_route_id_for_different_route_key`: route id collisions cannot corrupt route history.
 - `test_repository_rejects_second_active_route_for_same_channel`: a channel cannot have multiple active delivery routes.
+- `test_repository_rejects_existing_route_key_reassigned_to_another_channel`: an existing route key cannot be mutated onto another account/channel/provider address.
 
 - [ ] **Step 2: Run the service tests to verify they fail**
 
@@ -2097,12 +2098,19 @@ class InMemoryChannelReachabilityRepository:
             existing_by_id = self.routes_by_id.get(route.id)
             if existing_by_id is not None and existing_by_id.id != existing.id:
                 raise ValueError("duplicate_delivery_route_id")
+            if (
+                route.account_id != existing.account_id
+                or route.channel_id != existing.channel_id
+                or route.provider_type != existing.provider_type
+                or route.provider_address != existing.provider_address
+            ):
+                raise ValueError("delivery_route_identity_mismatch")
             updated = DeliveryRoute(
                 id=existing.id,
-                account_id=route.account_id,
-                channel_id=route.channel_id,
-                provider_type=route.provider_type,
-                provider_address=route.provider_address,
+                account_id=existing.account_id,
+                channel_id=existing.channel_id,
+                provider_type=existing.provider_type,
+                provider_address=existing.provider_address,
                 route_key=route.route_key,
                 lifecycle="active",
                 created_at=existing.created_at,

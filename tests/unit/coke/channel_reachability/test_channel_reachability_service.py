@@ -660,6 +660,57 @@ def test_repository_rejects_second_active_route_for_same_channel(
     assert service.repository.get_active_route_for_channel(channel.id).id == existing.id
 
 
+def test_repository_rejects_existing_route_key_reassigned_to_another_channel(
+    identity_service,
+    reachability,
+):
+    first_account, first_identity = verified_web_account(identity_service)
+    second_registration = identity_service.register_web_account("b@example.com", "hash_2")
+    identity_service.set_access_state(
+        account_id=second_registration.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    second_identity = paired_identity(
+        identity_service,
+        second_registration.account.id,
+        "whatsapp_evolution",
+        "whatsapp:+15555550124",
+    )
+    service, _adapter = reachability
+    first_channel = service.create_channel(
+        first_account.id, "whatsapp_evolution", first_identity.id, removable=True
+    )
+    second_channel = service.create_channel(
+        second_registration.account.id,
+        "whatsapp_evolution",
+        second_identity.id,
+        removable=True,
+    )
+    service.mark_connected(first_account.id, first_channel.id)
+    service.mark_connected(second_registration.account.id, second_channel.id)
+    first_route = service.resolve_route(first_account.id)
+    second_route = service.resolve_route(second_registration.account.id)
+    reassigned_route = DeliveryRoute(
+        id="delivery_route_reassigned",
+        account_id=second_registration.account.id,
+        channel_id=second_channel.id,
+        provider_type=first_route.provider_type,
+        provider_address=first_route.provider_address,
+        route_key=first_route.route_key,
+        lifecycle="active",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+    with pytest.raises(ValueError, match="delivery_route_identity_mismatch"):
+        service.repository.upsert_route(reassigned_route)
+
+    assert service.repository.get_route(first_route.id).channel_id == first_channel.id
+    assert service.repository.get_active_route_for_channel(second_channel.id).id == second_route.id
+
+
 def test_remove_relink_same_address_retires_old_route_and_preserves_attempt_history(
     identity_service,
     reachability,
