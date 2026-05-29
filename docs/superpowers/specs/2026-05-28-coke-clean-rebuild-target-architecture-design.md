@@ -40,7 +40,9 @@ shared reminders), subscription page/renewal in the web list, notification `stat
 fact, and idempotent shared-reminder cancellation. Then architect-review round 7:
 version-gated interactive commits (based_on_inbound_seq as an expected-version
 precondition at commit, not just before the reply) and available_participants in
-the shared-reminder failure result)
+the shared-reminder failure result. Then architect-review round 8: participant-scoped
+shared-reminder view/cancel, shared-reminder required-field follow-up states, and
+the nightly summary bound to the owner's global timezone)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -90,7 +92,7 @@ seven trigger types, and only two execution modes:
 | `InboundTurn` | channel webhook → durable message → bus | Interactive (full tools) |
 | `ReminderFireTurn` — **grouped by `(owner, due_at)`**, ordered fire-id set (timed / recurring occurrence / shared projection) | scheduler | Render |
 | `ProactiveFireTurn` | scheduler | Render, **discard on delivery failure** |
-| `NightlySummaryTurn` (20:00, no-trigger-time reminders) | scheduler | Render |
+| `NightlySummaryTurn` (20:00 owner-timezone, no-trigger-time reminders) | scheduler | Render |
 | `NotificationTurn` (friendship / shared-reminder / error facts) | domain event → outbox → bus | Render |
 | `AccessDeniedTurn` (inbound blocked by access gate) | trust boundary | Render (constrained) |
 | `UndeliveredResendTurn` (channel reconnected) | channel recovery | Render |
@@ -686,8 +688,9 @@ adapters behind it, all peers, none a first-class architectural concept.
   (default 08:00–23:00). After each fire/completion the next valid trigger is
   advanced atomically.
 - **No-trigger-time reminders + nightly summary.** Reminders with no trigger time
-  are first-class. A scheduled 20:00 per-owner `NightlySummaryTurn` summarizes
-  them and asks whether to schedule times.
+  are first-class. A per-owner `NightlySummaryTurn` fires at **20:00 in the owner's
+  current global default timezone** (recalculated after a timezone switch, §5.5),
+  summarizes them, and asks whether to schedule times.
 - **Same-owner same-time merge.** The grouped `(owner, due_at)` fire turn renders
   all due reminders into one message (its ordered fire-id set is the Focus subject
   set, §4); each reminder and its fire evidence stay independent, and "done"
@@ -752,8 +755,13 @@ hop, no circuit breaker, no split ownership.
   cancelled and no accounts or reminders are deleted (§5.6/§5.12); the pair may
   later re-establish an active friendship through a still-valid link or code.
 - **Shared reminders** are one group reminder (creator + receivers), not split
-  pairwise. Creation resolves each receiver to a unique active friend (ambiguity →
-  follow-up), then enforces two hard pre-creation constraints — receiver conflict
+  pairwise. Creation first validates required fields — at least one participant,
+  title/activity content, trigger time, and any necessary context — returning
+  `needs_participants | needs_title | needs_time | needs_context` states that
+  mutate nothing and hand follow-up facts to the Interaction Agent before any
+  other check (§5.7). It then resolves each receiver to a unique active friend
+  (ambiguity → follow-up), then enforces two hard pre-creation constraints —
+  receiver conflict
   (overlap on duration window, from personal + shared reminders) and participant
   channel availability (creator + every receiver reachable). The creator's own
   conflict is not checked. Failing either creates nothing partial and returns the
@@ -762,7 +770,11 @@ hop, no circuit breaker, no split ownership.
   unreachable, *and who is free*, then asked to adjust time or participants (§5.7).
   On success the reminder is immediately
   active with a per-participant projection; uniqueness is enforced by the §3.5
-  key. Any participant cancels the whole group: `cancel_shared_reminder` is
+  key. Shared reminders are **participant-scoped**: list/view and
+  `cancel_shared_reminder` require the requester to be a participant — a
+  non-participant can neither view nor cancel (§5.7), checked before any
+  status/idempotency handling. Any participant cancels the whole group:
+  `cancel_shared_reminder` is
   status-aware/idempotent — `active → cancelled` stops all projections and emits
   cancellation facts to the others, while `cancelled → cancelled` returns a
   user-safe already-cancelled result and emits no duplicate cancellation (§5.7).
