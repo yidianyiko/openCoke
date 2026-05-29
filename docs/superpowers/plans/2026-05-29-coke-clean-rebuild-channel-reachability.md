@@ -2687,7 +2687,7 @@ class FakeReachabilityService:
 
 def make_client(service=None, adapters=None):
     service = service or FakeReachabilityService()
-    adapters = adapters or {"whatsapp_evolution": FakeAdapter()}
+    adapters = adapters if adapters is not None else {"whatsapp_evolution": FakeAdapter()}
     app = Flask(__name__)
     app.register_blueprint(create_provider_webhook_blueprint(service, adapters))
     return app.test_client(), service
