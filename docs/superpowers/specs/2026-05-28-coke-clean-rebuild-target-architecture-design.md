@@ -23,7 +23,12 @@ Then architect-review round 3: occurrence-grain reminder_fire lifecycle split fr
 the series lifecycle, friendship removal lifecycle, account_activation projection
 owning onboarding, pending_async_reply made an explicitly non-terminal transition,
 agent_settings/user_profile split from inferred memory, and the
-reconnection_required channel state)
+reconnection_required channel state. Then architect-review round 4: worker-turn
+replay idempotency (trigger_id / turn_id+item_index / turn_id+segment_index),
+reminder past-time/incomplete-date validation states, trigger-time ↔
+no-trigger-time conversion transitions, per-occurrence calendar_import_item with
+status+reason, bounded AvailabilityQuery, a Reminder-domain ReminderCalendarReadModel,
+and narrowing the prose-producer invariant to chat/channel-visible product prose)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -55,10 +60,13 @@ the current requirements matrix, not from "legacy minus features".
 ## 1. The Turn — The Unifying Runtime Abstraction
 
 Reduced to its essence, Coke is a per-user, single-persona, agent-mediated event
-machine. Every user-visible piece of prose has exactly one producer: the
-Interaction Agent. The backend exists only to do five things — hold a trust /
-identity boundary, persist durable domain state, schedule time-based work, run
-the agent, and adapt to channels.
+machine. Every **chat/channel-visible product message** — assistant replies,
+reminder text, notifications, access-denial, and system-recovery prose — has
+exactly one producer: the Interaction Agent. (Static web/support pages, e.g. FAQ /
+privacy / terms, and UI labels are ordinary product copy, outside this invariant.)
+The backend exists only to do five things — hold a trust / identity boundary,
+persist durable domain state, schedule time-based work, run the agent, and adapt
+to channels.
 
 The central insight of this rebuild: **work enters the agent in only a small,
 fixed set of ways, and they all have the same shape** — *something becomes true
@@ -225,7 +233,7 @@ and the conversation parts of §5.9.
 | `conversation` | The ongoing agent conversation for an account; stable identifier for locks and ordering. Carries a **durable monotonic `latest_inbound_seq`** — the ordering invariant that makes stale-reply safety concrete, not just lock-implied. |
 | `message` | Inbound + outbound messages. Inbound: normalized payload, sender `channel_identity`, `causal_inbound_event_id`, and a per-conversation `seq`. Outbound: rendered text, 1–3 segments, link to disposition + (optional) `notification_id` + `facts_hash`. |
 | `inbound_media` | Multimodal inbound (image/voice/etc.) preserved as **processable input** — reference/blob only. No understanding model, no media generation, no media reply (§10). |
-| `turn` + `output_disposition` | One row per turn: trigger type, mode, timing, the `based_on_inbound_seq` it acted on, and exactly one **turn disposition** (`replied | no_reply | pending_async_reply | failed`) + small reason code. The audit spine of the runtime. Turn disposition is the turn outcome; per-target *delivery* state is output-class-specific (§4). |
+| `turn` + `output_disposition` | One row per turn, **keyed by a stable `trigger_id`** (unique per trigger source — inbound message, reminder fire, notification event, …) so replay reconciles the existing turn instead of creating a new one: trigger type, mode, timing, the `based_on_inbound_seq` it acted on, and exactly one **turn disposition** (`replied | no_reply | pending_async_reply | failed`) + small reason code. The audit spine of the runtime and the replay-idempotency anchor. Turn disposition is the turn outcome; per-target *delivery* state is output-class-specific (§4). |
 | `outbox` | Single shared transactional outbox; any producer appends in the same transaction as its domain write (§5). Listed here as the runtime's durable event ledger; it is shared infrastructure, not owned business state. |
 
 ### 3.4 Reminder
@@ -275,12 +283,16 @@ A first-class supporting module over Reminder, not a placeholder — its Google
 authorization handoff and dedupe rules are product-specific and need their own
 contract. Realizes §5.10; retained, one-time import. `calendar_import_run` records
 the Google auth handle and result counts (imported / skipped / downgraded /
-failed). Dedupe is at **occurrence grain**, not per-source-event: a
-`calendar_import_item` keyed by (provider calendar id, source event id,
-recurrence-instance / original start) links each imported reminder, so a recurring
-event downgraded into several one-time future occurrences neither double-imports
-nor over-skips on repeat, and downgraded items are reported from those rows.
-Repeated imports skip already-present items silently without user confirmation.
+failed). `calendar_import_run` aggregates counts, but those counts are **derived
+from** `calendar_import_item`, which covers **every considered source occurrence**
+— not only imported ones — at occurrence grain: keyed by (provider calendar id,
+source event id, recurrence-instance / original start), with a `status ∈ {imported,
+skipped_duplicate, downgraded, failed, historical_skipped}`, source metadata,
+linked reminder id(s), and a user-safe reason. This is what lets the result
+summary list downgraded items **and** failed items (§5.10), not just totals, and
+makes occurrence-grain dedupe exact: a recurring event downgraded into several
+one-time future occurrences neither double-imports nor over-skips on repeat, and
+repeated imports skip already-present items silently without user confirmation.
 Imported events become owner-scoped Coke `reminder` rows
 (title+description → content, start → trigger, duration → duration with 15-min
 default, all-day → 00:00, recurring → recurring reminder, or downgraded to
@@ -498,6 +510,15 @@ dual-ownership at once.
   outbox/event id). So losing the Redis Stream on restart triggers replay from the
   outbox, never stranded work; "losing Redis is acceptable" means losing the
   *signal*, not the durable rows behind it.
+- **Worker-turn idempotency:** replay must not duplicate user-visible work. The
+  turn is keyed by `trigger_id`; on replay the worker **resumes/reconciles** the
+  existing turn rather than re-invoking the agent once facts or output already
+  exist. Domain commands are idempotent by `turn_id + item_index`, and outbound
+  messages are unique by `turn_id + segment_index`, so a crash between a domain
+  commit / outbound insert and the worker ack cannot create a second reminder, a
+  duplicate notification, or a duplicate chat segment. Freshness
+  (`latest_inbound_seq`) handles *newer-intent* staleness; this handles
+  *same-trigger* replay.
 - **Locks:** per-conversation Redis lock with ownership token; TTL derived from
   the runtime walltime budget; heartbeat extends it; lock-loss is instrumented.
   Per-conversation ordering is enforced by the lock, not by stream partitioning.
@@ -637,6 +658,26 @@ adapters behind it, all peers, none a first-class architectural concept.
   them. Proactive follow-up is user-invisible on failure: if the channel is
   unavailable or sending fails, it **expires and is discarded** — never resent,
   never `undelivered`, never shown on the calendar.
+- **Time validation is a domain invariant, not generic schedule parsing.** Per
+  batch item, before commit, the Reminder domain classifies the requested time as
+  `valid_future`, `needs_past_time_confirmation` (a clear but past time is not
+  silently created), `needs_incomplete_date_clarification` (an incomplete date
+  whose today-target already passed is not auto-shifted), or `invalid`. Past times
+  are never rewritten into the future without Interaction-Agent confirmation; the
+  confirmation/follow-up fact is routed back to the agent (§5.8).
+- **Trigger-time ↔ no-trigger-time conversion** is explicit domain state, not an
+  ad-hoc edit: `schedule_unscheduled` (no-trigger → timed, moves onto the
+  calendar), `clear_trigger_time` (one-time → unscheduled, into the 20:00 summary
+  set), and for a recurring series whose rule can no longer hold after clearing,
+  a confirm step offering `convert_to_unscheduled` or `delete_recurring_series`.
+  Conversion preserves content/owner/source and emits a confirmation fact (§5.8).
+- **The reminder calendar is a domain read model, not client logic.** A
+  `ReminderCalendarReadModel` query (Reminder domain) returns typed entries —
+  one-time, recurring-occurrence-in-visible-range, shared projection (with friend
+  identifiers), unscheduled, undelivered, and merged groups that expand into
+  per-reminder edit/complete/delete handles — all with stable action handles and
+  display times in the user's global timezone (§5.8). The thin web client renders
+  this read model; it does not re-derive reminder state.
 
 ## 9. Social Scheduling
 
@@ -667,8 +708,12 @@ hop, no circuit breaker, no split ownership.
   active with a per-participant projection; uniqueness is enforced by the §3.5
   key. Any participant cancels the whole group (stops all projections, notifies
   others); completion affects only one's own projection.
-- **Availability** queries return privacy-safe busy/free only, sourced from Coke
-  reminders (never Google Calendar), in the user's global timezone.
+- **Availability** is a bounded domain query, `AvailabilityQuery(friend_ids,
+  local_date_range, requester_timezone)`: it resolves one or more **active**
+  friends (authorize the friendship), expands each friend's personal + shared
+  reminder intervals **within the bounded date range** in the requester's global
+  timezone, and returns **only coarse busy/free** — never reminder details, never
+  Google Calendar (§5.7).
 - **Notifications** are informational facts only (never approval/execution),
   covering friendship creation and shared-reminder creation/cancellation and their
   error/partial-failure/undelivered/conflict cases. One `notification_fact` fans
@@ -777,9 +822,12 @@ These correctness properties are design requirements:
   never merged or unlinked; auth artifacts are one-time, time-limited, single-use,
   bound to one account; messaging-first anchor identity/channel is non-removable.
 - **Single reachable channel**: at most one usable personal channel per account.
-- **Exactly one prose producer**: only the Interaction Agent writes chat text,
-  across all seven turn types. The runtime-owned synchronous-timeout waiting text
-  is the sole typed-signal exception and carries no intent result (§4).
+- **Exactly one prose producer**: only the Interaction Agent writes
+  chat/channel-visible product-message prose (assistant, reminder, notification,
+  access-denial, system-recovery), across all seven turn types. Static web/support
+  pages and UI labels are out of scope. The runtime-owned synchronous-timeout
+  waiting text is the sole typed-signal exception and carries no intent result
+  (§4).
 - **Exactly one current disposition per turn**: `replied | no_reply |
   pending_async_reply | failed` + reason. `pending_async_reply` is the only
   non-terminal disposition and resolves to `replied | failed`, with the final
@@ -801,6 +849,9 @@ These correctness properties are design requirements:
   relationship (removal never cascades to shared reminders or accounts, and a
   removed pair can re-establish); shared-reminder projection consistency holds.
 - **Lock release** verifies ownership and never releases another worker's lock.
+- **Replay idempotency**: turns are keyed by `trigger_id`, domain commands by
+  `turn_id + item_index`, outbound by `turn_id + segment_index`; same-trigger
+  replay reconciles the existing turn and never duplicates user-visible work.
 - The repo-OS governance layer and the clean eval↔product decoupling.
 - Tight network posture: services bind localhost; only the edge is public;
   secrets are environment placeholders.
