@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 import subprocess
 from types import SimpleNamespace
 
@@ -44,8 +45,14 @@ def test_suggest_verification_deduplicates_and_orders_surfaces_by_config():
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "changed_surfaces: repo-os-docs gateway-web" in result.stdout
-    assert "zsh scripts/verify-surface repo-os-docs gateway-web" in result.stdout
+    assert (
+        "changed_surfaces: clean-rebuild-web repo-os-docs gateway-web"
+        in result.stdout
+    )
+    assert (
+        "zsh scripts/verify-surface clean-rebuild-web repo-os-docs gateway-web"
+        in result.stdout
+    )
 
 
 def test_suggest_verification_maps_agent_runtime_core_to_worker_surface():
@@ -76,15 +83,40 @@ def test_suggest_verification_maps_superpowers_history_to_repo_os_surface():
     assert "zsh scripts/verify-surface repo-os-docs" in result.stdout
 
 
-def test_suggest_verification_maps_routa_style_doc_surfaces_to_repo_os():
+def test_suggest_verification_maps_clean_rebuild_canonical_doc_to_clean_rebuild_docs():
     result = run_script(
         "scripts/suggest-verification",
         "--files",
         "docs/ARCHITECTURE.md",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "changed_surfaces: clean-rebuild-docs repo-os-docs" in result.stdout
+    assert (
+        "suggested_command: zsh scripts/verify-surface "
+        "clean-rebuild-docs repo-os-docs"
+    ) in result.stdout
+    assert "== clean-rebuild-docs ==" in result.stdout
+    assert "bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh" in result.stdout
+
+
+def test_suggest_verification_does_not_map_unrelated_repo_os_doc_to_clean_rebuild():
+    result = run_script(
+        "scripts/suggest-verification",
         "--files",
         "docs/issues/2026-05-09-example.md",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "changed_surfaces: repo-os-docs" in result.stdout
+    assert "clean-rebuild-docs" not in result.stdout
+
+
+def test_suggest_verification_maps_routa_style_doc_surfaces_to_repo_os():
+    result = run_script(
+        "scripts/suggest-verification",
         "--files",
-        "docs/product-specs/FEATURE_TREE.md",
+        "docs/issues/2026-05-09-example.md",
         "--files",
         "docs/release-guide.md",
     )
@@ -104,8 +136,8 @@ def test_suggest_verification_maps_guardrail_tooling_to_full_repo_os_surface():
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "changed_surfaces: repo-os" in result.stdout
-    assert "zsh scripts/verify-surface repo-os" in result.stdout
+    assert "changed_surfaces: clean-rebuild-docs repo-os" in result.stdout
+    assert "zsh scripts/verify-surface clean-rebuild-docs repo-os" in result.stdout
 
 
 def test_collect_changed_files_includes_deleted_files(monkeypatch):
@@ -253,6 +285,55 @@ def test_check_import_boundaries_allows_user_visible_copy():
     }
     errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
     assert errors == []
+
+
+def test_clean_rebuild_doc_guardrail_rejects_current_pending_workflow_claims(tmp_path):
+    guardrail = tmp_path / "scripts" / "e2e" / "clean-rebuild-canonical-doc-sync.sh"
+    guardrail.parent.mkdir(parents=True)
+    shutil.copy2(ROOT / "scripts/e2e/clean-rebuild-canonical-doc-sync.sh", guardrail)
+
+    required_docs = {
+        "docs/ARCHITECTURE.md": (
+            "The Turn\n"
+            "IdentityAccess\n"
+            "ChannelReachability\n"
+            "ConversationRuntime\n"
+            "SocialScheduling\n"
+            "CalendarImport\n"
+            "Postgres coordinates with Redis\n"
+            "MongoDB: Removed entirely\n"
+        ),
+        "docs/product-specs/FEATURE_TREE.md": "clean rebuild feature tree\n",
+        "docs/roadmap.md": (
+            "The pending friend-request accept/reject approval workflow is "
+            "a supported current product workflow.\n"
+        ),
+        "docs/clawscale_bridge.md": "clean rebuild bridge notes\n",
+        "docs/deploy.md": "clean rebuild deploy notes\n",
+        "docs/design-docs/coke-working-contract.md": "clean rebuild work contract\n",
+        "docs/design-docs/interface-contract.md": "clean rebuild interface contract\n",
+        "docs/design-docs/data-retention-policy.md": "clean rebuild retention policy\n",
+        "docs/fitness/coke-verification-matrix.md": "clean-rebuild matrix\n",
+        "docs/fitness/surfaces.yaml": "clean-rebuild surfaces\n",
+    }
+    for path, text in required_docs.items():
+        file_path = tmp_path / path
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(text, encoding="utf-8")
+
+    result = subprocess.run(
+        ["bash", "scripts/e2e/clean-rebuild-canonical-doc-sync.sh"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert (
+        "Pending approval workflows may be mentioned only as deleted or out of scope"
+        in result.stderr
+    )
 
 
 def test_check_import_boundaries_ignores_non_web_files():

@@ -65,20 +65,11 @@ legacy Gateway/Bridge/Mongo assumptions.
 
 ## Route Direction
 
-The discoverable route surface is:
-
-- Public web: `/`, `/faqs`, `/demos`, `/privacy`, `/terms`, `/u/:code`
-- Customer web: `/account/*`, `/channels`, `/reminders`, `/friends`,
-  `/shared-reminders`, `/settings`, `/calendar-import`, `/subscription`,
-  `/claim`
-- Python public API: `/api/auth/*`, `/api/account/*`, `/api/channels/*`,
-  `/api/reminders/*`, `/api/friends/*`, `/api/shared-reminders/*`,
-  `/api/settings/*`, `/api/calendar-import/*`, `/api/subscription/*`,
-  `/api/claim/*`
-- Provider webhooks: `/webhooks/whatsapp/evolution`,
-  `/webhooks/wechat/personal`, `/webhooks/wechat/ecloud`, `/webhooks/linq`
-- Internal runtime: `/internal/outbound/delivery-callback`,
-  `/internal/reply-wait/:causal_inbound_event_id`
+The discoverable route surface remains the clean-rebuild web, API, provider
+webhook, and internal runtime namespace. The authoritative route contract lives
+in `docs/design-docs/interface-contract.md`; the product-facing route index
+lives in `docs/product-specs/FEATURE_TREE.md`. Roadmap work should update those
+two documents instead of duplicating route lists here.
 
 ## Verification Direction
 

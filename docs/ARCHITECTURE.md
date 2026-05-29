@@ -134,51 +134,13 @@ but unacknowledged Postgres outbox rows are replayed.
 The web app is a thin Next.js client over the Python API. It keeps the required
 product pages and moves business decisions into Python domains.
 
-Public web:
-
-- `/`
-- `/faqs`
-- `/demos`
-- `/privacy`
-- `/terms`
-- `/u/:code`
-
-Customer web:
-
-- `/account/*`
-- `/channels`
-- `/reminders`
-- `/friends`
-- `/shared-reminders`
-- `/settings`
-- `/calendar-import`
-- `/subscription`
-- `/claim`
-
-Python public API:
-
-- `/api/auth/*`
-- `/api/account/*`
-- `/api/channels/*`
-- `/api/reminders/*`
-- `/api/friends/*`
-- `/api/shared-reminders/*`
-- `/api/settings/*`
-- `/api/calendar-import/*`
-- `/api/subscription/*`
-- `/api/claim/*`
-
-Provider webhooks:
-
-- `/webhooks/whatsapp/evolution`
-- `/webhooks/wechat/personal`
-- `/webhooks/wechat/ecloud`
-- `/webhooks/linq`
-
-Internal runtime:
-
-- `/internal/outbound/delivery-callback`
-- `/internal/reply-wait/:causal_inbound_event_id`
+The authoritative route namespace lives in
+`docs/design-docs/interface-contract.md`; the discoverable product route index
+lives in `docs/product-specs/FEATURE_TREE.md`. This architecture reference only
+summarizes the route families: public web pages and friend links, customer
+account/channel/reminder/social/calendar/subscription/claim pages, Python API
+namespaces for the six product modules, provider webhook adapters, and the
+private delivery callback and reply-wait runtime endpoints.
 
 ## Channel And Provider Boundary
 

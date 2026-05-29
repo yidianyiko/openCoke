@@ -31,7 +31,7 @@ surface_commands() {
       print "zsh scripts/check"
       ;;
     clean-rebuild-backend)
-      print ".venv/bin/python -m pytest tests/unit/coke -v"
+      print "$pytest_cmd tests/unit/coke -v"
       ;;
     clean-rebuild-web)
       print "cd gateway && pnpm --filter @coke/web test"

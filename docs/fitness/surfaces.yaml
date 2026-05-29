@@ -3,17 +3,34 @@ schema: coke-guardrails-v1
 surfaces:
   - name: clean-rebuild-docs
     description: Canonical docs agree on the clean target architecture.
+    paths:
+      - docs/ARCHITECTURE.md
+      - docs/product-specs/FEATURE_TREE.md
+      - docs/roadmap.md
+      - docs/clawscale_bridge.md
+      - docs/deploy.md
+      - docs/design-docs/coke-working-contract.md
+      - docs/design-docs/interface-contract.md
+      - docs/design-docs/data-retention-policy.md
+      - docs/fitness/coke-verification-matrix.md
+      - docs/fitness/surfaces.yaml
+      - scripts/e2e/clean-rebuild-canonical-doc-sync.sh
     commands:
       - bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh
       - zsh scripts/check
 
   - name: clean-rebuild-backend
     description: Python domain/API/worker rebuild contracts.
+    paths:
+      - coke/**
+      - tests/unit/coke/**
     commands:
       - .venv/bin/python -m pytest tests/unit/coke -v
 
   - name: clean-rebuild-web
     description: Thin Next.js client over the Python API.
+    paths:
+      - gateway/packages/web/**
     commands:
       - cd gateway && pnpm --filter @coke/web test
       - cd gateway && pnpm --filter @coke/web build

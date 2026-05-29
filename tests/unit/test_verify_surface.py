@@ -85,7 +85,7 @@ def test_verify_surface_dry_run_prints_clean_rebuild_commands():
     assert "bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh" in result.stdout
     assert "zsh scripts/check" in result.stdout
     assert "== clean-rebuild-backend ==" in result.stdout
-    assert ".venv/bin/python -m pytest tests/unit/coke -v" in result.stdout
+    assert f"{expected_pytest_cmd()} tests/unit/coke -v" in result.stdout.splitlines()
     assert "== clean-rebuild-web ==" in result.stdout
     assert "cd gateway && pnpm --filter @coke/web test" in result.stdout
     assert "cd gateway && pnpm --filter @coke/web build" in result.stdout
