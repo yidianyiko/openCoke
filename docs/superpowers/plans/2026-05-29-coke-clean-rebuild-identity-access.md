@@ -10,9 +10,10 @@
 
 ---
 
-**Plan Status:** ready for execution
+**Plan Status:** complete
 **Status Date:** 2026-05-29
 **Parent Plan:** `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md`, Task 4: IdentityAccess, Access Gate, Activation, And Web Claim
+**Completion Note:** Implementation is present in the `clean-rebuild-exec` branch history, including the domain-service slice, route/app slice, edge-case hardening, and later schema-contract alignment. Final fresh verification used the diff-aware base against `main`, not the original two-commit local audit window.
 
 **Source Specs:**
 - `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
@@ -66,7 +67,7 @@ Out of scope:
 
 ## Execution Preflight
 
-- [ ] **Step 1: Enter the requested worktree**
+- [x] **Step 1: Enter the requested worktree**
 
 Run:
 
@@ -77,7 +78,7 @@ git status --short
 
 Expected: no output, or only changes you intentionally own for this task. If unrelated changes exist, leave them in place and avoid editing those files.
 
-- [ ] **Step 2: Select the Python command**
+- [x] **Step 2: Select the Python command**
 
 Run:
 
@@ -91,7 +92,7 @@ printf '%s\n' "$python_cmd"
 
 Expected: prints `.venv/bin/python` when the virtualenv exists, otherwise `python3`.
 
-- [ ] **Step 3: Verify the current backend surface before edits**
+- [x] **Step 3: Verify the current backend surface before edits**
 
 Run:
 
@@ -106,7 +107,7 @@ Expected: all selected tests pass before IdentityAccess files are added.
 **Files:**
 - Create: `tests/unit/coke/identity_access/test_identity_access_service.py`
 
-- [ ] **Step 1: Create the failing service tests**
+- [x] **Step 1: Create the failing service tests**
 
 Create `tests/unit/coke/identity_access/test_identity_access_service.py`:
 
@@ -889,7 +890,7 @@ def test_web_first_bound_identity_can_be_removed_by_channel_reachability(identit
     )
 ```
 
-- [ ] **Step 2: Run the service tests and verify they fail**
+- [x] **Step 2: Run the service tests and verify they fail**
 
 Run:
 
@@ -904,7 +905,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'coke.domains'`.
 **Files:**
 - Create: `tests/unit/coke/identity_access/test_access_gate.py`
 
-- [ ] **Step 1: Create the failing access-gate tests**
+- [x] **Step 1: Create the failing access-gate tests**
 
 Create `tests/unit/coke/identity_access/test_access_gate.py`:
 
@@ -1047,7 +1048,7 @@ def test_access_gate_reusable_for_gated_web_actions(identity_service):
     assert calendar_decision.fact["denial_reason"] == AccessDeniedReason.SUBSCRIPTION_INACTIVE
 ```
 
-- [ ] **Step 2: Run the access-gate tests and verify they fail**
+- [x] **Step 2: Run the access-gate tests and verify they fail**
 
 Run:
 
@@ -1064,7 +1065,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'coke.domains'`.
 - Create: `coke/domains/identity_access/__init__.py`
 - Create: `coke/domains/identity_access/models.py`
 
-- [ ] **Step 1: Create the domain package files**
+- [x] **Step 1: Create the domain package files**
 
 Create `coke/domains/__init__.py`:
 
@@ -1301,7 +1302,7 @@ class AccessDecision:
     fact: dict[str, Any] | None = None
 ```
 
-- [ ] **Step 2: Run the existing failing tests**
+- [x] **Step 2: Run the existing failing tests**
 
 Run:
 
@@ -1316,7 +1317,7 @@ Expected: FAIL because `coke.domains.identity_access.repository` does not exist.
 **Files:**
 - Create: `coke/domains/identity_access/repository.py`
 
-- [ ] **Step 1: Create the repository implementation**
+- [x] **Step 1: Create the repository implementation**
 
 Create `coke/domains/identity_access/repository.py`:
 
@@ -1529,7 +1530,7 @@ class InMemoryIdentityAccessRepository:
         return account_id in self.usable_channel_accounts
 ```
 
-- [ ] **Step 2: Run the tests and verify the next failure**
+- [x] **Step 2: Run the tests and verify the next failure**
 
 Run:
 
@@ -1544,7 +1545,7 @@ Expected: FAIL because `coke.domains.identity_access.service` does not exist.
 **Files:**
 - Create: `coke/domains/identity_access/service.py`
 
-- [ ] **Step 1: Create the service implementation**
+- [x] **Step 1: Create the service implementation**
 
 Create `coke/domains/identity_access/service.py`:
 
@@ -2172,7 +2173,7 @@ class IdentityAccessService:
         return uuid4().hex
 ```
 
-- [ ] **Step 2: Run the domain tests**
+- [x] **Step 2: Run the domain tests**
 
 Run:
 
@@ -2182,7 +2183,7 @@ $python_cmd -m pytest tests/unit/coke/identity_access/test_identity_access_servi
 
 Expected: PASS for both test files.
 
-- [ ] **Step 3: Commit the domain-service slice**
+- [x] **Step 3: Commit the domain-service slice**
 
 Run:
 
@@ -2198,7 +2199,7 @@ Expected: commit succeeds with only IdentityAccess domain package files and doma
 **Files:**
 - Create: `tests/unit/coke/identity_access/test_auth_routes.py`
 
-- [ ] **Step 1: Create route tests with a fake service**
+- [x] **Step 1: Create route tests with a fake service**
 
 Create `tests/unit/coke/identity_access/test_auth_routes.py`:
 
@@ -2736,7 +2737,7 @@ def test_pairing_code_issue_and_redeem_routes_call_service():
     )
 ```
 
-- [ ] **Step 2: Run the route tests and verify they fail**
+- [x] **Step 2: Run the route tests and verify they fail**
 
 Run:
 
@@ -2754,7 +2755,7 @@ Expected: FAIL because `coke.api.auth_routes` does not exist.
 - Create: `coke/api/claim_routes.py`
 - Modify: `coke/app.py`
 
-- [ ] **Step 1: Create the API package marker**
+- [x] **Step 1: Create the API package marker**
 
 Create `coke/api/__init__.py`:
 
@@ -2762,7 +2763,7 @@ Create `coke/api/__init__.py`:
 """Flask route adapters for Coke domain services."""
 ```
 
-- [ ] **Step 2: Create auth routes**
+- [x] **Step 2: Create auth routes**
 
 Create `coke/api/auth_routes.py`:
 
@@ -2877,7 +2878,7 @@ def _bearer_token() -> str:
     return header[len(prefix) :]
 ```
 
-- [ ] **Step 3: Create claim routes**
+- [x] **Step 3: Create claim routes**
 
 Create `coke/api/claim_routes.py`:
 
@@ -2989,7 +2990,7 @@ def create_claim_blueprint(identity_service) -> Blueprint:
     return blueprint
 ```
 
-- [ ] **Step 4: Register blueprints from the app factory when a service is supplied**
+- [x] **Step 4: Register blueprints from the app factory when a service is supplied**
 
 Modify `coke/app.py` to exactly:
 
@@ -3020,7 +3021,7 @@ def create_app(settings: Settings, identity_access_service=None) -> Flask:
     return app
 ```
 
-- [ ] **Step 5: Run route tests**
+- [x] **Step 5: Run route tests**
 
 Run:
 
@@ -3030,7 +3031,7 @@ $python_cmd -m pytest tests/unit/coke/identity_access/test_auth_routes.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the route/app slice**
+- [x] **Step 6: Commit the route/app slice**
 
 Run:
 
@@ -3048,7 +3049,7 @@ Expected: commit succeeds with only API route files, app blueprint registration,
 - Verify: `coke/api/*.py`
 - Verify: `tests/unit/coke/identity_access/*.py`
 
-- [ ] **Step 1: Run all IdentityAccess unit tests**
+- [x] **Step 1: Run all IdentityAccess unit tests**
 
 Run:
 
@@ -3058,7 +3059,7 @@ $python_cmd -m pytest tests/unit/coke/identity_access -v
 
 Expected: all IdentityAccess tests pass.
 
-- [ ] **Step 2: Run backend clean-rebuild surface tests**
+- [x] **Step 2: Run backend clean-rebuild surface tests**
 
 Run:
 
@@ -3068,18 +3069,19 @@ zsh scripts/verify-surface clean-rebuild-backend
 
 Expected: command exits 0 and runs all `tests/unit/coke -v`.
 
-- [ ] **Step 3: Run diff-aware verification routing**
+- [x] **Step 3: Run diff-aware verification routing**
 
 Run:
 
 ```bash
-zsh scripts/suggest-verification --base HEAD~2
-zsh scripts/review-trigger --base HEAD~2
+base=$(git merge-base HEAD main)
+zsh scripts/suggest-verification --base "$base"
+zsh scripts/review-trigger --base "$base"
 ```
 
-Expected: commands cover both planned implementation commits; `suggest-verification` includes `clean-rebuild-backend`; `review-trigger` exits 0 and reports risk without blocking completion.
+Expected: commands cover the full clean-rebuild branch slice; `suggest-verification` includes `clean-rebuild-backend`; `review-trigger` exits 0 and reports risk without blocking completion.
 
-- [ ] **Step 4: Run repository checks**
+- [x] **Step 4: Run repository checks**
 
 Run:
 
@@ -3106,27 +3108,28 @@ Expected: both commands exit 0.
 - Add: `tests/unit/coke/identity_access/test_access_gate.py`
 - Add: `tests/unit/coke/identity_access/test_auth_routes.py`
 
-- [ ] **Step 1: Review the committed IdentityAccess change range**
+- [x] **Step 1: Review the committed IdentityAccess change range**
 
 Run:
 
 ```bash
-git show --stat --oneline --no-renames HEAD~2..HEAD
+git log --oneline --grep="identity access"
+git log --oneline --grep="align clean rebuild schema contracts"
 ```
 
-Expected: the two-commit range contains only IdentityAccess domain files, API adapter files, app blueprint registration, and IdentityAccess tests.
+Expected: branch history contains the IdentityAccess domain-service commit, the IdentityAccess route/app commit, the edge-case hardening commit, and the later schema-contract alignment commit.
 
-- [ ] **Step 2: Confirm the planned split commits exist**
+- [x] **Step 2: Confirm the planned split commits exist**
 
 Run:
 
 ```bash
-git log --oneline -2
+git log --oneline --grep="identity access"
 ```
 
-Expected: the two newest commits are `feat: add identity access auth and claim routes` and `feat: add identity access domain service`.
+Expected: the split commits `feat: add identity access auth and claim routes` and `feat: add identity access domain service` are present in branch history.
 
-- [ ] **Step 3: Confirm the worktree is clean after split commits**
+- [x] **Step 3: Confirm the worktree is clean after split commits**
 
 Run:
 
@@ -3140,35 +3143,35 @@ Expected: no output.
 
 Before handoff, confirm each item:
 
-- [ ] The implementation does not write SQLAlchemy IdentityAccess persistence; the repository remains protocol-friendly and in-memory for this slice.
-- [ ] `IdentityAccessService` depends on `IdentityAccessRepository` protocol, not the concrete in-memory implementation.
-- [ ] Unit-test fixtures use monotonic deterministic factories, while production defaults use `uuid4()` for IDs and `secrets.token_urlsafe()` for tokens/codes.
-- [ ] Real-service tests prove duplicate repository writes fail for account ID, session token, artifact code, and provider identity tuple instead of overwriting.
-- [ ] The in-memory repository rejects duplicate account IDs, activation/access rows per account, credential account/email keys, session tokens, channel identity IDs/provider tuples, and artifact codes.
-- [ ] Routes call IdentityAccess service methods only and do not write repository dictionaries or schema tables directly.
-- [ ] `create_app(Settings(...), identity_access_service=fake)` registers at least one auth route and one claim route in route tests.
-- [ ] Shared WhatsApp auto-provisioning is limited to `whatsapp_evolution`.
-- [ ] Known provider identity lookup returns the existing account and channel identity without duplicates.
-- [ ] Non-WhatsApp first-seen identities fail closed unless a valid pairing code is supplied.
-- [ ] The service contains no account merge, unlink, display-name matching, or profile matching behavior.
-- [ ] Denied inbound access returns an `AccessDeniedTurn` fact and does not expose normal intent execution.
-- [ ] Denial reasons are limited to `email_verification_required`, `subscription_inactive`, and `suspended`.
-- [ ] Messaging-first subscription inactive inbound access includes the checkout URL fact.
-- [ ] Web-first activation requires credential/session origin, usable channel signal, and first inbound.
-- [ ] Messaging-first activation requires sender identity binding, usable messaging channel signal, and first inbound.
-- [ ] First guidance stamping is idempotent.
-- [ ] `login_url`, `claim_code`, `pairing_code`, `email_verification`, and `password_reset` artifacts are one-time, time-limited, single-use, and wrong-type failures are closed.
-- [ ] Real-service tests cover email verification success, single-use verification, expired verification, password reset success, single-use reset, expired reset, and resend state updates.
-- [ ] `claim_code` target account is resolved from `channel_identity` at redemption, not issuance.
-- [ ] `claim_code` channel redemption writes `consumed_at`, `delivery_state`, `target_account_id`, and `updated_at` in one repository save.
-- [ ] Channel-side `claim_code` redemption never returns a web session token; only the original browser session can complete the claim and receive the authenticated web session.
-- [ ] Wrong-browser, unknown-sender, expired, consumed, and wrong-type claim artifacts fail closed with `IdentityAccessError`.
-- [ ] Wrong-browser claim polling and completion attempts do not consume or complete the artifact before the original browser finishes.
-- [ ] `pairing_code` issuance is allowed only for `web_first` accounts.
-- [ ] `pairing_code` issuance calls `check_access_for_action(account_id, "connect_channel")` and fails closed with an access-denied fact when email verification, subscription, or suspension blocks channel connection.
-- [ ] `pairing_code` redemption validates the artifact without consuming it, calls `check_access_for_action(account_id, "connect_channel")`, and fails closed before `channel_identity` creation when access is denied.
-- [ ] `pairing_code` binds the sender identity to the issuing web-first account instead of auto-provisioning.
-- [ ] Auth and claim route adapters map `IdentityAccessError` to JSON error facts and do not render prose.
-- [ ] Channel identity anchor protection is exposed for ChannelReachability and no `channel`, `delivery_route`, or `delivery_attempt` lifecycle behavior is implemented.
-- [ ] The implementation is split into a domain-service commit and a route/app commit before final verification.
-- [ ] `zsh scripts/verify-surface clean-rebuild-backend`, `zsh scripts/check`, and `git diff --check` passed with fresh output.
+- [x] The implementation does not write SQLAlchemy IdentityAccess persistence; the repository remains protocol-friendly and in-memory for this slice.
+- [x] `IdentityAccessService` depends on `IdentityAccessRepository` protocol, not the concrete in-memory implementation.
+- [x] Unit-test fixtures use monotonic deterministic factories, while production defaults use `uuid4()` for IDs and `secrets.token_urlsafe()` for tokens/codes.
+- [x] Real-service tests prove duplicate repository writes fail for account ID, session token, artifact code, and provider identity tuple instead of overwriting.
+- [x] The in-memory repository rejects duplicate account IDs, activation/access rows per account, credential account/email keys, session tokens, channel identity IDs/provider tuples, and artifact codes.
+- [x] Routes call IdentityAccess service methods only and do not write repository dictionaries or schema tables directly.
+- [x] `create_app(Settings(...), identity_access_service=fake)` registers at least one auth route and one claim route in route tests.
+- [x] Shared WhatsApp auto-provisioning is limited to `whatsapp_evolution`.
+- [x] Known provider identity lookup returns the existing account and channel identity without duplicates.
+- [x] Non-WhatsApp first-seen identities fail closed unless a valid pairing code is supplied.
+- [x] The service contains no account merge, unlink, display-name matching, or profile matching behavior.
+- [x] Denied inbound access returns an `AccessDeniedTurn` fact and does not expose normal intent execution.
+- [x] Denial reasons are limited to `email_verification_required`, `subscription_inactive`, and `suspended`.
+- [x] Messaging-first subscription inactive inbound access includes the checkout URL fact.
+- [x] Web-first activation requires credential/session origin, usable channel signal, and first inbound.
+- [x] Messaging-first activation requires sender identity binding, usable messaging channel signal, and first inbound.
+- [x] First guidance stamping is idempotent.
+- [x] `login_url`, `claim_code`, `pairing_code`, `email_verification`, and `password_reset` artifacts are one-time, time-limited, single-use, and wrong-type failures are closed.
+- [x] Real-service tests cover email verification success, single-use verification, expired verification, password reset success, single-use reset, expired reset, and resend state updates.
+- [x] `claim_code` target account is resolved from `channel_identity` at redemption, not issuance.
+- [x] `claim_code` channel redemption writes `consumed_at`, `delivery_state`, `target_account_id`, and `updated_at` in one repository save.
+- [x] Channel-side `claim_code` redemption never returns a web session token; only the original browser session can complete the claim and receive the authenticated web session.
+- [x] Wrong-browser, unknown-sender, expired, consumed, and wrong-type claim artifacts fail closed with `IdentityAccessError`.
+- [x] Wrong-browser claim polling and completion attempts do not consume or complete the artifact before the original browser finishes.
+- [x] `pairing_code` issuance is allowed only for `web_first` accounts.
+- [x] `pairing_code` issuance calls `check_access_for_action(account_id, "connect_channel")` and fails closed with an access-denied fact when email verification, subscription, or suspension blocks channel connection.
+- [x] `pairing_code` redemption validates the artifact without consuming it, calls `check_access_for_action(account_id, "connect_channel")`, and fails closed before `channel_identity` creation when access is denied.
+- [x] `pairing_code` binds the sender identity to the issuing web-first account instead of auto-provisioning.
+- [x] Auth and claim route adapters map `IdentityAccessError` to JSON error facts and do not render prose.
+- [x] Channel identity anchor protection is exposed for ChannelReachability and no `channel`, `delivery_route`, or `delivery_attempt` lifecycle behavior is implemented.
+- [x] The implementation is split into a domain-service commit and a route/app commit before final verification.
+- [x] `zsh scripts/verify-surface clean-rebuild-backend`, `zsh scripts/check`, and `git diff --check` passed with fresh output.
