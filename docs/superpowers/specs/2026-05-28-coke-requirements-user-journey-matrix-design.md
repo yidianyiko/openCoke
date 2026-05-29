@@ -1,1156 +1,1226 @@
-# Coke 需求与用户旅程矩阵草案
+# Coke Requirements and User Journey Matrix Draft
 
-Status: draft
-Created: 2026-05-28
-Scope: 当前产品：个人监督陪伴、好友系统、共享提醒、Product notification、账号/数据生命周期
+Status: draft  
+Created: 2026-05-28  
+Updated: 2026-05-29 (proactive undelivered = discard; shared-reminder receiver channel precondition; WhatsApp sender-identity binding; cross-surface account identity linking §5.13; friendship requires channel on both sides; recurring-window timezone pinning; downtime catch-up; out-of-scope notes)  
+Scope: Current product: personal accountability companionship, friend system, shared reminders, Product notifications, account/data lifecycle
 
-## 0. 使用边界
+## 0. Usage Boundaries
 
-本草案是 Coke 当前产品的顶层需求与用户旅程矩阵，用来定义系统必须支持的用户旅程、功能和子功能。
+This draft is the top-level requirements and user journey matrix for the current Coke product. It is used to define the user journeys, features, and sub-features that the system must support.
 
-本文只记录产品需求、用户旅程、系统必须支持的能力和当前需求取舍；不在需求文档中引用代码、文档、文件路径或行号。实现依据、代码定位和重构方案不进入本文。架构重构设计与重构优先级在 clean-rebuild 目标架构设计 spec（2026-05-28-coke-clean-rebuild-target-architecture-design.md）中维护，不在本文。
+This document only records product requirements, user journeys, capabilities the system must support, and current requirement trade-offs. It does not reference code, documents, file paths, or line numbers in the requirements document. Implementation basis, code locations, and refactoring plans are not included here. Architecture refactoring design and refactoring priorities are maintained in the clean-rebuild target architecture design spec (`2026-05-28-coke-clean-rebuild-target-architecture-design.md`) and are not included in this document.
 
-关键前提：
+Key premises:
 
-- Coke 目前不需要保留历史生产数据。
-- 没有真实投入生产的环境约束。
-- 破坏性重构可以接受。
-- 不为了兼容旧数据、旧协议、旧 runtime shape 设计复杂迁移。
-- 系统实现必须服务明确用户需求和用户旅程，而不是为了抽象漂亮。
+- Coke currently does not need to retain historical production data.
+- There are no real production-environment constraints.
+- Destructive refactoring is acceptable.
+- Do not design complex migrations for compatibility with old data, old protocols, or old runtime shapes.
+- System implementation must serve clear user requirements and user journeys, rather than abstraction for abstraction's sake.
 
-## 1. 产品范围
+## 1. Product Scope
 
-本需求矩阵约束 Coke 当前产品，不再按阶段标签弱化或推迟已确认能力。
+This requirements matrix constrains the current Coke product. Confirmed capabilities are no longer weakened or deferred by phase labels.
 
-当前产品目标：
+Current product goals:
 
-- 帮助个人用户维持目标、习惯、任务和提醒。
-- 通过日常对话、个人提醒、主动 follow-up reminder 和个人 channel 触达，形成持续监督陪伴关系。
-- 通过好友系统和共享提醒支持人与人之间的监督协作。
-- 通过 informational Product notification 告知好友关系、共享提醒和系统事件的结果与错误信息。
-- 以用户全局时区解释和展示提醒、日历和好友可用性。
-- 让用户能在自己的通信 channel 中自然使用 Coke，而不是为了使用系统进入复杂后台。
-- 保留必要的账号访问状态、公开说明、FAQ、演示、隐私和条款页面，作为用户进入、理解和合规支撑；这些支撑面不作为核心监督用户价值。
+- Help individual users maintain goals, habits, tasks, and reminders.
+- Build a continuous accountability-companionship relationship through daily conversations, personal reminders, proactive follow-up reminders, and personal-channel reachability.
+- Support interpersonal accountability collaboration through the friend system and shared reminders.
+- Use informational Product notifications to inform users of the results and error information for friendships, shared reminders, and system events.
+- Interpret and display reminders, calendars, and friend availability according to the user's global timezone.
+- Let users use Coke naturally inside their own communication channels, instead of forcing them into a complex admin backend.
+- Retain necessary account access status, public explanation, FAQ, demo, privacy, and terms pages as support surfaces for user entry, understanding, and compliance. These support surfaces are not the core accountability user value.
 
-当前产品用户：
+Current product users:
 
-- 个人 Coke 用户。
+- Individual Coke users.
 
-当前系统边界中的非产品用户参与方：
+Non-product user participants within the current system boundary:
 
-- Channel provider / shared channel。WhatsApp 入口当前由 shared WhatsApp channel 承载；Evolution、Linq、Ecloud 依赖 provider-backed/shared channel 边界完成 inbound、用户/route 绑定和 outbound delivery；这不是独立产品旅程。
+- Channel provider / shared channel. The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries to complete inbound handling, user/route binding, and outbound delivery. This is not an independent product journey.
 
-已确认不作为当前产品需求：
+Confirmed as not part of current product requirements:
 
-- 为旧数据、旧协议、旧 runtime shape 做复杂迁移。
+- Complex migrations for old data, old protocols, or old runtime shapes.
 
-首次使用口径：
+First-use definition:
 
-- Onboarding 完成口径：注册/登录完成、至少一个可用 personal channel 已连接、用户通过该 channel 发出一条消息且系统成功接收。
-- Onboarding 指用户从未完成到完成首次激活的产品旅程；assistant 可以发送首次引导，但 onboarding 完成不要求创建首个 reminder 或完成 agent 设置。
-- 已经实现的功能默认不因为当前不是核心就移除；只有当能力明确造成维护负担、误导产品合同、阻碍当前产品合同清晰，或用户确认不再需要时，才进入删除讨论。
+- Onboarding completion definition: registration/login is complete; at least one usable personal channel is connected; the user has sent one message through that channel and the system has successfully received it.
+- Onboarding refers to the product journey from never activated to first activation complete. The assistant may send first-use guidance, but onboarding completion does not require creating the first reminder or completing agent settings.
+- Features that have already been implemented are not removed by default simply because they are not currently core. A capability only enters deletion discussion when it clearly creates maintenance burden, misleads the product contract, obstructs clarity of the current product contract, or the user confirms it is no longer needed.
 
-## 2. 当前用户旅程矩阵
+## 2. Current User Journey Matrix
 
-| # | 产品角色 | 用户类型 | 触发入口 | 用户目标 | 系统必须成立的行为 | 状态 |
+| # | Product Role | User Type | Trigger Entry | User Goal | System Behavior That Must Hold | Status |
 |---|---|---|---|---|---|---|
-| 1 | 支撑旅程：注册登录 | 个人用户 | 注册页、登录页、邮箱验证页、账号访问状态页、公开说明页 | 创建账号、登录、建立会话；在账号不可用或需要验证时知道下一步 | 支持注册、登录、邮箱验证、重发验证邮件、忘记/重置密码、当前用户查询、会话/token；支持向用户展示邮箱验证、订阅/访问状态、账号暂停或阻塞原因，并给出下一步；公开说明、FAQ、演示、隐私、条款页面可作为产品理解和合规支撑 | 已确认保留 |
-| 2 | 支撑旅程：首次激活 | 个人用户 | 注册/登录后、channel 连接完成后、首次 personal channel inbound message | 完成第一次可用激活，确认账号、channel 和首条消息路径都成立 | Onboarding 完成必须同时满足：注册/登录完成、至少一个可用 personal channel 已连接、用户通过该 channel 发出一条消息且系统成功接收；不要求用户创建首个 reminder 或完成 agent 设置；assistant 可以提供首次引导，但完成口径以产品路径事实为准 | 当前产品合同 |
-| 3 | 支撑旅程：个人 channel 可达性 | 个人用户 | channel 管理页、personal channel 页 | 在 personal WeChat 或 shared WhatsApp channel 上建立一个个人通信入口，让日常对话、提醒和主动 follow-up 可达 | 当前只支持个人用户在 personal WeChat 或 shared WhatsApp channel 中拥有一个可达 channel；支持查看 channel 状态、选择 channel 类型、创建 channel、发起连接、轮询连接状态、移除 channel、失败后重试或重新链接。Personal WeChat 可以是独立 personal lifecycle；WhatsApp 入口当前由 shared WhatsApp channel 承载，Evolution、Linq、Ecloud 依赖 provider-backed/shared channel 边界，但用户可见上仍是自己的对话入口。移除后该 channel 不再可用，但不影响用户账号和历史提醒归属。提醒和主动触达走用户当前唯一已连接的 personal channel；当前只允许链接一个 personal channel | 已确认保留 |
-| 4 | 核心旅程：日常对话 | 个人用户 | personal WeChat 或 shared WhatsApp channel inbound message | 和 assistant 日常对话；当前支持 channel 可承载的多模态输入；需要回复时获得文字回复；系统明确 no-reply 时不收到消息；处理慢时收到等待提示并稍后收到最终文字回复 | inbound message 必须绑定可信 account/customer context；系统执行 single-Agent turn；shared WhatsApp channel inbound 必须先完成标准化和用户/route 绑定；系统必须判断消息是否需要回应：需要回应则文字回复，系统明确 intentional no-reply 则不发送任何用户可见消息，处理超时但仍在处理则发送可见等待文字并最终异步文字回复，处理失败则错误/失败可观测；当前输出合同只要求文字回复，不要求语音、图片或视频回复；intentional no-reply 必须区别于系统失败 | 已确认核心 |
-| 5 | 核心旅程：用户时区 | 个人用户 | agent 设置页、提醒日历页、对话中的时区表达 | 让所有提醒、日历展示和好友可用性按同一个个人时区理解 | 用户只有一个全局默认时区；可在设置页查看/修改，也可通过对话整体切换；不支持给单条 reminder 设置独立时区；用户提到另一个时区时应按整体时区切换或确认切换来解释；已存在 reminder 的绝对触发时刻不因时区切换被静默改写，只按新时区展示 | 当前产品合同 |
-| 6 | 核心旅程：个人提醒 | 个人用户 | 对话中的 reminder intent，提醒日历页，或主动 follow-up 场景 | 创建、查看、编辑、完成、删除个人提醒；在到点时收到提醒；对没有触发时间的 reminder 获得安排时间询问；接收符合系统频率约束的主动 follow-up reminder | 提醒必须 owner-scoped；支持自然语言和页面创建、查看、编辑、完成、删除；提醒页面是日历页面，用来展示用户可直接管理的 reminder；共享 reminder 也出现在提醒日历页并展示关联好友标识，但直接编辑遵守共享提醒边界；支持相对时间、具体时间、全局时区、重复规则和可设置 duration（默认 15 分钟）；支持无触发时间 reminder；禁止创建完全相同的可行动个人 reminder；主动 follow-up 是一种特殊类型 reminder，但不显示在提醒日历页，也不允许用户直接修改；用户关闭 proactive 时一并取消未触发的主动 follow-up reminder；到点后进入 Interaction LLM，由 LLM 知道这是系统提醒，并用符合角色语气的文字提醒告知用户；每天晚上 8 点汇总无触发时间 reminder，询问用户是否要安排触发时间；重复提醒触发或完成本次后推进下一次有效触发，删除重复提醒删除整个系列 | 已确认核心 |
-| 7 | 核心旅程：好友关系 | 个人用户 | 好友页、公开好友链接、二维码、对话中的好友链接码 | 生成自己的好友链接；别人扫码或打开后登录/注册并建立好友关系；管理好友列表 | 好友链接可打开；未登录访问者可先进入登录/注册承接；登录用户可通过 link session 或对话中的好友链接码建立 active friendship；同一对用户不重复创建 active friendship；用户可 reset/disable link、查看和移除好友；pending friend request accept/reject 不作为当前需求 | 当前产品合同 |
-| 8 | 核心旅程：共享提醒 | 个人用户 + 一个或多个好友 | 对话中的 social scheduling intent、好友可用性查询、提醒日历页、共享提醒列表/取消入口 | 给一个或多个好友创建同一个共享提醒，查看或取消共享提醒；在约时间前查看一个或多个好友可用时间 | 必须存在 active friendship；每个好友指代必须能解析到唯一 active friend；可查询隐私安全的一个或多个好友可用性；共享提醒创建前检查每个 receiver conflict；任一 receiver 冲突时不静默部分创建；通过检查后创建一个 group shared reminder；creator 和所有 receivers 到点后都应各自收到自己的关联提醒；共享 reminder 出现在提醒日历页并展示关联好友标识；用户处理完成只处理自己这一侧的 projection；任一参与者可取消整个 group；通知是 informational；禁止创建完全相同的 active shared reminder；pending accept/reject 不作为当前需求 | 当前产品合同 |
-| 9 | 支撑旅程：Product notification | 个人用户 + 好友 | 好友关系建立、共享提醒创建/取消、系统事件或错误事件 | 收到事实清楚、可理解的信息通知，知道发生了什么以及失败时下一步是什么 | 只发送 informational 和 system notification，不做审批或行动执行；必须覆盖好友关系创建、共享提醒创建、共享提醒取消、关联错误/失败/部分失败/未送达/冲突/取消失败；通知事实至少包含谁、做了什么、对象、时间/时区/duration；有错误时必须包含用户可理解错误信息，不能暴露 raw provider error 或内部错误码；最终可见文字由 Interaction LLM 基于结构化事实和错误事实生成 | 当前产品合同 |
-| 10 | 支撑旅程：日历导入 | 个人用户 | 日历导入页，或 assistant 给出的 handoff link | 把 Google Calendar 一次性导入 Coke 提醒，并可停止后续 Google Calendar 授权 | 导入前确认 account/conversation ready；用户授权日历访问；系统拉取 calendar events；未来事件转为 Coke-owned reminders；event 标题和描述进入 reminder 内容，event 开始时间进入 reminder 触发时间，event duration 进入 reminder duration（event 无 duration 时按默认 15 分钟）；全天 event 导入为该日期 0 点触发的 reminder；recurring event 优先导入为 Coke recurring reminder；无法可靠表达为当前重复规则时，导入为未来可见 occurrence 对应的一次性 reminders，并在导入结果中说明；同一个 calendar event 重复导入时直接跳过，不生成重复 reminder，不需要用户确认；历史事件不生成 reminder；导入完成后向用户反馈成功导入数、跳过数、降级项和失败项；用户可以停止或撤销 Google Calendar 授权，撤销只影响未来导入，不删除已导入的 Coke-owned reminders；当前只确认一次性导入，不引入持续 sync | 已确认保留；一次性导入 |
-| 11 | 支撑旅程：agent 设置 | 个人用户 | agent 设置页 | 设置自己的 assistant 名称、称呼、persona、背景、说话风格、额外规则、proactive 开关和 memory 开关，并查看 channel 连接状态 | 设置必须 customer-scoped；支持查看、更新、重置；用户可以配置 assistant 的用户可见表现和长期偏好；关闭 proactive 后不再创建新的主动 follow-up reminder，并取消未触发的主动 follow-up reminder；关闭 proactive 不影响普通个人 reminder、无触发时间汇总、日常对话回复或 Product notification；关闭 memory 后不再使用、新增或更新长期记忆，但不删除既有长期记忆；重新打开 memory 后可继续使用仍存在的长期记忆；当前不支持用户自助清除长期记忆 | 已确认保留；字段级范围已确认 |
-| 12 | 支撑旅程：账号/数据生命周期 | 个人用户 | channel 管理页、提醒日历页、好友页、agent 设置页、日历导入页 | 理解自己能移除哪些连接、数据和关系，以及哪些账号级动作暂不支持 | 当前支持移除 personal channel、删除/完成个人 reminders、取消 shared reminders、移除好友、关闭 memory 使用、停止或撤销 Google Calendar 授权；这些动作不删除账号本身；当前不支持用户自助删除账号、完整账号导出、完整擦除或清除长期记忆 | 当前产品合同 |
-| 13 | 支撑能力：provider-backed/shared channel 接入 | 个人用户；channel provider 边界 | provider webhook、shared WhatsApp channel、Evolution、Linq、Ecloud inbound/outbound | 让依赖 provider/shared channel 的个人会话入口可以进入 Coke 对话、提醒和主动 follow-up 送达 | provider/shared channel inbound 必须标准化；首次 inbound 或连接完成时必须能绑定可信 Coke user/customer 和送达 route；outbound 必须按 provider/shared channel 送达；provider 错误必须能映射到用户可理解的 channel 状态和恢复动作；该能力支撑个人 channel 可达性，不作为独立产品旅程 | 已确认保留；shared WhatsApp channel、Evolution、Linq、Ecloud 依赖 |
+| 1 | Support journey: registration/login | Individual user | Registration page, login page, email verification page, account access status page, public explanation page | Create an account, log in, establish a session; know the next step when the account is unavailable or verification is required | Support registration, login, email verification, resending verification emails, forgot/reset password, current user query, session/token; support showing users email verification, subscription/access status, account suspension or blocking reasons, and the next step; public explanation, FAQ, demo, privacy, and terms pages may serve as product understanding and compliance support | Confirmed to retain |
+| 2 | Support journey: first activation | Individual user | After registration/login, after channel connection completes, first personal-channel inbound message | Complete the first usable activation and confirm that account, channel, and first-message paths all work | Onboarding completion must satisfy all of the following: registration/login complete; at least one usable personal channel connected; the user sends one message through that channel and the system successfully receives it. The user is not required to create the first reminder or complete agent settings. The assistant may provide first-use guidance, but the completion definition is based on product-path facts | Current product contract |
+| 3 | Support journey: personal channel reachability | Individual user | Channel management page, personal channel page | Establish a personal communication entry point on personal WeChat or a shared WhatsApp channel, so daily conversations, reminders, and proactive follow-ups are reachable | Currently only supports an individual user having one reachable channel in personal WeChat or a shared WhatsApp channel; supports viewing channel status, selecting channel type, creating a channel, initiating connection, polling connection status, removing a channel, retrying or relinking after failure. Personal WeChat may have an independent personal lifecycle. The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries, but from the user's view it is still their own conversation entry point. After removal, that channel is no longer usable, but the user's account and historical reminder ownership are unaffected. Reminders and proactive reach-outs use the user's current only connected personal channel. Currently only one personal channel may be linked | Confirmed to retain |
+| 4 | Core journey: daily conversation | Individual user | Personal WeChat or shared WhatsApp channel inbound message | Have daily conversations with the assistant; currently support multimodal input that the channel can carry; receive a text reply when a reply is needed; receive no message when the system explicitly decides no-reply; receive a waiting message when processing is slow, then later receive the final text reply | Inbound messages must be bound to a trusted account/customer context. The system executes a single-Agent turn. Shared WhatsApp channel inbound messages must first be standardized and bound to user/route. The system must decide whether the message needs a response: if a response is needed, send a text reply; if the system explicitly produces intentional no-reply, do not send any user-visible message; if processing times out but is still ongoing, send a visible waiting text and eventually an asynchronous final text reply; if processing fails, the error/failure must be observable. Current output contract only requires text replies and does not require voice, image, or video replies. Intentional no-reply must be distinguished from system failure | Confirmed core |
+| 5 | Core journey: user timezone | Individual user | Agent settings page, reminder calendar page, timezone expressions in conversation | Let all reminders, calendar displays, and friend availability be interpreted according to the same personal timezone | A user has only one global default timezone. It can be viewed/modified in the settings page and can also be switched globally through conversation. Independent timezone per reminder is not supported. When the user mentions another timezone, the system should interpret it as an overall timezone switch or confirm the switch. Existing reminders' absolute trigger moments must not be silently rewritten because of a timezone switch; they are only displayed in the new timezone | Current product contract |
+| 6 | Core journey: personal reminders | Individual user | Reminder intent in conversation, reminder calendar page, or proactive follow-up scenario | Create, view, edit, complete, and delete personal reminders; receive reminders when due; be asked to schedule reminders that have no trigger time; receive proactive follow-up reminders that comply with system frequency constraints | Reminders must be owner-scoped. Support natural-language and page-based create, view, edit, complete, and delete. The reminders page is a calendar page used to display reminders that the user can directly manage. Shared reminders also appear on the reminder calendar page and show related friend identifiers, but direct editing follows shared-reminder boundaries. Support relative time, specific time, global timezone, recurrence rules, and configurable duration (default 15 minutes). Support reminders without trigger times. Forbid creating completely identical actionable personal reminders. Proactive follow-up is a special reminder type, but it is not shown on the reminder calendar page and cannot be directly modified by the user. When the user turns off proactive, all untriggered proactive follow-up reminders are canceled as well. When due, the reminder enters the Interaction LLM; the LLM knows this is a system reminder and uses text in the role's tone to notify the user. Every night at 8 PM, summarize reminders without trigger times and ask the user whether to schedule trigger times. After a recurring reminder triggers or this occurrence is completed, advance it to the next valid trigger. Deleting a recurring reminder deletes the entire series | Confirmed core |
+| 7 | Core journey: friendship | Individual user | Friends page, public friend link, QR code, friend link code in conversation | Generate one's own friend link; let others log in/register after scanning or opening it and establish friendship; manage friend list | Friend links must be openable. Unauthenticated visitors can first be carried into login/registration. Only users who have connected a usable personal channel may issue a friend link or link code. Establishing active friendship also requires the joining user to have registered and connected a usable personal channel, so both friends always have a usable channel at establishment time. Logged-in users can establish active friendship through a link session or a friend link code in conversation. The same pair of users must not create duplicate active friendships. Users can reset/disable links, view friends, and remove friends. Pending friend request accept/reject is not a current requirement | Current product contract |
+| 8 | Core journey: shared reminders | Individual user + one or more friends | Social scheduling intent in conversation, friend availability query, reminder calendar page, shared reminder list/cancel entry | Create the same shared reminder for one or more friends, view or cancel shared reminders, and check one or more friends' availability before scheduling | Active friendship must exist. Each friend reference must resolve to a unique active friend. Support privacy-safe availability queries for one or more friends. Before creating a shared reminder, check each receiver for conflicts and confirm each receiver has a usable personal channel. If any receiver has a conflict or no usable channel, do not silently create a partial reminder; report the conflicting or unreachable receiver to the creator. After checks pass, create one group shared reminder. Creator and all receivers should each receive their own associated reminder when due. Shared reminders appear on the reminder calendar page and show related friend identifiers. A user's completion action only handles that user's own projection. Any participant may cancel the whole group. Notifications are informational. Forbid creating completely identical active shared reminders. Pending accept/reject is not a current requirement | Current product contract |
+| 9 | Support journey: Product notification | Individual user + friends | Friendship creation, shared reminder creation/cancellation, system events or error events | Receive factually clear and understandable informational notifications; know what happened and what to do next when there is a failure | Only send informational and system notifications; do not use notifications for approval or action execution. Must cover friendship creation, shared reminder creation, shared reminder cancellation, related errors/failures/partial failures/undelivered/conflict/cancellation failure. Notification facts must include at least who, did what, object, time/timezone/duration. Errors must include user-understandable error information and must not expose raw provider errors or internal error codes. Final visible text is generated by the Interaction LLM based on structured facts and error facts | Current product contract |
+| 10 | Support journey: calendar import | Individual user | Calendar import page, or handoff link given by assistant | Import Google Calendar into Coke reminders one time, and stop future Google Calendar authorization if needed | Confirm account/conversation ready before import. User authorizes calendar access. System fetches calendar events. Future events are converted into Coke-owned reminders. Event title and description become reminder content, event start time becomes reminder trigger time, event duration becomes reminder duration (use default 15 minutes when the event has no duration). All-day events are imported as reminders triggered at 00:00 on that date. Recurring events are preferably imported as Coke recurring reminders. When a recurring event cannot be reliably expressed using current recurrence rules, import it as one-time reminders for visible future occurrences and explain this in the import result. When the same calendar event is imported repeatedly, skip it directly without generating duplicate reminders and without requiring user confirmation. Historical events do not generate reminders. After import completion, report successfully imported count, skipped count, downgraded items, and failed items. The user may stop or revoke Google Calendar authorization. Revocation only affects future imports and does not delete imported Coke-owned reminders. Currently only one-time import is confirmed; continuous sync is not introduced | Confirmed to retain; one-time import |
+| 11 | Support journey: agent settings | Individual user | Agent settings page | Set the assistant name, how the assistant addresses the user, persona, background, speaking style, extra rules, proactive switch, and memory switch; view channel connection status | Settings must be customer-scoped. Support view, update, and reset. Users can configure the assistant's user-visible behavior and long-term preferences. After proactive is turned off, the system no longer creates new proactive follow-up reminders and cancels untriggered proactive follow-up reminders. Turning off proactive does not affect ordinary personal reminders, reminders-without-trigger-time summaries, daily conversation replies, or Product notifications. After memory is turned off, the system no longer uses, adds, or updates long-term memory, but does not delete existing long-term memory. After memory is turned back on, existing long-term memory can continue to be used. User self-service clearing of long-term memory is currently not supported | Confirmed to retain; field-level scope confirmed |
+| 12 | Support journey: account/data lifecycle | Individual user | Channel management page, reminder calendar page, friends page, agent settings page, calendar import page | Understand which connections, data, and relationships the user can remove, and which account-level actions are not yet supported | Currently supports removing a personal channel, deleting/completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization. These actions do not delete the account itself. User self-service account deletion, full account export, full erasure, and clearing long-term memory are not currently supported | Current product contract |
+| 13 | Supporting capability: provider-backed/shared channel integration | Individual user; channel provider boundary | Provider webhook, shared WhatsApp channel, Evolution, Linq, Ecloud inbound/outbound | Let personal conversation entry points that depend on provider/shared channels enter Coke conversations, reminders, and proactive follow-up delivery | Provider/shared channel inbound must be standardized. On first inbound or connection completion, it must be able to bind to a trusted Coke user/customer and delivery route. For the shared WhatsApp channel, binding is by sender identity: the channel exposes a single outbound account, and the system routes by each sender's own WhatsApp identity — a known sender routes to its existing Coke user, and a first-seen sender provisions a new Coke user bound to that identity. Outbound must be delivered through the provider/shared channel. Provider errors must be mappable to user-understandable channel status and recovery actions. This capability supports personal channel reachability and is not an independent product journey | Confirmed to retain; shared WhatsApp channel, Evolution, Linq, and Ecloud depend on it |
+| 14 | Support journey: account identity and cross-surface linking | Individual user | Shared WhatsApp first contact; web registration/login; account linking entry in conversation or web | Make sure one human maps to one Coke user across WhatsApp and web, and link separate accounts when both surfaces were used independently | A WhatsApp-provisioned user is a first-class Coke user and may be upgraded in place with login credentials without creating a second user. Separate web-registered and WhatsApp-provisioned accounts for the same human can be linked into one Coke user only via explicit proof — a one-time linking code passed between the web session and the WhatsApp conversation. The system must never merge accounts by guessed identity. After linking, reminders, friendships, shared reminders, long-term memory, and settings unify under one account; the single-personal-channel limit is resolved by keeping exactly one usable channel; duplicate-friendship and duplicate-reminder invariants are re-enforced | Current product contract |
 
-## 3. 当前需求清单
+## 3. Current Requirements List
 
-本节把矩阵中的用户旅程归并为当前需求项；同一需求项可能服务多个旅程。
+This section consolidates the user journeys in the matrix into current requirement items. A single requirement item may serve multiple journeys.
 
-| 当前需求项 | 归属旅程 | 当前需求表述 |
+| Current Requirement Item | Related Journey | Current Requirement Statement |
 |---|---|---|
-| 账号访问状态与公开说明 | 注册登录；channel 可达性；日历导入 | 系统可以向用户展示账号访问状态、邮箱验证、订阅/访问状态、账号暂停或阻塞原因，并把用户引导到下一步；公开说明、FAQ、演示、隐私和条款页面可保留为产品理解和合规支撑。subscription/access status 是当前需求项。 |
-| 首次激活 | 注册登录；channel 可达性；日常对话 | Onboarding 完成必须同时满足：用户完成注册/登录、至少一个可用 personal channel 已连接、用户通过该 channel 发出一条消息且系统成功接收。assistant 可以发送首次引导，但完成 onboarding 不要求用户创建首个 reminder、完成 agent 设置或走完固定教程。 |
-| 用户时区 | 用户时区；个人提醒；共享提醒；日历导入；agent 设置 | 用户只有一个全局默认时区；可在设置页查看和修改，也可通过对话整体切换。提醒创建、编辑、展示、提醒日历页、无触发时间汇总、好友可用性和共享提醒都使用该全局时区。不支持单条 reminder 独立时区。用户提到另一个时区时，系统应按整体时区切换或确认切换处理；已存在 reminder 的绝对触发时刻不因时区切换被静默改写，只按新时区展示。 |
-| 消息接收与标准化入队 | 日常对话；channel 可达性；provider-backed/shared channel 接入 | 系统必须接收 personal WeChat 或 shared WhatsApp channel inbound，把消息绑定到可信 Coke account/customer context，并写入 worker 可消费的 input message。inbound 可以包含文本、图片、语音等 channel 可承载的多模态内容；顶层需求要求系统能接收并归一到可处理输入，不要求输出媒体内容。 |
-| 消息发送与 outbound delivery | 日常对话；个人提醒；共享提醒；provider-backed/shared channel 接入 | 系统必须把可见回复、提醒触发、主动 follow-up 推送到用户当前已连接的唯一 personal channel。当前个人用户只能在 personal WeChat 或 shared WhatsApp channel 中拥有一个可达 channel。文字回复是当前产品输出合同；media URL delivery 是通道能力，不等于要求 AI 生成媒体回复。提醒触发后如果用户没有可用 channel 或发送失败，不能视为成功送达。 |
-| 消息打断、会话锁、rollback | 日常对话；个人提醒 | 同一 conversation 的处理必须有锁；新消息/rollback 场景不能把旧 turn 的上下文继续当作最新用户意图；已发送 partial reply 要进入历史，避免重复回复。 |
-| 对话生成与分段可见输出 | 日常对话 | Interaction Agent 必须输出用户可见文字回复；当前可按 1-3 段输出。需要回复时，文字回复必须经 outbound delivery 送达。 |
-| 回复必要性判断与 intentional no-reply | 日常对话 | 日常对话不是每条消息都必须回复。系统必须判断用户消息是否需要回应：需要回应则文字回复；系统明确产生 intentional no-reply 时不发送任何用户可见消息；处理超时但仍在处理时发送可见等待文字，并在完成后发送最终异步文字回复；处理失败则错误/失败可观测。intentional no-reply 必须区别于系统失败、空输出异常、工具兜底失败。 |
-| 对话历史与用户记忆 | 日常对话；agent 设置；个性化支撑 | 系统必须维护必要的近期对话历史、用户偏好、关系描述、边界感和打扰意愿，让后续对话、提醒和主动 follow-up 理解前后文。长期记忆受 memory 开关控制；关闭 memory 后不再使用、新增或更新长期记忆，但不删除既有记忆；重新打开 memory 后可继续使用仍存在的长期记忆。当前不支持用户自助清除长期记忆。 |
-| 提醒识别与个人提醒 CRUD | 个人提醒 | 用户可通过自然语言或提醒日历页创建、查看、编辑、完成、删除个人提醒；提醒日历页以日历为主视图展示 reminder；系统需理解相对时间、具体时间、全局时区、重复规则和可设置 duration（默认 15 分钟），并保持 owner-scoped；支持无触发时间 reminder；支持一条消息中的批量 reminder 操作；禁止创建完全相同的可行动个人 reminder：同一 owner、同一事项/内容、同一触发时间，或同一 owner、同一事项/内容且双方都无触发时间；duration、创建入口和表达方式不进入重复定义；相似但不完全相同不硬拒绝；完成重复提醒只完成本次，删除重复提醒删除整个系列；创建、编辑、完成、删除后应给用户文字确认。 |
-| 提醒触发与周期提醒 | 个人提醒；共享提醒触达 | 到点提醒必须形成 reminder trigger event 并进入 Interaction LLM；LLM 必须知道这是系统提醒，并用符合角色语气的文字提醒告知用户。重复提醒触发或完成本次后推进下一次有效触发；同一 owner 同一触发时间的多个 reminder 在提醒时合并成一次提醒告知，但每条 reminder 及其事件仍保持独立；无可用 channel 或发送失败时必须保留可观测未送达状态。 |
-| 无触发时间 reminder 汇总询问 | 个人提醒 | 对没有触发时间的 reminder，系统每天晚上 8 点汇总仍未安排时间的 reminder，通过 Interaction LLM 询问用户是否要为这些 reminder 安排触发时间。 |
-| 主动 follow-up reminder | 个人提醒；channel 可达性；日常对话；agent 设置 | 主动 follow-up 是一种特殊类型 reminder，用于 assistant 基于用户目标、习惯、任务或上下文主动关心用户；不显示在提醒日历页，不允许用户直接修改；用户/agent 设置可关闭 proactive，关闭时不再创建新的主动 follow-up reminder，并一并取消未触发的主动 follow-up reminder；重新打开 proactive 后只影响未来是否可以创建新的主动 follow-up reminder，不恢复之前已取消的 follow-up；频率必须受上下文和系统反骚扰规则限制，避免骚扰；当前不提供免打扰或通知偏好设置；触达、送达失败、未送达处理遵守个人提醒规则；顶层需求不限定具体规划算法。 |
-| Product notification | Product notification；好友关系；共享提醒；个人提醒触达；provider-backed/shared channel 接入 | 系统只发送 informational 和 system notification，不通过 notification 做审批或行动执行。必须覆盖好友关系创建、共享提醒创建、共享提醒取消、关联系统事件和错误事件；通知事实至少包含谁、做了什么、对象、时间/时区/duration。失败、部分失败、未送达、冲突或取消失败时，notification 必须包含用户可理解错误信息，例如对方 channel 不可用、这个时间和对方已有安排冲突、取消没有成功；不暴露 raw provider error、内部错误码、队列状态或底层 delivery attempt。最终可见文字由 Interaction LLM 基于结构化事实和错误事实生成。 |
-| 日历导入 | 日历导入；个人提醒；账号/数据生命周期 | 用户可以授权 Google Calendar，把未来 calendar events 一次性导入为 Coke reminders。导入生成的 reminder 归属当前个人用户；event 标题和描述进入 reminder 内容，event 开始时间进入触发时间，event duration 进入 reminder duration（event 无 duration 时按默认 15 分钟）。全天 event 导入为该日期 0 点触发的 reminder。recurring event 优先保留重复语义并导入为 Coke recurring reminder；无法可靠表达为当前重复规则时，导入为未来可见 occurrence 对应的一次性 reminders，并在导入结果中说明。同一个 calendar event 重复导入时直接跳过，不生成重复 reminder，不需要用户确认。历史事件不生成 reminder。导入完成后，系统必须向用户反馈成功导入数、跳过数、降级项和失败项。用户可以停止或撤销 Google Calendar 授权；撤销只影响未来导入，不删除已经导入的 Coke-owned reminders。当前只确认一次性导入，不要求持续 sync。 |
-| Agent settings 配置 | agent 设置；日常对话；个人提醒；主动 follow-up reminder | 用户可以查看、修改和重置自己的 assistant 名称、用户称呼、persona、背景信息、说话风格、额外规则、proactive 开关和 memory 开关，并查看 channel 连接状态。设置必须 customer-scoped。重置恢复默认设置。关闭 memory 后不再使用、新增或更新长期记忆，但不删除既有长期记忆；重新打开 memory 后可继续使用仍存在的长期记忆。当前不支持用户自助清除长期记忆。memory 开关不影响完成当前对话所需的近期上下文。 |
-| 用户资料、关系描述、角色目标/态度更新 | 日常对话；agent 设置；个性化支撑 | 系统可以更新用户真名/昵称/描述、关系描述、角色长期/短期目标和态度，作为个性化支撑；该项不包含数值化亲密度、信任度、反感度。 |
-| 好友关系 | 好友关系；共享提醒 | 用户可以生成、查看、重置和禁用自己的公开好友链接和二维码；访问好友链接的用户登录或注册后可以直接建立 active friendship；用户可以通过对话中的好友链接码建立 active friendship；用户可以查看好友列表和移除好友。同一对用户不重复创建 active friendship；不能和自己建立好友；pending friend request accept/reject 不作为当前需求。 |
-| 共享提醒 | 共享提醒；好友关系；个人提醒触达；Product notification | 用户可以给一个或多个 active friends 创建一个 group shared reminder、查看共享提醒、取消共享提醒，并在约时间前查询一个或多个好友可用性。创建共享提醒必须把每个 receiver 解析到唯一 active friend；缺少标题、时间或必要上下文时必须追问；创建前必须检查每个 receiver conflict；任一 receiver 冲突时，系统说明谁冲突、谁可用，并让 creator 调整时间或参与者，不能静默部分创建。通过检查后共享提醒立即 active，creator 和所有 receivers 都应在到点后各自收到自己的关联 projection。共享 reminder 出现在个人提醒日历页并展示关联好友标识。用户处理完成只处理自己这一侧的 projection，不自动替其他参与者完成；任一参与者可以取消整个 group；pending shared reminder accept/reject 不作为当前需求；通知只作为信息告知，不是审批。禁止创建完全相同的 active shared reminder：同一 creator、同一参与者集合、同一标题/活动内容、同一触发时间；duration 不进入重复定义。 |
-| 个人 channel/provider delivery | personal WeChat；shared WhatsApp channel；provider-backed/shared channel 接入 | 当前个人用户只允许在 personal WeChat 或 shared WhatsApp channel 中拥有一个可达 channel；provider-backed/shared channel 必须在用户可见上表现为该用户自己的对话入口。WhatsApp 入口当前由 shared WhatsApp channel 承载，Evolution、Linq、Ecloud 依赖 provider-backed/shared channel 边界。不是 legacy connector 原样保留。 |
-| 账号/数据生命周期 | 账号/数据生命周期；channel 可达性；个人提醒；共享提醒；好友关系；agent 设置；日历导入 | 当前支持移除 personal channel、删除或完成个人 reminders、取消 shared reminders、移除好友、关闭 memory 使用、停止或撤销 Google Calendar 授权。移除 channel 不删除账号和 reminders；删除/完成 reminders 不删除账号；取消 shared reminder 停止整个 group 的关联 projections；移除好友不自动取消既有 shared reminders；关闭 memory 不删除长期记忆；撤销 Google Calendar 授权不删除已导入的 Coke-owned reminders。当前不支持用户自助删除账号、完整账号导出、完整擦除或用户自助清除长期记忆。 |
-| 可用性与延迟目标 | 日常对话；个人提醒；提醒触发；Product notification；主动通知 | 当前核心旅程必须有明确可用性和延迟目标；具体 SLO 数值不在本文定义。 |
+| Account access status and public explanation | Registration/login; channel reachability; calendar import | The system can show the user account access status, email verification, subscription/access status, account suspension or blocking reasons, and guide the user to the next step. Public explanation, FAQ, demo, privacy, and terms pages may be retained as product understanding and compliance support. Subscription/access status is a current requirement item. |
+| First activation | Registration/login; channel reachability; daily conversation | Onboarding completion must satisfy all of the following: the user has completed registration/login, at least one usable personal channel is connected, and the user sends one message through that channel which the system successfully receives. The assistant may send first-use guidance, but onboarding completion does not require the user to create the first reminder, complete agent settings, or finish a fixed tutorial. |
+| User timezone | User timezone; personal reminders; shared reminders; calendar import; agent settings | A user has only one global default timezone. It can be viewed and modified in the settings page and can also be switched globally through conversation. Reminder creation, editing, display, reminder calendar page, reminders-without-trigger-time summary, friend availability, and shared reminders all use this global timezone. Independent timezone per reminder is not supported. When the user mentions another timezone, the system should treat it as an overall timezone switch or confirm the switch. Existing reminders' absolute trigger moments must not be silently rewritten because of timezone switching; they are only displayed in the new timezone. |
+| Message receiving and standardized enqueueing | Daily conversation; channel reachability; provider-backed/shared channel integration | The system must receive personal WeChat or shared WhatsApp channel inbound messages, bind the message to a trusted Coke account/customer context, and write it as an input message consumable by workers. For the shared WhatsApp channel, the channel exposes a single outbound account and messages are bound by each sender's own WhatsApp identity: a known sender identity routes to its existing Coke user, and a first-seen sender identity provisions a new Coke user. The sender's provider identity is the trust anchor, so this is identity-based binding, not identity guessing. Inbound can include text, images, voice, and other multimodal content that the channel can carry. The top-level requirement is that the system can receive and normalize the content into processable input; it does not require output media content. |
+| Message sending and outbound delivery | Daily conversation; personal reminders; shared reminders; provider-backed/shared channel integration | The system must push visible replies, reminder triggers, and proactive follow-ups to the user's current only connected personal channel. Currently an individual user can only have one reachable channel in personal WeChat or a shared WhatsApp channel. Text reply is the current product output contract. Media URL delivery is a channel capability, not a requirement that the AI generate media replies. After a reminder triggers, if the user has no usable channel or sending fails, it cannot be considered successfully delivered. |
+| Message interruption, conversation lock, rollback | Daily conversation; personal reminders | Processing for the same conversation must have a lock. In new-message/rollback scenarios, the context of an old turn must not continue to be treated as the latest user intent. Sent partial replies must enter history to avoid duplicate replies. |
+| Conversation generation and segmented visible output | Daily conversation | The Interaction Agent must output user-visible text replies. Currently output may be in 1-3 segments. When a reply is needed, the text reply must be delivered through outbound delivery. |
+| Reply necessity determination and intentional no-reply | Daily conversation | Daily conversations do not require a reply to every message. The system must determine whether the user's message needs a response: if a response is needed, send a text reply; if the system explicitly produces intentional no-reply, do not send any user-visible message; if processing times out but is still ongoing, send a visible waiting text and send the final asynchronous text reply after completion; if processing fails, the error/failure must be observable. Intentional no-reply must be distinguished from system failure, empty-output exception, and tool-fallback failure. |
+| Conversation history and user memory | Daily conversation; agent settings; personalization support | The system must maintain necessary recent conversation history, user preferences, relationship descriptions, boundaries, and disturbance willingness so later conversations, reminders, and proactive follow-ups understand context. Long-term memory is controlled by the memory switch. After memory is turned off, the system no longer uses, adds, or updates long-term memory, but does not delete existing memory. After memory is turned back on, existing long-term memory can continue to be used. User self-service clearing of long-term memory is currently not supported. |
+| Reminder recognition and personal reminder CRUD | Personal reminders | Users can create, view, edit, complete, and delete personal reminders through natural language or the reminder calendar page. The reminder calendar page uses a calendar as the main view to show reminders. The system must understand relative time, specific time, global timezone, recurrence rules, and configurable duration (default 15 minutes), while keeping reminders owner-scoped. Reminders without trigger times are supported. Multiple reminder operations in one message are supported. The system must forbid completely identical actionable personal reminders: same owner, same matter/content, same trigger time; or same owner, same matter/content where both have no trigger time. Duration, creation entry point, and expression style are not part of the duplication definition. Similar but not completely identical reminders are not hard rejected. Completing a recurring reminder only completes this occurrence; deleting a recurring reminder deletes the entire series. After creation, editing, completion, or deletion, the system should give the user a text confirmation. |
+| Reminder triggering and recurring reminders | Personal reminders; shared reminder reachability | Due reminders must form reminder trigger events and enter the Interaction LLM. The LLM must know this is a system reminder and use text in the role's tone to notify the user. After a recurring reminder triggers or this occurrence is completed, advance the next valid trigger. Multiple reminders for the same owner at the same trigger time are merged into one reminder message when reminding, but each reminder and its event remain independent. If there is no usable channel or sending fails, an observable undelivered status must be retained. |
+| Summary prompt for reminders without trigger times | Personal reminders | For reminders without trigger times, the system summarizes reminders still lacking scheduled times every night at 8 PM and asks the user through the Interaction LLM whether to schedule trigger times for these reminders. |
+| Proactive follow-up reminder | Personal reminders; channel reachability; daily conversation; agent settings | Proactive follow-up is a special type of reminder, used by the assistant to proactively care about the user based on the user's goals, habits, tasks, or context. It is not shown on the reminder calendar page and cannot be directly modified by the user. The user/agent settings can turn off proactive. When proactive is turned off, no new proactive follow-up reminders are created, and untriggered proactive follow-up reminders are canceled as well. Turning proactive back on only affects whether new proactive follow-up reminders can be created in the future; it does not restore previously canceled follow-ups. Frequency must be constrained by context and system anti-harassment rules to avoid disturbance. Do-not-disturb or notification preference settings are not currently provided. Proactive follow-up is user-invisible: when the channel is unavailable or sending fails, the follow-up expires and is discarded — it is not resent, does not enter undelivered handling, and is not shown on the reminder calendar page. The top-level requirement does not specify a concrete planning algorithm. |
+| Product notification | Product notification; friendship; shared reminders; personal reminder reachability; provider-backed/shared channel integration | The system only sends informational and system notifications, and does not use notifications for approval or action execution. It must cover friendship creation, shared reminder creation, shared reminder cancellation, related system events, and error events. Notification facts must include at least who, did what, object, time/timezone/duration. In failure, partial failure, undelivered, conflict, or cancellation failure scenarios, the notification must include user-understandable error information, such as the other party's channel being unavailable, the time conflicting with the other party's existing schedule, or cancellation not succeeding. It must not expose raw provider errors, internal error codes, queue status, or low-level delivery attempts. Final visible text is generated by the Interaction LLM based on structured facts and error facts. |
+| Calendar import | Calendar import; personal reminders; account/data lifecycle | Users can authorize Google Calendar and import future calendar events one time as Coke reminders. Imported reminders belong to the current individual user. Event title and description become reminder content, event start time becomes trigger time, and event duration becomes reminder duration (use default 15 minutes if the event has no duration). All-day events are imported as reminders triggered at 00:00 on that date. Recurring events are preferably imported as Coke recurring reminders. When a recurring event cannot be reliably expressed using current recurrence rules, import it as one-time reminders for visible future occurrences and explain this in the import result. When the same calendar event is imported repeatedly, skip it directly and do not generate duplicate reminders or require user confirmation. Historical events do not generate reminders. After import completion, the system must report successfully imported count, skipped count, downgraded items, and failed items. The user may stop or revoke Google Calendar authorization. Revocation only affects future imports and does not delete imported Coke-owned reminders. Currently only one-time import is confirmed; continuous sync is not required. |
+| Agent settings configuration | Agent settings; daily conversation; personal reminders; proactive follow-up reminder | Users can view, modify, and reset their assistant name, how the assistant addresses the user, persona, background information, speaking style, extra rules, proactive switch, and memory switch, and view channel connection status. Settings must be customer-scoped. Reset restores default settings. After memory is turned off, the system no longer uses, adds, or updates long-term memory, but does not delete existing long-term memory. After memory is turned back on, existing long-term memory can continue to be used. User self-service clearing of long-term memory is currently not supported. The memory switch does not affect recent context needed to complete the current conversation. |
+| User profile, relationship description, role goals/attitude updates | Daily conversation; agent settings; personalization support | The system can update the user's real name/nickname/description, relationship descriptions, and the role's long-term/short-term goals and attitude as personalization support. This item does not include numerical intimacy, trust, or dislike scores. |
+| Friendship | Friendship; shared reminders | Users can generate, view, reset, and disable their public friend links and QR codes. A user who visits a friend link can establish active friendship after login or registration and after connecting a usable personal channel. Only users who have connected a usable personal channel may issue friend links or link codes. Users can establish active friendship through a friend link code in conversation. Users can view their friend list and remove friends. The same pair of users must not create duplicate active friendship. Users cannot become friends with themselves. Pending friend request accept/reject is not a current requirement. |
+| Shared reminders | Shared reminders; friendship; personal reminder reachability; Product notification | Users can create one group shared reminder for one or more active friends, view shared reminders, cancel shared reminders, and check one or more friends' availability before scheduling. Creating a shared reminder must resolve each receiver to a unique active friend. If title, time, or necessary context is missing, the system must ask follow-up questions. Before creation, each receiver conflict must be checked and each receiver must resolve to a usable personal channel. If any receiver has a conflict or has no usable channel, the system explains who is conflicting or unreachable and who is available, and asks the creator to adjust time or participants; it must not silently create a partial reminder. After checks pass, the shared reminder immediately becomes active. Creator and all receivers should each receive their own associated projection when due. Shared reminders appear on the personal reminder calendar page and show related friend identifiers. A user's completion action only completes that user's own projection, and does not automatically complete for other participants. Any participant may cancel the whole group. Pending shared reminder accept/reject is not a current requirement. Notifications are informational only and not approval. Completely identical active shared reminders are forbidden: same creator, same participant set, same title/activity content, same trigger time. Duration is not part of the duplication definition. |
+| Personal channel/provider delivery | personal WeChat; shared WhatsApp channel; provider-backed/shared channel integration | Currently an individual user may have only one reachable channel in personal WeChat or a shared WhatsApp channel. A provider-backed/shared channel must appear to the user as that user's own conversation entry point. The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries. This is not legacy connector retention as-is. |
+| Account identity and cross-surface linking | Registration/login; channel reachability; daily conversation; account/data lifecycle | A Coke user may originate from web registration or from auto-provisioning on first shared-WhatsApp-channel contact. A WhatsApp-provisioned user can be upgraded in place with login credentials and must not spawn a second user. When the same human has both a web-registered and a WhatsApp-provisioned account, the system must support linking them into one Coke user via explicit proof — a one-time linking code passed between the web session and the WhatsApp conversation — never by guessed identity. After linking, reminders, friendships, shared reminders, long-term memory, and settings unify under the surviving account; the single-personal-channel limit is resolved by keeping one usable channel; duplicate-friendship and duplicate-reminder invariants are re-enforced. |
+| Account/data lifecycle | Account/data lifecycle; channel reachability; personal reminders; shared reminders; friendship; agent settings; calendar import | Currently supports removing a personal channel, deleting or completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization. Removing a channel does not delete the account or reminders. Deleting/completing reminders does not delete the account. Canceling a shared reminder stops all associated projections for the entire group. Removing a friend does not automatically cancel existing shared reminders. Turning off memory does not delete long-term memory. Revoking Google Calendar authorization does not delete imported Coke-owned reminders. User self-service account deletion, full account export, full erasure, and user self-service clearing of long-term memory are not currently supported. |
+| Availability and latency targets | Daily conversation; personal reminders; reminder triggering; Product notification; proactive notification | Current core journeys must have clear availability and latency targets. Specific SLO values are not defined in this document. |
 
-## 4. 明确不进入当前需求清单的能力
+## 4. Capabilities Explicitly Not Included in the Current Requirements List
 
-| 能力 | 当前结论 |
+| Capability | Current Conclusion |
 |---|---|
-| 语音回复、图片回复、视频回复 | 当前输出合同只要求文字回复；不要求 assistant 用语音、图片或视频回复用户。 |
-| 图片生成 | 暂不加入当前产品需求。 |
-| Memo runtime / memo cards / memo search / memo review queue / agent memo proposals | 明确不加入当前产品需求；当前只保留受 memory 开关控制的长期记忆能力，不定义用户可见 memo runtime。 |
-| 照片库、朋友圈、照片删除 | 暂不加入当前产品需求；若以后需要内容资产管理或社交展示，应作为新的用户旅程单独定义。 |
-| 数值化亲密度、信任度、反感度 | 不加入当前需求；只保留非数值化的用户偏好、关系描述、边界感、打扰意愿。 |
-| 关系衰减、反感拉黑 | 不加入当前需求。 |
-| 角色忙闲日程脚本 | 不加入当前需求。 |
-| 角色忙所以 hold 用户消息 | 不加入当前需求；当前产品优先保证用户求助、提醒、对话可达。主动触达频率由 proactive 系统行为约束，不引入用户可配置免打扰或通知偏好。 |
-| 单条 reminder 独立时区 | 不加入当前需求；当前只有用户全局默认时区，切换时区是整体切换。 |
-| 用户自助删除账号 / 完整账号导出 / 完整擦除 | 不加入当前需求；当前只定义移除 channel、删除/完成 reminders、取消 shared reminders、移除好友、停止 Google Calendar 授权等局部生命周期动作。 |
-| 用户自助清除长期记忆 | 不加入当前需求；memory 开关只控制是否使用、新增和更新长期记忆，不提供清除既有长期记忆入口。 |
-| 免打扰 / 通知偏好设置 | 不加入当前需求；当前只保留 proactive 开关，普通 reminders、shared reminders、system notifications 不受额外通知偏好控制。 |
-| QueryRewrite/ContextRetrieve 固定 agent 阶段 | 不作为用户可见需求或固定 agent 阶段；只保留“需要历史上下文和用户记忆”的产品需求。 |
-| legacy 聊天式硬编码管理指令 | 不加入当前需求；不因为 legacy 管理指令保留通用管理 surface。 |
-| legacy 固定 SLO 数值 | 不直接继承固定的 P99 和错误率数值；当前只要求核心旅程必须有可用性和延迟目标。 |
-| 旧数据兼容层、旧协议 adapter、旧 runtime shape 兼容 | 不加入当前需求，除非后续被明确确认为当前产品需求。 |
-
-## 5. 用户旅程细节
-
-### 5.1 注册登录
-
-已确认：
-
-- Onboarding 完成口径见 §1「首次使用口径」；首次激活旅程见 §5.2；首次对话引导见 §5.4。
-- 已经实现的功能默认不移除；不属于核心合同的已实现子功能，应保留当前事实，但不能主导核心需求。
-
-用户旅途：
-
-1. 个人用户打开注册或登录入口。
-2. 用户完成注册或登录。
-3. 必要时用户完成邮箱验证。
-4. 系统建立会话/token，并能返回当前用户身份。
-5. 后续 channel、reminder、friendship、shared reminder 都能在同一个已登录账号下继续使用。
-
-系统必须支持：
-
-- 注册。
-- 登录。
-- 邮箱验证。
-- 重发验证邮件。
-- 忘记/重置密码。
-- 当前用户查询。
-- 会话/token。
-- 当前用户身份。
-
-已实现并保留的支撑能力：
-
-- subscription/access status。
-- membership/subscription 状态返回。
-- 账号访问状态、邮箱验证状态、账号暂停或阻塞原因展示。
-- 公开说明、FAQ、演示、隐私和条款页面。
-
-### 5.2 首次激活
-
-已确认：
-
-- Onboarding 完成必须同时满足：注册/登录完成、至少一个可用 personal channel 已连接、用户通过该 channel 发出一条消息且系统成功接收。
-- 创建首个 reminder 不是 onboarding 完成条件。
-- 完成 Agent settings 不是 onboarding 完成条件。
-- assistant 可以在首次对话中发送引导，但 onboarding 完成不依赖用户走完固定教程或回复固定内容。
-- personal channel 的“可用”必须表示 Coke 已经可以通过该 channel 发送对话回复、提醒和主动 follow-up；不能只表示 provider 侧连接成功。
-- 首条消息必须能绑定到可信 account/customer context；不能靠 assistant 猜测用户身份。
-
-用户旅途：
-
-1. 用户完成注册或登录。
-2. 用户进入 channel 连接入口。
-3. 用户连接 personal WeChat 或 shared WhatsApp channel 承载的个人会话入口。
-4. 系统确认该 channel 已完成可信用户绑定和可用送达 route。
-5. 用户通过该 channel 发出第一条消息。
-6. 系统成功接收该 inbound message，并绑定到该用户的可信 account/customer context。
-7. 系统把该用户标记为 onboarding 完成。
-8. assistant 可以发送首次引导或继续处理这条消息的真实意图。
-
-系统必须支持：
-
-- 判断用户是否已注册/登录。
-- 判断用户是否有至少一个可用 personal channel。
-- 判断首条 personal channel inbound message 是否已经成功接收。
-- 把首条 inbound message 绑定到可信 account/customer context。
-- 在三项条件全部满足后把 onboarding 视为完成。
-- 在未满足条件时向用户展示或发送下一步，例如登录、连接 channel、重试连接或发送第一条消息。
-- onboarding 完成状态不因用户还没有创建 reminder、没有设置 assistant persona、没有打开提醒日历页而阻塞。
-
-需求边界：
-
-- 首次激活的核心合同是账号、channel 和首条消息路径成立。
-- onboarding 引导话术是对话体验，不是完成条件。
-- 系统不能把 provider 连接中、连接失败、未绑定 route、首条消息未入站等状态算作 onboarding 完成。
-
-### 5.3 个人通信 channel 接入与可达性
-
-已确认：
-
-- 当前个人用户只允许链接一个 personal channel。
-- personal channel 当前只支持 personal WeChat 或 shared WhatsApp channel 承载的个人会话入口。
-- WhatsApp 入口当前由 shared WhatsApp channel 承载；Evolution、Linq、Ecloud 依赖 provider-backed/shared channel 边界。
-- provider-backed/shared channel 在用户可见上仍然表现为该用户自己的对话入口，而不是独立产品旅程。
-- 用户页面和对话中只需要看到 channel 类型和连接状态，例如 WeChat、WhatsApp、未连接、连接中、已连接、连接失败、需要重连；Evolution、Linq、Ecloud 这类 provider 名称不作为普通用户需要选择或理解的产品对象暴露。
-- 用户可见的“已连接”必须表示 Coke 已经能通过该 channel 发送对话回复、提醒和主动 follow-up；不能只表示 provider 侧连接成功。
-- 当前只允许链接一个 personal channel，唯一已连接的 channel 就是发送渠道。
-- 该旅程是日常对话、提醒触发、主动 follow-up 的可达性支撑旅程。
-- 当前不需要支持“断开 channel”动作；用户只需要能移除 channel。
-- 用户移除 personal channel 后，系统不能再通过该 channel 触达用户。
-- 移除 personal channel 不删除账号、不删除 reminder、不改变 reminder owner。
-- 用户不需要看到已移除 channel 或历史 channel；移除后页面回到未连接 channel、可重新连接的状态。
-- 用户可以重新连接或重新链接一个 personal channel；未来提醒、对话回复和主动 follow-up 走新的已连接 channel。
-
-用户旅途：
-
-1. 已登录个人用户打开 channel 管理入口。
-2. 用户查看当前 personal channel 状态。
-3. 如果没有 channel，用户在 personal WeChat 或 shared WhatsApp channel 中选择并创建一个可达 channel。
-4. 如果所选 channel 依赖 provider-backed/shared channel，系统向用户展示该 channel 的连接动作和连接状态。
-5. 用户发起连接，并等待连接状态从“连接中”变为“已连接”或“连接失败”。
-6. 连接完成或首次有效 inbound 到达后，系统把 provider 身份绑定到可信 Coke user/customer 和可用送达 route。
-7. 如果连接失败或 provider 不可用，用户看到“连接失败”“需要重连”“可重试”这类可理解状态和恢复动作；普通用户文案不展示 Evolution、Linq、Ecloud 的内部错误原因。
-8. 用户可以重试连接、刷新连接状态、移除 channel 后重新链接。
-9. 如果用户已经链接一个 personal channel，系统不允许再同时链接第二个 personal channel；用户需要先移除现有 channel。
-10. 用户可在需要时移除 channel。
-11. 连接成功后，系统能把该用户的对话回复、提醒、主动 follow-up 送达到该 personal channel。
-12. 用户移除 channel 后，不能再通过该 channel 收到对话回复、提醒或主动 follow-up。
-13. 如果用户从 personal WeChat 切换到 shared WhatsApp channel，或从 shared WhatsApp channel 切换到 personal WeChat，需要先移除旧 channel。
-14. 用户重新连接或重新链接一个 personal channel 后，未来触达走新的已连接 channel。
-
-系统必须支持：
-
-- personal channel status。
-- WeChat personal channel。
-- shared WhatsApp channel。
-- provider-backed channel inbound/outbound。
-- provider-backed channel 的连接入口。
-- provider-backed channel 的连接状态轮询或刷新。
-- provider-backed channel 的用户/route 绑定。
-- provider-backed channel 的 provider 错误映射。
-- provider-backed channel 的重试、移除和重新链接。
-- 刷新连接状态、重试连接（含义见下方「provider-backed channel 用户可见子功能」）。
-- 同一用户最多一个已链接 personal channel。
-- create channel、connect channel、poll connection status、remove channel。
-- 唯一已连接的 personal channel 作为发送渠道。
-- 移除、重新链接、personal WeChat 与 shared WhatsApp channel 之间切换的语义见下方「移除、重新链接语义」，此处不重复。
-
-必须成立的用户可见状态：
-
-- 未连接。
-- 连接中。
-- 已连接。
-- 连接失败/需要重连。
-
-provider-backed channel 用户可见子功能：
-
-- 用户看到的是自己的对话入口，不需要理解 provider-backed/shared channel 的内部实现。
-- WhatsApp 入口当前由 shared WhatsApp channel 承载；Evolution、Linq、Ecloud 都依赖 provider-backed/shared channel 边界。
-- 普通用户文案只表达 WeChat/WhatsApp 和连接状态，不要求用户选择或排查 Evolution、Linq、Ecloud 等 provider。
-- provider-backed channel 必须能从用户侧发起链接或连接流程。
-- 连接中表示用户已经发起连接，但 Coke 还没有确认该 channel 已完成用户绑定和可用送达；连接中不能视为可达。
-- 用户在连接中时可以刷新连接状态。
-- 用户在连接失败后可以重试连接。
-- 连接流程可以因 provider 不同而有不同交互形态，但需求层不限定具体实现方案。
-- provider-backed channel 必须把连接状态归一到 personal channel 状态。
-- provider-backed channel 的入站消息必须能绑定到当前可信 Coke user/customer；不能因为 provider 身份模糊而进入错误用户。
-- provider-backed channel 必须完成可信 Coke user/customer 绑定，并建立可用的送达 route，才能被视为用户可见“已连接”。
-- provider-backed channel 的 outbound 失败不能被视为成功送达。
-- provider-backed channel 的 provider 错误应映射为用户可理解的 channel 不可用、连接失败或需要重新连接。
-- 普通用户不需要看到 raw provider error，也不需要知道具体是 Evolution、Linq、Ecloud 返回了什么内部错误。
-- 用户必须能在失败后重试连接或重新链接。
-- 用户必须能移除 provider-backed channel。
-- 移除 provider-backed channel 后，该 channel 的 provider identity 和 route 不再用于未来触达。
-- 移除后，用户可见状态回到“未连接”，不展示已移除或历史 channel 列表。
-- provider-backed/shared channel 计入同一用户最多一个可达 channel 的限制。
-- 切换 provider-backed/shared channel 与切换 personal WeChat / shared WhatsApp channel 一样，需要先移除旧 channel。
-- provider-backed channel 不引入第二套用户身份、第二套提醒 owner 或独立操作角色。
-
-移除、重新链接语义：
-
-- 用户移除 personal channel 后，不能再通过该 channel 收到对话回复、提醒或主动 follow-up。
-- 移除 channel 不删除用户账号。
-- 移除 channel 不删除 reminder，也不改变 reminder owner。
-- 用户页面不展示已移除 channel 或历史 channel；是否保留 provider identity/route 的内部记录不是用户可见需求。
-- channel 不可用期间到点的 reminder 进入未送达状态。
-- 用户重新连接或重新链接一个 personal channel 后，未来提醒、对话回复和主动 follow-up 走新的已连接 channel。
-- 未送达提醒可以补发，或在提醒日历页展示为未送达。
-- 如果用户从 personal WeChat 切换到 shared WhatsApp channel，或从 shared WhatsApp channel 切换到 personal WeChat，需要先移除旧 channel，因为当前只允许一个可达 channel。
-
-需求边界：
-
-- personal channel 的核心合同是 channel ownership、connection state 和用户可达性。
-- provider-backed channel 的核心合同是用户可见连接状态、provider inbound 标准化、用户/route 绑定、outbound delivery 和可观测失败。
-- 日常对话、提醒和主动 follow-up 只需要依赖可信 account、channel 和 delivery 状态，不需要理解 WeChat、WhatsApp 或 provider 的连接细节。
-- 连接失败、连接中、移除等状态应表现为统一 channel 状态，不能变成用户需要理解的特殊对话分支。
-- provider 身份、provider 错误和 route 绑定是系统内部细节；普通用户只看到 channel 类型、连接状态和恢复动作。
-- 用户移除 personal channel 后，该 channel 不再可用于触达，但不影响用户账号、历史提醒归属或其他用户数据。
-
-### 5.4 日常对话
-
-已确认：
-
-- 日常对话是当前核心旅程。
-- personal WhatsApp 指 shared WhatsApp channel 承载的个人会话，不是独立 personal WhatsApp channel。
-- 首次对话时可以进入 onboarding 指导分支；onboarding 完成口径见 §5.2 首次激活。
-- Agent 处理超时时，用户应先收到可见等待文字，最终文字回复再异步送达；这是当前必须合同。
-- 对无意义内容、自然收尾、或用户明确不希望被打扰的场景，系统可以有意不生成回复；这不是系统失败，也不是静默丢消息。
-- 日常对话不是每条消息都必须回复；系统必须判断用户消息是否需要回应。
-- 系统明确产生 intentional no-reply 时，不发送任何用户可见消息。
-- 当前支持 channel 可承载的多模态输入，但输出合同只要求文字回复。
-- 当前不要求 assistant 用语音、图片或视频回复用户。
-
-用户旅途：
-
-1. 用户已经有可识别身份和可达 channel。
-2. 用户通过 personal WeChat 或 shared WhatsApp channel 发送文本、图片、语音等 channel 可承载的消息。
-3. 系统把 inbound message 绑定到可信 account/customer context。
-4. 系统执行 single-Agent turn。
-5. 系统判断用户消息是否需要回应。
-6. 如果需要回复，用户收到即时文字回复；如果处理超时但仍在处理，用户先收到可见等待文字，最终文字回复再异步送达。
-7. 如果系统明确产生 intentional no-reply，系统不发送任何用户可见消息，但该结果应和系统失败区分。
-8. 如果处理失败，错误/失败必须可观测，不能和 intentional no-reply 混在一起。
-9. 如果这是用户首次使用场景，系统可以进入 onboarding 指导分支。
-
-系统必须支持：
-
-- 接收 personal WeChat inbound message。
-- 接收 shared WhatsApp channel inbound message。
-- 接收 provider-backed/shared channel inbound message。
-- 支持 channel 可承载的多模态输入。
-- 将 inbound message 绑定到可信 account/customer context。
-- 写入 input message。
-- worker 拉取并执行 single-Agent turn。
-- 生成同步或异步文字回复。
-- 超时时发送可见等待文字。
-- 最终文字回复通过 outbound delivery 送回 channel。
-- 判断用户消息是否需要回应。
-- 支持 intentional no-reply 语义，避免把模型有意不回复误判为系统失败。
-- 处理失败时提供可观测失败状态，不能和 no-reply 混在一起。
-- 维护必要的历史上下文和用户记忆，让回复理解前后文。
-
-必须成立的子功能：
-
-- account context 可信，不靠 agent 猜用户。
-- conversation/session 能稳定识别。
-- 同步等待和异步补发语义清楚；超时时必须先给可见等待文字，最终文字回复必须异步送达。
-- outbound route 可用。
-- 用户可见输出的最低且当前必要合同是文字回复；不要求语音回复、图片回复、视频回复或输入输出媒体类型一致。
-- 系统失败、空输出异常、模型有意 no-reply 必须可区分：系统失败不能静默丢；有意 no-reply 不发送任何用户可见消息；处理慢不能被误判为 no-reply。
-
-Onboarding（首次对话）：
-
-- 当用户第一次与该 agent 对话（系统据该用户与该 agent 是否已有对话关系判定是否首次）时，系统必须进入 onboarding 分支。
-- onboarding 分支的具体行为由配置的 onboarding 提示词/设定驱动；系统按该提示词向用户发送首次引导消息。
-- 顶层需求不规定 onboarding 的具体话术、语气、步骤数或消息条数；这些由 onboarding 提示词/设定决定。
-- onboarding 只在首次对话注入，后续对话不重复触发。
-- onboarding 只能介绍当前真实可用的能力；在没有成功工具结果时，不得声称已经替用户完成提醒等操作。
-
-需求边界：
-
-- 日常对话的核心合同是可信 account context、文字回复、turn execution、回复必要性判断、reply delivery、timeout/fallback semantics、intentional no-reply、failure observability。
-- 多模态输入属于 inbound message 标准化和 Interaction LLM 可处理输入的一部分；它不改变当前“文字回复”的输出合同。
-- 日常对话不负责建立 channel 或选择 provider；这些必须在消息进入对话旅程前成为可信上下文。
-- 无论内部队列、锁、等待和分发方式如何变化，用户可见语义必须保持：消息被接收、会处理；需要回复时会用文字回复；超时有可见等待文字，最终文字回复可异步送达；模型有意 no-reply 时不发送任何用户可见消息。
-- intentional no-reply 必须作为可观测结果保留，而不是和失败混在一起。
-
-### 5.5 用户时区
-
-已确认：
-
-- 用户只有一个全局默认时区。
-- 用户可以在设置页查看和修改全局默认时区。
-- 用户可以通过对话整体切换时区，例如“以后按东京时间提醒我”。
-- 当前不支持单条 reminder 独立时区。
-- 用户在创建 reminder 时提到另一个时区，应被理解为整体切换时区，或在需要避免误解时先确认整体切换。
-- 切换时区不应静默改写已有 reminder 的绝对触发时刻；已有 reminder 只按新的全局时区展示。
-- 新创建 reminder、提醒日历页展示、无触发时间汇总、好友可用性和共享提醒都使用当前全局默认时区。
-
-用户旅途：
-
-1. 用户打开 agent 设置页查看当前时区。
-2. 用户在设置页切换全局默认时区，或在对话中说“以后按东京时间提醒我”。
-3. 系统确认时区已经整体切换。
-4. 用户之后创建 reminder、查看日历或查询好友可用性时，系统按新的全局时区解释和展示。
-5. 用户已有 reminder 的绝对触发时刻保持不变，只按新的全局时区展示时间。
-6. 如果用户在创建 reminder 时说“明天 9 点纽约时间提醒我”，系统应把这理解为全局时区切换到纽约时间后创建，或先确认是否整体切换到纽约时间。
-
-系统必须支持：
-
-- 读取用户全局默认时区。
-- 在设置页修改用户全局默认时区。
-- 通过对话修改用户全局默认时区。
-- 在提醒创建、编辑、确认、触发文案、提醒日历页、无触发时间汇总、日历导入结果、好友可用性和共享提醒中使用统一全局时区。
-- 切换全局时区后，已存在 reminder 的绝对触发时刻不被静默重写。
-- 在用户提到另一个时区但语义可能是单条 reminder 独立时区时，系统应确认整体切换语义，而不是创建单条独立时区 reminder。
-
-需求边界：
-
-- 用户时区是 customer-scoped 的全局设置，不是每条 reminder 的字段级用户配置。
-- channel 和 Interaction LLM 不应各自使用不同默认时区解释同一个提醒时间。
-- 当前需求不支持“这一条提醒用纽约时间、其他提醒用东京时间”的产品语义。
-
-### 5.6 好友关系
-
-已确认：
-
-- 好友关系是当前产品合同。
-- 好友关系服务人与人之间的监督协作，也是共享提醒的前置关系。
-- 好友链接是授权入口；访问者登录或注册承接后直接建立 active friendship，不需要 owner 审批，不产生 pending friend request。
-- 用户可以生成自己的公开好友链接。
-- 用户可以通过二维码分享自己的好友链接。
-- 未登录访问者打开好友链接后，可以先注册或登录。
-- 登录用户通过好友链接承接后，可以与链接 owner 建立 active friendship。
-- 用户也可以在对话中通过好友链接码建立 active friendship。
-- 同一对用户不能重复创建多个 active friendship。
-- 用户不能和自己建立好友关系。
-- 用户可以查看自己的好友列表。
-- 用户可以移除好友。
-- 移除好友后，双方可以通过仍有效的好友链接或链接码重新建立 active friendship。
-- 用户可以 reset 自己的好友链接，使旧链接不再作为新的好友入口。
-- 用户可以 disable 自己的好友链接，使别人不能继续通过该链接加自己。
-- reset 和 disable 都只影响未来新增好友，不影响已经建立的好友关系；reset 表示旧链接失效并生成或启用新链接，disable 表示关闭当前好友链接。
-- pending friend request accept/reject 不作为当前需求；建立好友是直接 active 的产品语义。
-- 好友关系不要求用户已经连接 personal channel；但好友关系后续带来的通知、共享提醒触达仍依赖可用 channel。
-
-用户旅途：
-
-1. 用户打开好友页。
-2. 用户查看自己的好友链接和二维码。
-3. 用户把好友链接或二维码分享给别人。
-4. 访问者打开好友链接。
-5. 如果访问者未登录，系统引导访问者注册或登录，并保留本次好友链接承接上下文。
-6. 访问者登录后，系统建立访问者与链接 owner 的 active friendship。
-7. 如果双方已经是 active friends，系统不重复创建关系，并向用户表达已经是好友。
-8. 如果用户尝试打开自己的好友链接，系统不能创建自我好友关系。
-9. 用户可以在对话中输入好友链接码，系统建立对应 active friendship。
-10. 用户可以在好友页查看好友列表。
-11. 用户可以移除某个好友。
-12. 如果双方曾经是好友但已被移除，且用户再次通过有效好友链接或链接码进入，系统可以重新建立 active friendship。
-13. 用户可以 reset 好友链接；reset 后，旧链接不能再用于新增好友，新链接可以继续分享。
-14. 用户可以 disable 好友链接；disable 后，别人不能继续通过该链接加自己。
-15. 用户可以重新启用或重新生成可分享的好友入口。
-
-系统必须支持：
-
-- 获取当前用户的好友链接。
-- 展示好友链接二维码。
-- 公开好友链接访问。
-- 未登录访问者的登录/注册承接。
-- 登录后继续完成好友链接承接。
-- 通过好友链接建立 active friendship。
-- 通过对话中的好友链接码建立 active friendship。
-- 通过有效好友链接或链接码重新建立曾被移除的 active friendship。
-- 查看好友列表。
-- 移除好友。
-- reset 好友链接。
-- disable 好友链接。
-- 防止用户和自己建立好友关系。
-- 防止同一对用户重复创建 active friendship。
-- 已有 active friendship 时返回可理解结果，而不是创建重复关系。
-- 已 disable 的好友链接不能继续新增好友。
-- reset 后的旧好友链接不能继续新增好友。
-- reset 和 disable 都不删除或隐藏已建立的好友关系。
-- 好友列表至少能让用户区分每个好友。
-- 好友列表当前只要求展示好友的可识别名称或标识、active 关系状态和移除好友动作；不要求备注、分组、头像、最近互动时间或好友详情页。
-- 好友名称或标识重复时，后续对话中的好友匹配必须能追问澄清。
-
-好友关系与 channel 的关系：
-
-- 好友关系本身依赖登录身份，不依赖用户已经连接 personal channel。
-- 如果用户没有可用 channel，仍可以建立好友关系。
-- 好友关系建立后的通知、共享提醒、后续主动触达依赖用户自己的可用 channel。
-- channel 移除不删除好友关系。
-
-移除好友语义：
-
-- 移除好友只改变好友关系，不删除账号、不删除个人 reminder，也不自动取消已经存在的 active shared reminder。
-- 移除好友后，该好友不再出现在当前用户的 active 好友列表中。
-- 移除好友后，双方不能再基于该 active friendship 创建新的共享提醒。
-- 双方以后可以通过仍有效的好友链接或链接码重新建立 active friendship。
-- 移除好友不删除任一方账号。
-- 移除好友不删除任一方个人 reminder。
-- 已存在共享提醒在移除好友后的处理归属共享提醒旅程，不在好友关系旅程中提前定义。
-
-当前不要求：
-
-- 好友申请待同意。
-- 好友申请拒绝。
-- 好友申请 pending 状态。
-- 好友分组。
-- 好友备注。
-- 好友头像。
-- 最近互动时间。
-- 好友详情页。
-- 好友黑名单。
-- 好友推荐。
-- 好友动态或社交内容流。
-
-需求边界：
-
-- 好友关系的核心合同是 active friendship，而不是 pending request workflow。
-- 好友链接是产品入口，不应和 personal channel 绑定入口混用。
-- 好友关系必须 account/customer scoped，不能靠 assistant 自己猜测双方身份。
-- 建立好友关系必须幂等；重复访问、重复输入链接码或重复提交不能创建多条 active friendship。
-- 移除好友是关系状态变化，不应级联删除用户账号、个人提醒或不相关数据。
-
-### 5.7 共享提醒
-
-已确认：
-
-- 共享提醒是当前产品合同。
-- 共享提醒依赖 active friendship；每个 receiver 都必须与 creator 存在 active friendship。
-- 共享提醒支持一个 creator 约一个或多个 active friends；例如用户说“约 Bob 和 Carol”，系统应创建一条 group shared reminder，而不是拆成多条两两提醒。
-- group shared reminder 的 participants 包含 creator 和所有 receivers。
-- 每个 participant 都有自己的 reminder projection；到点时每个 participant 都通过自己的 channel 收到自己的关联提醒。
-- 共享提醒不是邀请审批流程；创建后直接 active，receiver 不需要 accept/reject，通知只是 informational。
-- 用户可以通过对话给一个或多个好友创建共享提醒。
-- 用户可以查看共享提醒。
-- 用户可以取消共享提醒。
-- 用户可以在约时间前查询一个或多个好友可用性。
-- 好友可用性只暴露隐私安全的忙闲信息，不暴露好友 reminder 详情。
-- 好友可用性以 Coke reminders 为来源，不使用 Google Calendar 作为该功能的数据源。
-- 创建共享提醒时，每个好友指代必须解析到唯一 active friend；如果任何好友名称或目标不明确，系统必须追问。
-- 如果任何 receiver 不存在、不可解析或不是 active friend，系统不能静默跳过该 receiver；必须追问或返回用户可理解错误。
-- 创建共享提醒至少需要 participants、标题或活动内容、触发时间；时间解释使用用户全局默认时区。
-- shared reminder duration 默认 15 分钟；用户可显式设置其他时长。
-- receiver conflict 是创建前硬约束；系统按 reminder 的 duration（默认 15 分钟）对应的时间段检查每个 receiver 是否冲突；如果任一 receiver 冲突，系统不创建共享提醒，应说明谁冲突、谁可用，并让 creator 调整时间或参与者。
-- receiver conflict 检查每个 receiver 的个人 reminder 和共享 reminder（两者都算），按各自 duration 对应的时间段叠加判断是否重叠；与好友可用性查询使用同一来源。
-- 当前只在创建前检查 receivers conflict，不检查 creator 自己的时间冲突（有意为之）。
-- 通过所有 receivers conflict 检查后，共享提醒立即 active。
-- 共享提醒创建后，creator 和所有 receivers 都应在到点后各自收到自己的关联 projection。
-- creator 和 receivers 各自的提醒触发、送达失败、未送达处理遵守个人提醒的 channel 和送达规则。
-- 在用户视角，共享 reminder 仍然是自己的 reminder，只是带有好友关联；用户处理完成只处理自己这一侧的 projection，不自动替其他参与者完成。
-- 共享提醒禁止完全重复创建：同一 creator、同一 participants 集合、同一标题或活动内容、同一触发时间的 active shared reminder 视为重复；participants 顺序不影响重复判断；duration 不进入重复定义。
-- 如果已存在完全相同的 active shared reminder，系统拒绝创建并告知用户已经存在；相似但不完全相同的共享提醒不硬拒绝。
-- 共享提醒通知是 informational，不是邀请审批。
-- receivers 不需要 accept，creator 不需要等待 receivers accept。
-- pending shared reminder accept/reject 不作为当前需求。
-- 任一参与者都可以取消 active shared reminder。
-- 任一参与者取消共享提醒后，系统取消整个 group，停止所有 participant projections，并通知其他参与者；非参与者不能查看或取消。
-- 共享提醒列表只要求展示标题或活动内容、参与者、触发时间、用户全局时区、duration、当前状态，并支持取消 active shared reminder；不要求详情页、编辑、评论、聊天或投票选时间。
-- 共享提醒不支持直接编辑时间或内容；想改时间或内容时，用户需要取消整条共享提醒后重新创建。
-- 共享 reminder 出现在个人提醒日历页，并展示关联好友标识；共享提醒列表暂时不要求筛选功能。
-- 取消共享提醒后，所有参与者都不再收到这条关联提醒。
-- 取消共享提醒会通知其他参与者；通知是 informational。
-- 移除好友不自动取消已存在 active shared reminder；用户需要通过共享提醒取消动作取消。
-- 移除好友后，双方不能再基于该 removed friendship 创建新的共享提醒。
-
-用户旅途：
-
-1. 用户已经与每个目标好友建立 active friendship。
-2. 用户在对话中表达想约一个或多个好友、邀请好友、给好友安排共同事项，或打开共享提醒入口。
-3. 如果用户只是想知道一个或多个好友什么时候有空，系统查询好友可用性，并只返回隐私安全的忙闲信息。
-4. 如果用户要创建共享提醒，系统解析目标好友集合。
-5. 如果任何好友指代不明确，系统追问用户选择哪个好友。
-6. 如果任何目标用户不是 active friend，系统不创建共享提醒，并提示需要先建立好友关系或调整参与者。
-7. 系统确认共享提醒的标题或活动内容、触发时间和 duration（默认 15 分钟，可改）；时间按用户全局默认时区解释。
-8. 如果缺少必要信息，系统追问。
-9. 系统检查每个 receiver 在对应时间段是否冲突。
-10. 如果任一 receiver conflict 存在，系统不创建共享提醒，向 creator 说明谁冲突、谁可用，并让用户换时间或调整参与者。
-11. 如果检查通过，系统检查是否存在完全相同的 active shared reminder。
-12. 如果完全相同的 active shared reminder 已存在，系统拒绝重复创建，并向 creator 说明已存在。
-13. 如果检查通过且不重复，系统创建一个 active group shared reminder。
-14. 系统确保 creator 和所有 receivers 都会在到点后各自收到自己的关联 projection。
-15. 系统向 creator 确认共享提醒已经创建。
-16. 系统向所有 receivers 发送 informational notification。
-17. 到点后，所有 participants 各自通过自己的可用 personal channel 收到自己的关联提醒。
-18. 任一参与者可以查看自己的共享提醒列表。
-19. 任一参与者可以取消 active shared reminder。
-20. 取消后，所有 participant projections 停止，其他参与者收到 informational notification。
-
-系统必须支持：
-
-- 查询好友可用性。
-- 好友可用性查询必须指定或解析一个或多个 active friends。
-- 好友可用性查询必须有日期范围，并使用用户全局默认时区。
-- 好友可用性只返回隐私安全的忙闲信息，不返回好友 reminder 详情。
-- 创建 group shared reminder。
-- 查看共享提醒列表。
-- 共享提醒列表展示标题或活动内容、参与者、触发时间、用户全局时区、duration、当前状态和取消入口。
-- 在个人提醒日历页展示共享 reminder，并展示关联好友标识。
-- 取消共享提醒。
-- 用户想修改共享提醒时间或内容时，引导用户取消整条共享提醒后重新创建。
-- 通过对话创建共享提醒。
-- 通过对话查看共享提醒。
-- 通过对话取消共享提醒。
-- 解析每个 receiver 为唯一 active friend。
-- 任一 receiver 不明确时追问。
-- 任一 receiver 不是 active friend 时拒绝创建或要求调整参与者。
-- 创建共享提醒必须有标题或活动内容、触发时间和至少一个 receiver。
-- 支持 duration，默认 15 分钟，用户可显式设置其他时长。
-- 创建前按 reminder 的 duration（默认 15 分钟）对应的时间段检查每个 receiver conflict。
-- 任一 receiver conflict 存在时不创建共享提醒。
-- receiver conflict 存在时说明谁冲突、谁可用。
-- 防止完全相同的 active shared reminder 重复创建。
-- 创建后立即 active。
-- 为 creator 和所有 receivers 建立各自的 reminder projection。
-- 确保每个 participant 到点后能收到自己这一侧的关联提醒。
-- participants 各自收到的提醒必须保留 group shared reminder 关联，不能变成互不关联的普通提醒。
-- 用户处理完成只处理自己这一侧的 projection，不自动替其他参与者完成。
-- 通知 receivers 共享提醒已创建。
-- 任一参与者取消 shared reminder。
-- 取消后所有 participant projections 都停止。
-- 取消后通知其他参与者。
-- 取消时如果匹配多个候选，系统必须追问，不能取消错误的共享提醒。
-- 取消已经取消的共享提醒应返回可理解结果，而不是重复执行破坏性动作。
-
-共享提醒与个人提醒的关系：
-
-- 在用户视角，共享 reminder 仍然是自己的 reminder，只是带有好友关联。
-- 每个 participant 都应按各自可用 personal channel 收到自己这一侧的关联提醒。
-- 用户收到关联提醒后的完成处理，默认只作用于自己这一侧的 projection。
-- 用户完成自己这一侧的 projection，不自动替其他参与者完成。
-- 取消共享提醒是整个 group 停止所有 projections 的动作，不等同于完成或修改自己这一侧的 projection。
-- 修改共享提醒时间或内容不是当前支持的直接操作；用户需要取消整条共享提醒后重新创建。
-- 共享提醒到点后的可见提醒仍进入 Interaction LLM，由 assistant 用符合角色的语气提醒用户。
-- 某一参与者的送达失败只影响该参与者是否收到自己的关联提醒，不影响其他参与者是否收到提醒。
-
-当前不要求：
-
-- pending shared reminder。
-- receiver accept。
-- receiver reject。
-- 批量 accept/reject。
-- 共享提醒详情页。
-- 对共享提醒进行直接编辑；当前用户需要取消整条共享提醒后重新创建。
-- 共享提醒列表筛选功能。
-- 共享提醒评论。
-- 共享提醒聊天群。
-- 共享提醒投票选时间。
-- 从 Google Calendar 读取好友可用性。
-- 向对方暴露 reminder 详情、日历详情或私人安排内容。
-
-需求边界：
-
-- 共享提醒的核心合同是 group participants 关联 + 每个 participant 各自到点触达 + informational notification。
-- pending accept/reject workflow 不应重新进入当前需求。
-- 好友可用性查询必须保护隐私，只输出可用于约时间的忙闲信息。
-- receiver conflict 是创建前产品约束；冲突时不能先创建再等待对方处理，也不能静默跳过冲突参与者后部分创建。
-- 创建 shared reminder 后，不能出现系统对用户声称创建成功，但某个 participant 不会收到自己这一侧的关联提醒。
-- 取消 shared reminder 后，不能只停止一部分 participant projections，导致其他参与者继续收到这条关联提醒。
-- shared reminder 必须 participant-scoped；非参与者不能查看或取消。
-
-### 5.8 个人提醒
-
-已确认：
-
-- 个人提醒是当前核心旅程。
-- 个人 reminder 覆盖对话创建、提醒日历页管理、到点触发、提醒后回复处理和未送达处理。
-- 提醒日历页是个人 reminder 的主要页面，以日历为主视图展示未来一次性提醒、重复提醒系列、无触发时间 reminder、共享 reminder 和未送达提醒。
-- 到点提醒进入 Interaction LLM，由 LLM 知道这是系统提醒，并用符合角色语气的文字提醒告知用户。
-- 无触发时间 reminder 属于个人 reminder；系统每天晚上 8 点汇总询问用户是否要安排触发时间。
-- 重复提醒属于个人提醒核心需求；完成表示完成本次，删除表示删除整个系列，当前不支持独立跳过操作。
-- 主动 follow-up 是特殊类型 reminder，不显示在提醒日历页，不允许用户直接修改，并受 proactive 开关控制。
-- duration 默认 15 分钟，用户可显式设置其他时长；时间按用户全局默认时区解释，不支持单条 reminder 独立时区。
-- 用户在对话中提到另一个时区时，系统应按整体切换用户全局时区或先确认整体切换。
-- 用户可见状态聚焦产品动作，不暴露内部状态机字段；删除 reminder 表示从当前产品状态中移除。
-
-用户旅途：
-
-1. 用户通过对话表达提醒意图，或打开提醒日历页。
-2. 如果用户给出触发时间或重复规则，用户创建一个一次性或重复个人提醒。
-3. 如果用户没有给出触发时间，系统创建一个无触发时间 reminder。
-4. 如果用户明确给出 duration，系统按其设置；未给出时按默认 15 分钟。
-5. 用户可以在提醒日历页查看自己的 reminder、无触发时间 reminder、共享 reminder、未送达提醒和单条详情。
-6. 用户可以编辑普通个人 reminder 的内容、触发时间和 duration，也可以给无触发时间 reminder 补充触发时间。
-7. 用户可以完成提醒。对于一次性提醒，完成表示这件事已处理；对于重复提醒，完成表示完成本次；对于无触发时间 reminder，完成表示该事项已处理。
-8. 用户可以删除提醒。对于一次性提醒，删除该提醒；对于重复提醒，删除整个系列；对于无触发时间 reminder，删除该 reminder。
-9. 用户查看提醒日历页默认视图时，只看到仍然可行动或未来仍会触发的 reminder。
-10. 已完成的一次性 reminder 或无触发时间 reminder 离开提醒日历页默认视图。
-11. 已完成的重复提醒本次离开待处理状态，但系列继续按规则展示下一次触发。
-12. 已删除的 reminder 不再出现在用户可见列表、无触发时间汇总和后续触发中。
-13. 提醒到点后，系统把“这是系统提醒”的上下文交给 Interaction LLM。
-14. Interaction LLM 用符合角色语气的文字提醒告知用户。
-15. 用户收到提醒后，可以回复完成、改时间、删除或继续普通对话。
-16. 如果用户回复完成，本次提醒被完成；如果是重复提醒，只完成本次。
-17. 如果同一次提醒告知包含多条 reminder，用户回复完成表示这次提醒中的事项都已完成。
-18. 如果用户回复晚点提醒、改到明天、换个时间等，系统在时间明确时更新提醒时间；时间不明确时追问。
-19. 如果用户回复不用提醒了或删掉，一次性提醒删除该提醒；重复提醒删除整个系列。
-20. 如果用户回复普通聊天或无意义内容，系统不应自动改变 reminder 状态。
-21. 每天晚上 8 点，系统把仍未安排触发时间的 reminder 汇总给用户，询问是否要为这些 reminder 安排触发时间。
-22. 用户可以对汇总里的一个或多个 reminder 安排时间。
-23. 用户可以完成或删除汇总里的一个或多个 reminder。
-24. 用户明确表达批量安排时，系统为对应 reminder 批量设置触发时间。
-25. 用户只给一个时间但汇总里有多条 reminder，且无法判断作用对象时，系统应追问。
-26. 用户说“这些都完成了”时，系统批量完成汇总里的 reminder。
-27. 用户为无触发时间 reminder 安排触发时间后，该 reminder 转为有触发时间 reminder，并按新时间出现在日历页。
-28. 用户移除一次性 reminder 的触发时间后，该 reminder 转为无触发时间 reminder，并进入未安排时间区域和每天晚上 8 点汇总。
-29. 用户试图移除重复提醒的触发时间，且移除后无法维持重复规则时，系统应追问用户是改成无触发时间 reminder，还是删除整个重复系列。
-30. 如果用户不回应，或没有为这些 reminder 安排触发时间，这些 reminder 继续保留，并在下一天晚上 8 点继续出现在汇总询问中。
-31. 如果用户对汇总回复普通聊天或无意义内容，系统不应自动改变这些 reminder 状态。
-32. 如果是重复提醒，本次触发或用户完成本次后，系统推进下一次触发时间。
-
-系统必须支持（能力索引，详细规则见下方各专题小节，不在此重复）：
-
-- 提醒 CRUD：对话与提醒日历页创建、查看、编辑、完成、删除个人 reminder，包括创建无触发时间 reminder、批量操作、设置/修改/清除 duration。
-- 提醒日历页展示、创建编辑、状态与详情字段：见「提醒日历页展示规则」「提醒日历页创建与编辑规则」「提醒状态与详情字段」。
-- 对话创建追问与操作确认：见「对话创建 reminder 的追问边界」「提醒操作确认回复」。
-- 到点触发与送达失败处理：见「提醒触发与送达失败处理」。
-- 提醒后的用户回复处理：见「提醒后的用户回复语义」。
-- 无触发时间 reminder 汇总与有/无触发时间转换：见「无触发时间汇总后的用户回复语义」「无触发时间和有触发时间 reminder 的转换」。
-- 主动 follow-up reminder：见「主动 follow-up reminder」。
-- 重复提醒：见「重复提醒规则限制」。
-- 匹配歧义与创建期重复/相似处理：见「匹配歧义处理」「创建期重复/相似 reminder 处理」。
-- 时间与时区解释：见「时间解释与过去时间处理」「时区解释规则」。
-- 全局不变量：所有提醒 owner-scoped；不向用户暴露 reminder 内部 ID、底层 delivery attempt、内部重试次数、错误码、队列状态或内部状态机字段。
-
-提醒日历页展示规则：
-
-- 提醒日历页是个人 reminder 的主页面，不是独立于 reminder 的任务列表。
-- 日历页必须按用户全局默认时区展示 reminder。
-- 有触发时间的一次性 reminder 显示在对应日期和时间上。
-- 共享 reminder 显示在对应日期和时间上，并展示关联好友标识。
-- 重复提醒在当前可见时间范围内显示具体 occurrence；用户看到的是日历上的 occurrence，但底层仍然属于同一个重复提醒系列。
-- 同一天或同一时间存在多个 reminder 时，日历页可以合并展示入口，避免页面过载。
-- 合并展示入口进入详情后，必须能看到每一条 reminder，并能分别执行编辑、完成、删除。
-- 无触发时间 reminder 不强行落到某一天；它应在日历页中作为未安排时间的 reminder 展示。
-- 未送达提醒必须在日历页中有明确状态，让用户知道系统已经触发但没有成功送达。
-- 当前顶层需求不限定日历页必须使用月视图、周视图或日视图；核心要求是用户能在日历语境下查看和管理 reminder。
-
-提醒日历页创建与编辑规则：
-
-- 用户可以从提醒日历页创建 reminder。
-- 如果用户从日历上的某个日期或时间位置创建 reminder，系统默认使用该日期或时间作为触发时间。
-- 用户可以在提醒日历页的未安排时间区域创建无触发时间 reminder。
-- 用户可以从提醒日历页给无触发时间 reminder 安排触发时间。
-- 用户可以从提醒日历页编辑普通个人 reminder 内容、触发时间和重复规则。
-- 用户不能从提醒日历页直接编辑共享 reminder 的时间或内容；想修改时需要取消整条共享提醒后重新创建。
-- 用户从日历页点进某次重复提醒 occurrence 后，完成表示完成本次。
-- 用户从日历页点进某次重复提醒 occurrence 后，编辑默认编辑整个重复提醒系列。
-- 用户从日历页点进某次重复提醒 occurrence 后，删除表示删除整个重复提醒系列。
-- 当前顶层需求不限定日历页创建或编辑必须使用点击、拖拽、弹窗、侧栏或其他具体页面交互形态。
-
-提醒状态与详情字段：
-
-- 当前用户可见状态至少包括未来一次性提醒、无触发时间 reminder、重复提醒系列、共享 reminder、未送达提醒。
-- 完成状态不进入提醒日历页默认视图。
-- 删除状态不作为用户可见状态保留。
-- 单条详情至少展示内容、触发时间或未安排时间、用户全局默认时区下的时间表达、重复规则和当前状态。
-- 重复提醒详情必须展示系列规则和下一次触发时间。
-- 日历上的重复提醒 occurrence 只是系列在某个时间点的可见实例，不是独立 reminder。
-- 未送达提醒详情需要展示已触发但未成功送达的状态。
-- 当前顶层需求不要求在用户界面暴露内部重试次数、错误码、队列状态、底层 delivery attempt、内部状态机字段或 reminder 内部 ID。
-
-对话创建 reminder 的追问边界：
-
-- 用户意图明确但缺少必要信息时，系统应追问，而不是猜测关键内容。
-- 创建 timed reminder 至少需要事项内容和触发时间。
-- 创建无触发时间 reminder 只需要明确事项内容，不需要触发时间。
-- 创建 recurring reminder 至少需要事项内容、重复规则，以及规则能推导出的触发时间或触发窗口。
-- 用户只说“提醒我一下”这类缺少事项内容的消息时，系统不能创建 reminder，应追问用户要提醒什么。
-- 用户给出事项但没有给时间时，系统可以创建无触发时间 reminder，并确认该 reminder 没有触发时间，会在每天晚上 8 点汇总询问安排时间。
-- 用户表达含糊时间，例如“下周提醒我”，如果无法确定具体日期或时间，应追问；如果用户实际是在表达一个暂未安排时间的事项，可以创建无触发时间 reminder。
-- 追问和确认回复都应由 Interaction LLM 生成，并准确反映系统是否已经创建 reminder。
-
-提醒操作确认回复：
-
-- 用户通过对话创建、编辑、完成、删除 reminder 后，系统应给出文字确认。
-- 确认回复应由 Interaction LLM 生成，而不是固定模板。
-- 确认内容必须包含用户需要核对的关键信息，例如提醒内容、触发时间、重复规则、是否无触发时间。
-- 对无触发时间 reminder，确认时必须明确它还没有触发时间，并会在每天晚上 8 点汇总询问安排时间。
-- 如果创建失败、编辑失败、完成失败、删除失败，或需要追问用户，系统不能给出“已完成操作”的确认。
-
-提醒后的用户回复语义：
-
-- 用户收到提醒后，后续回复可以基于最近一次提醒上下文操作 reminder。
-- 用户回复“完成了”“做完了”等完成表达时，应完成最近触发的 reminder。
-- 如果最近触发的是重复提醒，完成表达只完成本次。
-- 如果同一次提醒告知包含多条 reminder，用户回复“完成了”表示这次提醒中的事项都已完成。
-- 用户回复“晚点提醒”“改到明天”“换个时间”等改时间表达时，如果新时间明确，应更新提醒触发时间。
-- 如果用户想改时间但新时间不明确，系统应追问。
-- 用户回复“不用提醒了”“删掉”等删除表达时，一次性提醒删除该提醒，重复提醒删除整个系列。
-- 用户回复普通聊天或无意义内容时，不应自动改变 reminder 状态。
-
-无触发时间汇总后的用户回复语义：
-
-- 用户收到每天晚上 8 点的无触发时间 reminder 汇总后，可以对汇总里的一个或多个 reminder 安排时间。
-- 用户明确表达批量安排时，系统应为对应 reminder 批量设置触发时间。
-- 用户只给一个时间但汇总里有多条 reminder，且无法判断作用对象时，系统应追问。
-- 用户可以完成或删除汇总里的某个 reminder。
-- 用户说“这些都完成了”时，系统应批量完成汇总里的 reminder。
-- 用户不回复时，汇总里的 reminder 继续保留，下一天晚上 8 点继续汇总。
-- 用户回复普通聊天或无意义内容时，不应自动改变这些 reminder 状态。
-
-无触发时间和有触发时间 reminder 的转换：
-
-- 无触发时间 reminder 一旦安排触发时间，就转为有触发时间 reminder。
-- 有触发时间 reminder 如果用户移除触发时间，就转为无触发时间 reminder。
-- 转换不改变 reminder 内容、owner 或创建来源。
-- 转换后，reminder 应按新状态出现在提醒日历页的日历位置或未安排时间区域。
-- 重复提醒必须有可推导的触发规则。
-- 如果用户移除重复提醒的触发时间后无法维持重复规则，系统应追问用户是改成无触发时间 reminder，还是删除整个重复系列。
-- 转换后必须给用户确认，说明 reminder 当前是否还有触发时间、是否还会到点提醒。
-
-主动 follow-up reminder：
-
-- 主动 follow-up 是一种特殊类型 reminder。
-- 主动 follow-up reminder 用于 assistant 基于用户目标、习惯、任务或上下文主动关心用户。
-- 主动 follow-up reminder 不要求用户显式创建一个普通 reminder。
-- proactive 开关对主动 follow-up 的影响（关闭/重开、是否取消未触发项）见 §5.11 Agent settings 的「proactive 开关」，此处不重复。
-- 主动 follow-up reminder 不显示在提醒日历页。
-- 用户不能在提醒日历页直接查看、编辑、删除主动 follow-up reminder。
-- 用户不能直接修改主动 follow-up reminder。
-- 主动 follow-up reminder 的触发时机和频率由配置的 follow-up 规划提示词/设定驱动；系统按该提示词决定是否、何时创建、替换或取消主动 follow-up。
-- 主动 follow-up reminder 必须尊重用户打扰意愿，避免骚扰：连续多次主动消息得不到用户回复时，系统必须降低频率，直至停止该主动 follow-up；用户重新回复后频率可恢复。具体阈值由 follow-up 规划提示词/设定决定。
-- 当前不提供免打扰或通知偏好设置；主动 follow-up 的低打扰要求由系统频率和上下文规则保证。
-- 主动 follow-up reminder 只能通过当前已连接 personal channel 发送文字消息。
-- channel 不可用时，主动 follow-up reminder 不视为已触达。
-- 主动 follow-up reminder 送达失败不补发：channel 不可用或发送失败时，该 follow-up 过期即丢，不进入未送达补发，也不在提醒日历页展示。
-- 顶层需求不规定具体规划算法、具体时间间隔或具体阈值；这些由 follow-up 规划提示词/设定决定。
-
-批量 reminder 操作：
-
-- 用户一条消息中可以包含多个 reminder 操作。
-- 系统应能批量创建、编辑、完成、删除 reminder。
-- 批量操作的确认回复应汇总展示成功项、失败项和需要追问项。
-- 批量操作不要求事务式全成功；部分成功时必须清楚告诉用户哪些成功、哪些没有成功。
-- 如果某一项需要追问，不应阻塞其他可以明确执行的项。
-- 每个子操作仍必须遵守 owner、时间解释、全局时区、重复规则、送达、确认回复等个人提醒合同。
-
-匹配歧义处理：
-
-- 系统可以按用户描述匹配 reminder。
-- 如果只匹配到一个明确 reminder，系统可以执行编辑、完成或删除，并给出确认。
-- 如果匹配到多个候选 reminder，系统必须向用户澄清，让用户选择。
-- 澄清时应展示足够区分的信息，例如内容、触发时间、重复规则、是否无触发时间。
-- 在用户确认前，系统不能删除、完成、编辑任何候选 reminder。
-- 批量操作中某一项匹配歧义，只阻塞这一项，不阻塞其他明确可执行的项。
-
-创建期重复/相似 reminder 处理：
-
-- 系统禁止创建完全相同的可行动个人 reminder。
-- 完全相同的个人 reminder 定义：同一 owner、同一事项/内容、同一触发时间；无触发时间 reminder 则是同一 owner、同一事项/内容且双方都无触发时间。
-- duration、创建入口和自然语言表达方式不进入个人 reminder 重复定义。
-- 如果当前已存在完全相同的可行动 personal reminder，系统应拒绝创建并告知用户该提醒已经存在。
-- 相似但不完全相同的 reminder 不应硬拒绝。
-- 系统允许不同内容的多个 reminder 拥有同一触发时间。
-- 同一 owner 同一触发时间的多个 reminder 在提醒时合并成一次提醒告知，避免多条消息骚扰；每条 reminder 及其事件本身仍保持独立。
-- 当前需求不要求为了相似 reminder 引入复杂相似度判断。
-
-提醒触发与送达失败处理：
-
-- 提醒到点后必须形成一次 reminder trigger event。
-- 如果用户当前有已连接的 personal channel，reminder trigger event 进入 Interaction LLM，并通过该 channel 发送文字提醒。
-- 当前个人用户只能在 personal WeChat 或 shared WhatsApp channel 中拥有一个可达 channel。
-- 如果用户没有可用 channel，系统不能把提醒视为已成功送达。
-- 如果 channel 发送失败，系统不能把提醒视为已成功送达。
-- 未送达的提醒触发必须保留可观测状态。
-- channel 不可用期间到点的 reminder 进入未送达状态。
-- 用户重新连接或重新链接 personal channel 后，未来提醒走新的已连接 channel。
-- 用户重新连接或重新链接 personal channel 后，系统可以补发未送达提醒，或在提醒日历页显示未送达。
-- 未送达提醒补发只适用于已经触发但未送达的 reminder。
-- 补发内容应让用户知道这是之前未送达的提醒，而不是新的 reminder。
-- 如果多条未送达提醒待补发，可以合并成一条文字提醒。
-- 已完成或已删除的 reminder 不再补发。
-- 如果未送达提醒已经在提醒日历页被用户处理，重新连接后不再重复补发。
-- 当前产品不支持为了失败 channel 立即改用另一个未链接或未确认的渠道。
-- 当前顶层需求不限定具体重试次数、过期时间、自动补发策略或仅在提醒日历页展示的策略。
-
-时间解释与过去时间处理：
-
-- 系统必须能判断用户给出的触发时间是否已经过去。
-- 相对时间表达应正常创建提醒，例如“10 分钟后”“明天早上 9 点”。
-- 如果用户给出明确但已经过去的时间，系统不应静默创建一个过去提醒。
-- 对过去时间，系统应通过 Interaction LLM 追问或确认新的未来时间。
-- 对日期不完整但可合理推断的时间，如果当天目标时间还未过去，可以按当天处理。
-- 对日期不完整但当天目标时间已经过去的时间，系统应追问或确认，不应自动改成某个未来时间。
-- 系统不应自行把过去时间改写为未来时间，除非 Interaction LLM 已经和用户确认。
-
-时区解释规则：
-
-- 提醒时间默认按用户全局默认时区解释。
-- 用户可以在设置页修改全局默认时区，也可以通过对话整体切换。
-- 如果用户在创建或编辑 reminder 时明确提到另一个时区，系统应把它理解为整体切换用户全局默认时区，或在语义可能误解时先确认整体切换。
-- 当前不支持给单条 reminder 设置独立时区。
-- 如果用户没有设置过时区，系统可以按账号、channel 或地区推断一个初始全局默认时区；之后所有 reminder 仍使用同一个全局默认时区。
-- 切换全局默认时区不应静默改写既有 reminder 的绝对触发时刻；既有 reminder 只按新的全局默认时区展示。
-- 系统保存和比较触发时间时可以使用统一时间基准，但用户可见的创建、编辑、确认、提醒文案必须按用户全局默认时区表达。
-- 系统内部、channel 和 Interaction LLM 不应各自使用不同默认时区解释同一个提醒时间。
-
-重复提醒规则限制：
-
-- 必须支持每小时、每天、每周、每月、每年。
-- 必须支持自定义间隔重复，例如每 2 小时、每 3 天。
-- 重复提醒的最小间隔是每小时；不支持小于 1 小时的重复提醒。
-- 小于一天的重复间隔必须受时间窗口限制，不能默认全天 24 小时无限触发。
-- 用户可以显式指定小于一天重复间隔的触发时间窗口；未指定时，系统必须使用默认限定时间窗口。
-- 默认限定时间窗口为每天 8 点到 23 点。
-- 时间窗口内重复是一种重复提醒能力，例如“从 X 点到 Y 点，每隔 Z 分钟/小时提醒”。
-- 时间窗口内重复必须有开始时间和结束时间。
-- 时间窗口内重复的间隔不得小于 1 小时。
-- 时间窗口内重复只在指定时间窗口和可选星期内触发。
-- 每次触发后，系统必须推进下一次有效触发时间。
-- 如果下一次触发时间不在有效时间段内，系统必须推进到下一个有效时间段。
-- 编辑重复提醒默认编辑整个系列，影响后续所有触发。
-- 当前不支持只编辑某一次重复提醒 occurrence。
-- 完成重复提醒只完成本次；删除重复提醒才删除整个系列。
-- 当前不支持独立的“跳过”操作；跳过这次等同于完成本次，并推进到下一次有效触发。
-- 彻底停止重复提醒就是删除整个系列。
-- 同一 owner 下同一触发时间的多个 reminder 在提醒时合并成一次提醒告知；合并只影响用户可见提醒方式，不改变每条 reminder 及其事件本身的独立性、内容、归属和后续状态推进。
-- 重复提醒默认持续生效，直到用户删除整个系列，或编辑规则使其停止。
-- 系统不应为所有重复提醒设置默认最大触发次数。
-- 如果用户明确提出结束条件，例如提醒固定次数、提醒到某一天、只在接下来若干天提醒，系统应把结束条件作为该重复规则的一部分。
-
-需求边界：
-
-- 个人提醒的核心合同不是“直接发送一条固定通知”，而是“提醒事件触发后进入 Interaction LLM，由角色化 assistant 以文字方式提醒用户”。
-- 系统可以负责时间、状态和触发；用户可见表达应由 Interaction LLM 完成。
-- reminder 操作确认回复也是用户可见合同，应由 Interaction LLM 生成，并准确反映操作是否真实成功。
-- 批量 reminder 操作不是一个绕过校验的特殊入口；每个子操作都必须独立满足个人提醒合同，并在汇总确认中表达真实结果。
-- 编辑、完成、删除 reminder 时，匹配歧义必须先向用户澄清；未确认前不得对候选 reminder 执行破坏性或状态变更操作。
-- 创建 reminder 时禁止完全相同的可行动 personal reminder；相似但不完全相同的 reminder 不做复杂相似度去重；同一触发时间的多条 reminder 通过提醒时合并来控制用户可见打扰。
-- 提醒触发和提醒送达是两个不同状态；触发成功不等于用户已收到提醒。
-- 无可用 channel 或发送失败不能被标记为成功送达，必须留下可观测未送达状态。
-- 过去时间和日期不完整时间的处理属于用户意图确认问题；系统不应在未确认时自动改写时间。
-- 系统应依赖统一的用户全局时区合同；channel 和 Interaction LLM 不应各自推断不同默认时区。
-- 无触发时间 reminder 属于个人提醒旅程，但不是到点提醒；它的用户可见触达是每天晚上 8 点的安排时间询问。
-- 无触发时间 reminder 的安排时间询问应按 owner 每天汇总一次，避免逐条消息造成骚扰。
-- 重复提醒是提醒的一种，也是个人提醒核心合同的一部分；系统必须能根据规则推进下一次触发。
-- 重复提醒的完成本次 / 删除整个系列 / 跳过等同完成本次 / 编辑整个系列 / 同一触发时间提醒时合并 / 完全相同 reminder 禁止创建等语义，见「重复提醒规则限制」「创建期重复/相似 reminder 处理」，此处不重复。
-- 提醒日历页默认视图应面向可行动状态；完成记录或历史列表不属于当前已确认核心需求。
-- 删除 reminder 是当前产品状态删除；当前需求不要求为了旧数据兼容或未确认审计需求保留复杂删除历史。
-- 提醒必须 owner-scoped，不能依赖 LLM 自己猜测提醒属于谁。
-- duration 是 reminder 的时长字段，默认 15 分钟，用户可显式设置其他时长；对个人提醒它不改变是否触发、何时触发、完成或删除，主要用于展示，以及共享提醒的 receiver conflict 时间窗口计算。
-
-### 5.9 Product notification
-
-已确认：
-
-- Product notification 是独立需求项，但本文只从产品需求角度定义，不限定实现架构。
-- 当前只发送 informational notification 和 system notification。
-- Product notification 不是审批流程，不承载 accept/reject，也不直接执行行动。
-- Product notification 必须覆盖好友关系创建、共享提醒创建、共享提醒取消，以及这些事件关联的错误、失败、部分失败、未送达、冲突和取消失败。
-- 普通 reminder、shared reminder 和 system notification 不受额外免打扰或通知偏好设置控制；当前没有这类用户配置。
-- notification 事实必须清楚表达谁、做了什么、对象是什么、何时发生、使用哪个时区、duration 是多少。
-- 当事件包含错误、失败或部分失败时，notification 必须包含用户可理解的错误信息。
-- notification 不应暴露 raw provider error、内部错误码、队列状态、delivery attempt 或内部状态机字段。
-- 最终用户可见文字由 Interaction LLM 基于结构化事实和错误事实生成。
-
-用户旅途：
-
-1. 用户 A 通过好友链接或链接码与用户 B 建立 active friendship。
-2. 系统向相关用户发送 informational notification，说明好友关系已经建立。
-3. 用户 A 创建包含用户 B、用户 C 的 shared reminder。
-4. 系统向 creator 发送创建确认，并向 receivers 发送 informational notification。
-5. 如果创建失败、部分失败、receiver conflict、receiver channel 不可用或 receiver 不可解析，系统向 creator 发送包含错误信息的 system notification；如果当前对话正在等待结果，也可以作为最终可见错误回复呈现。
-6. 任一 participant 取消 shared reminder。
-7. 系统向其他 participants 发送 informational notification，说明谁取消了哪个 shared reminder，以及后续不会再触发。
-8. 如果取消失败或部分 participant 未收到通知，系统向发起用户提供用户可理解错误信息。
-
-系统必须支持：
-
-- 发送好友关系创建 notification。
-- 发送 shared reminder 创建 notification。
-- 发送 shared reminder 取消 notification。
-- 发送 system notification。
-- 在 notification 中包含 actor、action、object、participants、time、timezone、duration 和 status。
-- 在失败、部分失败、未送达、冲突或取消失败时包含用户可理解错误信息。
-- 将 provider/channel 错误映射为产品语言，例如“对方 channel 不可用”“这个时间和对方已有安排冲突”“取消没有成功”。
-- 由 Interaction LLM 根据结构化 notification facts 和 error facts 生成最终可见文字。
-- 避免把 notification 变成审批、确认、accept/reject 或 action execution 入口。
-
-需求边界：
-
-- Product notification 的核心合同是事实告知和错误告知，不是工作流控制。
-- Product notification 不引入新的用户通知偏好或免打扰设置。
-- Product notification 不允许用内部错误或 provider 细节替代用户可理解错误信息。
-- 共享提醒创建 notification 不表示 receiver 接受邀请；shared reminder 创建后已经 active。
-- 取消 notification 不等于完成 reminder；取消 shared reminder 是停止整个 group 的关联 projections。
-
-### 5.10 日历导入
-
-已确认：
-
-- 日历导入是当前产品保留能力。
-- 当前只确认一次性导入，不引入持续 sync。
-- 日历导入只定义用户需求和字段映射，不限定具体实现方案。
-- 用户可以授权 Google Calendar。
-- 系统可以从授权日历读取 calendar events。
-- 未来 calendar events 会导入为 Coke reminders。
-- 历史 calendar events 不生成 Coke reminders。
-- 导入生成的 reminder 归属当前个人用户。
-- calendar event 标题和描述进入 reminder 内容。
-- calendar event 开始时间进入 reminder 触发时间。
-- calendar event duration 进入 reminder duration；event 无 duration 时按默认 15 分钟。
-- 全天 calendar event 导入为该事件日期 0 点触发的 Coke reminder。
-- recurring calendar event 优先导入为 Coke recurring reminder。
-- 如果 recurring calendar event 无法可靠表达为 Coke 当前支持的重复规则，系统应导入为未来可见 occurrence 对应的一次性 reminders。
-- 如果 recurring calendar event 被降级为一次性 reminders，导入结果应让用户知道没有保留重复规则。
-- 同一个 calendar event 重复导入时，系统直接跳过，不生成重复 reminder，不需要用户确认。
-- 导入完成后，系统必须向用户反馈导入结果。
-- 导入结果至少包含成功导入数量、跳过数量、降级项和失败项。
-- 导入生成的 reminder 遵守个人提醒的 owner、全局时区、触发、完成、删除、未送达和日历展示规则。
-- 用户可以停止或撤销 Google Calendar 授权，也可以让授权过期。
-- 停止、撤销或过期只影响未来导入；已经导入的 Coke-owned reminders 继续按个人提醒规则管理，不自动删除。
-
-用户旅途：
-
-1. 用户进入日历导入入口。
-2. 系统确认当前 account/conversation 已准备好承接导入结果。
-3. 用户授权 Google Calendar。
-4. 系统读取用户授权范围内的 calendar events。
-5. 系统把未来 calendar events 一次性导入为 Coke reminders。
-6. 如果 calendar event 是全天事件，系统导入为该事件日期 0 点触发的 Coke reminder。
-7. 如果 calendar event 是可表达的重复事件，系统导入为 Coke recurring reminder。
-8. 如果 calendar event 是无法可靠表达的重复事件，系统导入为未来可见 occurrence 对应的一次性 reminders，并在导入结果中说明。
-9. 如果 calendar event 已经导入过，系统直接跳过，不创建重复 reminder，也不要求用户确认。
-10. 系统不把历史 calendar events 生成 Coke reminders。
-11. 系统向用户展示导入结果摘要。
-12. 用户可以在提醒日历页查看和管理导入生成的 reminders。
-13. 用户可以停止或撤销 Google Calendar 授权。
-14. 授权停止、撤销或过期后，用户不能继续从该授权读取新 events；已导入 reminders 仍留在 Coke 中，由个人提醒规则管理。
-
-系统必须支持：
-
-- Google Calendar 授权入口。
-- 一次性读取 calendar events。
-- 只把未来 calendar events 转为 Coke reminders。
-- 不把历史 calendar events 生成 Coke reminders。
-- 把 calendar event 标题和描述映射为 reminder 内容。
-- 把 calendar event 开始时间映射为 reminder 触发时间。
-- 把 calendar event duration 映射为 reminder duration；event 无 duration 时按默认 15 分钟。
-- 把全天 calendar event 映射为该事件日期 0 点触发的 reminder。
-- 把可可靠表达的 recurring calendar event 映射为 Coke recurring reminder。
-- 把无法可靠表达为当前重复规则的 recurring calendar event 映射为未来可见 occurrence 对应的一次性 reminders。
-- 在 recurring calendar event 未保留重复规则时，向用户说明导入结果。
-- 识别已经导入过的 calendar event，并在重复导入时直接跳过。
-- 重复导入跳过不需要用户确认。
-- 导入完成后向用户反馈导入结果摘要。
-- 导入结果摘要包含成功导入数量。
-- 导入结果摘要包含跳过数量。
-- 导入结果摘要列出 recurring calendar event 被降级为一次性 reminders 的项目。
-- 导入结果摘要列出失败项。
-- 为导入生成的 reminders 设置当前个人用户 owner。
-- 在提醒日历页展示导入生成的 reminders。
-- 用户可以按个人提醒规则编辑、完成或删除导入生成的 reminders。
-- 用户可以停止或撤销 Google Calendar 授权。
-- Google Calendar 授权过期或被撤销时，系统停止未来读取。
-- 停止、撤销或过期不删除已经导入的 Coke-owned reminders。
-
-当前不要求：
-
-- 持续 sync。
-- 双向同步。
-- 把用户在 Coke 中对 reminder 的修改写回 Google Calendar。
-- 导入历史 calendar events 为 reminders。
-- 重复导入时覆盖或重新创建已经导入过的 reminder。
-- 撤销 Google Calendar 授权时自动删除已导入 reminders。
-
-需求边界：
-
-- 日历导入不应把 Google Calendar 变成 Coke reminder 的运行时真相来源；导入后 Coke reminder 按个人提醒合同运行。
-- 当前不要求持续 sync、复杂同步状态、冲突解决或双向写回合同。
-- Google Calendar 授权生命周期只控制未来读取能力，不改变已导入 Coke-owned reminders 的 owner、触发、完成、删除或展示规则。
-
-### 5.11 Agent settings
-
-已确认：
-
-- Agent settings 用来配置 assistant 的用户可见表现和长期偏好。
-- Agent settings 必须 customer-scoped。
-- 用户可以查看、修改和重置自己的 Agent settings。
-- 用户可以设置 assistant 名称。
-- 用户可以设置 assistant 对自己的称呼。
-- 用户可以设置 persona。
-- 用户可以设置背景信息。
-- 用户可以设置说话风格。
-- 用户可以设置额外规则。
-- agent 设置页展示当前 personal channel 的连接状态（已连接 / 未连接 / 连接失败）；该状态由 channel 可达性旅程决定，不是用户自由设置的字段。
-- 用户可以关闭和重新打开 proactive。
-- 用户可以关闭和重新打开 memory。
-- 重置 Agent settings 会恢复默认设置。
-
-proactive 开关：
-
-- 关闭 proactive 后，系统不再创建新的主动 follow-up reminder。
-- 用户关闭 proactive 时，应一并取消未触发的主动 follow-up reminder。
-- 关闭 proactive 不删除普通个人 reminder，不影响到点提醒。
-- 关闭 proactive 不影响无触发时间 reminder 汇总。
-- 关闭 proactive 不影响日常对话回复。
-- 关闭 proactive 不影响 Product notification 或 system notification。
-- 重新打开 proactive 后，只影响未来是否可以创建新的主动 follow-up reminder。
-- 重新打开 proactive 不恢复之前已取消的 follow-up。
-- proactive 开关只控制主动 follow-up，不控制用户显式创建的 reminder、无触发时间汇总、日常对话回复、Product notification 或 system notification。
-- 当前不提供免打扰或通知偏好设置。
-
-memory 开关：
-
-- memory 开关控制系统是否使用和更新长期记忆。
-- 关闭 memory 后，系统不再使用长期记忆。
-- 关闭 memory 后，系统不再新增长期记忆。
-- 关闭 memory 后，系统不再更新长期记忆。
-- 关闭 memory 不删除既有长期记忆。
-- 关闭 memory 不影响完成当前对话所需的近期上下文。
-- 重新打开 memory 后，系统可以继续为未来对话、提醒和主动 follow-up 使用仍存在的长期记忆，并继续积累新的长期记忆。
-- 当前不支持用户自助清除长期记忆。
-
-需求边界：
-
-- Agent settings 是用户可理解的偏好配置，不应扩展成复杂 persona 或 policy 平台。
-- memory 开关应约束长期记忆的使用、创建和更新；不应被解释成清空所有会话历史，也不提供清除长期记忆能力。
-- proactive 开关应约束主动 follow-up reminder；不应影响普通个人 reminder、Product notification 或 system notification。
-
-### 5.12 账号/数据生命周期
-
-已确认：
-
-- 当前产品不支持用户自助删除账号。
-- 当前产品不支持用户自助完整账号导出或完整擦除。
-- 当前产品不支持用户自助清除长期记忆。
-- 当前支持的生命周期动作是局部动作：移除 personal channel、删除或完成个人 reminders、取消 shared reminders、移除好友、关闭 memory 使用、停止或撤销 Google Calendar 授权。
-- 账号仍然是 channel、reminder、friendship、shared reminder 和 settings 的身份主体。
-- 局部生命周期动作不能被解释成删除账号本身。
-
-用户旅途：
-
-1. 用户在 channel 管理页移除 personal channel。
-2. 系统停止通过该 channel 触达用户，但不删除账号、reminders、friendships 或 settings。
-3. 用户在提醒日历页删除或完成个人 reminders。
-4. 系统只改变对应 reminders 的产品状态，不删除用户账号。
-5. 用户取消 shared reminder。
-6. 系统取消整个 group shared reminder，停止所有 participant projections，并通知其他 participants。
-7. 用户在好友页移除好友。
-8. 系统移除 active friendship；该动作不删除账号、不删除个人 reminders，也不自动取消已经存在的 active shared reminders。
-9. 用户关闭 memory。
-10. 系统停止使用、新增和更新长期记忆，但不删除既有长期记忆。
-11. 用户停止或撤销 Google Calendar 授权。
-12. 系统停止未来读取 Google Calendar；已导入 Coke-owned reminders 继续按个人提醒规则管理。
-
-系统必须支持：
-
-- 移除 personal channel。
-- 删除个人 reminder。
-- 完成个人 reminder。
-- 取消 shared reminder。
-- 移除好友。
-- 关闭和重新打开 memory 使用。
-- 停止或撤销 Google Calendar 授权。
-- 在这些局部生命周期动作完成后给出准确用户可见结果。
-- 在局部生命周期动作失败时给出用户可理解错误信息。
-
-当前不要求：
-
-- 用户自助删除账号。
-- 用户自助完整账号导出。
-- 用户自助完整数据擦除。
-- 用户自助清除长期记忆。
-- 用户从 Coke 删除已经导入 reminders 时同步删除 Google Calendar 原始 events。
-
-需求边界：
-
-- 账号/数据生命周期的当前合同是局部管理动作，不是完整隐私数据管理平台。
-- 移除 channel 只影响未来触达路径，不改变 reminder owner。
-- 删除或完成 reminder 只影响对应 reminder，不影响账号或好友关系。
-- 取消 shared reminder 影响整个 group shared reminder，不等同于移除好友。
-- 移除好友不自动取消既有 shared reminders。
-- 关闭 memory 只影响长期记忆使用、创建和更新，不删除既有长期记忆。
-- 停止或撤销 Google Calendar 授权只影响未来导入，不删除已导入 Coke-owned reminders。
+| Voice replies, image replies, video replies | The current output contract only requires text replies. The assistant is not required to reply to users with voice, images, or videos. |
+| Image generation | Not currently included in product requirements. |
+| Memo runtime / memo cards / memo search / memo review queue / agent memo proposals | Explicitly not included in current product requirements. Only long-term memory controlled by the memory switch is retained; no user-visible memo runtime is defined. |
+| Photo library, Moments/social feed, photo deletion | Not currently included in product requirements. If content asset management or social display is needed later, it should be defined separately as a new user journey. |
+| Numerical intimacy, trust, dislike | Not included in current requirements. Only non-numerical user preferences, relationship descriptions, boundaries, and disturbance willingness are retained. |
+| Relationship decay, dislike blocking | Not included in current requirements. |
+| Role busy/free schedule scripts | Not included in current requirements. |
+| Holding user messages because the role is busy | Not included in current requirements. The current product prioritizes ensuring user help requests, reminders, and conversations are reachable. Proactive reach-out frequency is constrained by proactive system behavior; no user-configurable do-not-disturb or notification preferences are introduced. |
+| Independent timezone per reminder | Not included in current requirements. There is only the user's global default timezone; timezone switching is an overall switch. |
+| User self-service account deletion / full account export / full erasure | Not included in current requirements. Currently only local lifecycle actions are defined, such as removing channels, deleting/completing reminders, canceling shared reminders, removing friends, and stopping Google Calendar authorization. |
+| User self-service clearing of long-term memory | Not included in current requirements. The memory switch only controls whether long-term memory is used, added, and updated; it does not provide an entry point to clear existing long-term memory. |
+| Do-not-disturb / notification preference settings | Not included in current requirements. Currently only the proactive switch is retained. Ordinary reminders, shared reminders, and system notifications are not controlled by additional notification preferences. |
+| Fixed QueryRewrite/ContextRetrieve agent stage | Not treated as a user-visible requirement or a fixed agent stage. Only the product requirement of "needing historical context and user memory" is retained. |
+| Legacy hard-coded chat-style management commands | Not included in current requirements. A generic management surface is not retained simply because of legacy management commands. |
+| Legacy fixed SLO values | Fixed P99 and error-rate values are not directly inherited. The current requirement is only that core journeys must have availability and latency targets. |
+| Old data compatibility layer, old protocol adapters, old runtime shape compatibility | Not included in current requirements unless later explicitly confirmed as current product requirements. |
+
+## 5. User Journey Details
+
+### 5.1 Registration/Login
+
+Confirmed:
+
+- The onboarding completion definition is in §1 "First-use definition"; the first activation journey is in §5.2; first conversation guidance is in §5.4.
+- Already implemented features are not removed by default. Implemented sub-features that are not part of the core contract should retain their current factual status, but must not dominate the core requirements.
+- A Coke user may also originate from auto-provisioning on first shared-WhatsApp-channel contact and later acquire login credentials in place. Account origin paths and cross-surface linking are detailed in §5.13.
+
+User journey:
+
+1. The individual user opens the registration or login entry point.
+2. The user completes registration or login.
+3. The user completes email verification when necessary.
+4. The system establishes a session/token and can return the current user identity.
+5. Subsequent channel, reminder, friendship, and shared reminder usage can continue under the same logged-in account.
+
+The system must support:
+
+- Registration.
+- Login.
+- Email verification.
+- Resending verification emails.
+- Forgot/reset password.
+- Current user query.
+- Session/token.
+- Current user identity.
+
+Implemented and retained supporting capabilities:
+
+- Subscription/access status.
+- Membership/subscription status return.
+- Display of account access status, email verification status, account suspension, or blocking reasons.
+- Public explanation, FAQ, demo, privacy, and terms pages.
+
+### 5.2 First Activation
+
+Confirmed:
+
+- Onboarding completion must satisfy all of the following: registration/login complete; at least one usable personal channel connected; the user sends one message through that channel and the system successfully receives it.
+- Creating the first reminder is not a condition for onboarding completion.
+- Completing Agent settings is not a condition for onboarding completion.
+- The assistant may send guidance in the first conversation, but onboarding completion does not depend on the user completing a fixed tutorial or replying with fixed content.
+- A personal channel being "usable" must mean Coke can already send conversation replies, reminders, and proactive follow-ups through that channel. It cannot merely mean the provider-side connection succeeded.
+- The first message must be bindable to a trusted account/customer context. The assistant must not guess the user's identity.
+
+User journey:
+
+1. The user completes registration or login.
+2. The user enters the channel connection entry point.
+3. The user connects a personal conversation entry point carried by personal WeChat or a shared WhatsApp channel.
+4. The system confirms that the channel has completed trusted user binding and has a usable delivery route.
+5. The user sends the first message through that channel.
+6. The system successfully receives that inbound message and binds it to the user's trusted account/customer context.
+7. The system marks the user as onboarding complete.
+8. The assistant may send first-use guidance or continue processing the real intent of this message.
+
+The system must support:
+
+- Determining whether the user is registered/logged in.
+- Determining whether the user has at least one usable personal channel.
+- Determining whether the first personal-channel inbound message has been successfully received.
+- Binding the first inbound message to a trusted account/customer context.
+- Treating onboarding as complete only after all three conditions are satisfied.
+- Showing or sending the next step when conditions are not satisfied, such as login, connecting a channel, retrying connection, or sending the first message.
+- Not blocking onboarding completion because the user has not created a reminder, set assistant persona, or opened the reminder calendar page.
+
+Requirement boundaries:
+
+- The core contract of first activation is that the account, channel, and first-message paths are valid.
+- Onboarding guidance copy is conversation experience, not a completion condition.
+- The system must not count states such as provider connection in progress, connection failure, route not bound, or first message not inbound as onboarding complete.
+
+### 5.3 Personal Communication Channel Integration and Reachability
+
+Confirmed:
+
+- Currently, an individual user may link only one personal channel.
+- The current personal channel only supports personal WeChat or a personal conversation entry point carried by a shared WhatsApp channel.
+- The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries.
+- A provider-backed/shared channel must still appear to the user as that user's own conversation entry point, not as an independent product journey.
+- In pages and conversations, the user only needs to see channel type and connection status, such as WeChat, WhatsApp, not connected, connecting, connected, connection failed, and reconnection required. Provider names such as Evolution, Linq, and Ecloud are not exposed as product objects ordinary users need to select or understand.
+- A user-visible "connected" state must mean Coke can already send conversation replies, reminders, and proactive follow-ups through that channel. It cannot merely mean provider-side connection succeeded.
+- Currently only one personal channel may be linked. The only connected channel is the sending channel.
+- This journey is the reachability support journey for daily conversations, reminder triggers, and proactive follow-up.
+- There is currently no need to support a "disconnect channel" action. The user only needs to be able to remove a channel.
+- After the user removes a personal channel, the system must no longer reach the user through that channel.
+- Removing a personal channel does not delete the account, delete reminders, or change reminder ownership.
+- The user does not need to see removed channels or historical channels. After removal, the page returns to an unconnected, reconnectable channel state.
+- The user can reconnect or relink a personal channel. Future reminders, conversation replies, and proactive follow-ups use the newly connected channel.
+
+User journey:
+
+1. A logged-in individual user opens the channel management entry point.
+2. The user views the current personal channel status.
+3. If there is no channel, the user selects personal WeChat or a shared WhatsApp channel and creates a reachable channel.
+4. If the selected channel depends on a provider-backed/shared channel, the system shows the user the connection action and connection status for that channel.
+5. The user initiates connection and waits for the connection status to change from "connecting" to "connected" or "connection failed".
+6. After connection completes or the first valid inbound arrives, the system binds the provider identity to the trusted Coke user/customer and usable delivery route.
+7. If connection fails or the provider is unavailable, the user sees understandable states and recovery actions such as "connection failed", "needs reconnection", or "retry available". Ordinary user copy does not show internal error reasons from Evolution, Linq, or Ecloud.
+8. The user can retry connection, refresh connection status, remove the channel, and relink.
+9. If the user has already linked a personal channel, the system does not allow linking a second personal channel at the same time. The user must first remove the existing channel.
+10. The user can remove the channel when needed.
+11. After connection succeeds, the system can deliver that user's conversation replies, reminders, and proactive follow-ups to that personal channel.
+12. After the user removes the channel, they can no longer receive conversation replies, reminders, or proactive follow-ups through that channel.
+13. If the user switches from personal WeChat to a shared WhatsApp channel, or from a shared WhatsApp channel to personal WeChat, they must first remove the old channel.
+14. After the user reconnects or relinks a personal channel, future reach-outs use the newly connected channel.
+
+The system must support:
+
+- Personal channel status.
+- WeChat personal channel.
+- Shared WhatsApp channel.
+- Provider-backed channel inbound/outbound.
+- Provider-backed channel connection entry point.
+- Provider-backed channel connection status polling or refresh.
+- Provider-backed channel user/route binding.
+- Provider-backed channel provider error mapping.
+- Provider-backed channel retry, removal, and relinking.
+- Refreshing connection status and retrying connection (meaning defined in "provider-backed channel user-visible sub-features" below).
+- At most one linked personal channel for the same user.
+- Create channel, connect channel, poll connection status, and remove channel.
+- The only connected personal channel as the sending channel.
+- Semantics for removal, relinking, and switching between personal WeChat and shared WhatsApp channel are defined below in "removal and relinking semantics" and are not repeated here.
+
+User-visible states that must hold:
+
+- Not connected.
+- Connecting.
+- Connected.
+- Connection failed / needs reconnection.
+
+Provider-backed channel user-visible sub-features:
+
+- The user sees their own conversation entry point and does not need to understand the internal implementation of provider-backed/shared channels.
+- The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud all rely on provider-backed/shared-channel boundaries.
+- Ordinary user copy only expresses WeChat/WhatsApp and connection status. It does not require the user to select or debug providers such as Evolution, Linq, or Ecloud.
+- A provider-backed channel must allow the user to initiate a linking or connection flow from the user side.
+- "Connecting" means the user has initiated connection, but Coke has not yet confirmed that the channel has completed user binding and usable delivery. A connecting state must not be treated as reachable.
+- The user can refresh connection status while connecting.
+- The user can retry connection after a connection failure.
+- Connection flow may differ by provider, but the requirements layer does not constrain the specific implementation.
+- Provider-backed channel status must be normalized into personal channel status.
+- Inbound messages from provider-backed channels must be bindable to the current trusted Coke user/customer. Ambiguous provider identity must not route messages into the wrong user.
+- For the shared WhatsApp channel, the channel exposes a single outbound account, but each sender is distinguished by their own WhatsApp sender identity. The system routes by sender identity: a known sender identity routes to its existing Coke user; a first-seen sender identity provisions a new Coke user bound to that identity, and the assistant communicates with them as that user. The sender's provider identity is the trust anchor, so this is identity-based binding, not identity guessing. Cross-surface account linking — for example, a WhatsApp-provisioned user later opening a friend link in a web session — is detailed in §5.13.
+- A provider-backed channel must complete trusted Coke user/customer binding and establish a usable delivery route before it can be considered user-visibly "connected".
+- Provider-backed channel outbound failure must not be considered successful delivery.
+- Provider-backed channel provider errors should be mapped to user-understandable channel unavailable, connection failed, or reconnection required states.
+- Ordinary users do not need to see raw provider errors or know what internal error Evolution, Linq, or Ecloud returned.
+- Users must be able to retry connection or relink after failure.
+- Users must be able to remove provider-backed channels.
+- After a provider-backed channel is removed, that channel's provider identity and route are no longer used for future reachability.
+- After removal, the user-visible status returns to "not connected" and removed or historical channel lists are not shown.
+- Provider-backed/shared channels count toward the same per-user limit of at most one reachable channel.
+- Switching provider-backed/shared channels and switching between personal WeChat / shared WhatsApp channel both require removing the old channel first.
+- A provider-backed channel does not introduce a second user identity system, a second reminder owner system, or an independent operation role.
+
+Removal and relinking semantics:
+
+- After the user removes a personal channel, they can no longer receive conversation replies, reminders, or proactive follow-ups through that channel.
+- Removing a channel does not delete the user's account.
+- Removing a channel does not delete reminders or change reminder ownership.
+- The user page does not show removed channels or historical channels. Whether provider identity/route records are retained internally is not a user-visible requirement.
+- Reminders due while the channel is unavailable enter an undelivered state.
+- After the user reconnects or relinks a personal channel, future reminders, conversation replies, and proactive follow-ups use the newly connected channel.
+- Undelivered reminders may be resent or shown as undelivered on the reminder calendar page.
+- If the user switches from personal WeChat to a shared WhatsApp channel, or from a shared WhatsApp channel to personal WeChat, they must first remove the old channel, because currently only one reachable channel is allowed.
+
+Requirement boundaries:
+
+- The core contract of a personal channel is channel ownership, connection state, and user reachability.
+- The core contract of a provider-backed channel is user-visible connection status, provider inbound standardization, user/route binding, outbound delivery, and observable failure.
+- Daily conversations, reminders, and proactive follow-ups only need to depend on trusted account, channel, and delivery status; they do not need to understand WeChat, WhatsApp, or provider connection details.
+- States such as connection failure, connecting, and removal should appear as unified channel states, not as special conversation branches that the user must understand.
+- Provider identity, provider errors, and route binding are internal system details. Ordinary users only see channel type, connection status, and recovery actions.
+- After a user removes a personal channel, that channel is no longer available for reachability, but it does not affect the user account, historical reminder ownership, or other user data.
+
+### 5.4 Daily Conversation
+
+Confirmed:
+
+- Daily conversation is a current core journey.
+- Personal WhatsApp refers to a personal conversation carried by a shared WhatsApp channel, not an independent personal WhatsApp channel.
+- First conversation may enter an onboarding guidance branch. The onboarding completion definition is in §5.2 First Activation.
+- When Agent processing times out, the user should first receive a visible waiting text, and the final text reply should then be delivered asynchronously. This is a current required contract.
+- For meaningless content, natural conversation endings, or scenarios where the user explicitly does not want to be disturbed, the system may intentionally produce no reply. This is not system failure and not silent message loss.
+- Daily conversation does not require every message to be replied to. The system must decide whether the user message needs a response.
+- When the system explicitly produces intentional no-reply, it sends no user-visible message.
+- Current support includes multimodal input that the channel can carry, but the output contract only requires text replies.
+- The assistant is currently not required to reply to users with voice, images, or videos.
+
+User journey:
+
+1. The user already has an identifiable identity and a reachable channel.
+2. The user sends text, images, voice, or other messages that the channel can carry through personal WeChat or a shared WhatsApp channel.
+3. The system binds the inbound message to a trusted account/customer context.
+4. The system executes a single-Agent turn.
+5. The system decides whether the user message needs a response.
+6. If a reply is needed, the user receives an immediate text reply. If processing times out but is still ongoing, the user first receives a visible waiting text, and the final text reply is later delivered asynchronously.
+7. If the system explicitly produces intentional no-reply, the system sends no user-visible message, but this result should be distinguished from system failure.
+8. If processing fails, the error/failure must be observable and must not be mixed with intentional no-reply.
+9. If this is a first-use scenario, the system may enter the onboarding guidance branch.
+
+The system must support:
+
+- Receiving personal WeChat inbound messages.
+- Receiving shared WhatsApp channel inbound messages.
+- Receiving provider-backed/shared channel inbound messages.
+- Supporting multimodal input that the channel can carry.
+- Binding inbound messages to a trusted account/customer context.
+- Writing input messages.
+- Worker pulling and executing a single-Agent turn.
+- Generating synchronous or asynchronous text replies.
+- Sending a visible waiting text when timing out.
+- Delivering the final text reply back to the channel through outbound delivery.
+- Deciding whether the user's message needs a response.
+- Supporting intentional no-reply semantics to avoid treating intentional model no-reply as system failure.
+- Providing observable failure status when processing fails, without mixing it with no-reply.
+- Maintaining necessary historical context and user memory so replies understand context.
+
+Sub-features that must hold:
+
+- Account context is trusted and does not rely on the agent guessing the user.
+- Conversation/session can be stably identified.
+- Synchronous waiting and asynchronous supplementary delivery semantics are clear. On timeout, a visible waiting text must be sent first, and the final text reply must be delivered asynchronously.
+- The outbound route is usable.
+- The minimum and currently necessary contract for user-visible output is text reply. Voice reply, image reply, video reply, or matching input and output media types is not required.
+- System failure, empty-output exception, and intentional model no-reply must be distinguishable: system failure must not be silent; intentional no-reply sends no user-visible message; slow processing must not be misclassified as no-reply.
+
+Onboarding (first conversation):
+
+- When the user has their first conversation with this agent (the system determines this based on whether the user and agent already have a conversation relationship), the system must enter the onboarding branch.
+- The specific behavior of the onboarding branch is driven by the configured onboarding prompt/settings. The system sends first-use guidance to the user according to that prompt.
+- The top-level requirements do not define the specific onboarding wording, tone, number of steps, or number of messages. These are determined by the onboarding prompt/settings.
+- Onboarding is injected only in the first conversation and is not repeatedly triggered in later conversations.
+- Onboarding may only introduce capabilities that are truly currently available. Without successful tool results, it must not claim that it has already completed reminders or other actions for the user.
+
+Requirement boundaries:
+
+- The core contract of daily conversation is trusted account context, text reply, turn execution, reply necessity determination, reply delivery, timeout/fallback semantics, intentional no-reply, and failure observability.
+- Multimodal input is part of inbound message standardization and Interaction LLM processable input. It does not change the current output contract of "text reply".
+- Daily conversation is not responsible for establishing the channel or selecting the provider. These must become trusted context before the message enters the conversation journey.
+- No matter how internal queues, locks, waiting, and dispatch change, the user-visible semantics must remain: the message is received and will be processed; when a reply is needed, it is replied to in text; timeout produces a visible waiting text, and the final text reply can be delivered asynchronously; when the model intentionally no-replies, no user-visible message is sent.
+- Intentional no-reply must be retained as an observable result, not mixed with failure.
+- Reply language is identified and handled by the Interaction LLM based on the user's language. It is not a configurable settings field.
+
+### 5.5 User Timezone
+
+Confirmed:
+
+- A user has only one global default timezone.
+- The user can view and modify the global default timezone in the settings page.
+- The user can switch timezone globally through conversation, for example, "remind me according to Tokyo time from now on".
+- Independent timezone per reminder is not currently supported.
+- When the user mentions another timezone while creating a reminder, it should be understood as a global timezone switch, or the system should first confirm the global switch when needed to avoid misunderstanding.
+- Switching timezone should not silently rewrite existing reminders' absolute trigger moments. Existing reminders are only displayed in the new global timezone.
+- Newly created reminders, reminder calendar display, reminders-without-trigger-time summaries, friend availability, and shared reminders all use the current global default timezone.
+
+User journey:
+
+1. The user opens the agent settings page to view the current timezone.
+2. The user switches the global default timezone in settings, or says in conversation, "remind me according to Tokyo time from now on".
+3. The system confirms that the timezone has been globally switched.
+4. When the user later creates reminders, views the calendar, or queries friend availability, the system interprets and displays according to the new global timezone.
+5. Existing reminders' absolute trigger moments remain unchanged and are only displayed in the new global timezone.
+6. If the user says "remind me tomorrow at 9 AM New York time", the system should understand this as creating after switching the global timezone to New York time, or first confirm whether the user wants to switch globally to New York time.
+
+The system must support:
+
+- Reading the user's global default timezone.
+- Modifying the user's global default timezone in the settings page.
+- Modifying the user's global default timezone through conversation.
+- Using a unified global timezone in reminder creation, editing, confirmation, trigger copy, reminder calendar page, reminders-without-trigger-time summaries, calendar import results, friend availability, and shared reminders.
+- Not silently rewriting existing reminders' absolute trigger moments after the global timezone is changed.
+- When the user mentions another timezone but the semantics might mean independent timezone for one reminder, the system should confirm global switch semantics instead of creating an independent timezone for a single reminder.
+
+Requirement boundaries:
+
+- User timezone is a customer-scoped global setting, not per-reminder user configuration.
+- Channels and the Interaction LLM should not use different default timezones to interpret the same reminder time.
+- Current requirements do not support product semantics such as "this reminder uses New York time, while other reminders use Tokyo time".
+- Reminders are stored as absolute (UTC) trigger instants plus the timezone captured at creation or last edit, which is used to expand recurrences and windows. A global timezone switch changes only display and the timezone applied to newly created reminders; it does not recompute existing reminders' trigger moments or recurrence windows. This is a refinement of "only one global timezone", not a per-reminder user-configurable timezone.
+
+### 5.6 Friendship
+
+Confirmed:
+
+- Friendship is part of the current product contract.
+- Friendship serves interpersonal accountability collaboration and is also the prerequisite relationship for shared reminders.
+- A friend link is an authorization entry point. After visitors log in or register, an active friendship is created directly. No owner approval is needed and no pending friend request is produced.
+- Users can generate their own public friend links.
+- Only users who have connected a usable personal channel may generate or share a friend link or link code.
+- Users can share their friend links through QR codes.
+- Unauthenticated visitors who open a friend link can first register or log in.
+- Logged-in users who have connected a usable personal channel can establish active friendship with the link owner after friend-link handoff.
+- Users can also establish active friendship in conversation through a friend link code.
+- The same pair of users cannot create multiple active friendships.
+- Users cannot establish friendship with themselves.
+- Users can view their friend list.
+- Users can remove friends.
+- After removing a friend, both parties can re-establish active friendship through a still-valid friend link or link code.
+- Users can reset their friend link so the old link is no longer a new-friend entry point.
+- Users can disable their friend link so others cannot continue adding them through the link.
+- Reset and disable only affect future new friendships and do not affect already established friendships. Reset means the old link becomes invalid and a new link is generated or enabled. Disable means the current friend link is turned off.
+- Pending friend request accept/reject is not a current requirement. Establishing friendship means directly active product semantics.
+- Generating or sharing a friend link or link code requires the owner to have a connected usable personal channel. Establishing an active friendship requires the joining user to have registered and connected a usable personal channel. As a result, both friends always have a usable channel at the moment friendship is established, so friendship-creation notifications and later reachability can be delivered.
+
+User journey:
+
+1. The user opens the friends page.
+2. The user views their friend link and QR code.
+3. The user shares the friend link or QR code with someone else.
+4. The visitor opens the friend link.
+5. If the visitor is not logged in, the system guides the visitor to register or log in and preserves the current friend-link handoff context.
+6. After the visitor has registered/logged in and connected a usable personal channel, the system establishes active friendship between the visitor and the link owner. If the visitor has not yet connected a usable personal channel, friendship is not established until they complete channel connection.
+7. If the two users are already active friends, the system does not create a duplicate relationship and tells the user they are already friends.
+8. If a user tries to open their own friend link, the system must not create a self-friendship.
+9. The user can enter a friend link code in conversation, and the system establishes the corresponding active friendship.
+10. The user can view the friend list on the friends page.
+11. The user can remove a friend.
+12. If the two parties were friends before but the friendship was removed, they can re-establish active friendship through a valid friend link or link code.
+13. The user can reset the friend link. After reset, the old link cannot be used to add new friends; the new link can continue to be shared.
+14. The user can disable the friend link. After disable, others cannot continue adding the user through that link.
+15. The user can re-enable or regenerate a shareable friend entry point.
+
+The system must support:
+
+- Getting the current user's friend link.
+- Displaying the friend-link QR code.
+- Public friend-link access.
+- Login/registration handoff for unauthenticated visitors.
+- Continuing friend-link handoff after login.
+- Requiring the owner to have a connected usable personal channel before generating or sharing a friend link or link code.
+- Requiring the joining user to have registered and connected a usable personal channel before establishing active friendship.
+- Establishing active friendship through a friend link.
+- Establishing active friendship through a friend link code in conversation.
+- Re-establishing a removed active friendship through a valid friend link or link code.
+- Viewing the friend list.
+- Removing friends.
+- Resetting the friend link.
+- Disabling the friend link.
+- Preventing users from establishing friendship with themselves.
+- Preventing the same pair of users from creating duplicate active friendships.
+- Returning an understandable result when active friendship already exists, instead of creating duplicate relationships.
+- Preventing disabled friend links from adding new friends.
+- Preventing old friend links after reset from adding new friends.
+- Ensuring reset and disable do not delete or hide established friendships.
+- Ensuring the friend list at least allows the user to distinguish each friend.
+- The friend list currently only needs to show each friend's identifiable name or identifier, active relationship status, and remove-friend action. Notes, groups, avatar, recent interaction time, or friend detail pages are not required.
+- When friend names or identifiers are duplicated, later friend matching in conversation must ask follow-up questions for clarification.
+
+Relationship between friendship and channel:
+
+- Generating or sharing a friend link or link code requires the owner to have a connected usable personal channel.
+- Establishing an active friendship requires the joining user to have registered and connected a usable personal channel. A user without a connected channel cannot complete friendship establishment.
+- Because both the link owner and the joining user have a connected channel at establishment time, friendship-creation notifications, shared reminders, and later proactive reachability can be delivered.
+- Removing a channel later does not delete existing friendships; later reachability when a channel is missing follows the existing undelivered/reachability rules.
+
+Remove-friend semantics:
+
+- Removing a friend only changes the friendship relationship. It does not delete accounts, personal reminders, or automatically cancel existing active shared reminders.
+- After a friend is removed, that friend no longer appears in the current user's active friend list.
+- After a friend is removed, the two parties can no longer create new shared reminders based on that active friendship.
+- The two parties can later re-establish active friendship through a still-valid friend link or link code.
+- Removing a friend does not delete either party's account.
+- Removing a friend does not delete either party's personal reminders.
+- Handling of existing shared reminders after friend removal belongs to the shared reminder journey and is not predefined in the friendship journey.
+
+Currently not required:
+
+- Friend request pending approval.
+- Friend request rejection.
+- Friend request pending state.
+- Friend groups.
+- Friend notes.
+- Friend avatars.
+- Recent interaction time.
+- Friend detail page.
+- Friend blacklist.
+- Friend recommendations.
+- Friend activity feed or social content stream.
+
+Requirement boundaries:
+
+- The core contract of friendship is active friendship, not a pending request workflow.
+- Friend links are product entry points and should not be mixed with personal channel binding entry points.
+- A connected usable personal channel is a precondition for both sides of friendship: the owner must have one to issue a link or code, and the joiner must have one to complete establishment.
+- Friendship must be account/customer-scoped and must not rely on the assistant guessing the identities of both parties.
+- Establishing friendship must be idempotent. Repeated visits, repeated link-code inputs, or repeated submissions must not create multiple active friendships.
+- Removing a friend is a relationship state change and should not cascade-delete user accounts, personal reminders, or unrelated data.
+
+### 5.7 Shared Reminders
+
+Confirmed:
+
+- Shared reminders are part of the current product contract.
+- Shared reminders depend on active friendship. Each receiver must have active friendship with the creator.
+- Shared reminders support one creator scheduling with one or more active friends. For example, if the user says "schedule with Bob and Carol", the system should create one group shared reminder rather than split it into multiple pairwise reminders.
+- The group shared reminder's participants include the creator and all receivers.
+- Each participant has their own reminder projection. When due, each participant receives their own associated reminder through their own channel.
+- A shared reminder is not an invitation approval flow. It becomes active immediately after creation, receivers do not need to accept/reject, and notifications are informational only.
+- Users can create shared reminders for one or more friends through conversation.
+- Users can view shared reminders.
+- Users can cancel shared reminders.
+- Users can query one or more friends' availability before scheduling.
+- Friend availability only exposes privacy-safe busy/free information and does not expose friend reminder details.
+- Friend availability uses Coke reminders as the data source and does not use Google Calendar for this feature.
+- When creating a shared reminder, each friend reference must resolve to a unique active friend. If any friend name or target is ambiguous, the system must ask follow-up questions.
+- If any receiver does not exist, cannot be resolved, or is not an active friend, the system must not silently skip that receiver. It must ask a follow-up question or return a user-understandable error.
+- Creating a shared reminder requires at least participants, title or activity content, and trigger time. Time interpretation uses the user's global default timezone.
+- Shared reminder duration defaults to 15 minutes. The user may explicitly set another duration.
+- Receiver conflict is a hard pre-creation constraint. The system checks each receiver for conflicts in the time interval corresponding to the reminder duration (default 15 minutes). If any receiver has a conflict, the system does not create the shared reminder. It should explain who has a conflict and who is available, then ask the creator to adjust time or participants.
+- Receiver conflict checks use each receiver's personal reminders and shared reminders (both count), judged by overlap between each reminder's duration interval. This uses the same source as friend availability queries.
+- Receiver channel availability is a hard pre-creation constraint alongside receiver conflict: each receiver must have a usable personal channel at creation time. If any receiver has no usable channel, the shared reminder is not created, and the creator is told who is unreachable.
+- Before creation, receiver conflicts and receiver channel availability are checked. The creator's own time conflict is intentionally not checked.
+- After all receiver conflict checks pass, the shared reminder immediately becomes active.
+- After creation, creator and all receivers should each receive their own associated projection when due.
+- Creator and receivers' reminder triggering, delivery failure, and undelivered handling follow the channel and delivery rules for personal reminders.
+- From the user's perspective, a shared reminder is still their own reminder, just with friend associations. A user's completion action only processes that user's own projection and does not automatically complete for other participants.
+- Creating completely duplicate shared reminders is forbidden: an active shared reminder with the same creator, same participant set, same title or activity content, and same trigger time is considered duplicate. Participant order does not affect duplicate judgment. Duration is not part of the duplication definition.
+- If a completely identical active shared reminder already exists, the system rejects creation and tells the user it already exists. Similar but not completely identical shared reminders are not hard rejected.
+- Shared reminder notifications are informational, not invitation approval.
+- Receivers do not need to accept; the creator does not need to wait for receivers to accept.
+- Pending shared reminder accept/reject is not a current requirement.
+- Any participant can cancel an active shared reminder.
+- After any participant cancels a shared reminder, the system cancels the whole group, stops all participant projections, and notifies the other participants. Non-participants cannot view or cancel it.
+- The shared reminder list only needs to show title or activity content, participants, trigger time, user's global timezone, duration, current status, and support canceling active shared reminders. Detail page, editing, comments, chat, or time-voting are not required.
+- Shared reminders do not support directly editing time or content. To change time or content, the user needs to cancel the entire shared reminder and create it again.
+- Shared reminders appear on the personal reminder calendar page and show related friend identifiers. The shared reminder list currently does not require filtering.
+- After a shared reminder is canceled, none of the participants will receive that associated reminder.
+- Canceling a shared reminder notifies the other participants. The notification is informational.
+- Removing a friend does not automatically cancel existing active shared reminders. The user must use the shared reminder cancellation action to cancel them.
+- After a friend is removed, the two parties can no longer create new shared reminders based on that removed friendship.
+
+User journey:
+
+1. The user has already established active friendship with each target friend.
+2. The user expresses in conversation that they want to schedule with one or more friends, invite friends, arrange a shared activity for friends, or opens the shared-reminder entry point.
+3. If the user only wants to know when one or more friends are available, the system queries friend availability and only returns privacy-safe busy/free information.
+4. If the user wants to create a shared reminder, the system resolves the target friend set.
+5. If any friend reference is ambiguous, the system asks the user to choose which friend.
+6. If any target user is not an active friend, the system does not create the shared reminder and prompts the user to first establish friendship or adjust participants.
+7. The system confirms the shared reminder's title or activity content, trigger time, and duration (default 15 minutes, configurable). Time is interpreted according to the user's global default timezone.
+8. If necessary information is missing, the system asks follow-up questions.
+9. The system checks whether each receiver has a usable personal channel and whether each receiver has a conflict in the corresponding time interval.
+10. If any receiver has no usable channel, or any receiver conflict exists, the system does not create the shared reminder. It tells the creator who is unreachable, or who has a conflict and who is available, then asks the user to change time or adjust participants.
+11. If checks pass, the system checks whether a completely identical active shared reminder already exists.
+12. If a completely identical active shared reminder already exists, the system rejects duplicate creation and tells the creator it already exists.
+13. If checks pass and there is no duplicate, the system creates one active group shared reminder.
+14. The system ensures creator and all receivers will each receive their own associated projection when due.
+15. The system confirms to the creator that the shared reminder has been created.
+16. The system sends informational notifications to all receivers.
+17. When due, all participants each receive their own associated reminder through their own usable personal channel.
+18. Any participant can view their own shared reminder list.
+19. Any participant can cancel an active shared reminder.
+20. After cancellation, all participant projections stop, and the other participants receive an informational notification.
+
+The system must support:
+
+- Querying friend availability.
+- Friend availability queries must specify or resolve one or more active friends.
+- Friend availability queries must have a date range and use the user's global default timezone.
+- Friend availability only returns privacy-safe busy/free information and does not return friend reminder details.
+- Creating group shared reminders.
+- Viewing the shared reminder list.
+- The shared reminder list shows title or activity content, participants, trigger time, user's global timezone, duration, current status, and cancellation entry.
+- Showing shared reminders on the personal reminder calendar page with related friend identifiers.
+- Canceling shared reminders.
+- When the user wants to modify the time or content of a shared reminder, guiding the user to cancel the entire shared reminder and create it again.
+- Creating shared reminders through conversation.
+- Viewing shared reminders through conversation.
+- Canceling shared reminders through conversation.
+- Resolving each receiver to a unique active friend.
+- Asking follow-up questions when any receiver is ambiguous.
+- Refusing creation or requiring participant adjustment when any receiver is not an active friend.
+- Requiring title or activity content, trigger time, and at least one receiver to create a shared reminder.
+- Supporting duration, default 15 minutes, with explicit user override.
+- Before creation, checking each receiver conflict in the time interval corresponding to reminder duration (default 15 minutes).
+- Before creation, checking that each receiver has a usable personal channel.
+- Not creating a shared reminder when any receiver conflict exists or any receiver has no usable channel.
+- Explaining who has a conflict and who is available when receiver conflict exists, and explaining who is unreachable when a receiver has no usable channel.
+- Preventing completely identical active shared reminders from being created twice.
+- Becoming active immediately after creation.
+- Creating each participant's own reminder projection for creator and all receivers.
+- Ensuring each participant can receive their own associated reminder when due.
+- Ensuring reminders received by participants retain the group shared reminder association and do not become unrelated ordinary reminders.
+- A user's completion action only processes that user's own projection, and does not automatically complete other participants' projections.
+- Notifying receivers that the shared reminder has been created.
+- Allowing any participant to cancel the shared reminder.
+- Stopping all participant projections after cancellation.
+- Notifying other participants after cancellation.
+- If cancellation matches multiple candidates, the system must ask follow-up questions and must not cancel the wrong shared reminder.
+- Canceling an already canceled shared reminder should return an understandable result rather than executing the destructive action again.
+
+Relationship between shared reminders and personal reminders:
+
+- From the user's perspective, a shared reminder is still their own reminder, just with friend associations.
+- Each participant should receive their own associated reminder through their own usable personal channel.
+- After the user receives the associated reminder, completion processing by default only affects that user's own projection.
+- Completing one's own projection does not automatically complete it for other participants.
+- Canceling a shared reminder stops all projections for the whole group. It is not equivalent to completing or modifying one's own projection.
+- Directly modifying the time or content of a shared reminder is not currently supported. The user needs to cancel the entire shared reminder and create it again.
+- The visible reminder after a shared reminder is due still enters the Interaction LLM. The assistant reminds the user in the role's tone.
+- A delivery failure for one participant only affects whether that participant receives their own associated reminder. It does not affect whether other participants receive their reminders.
+
+Currently not required:
+
+- Pending shared reminder.
+- Receiver accept.
+- Receiver reject.
+- Batch accept/reject.
+- Shared reminder detail page.
+- Direct editing of shared reminders; currently the user needs to cancel the entire shared reminder and create it again.
+- Shared reminder list filtering.
+- Shared reminder comments.
+- Shared reminder chat group.
+- Shared reminder time-voting.
+- Reading friend availability from Google Calendar.
+- Exposing the other party's reminder details, calendar details, or private schedule contents.
+- Shared reminder rate limiting, or blocking shared reminders from a specific friend (anti-harassment controls). Not currently considered; removing the friend is the only escape hatch, which stops new shared reminders.
+
+Requirement boundaries:
+
+- The core contract of shared reminders is group participant association + each participant's own due-time reachability + informational notification.
+- Pending accept/reject workflows should not re-enter current requirements.
+- Friend availability queries must protect privacy and only output busy/free information useful for scheduling.
+- Receiver conflict is a pre-creation product constraint. When there is a conflict, the system must not create first and wait for the other party to handle it, nor silently skip conflicting participants and create partially.
+- Receiver channel availability is also a pre-creation product constraint. The system must not create a shared reminder for a receiver who currently has no usable channel and would never receive their own associated reminder.
+- After a shared reminder is created, the system must not claim creation succeeded while some participant will not receive their own associated reminder.
+- After a shared reminder is canceled, the system must not stop only part of the participant projections and allow other participants to continue receiving the associated reminder.
+- Shared reminders must be participant-scoped. Non-participants cannot view or cancel them.
+- Cross-timezone friend scenarios for availability queries and receiver conflict detection are not specially designed for in the current requirements. Availability and conflict follow the current product's timezone handling and are not given dedicated multi-timezone treatment.
+
+### 5.8 Personal Reminders
+
+Confirmed:
+
+- Personal reminders are a current core journey.
+- Personal reminders cover creation through conversation, management on the reminder calendar page, due-time triggering, post-reminder reply handling, and undelivered handling.
+- The reminder calendar page is the main page for personal reminders. It uses a calendar as the main view to display future one-time reminders, recurring reminder series, reminders without trigger times, shared reminders, and undelivered reminders.
+- Due reminders enter the Interaction LLM. The LLM knows this is a system reminder and uses text in the role's tone to notify the user.
+- Reminders without trigger times belong to personal reminders. Every night at 8 PM, the system summarizes them and asks the user whether to schedule trigger times.
+- Recurring reminders are part of the personal reminder core requirements. Completion means completing this occurrence; deletion means deleting the entire series. Independent skip is currently not supported.
+- Proactive follow-up is a special type of reminder. It is not shown on the reminder calendar page, cannot be directly modified by the user, and is controlled by the proactive switch.
+- Duration defaults to 15 minutes. Users can explicitly set another duration. Time is interpreted according to the user's global default timezone. Independent timezone per reminder is not supported.
+- When users mention another timezone in conversation, the system should globally switch the user's default timezone or first confirm the global switch.
+- User-visible status focuses on product actions and does not expose internal state-machine fields. Deleting a reminder means removing it from the current product state.
+
+User journey:
+
+1. The user expresses reminder intent through conversation, or opens the reminder calendar page.
+2. If the user gives a trigger time or recurrence rule, the user creates a one-time or recurring personal reminder.
+3. If the user does not give a trigger time, the system creates a reminder without a trigger time.
+4. If the user explicitly gives a duration, the system uses that setting. If not, the default is 15 minutes.
+5. The user can view their reminders, reminders without trigger times, shared reminders, undelivered reminders, and single-reminder details on the reminder calendar page.
+6. The user can edit the content, trigger time, and duration of an ordinary personal reminder, and can also add a trigger time to a reminder without a trigger time.
+7. The user can complete reminders. For a one-time reminder, completion means the item has been handled. For a recurring reminder, completion means completing this occurrence. For a reminder without a trigger time, completion means the item has been handled.
+8. The user can delete reminders. For a one-time reminder, delete that reminder. For a recurring reminder, delete the entire series. For a reminder without a trigger time, delete that reminder.
+9. In the default view of the reminder calendar page, the user only sees reminders that are still actionable or will still trigger in the future.
+10. A completed one-time reminder or reminder without a trigger time leaves the default view of the reminder calendar page.
+11. The completed occurrence of a recurring reminder leaves pending state, but the series continues and shows the next trigger according to the rule.
+12. Deleted reminders no longer appear in user-visible lists, reminders-without-trigger-time summaries, or future triggers.
+13. When a reminder is due, the system passes the context "this is a system reminder" to the Interaction LLM.
+14. The Interaction LLM notifies the user with a text reminder in the role's tone.
+15. After receiving a reminder, the user can reply to complete it, reschedule it, delete it, or continue ordinary conversation.
+16. If the user replies that it is completed, the current reminder occurrence is completed. If it is a recurring reminder, only this occurrence is completed.
+17. If one reminder message contains multiple reminders, the user's reply "done" means all items in this reminder message are completed.
+18. If the user replies with "remind me later", "change it to tomorrow", "change to another time", etc., the system updates the reminder time when the new time is clear, and asks a follow-up question when the time is unclear.
+19. If the user replies "no need to remind me" or "delete it", a one-time reminder is deleted; a recurring reminder's entire series is deleted.
+20. If the user replies with ordinary chat or meaningless content, the system should not automatically change reminder status.
+21. Every night at 8 PM, the system summarizes reminders that still have no scheduled trigger time and asks the user whether to schedule trigger times for them.
+22. The user can schedule times for one or more reminders in the summary.
+23. The user can complete or delete one or more reminders in the summary.
+24. When the user explicitly expresses batch scheduling, the system sets trigger times for the corresponding reminders in batch.
+25. If the user gives only one time while the summary contains multiple reminders and the target cannot be determined, the system should ask a follow-up question.
+26. When the user says "all of these are done", the system batch-completes the reminders in the summary.
+27. After the user schedules a trigger time for a reminder without a trigger time, that reminder becomes a reminder with a trigger time and appears on the calendar page at the new time.
+28. After the user removes the trigger time of a one-time reminder, that reminder becomes a reminder without a trigger time and enters the unscheduled area and the daily 8 PM summary.
+29. If the user attempts to remove the trigger time of a recurring reminder and the recurrence rule can no longer be maintained after removal, the system should ask whether to convert it into a reminder without a trigger time or delete the entire recurring series.
+30. If the user does not respond or does not schedule times for these reminders, they remain and appear again in the summary at 8 PM the next day.
+31. If the user replies to the summary with ordinary chat or meaningless content, the system should not automatically change these reminder states.
+32. If it is a recurring reminder, after this occurrence triggers or the user completes this occurrence, the system advances the next trigger time.
+
+The system must support (capability index; detailed rules are in the topic sections below and are not repeated here):
+
+- Reminder CRUD: creating, viewing, editing, completing, and deleting personal reminders through conversation and the reminder calendar page, including creating reminders without trigger times, batch operations, and setting/modifying/clearing duration.
+- Reminder calendar page display, creation/editing, status, and detail fields: see "Reminder calendar page display rules", "Reminder calendar page creation and editing rules", and "Reminder status and detail fields".
+- Conversation creation follow-up questions and operation confirmations: see "Follow-up boundaries for creating reminders in conversation" and "Reminder operation confirmation replies".
+- Due-time triggering and delivery failure handling: see "Reminder triggering and delivery failure handling".
+- Handling user replies after reminders: see "User reply semantics after reminders".
+- Reminders-without-trigger-time summary and conversion between with-trigger-time and without-trigger-time reminders: see "User reply semantics after reminders-without-trigger-time summaries" and "Conversion between reminders without trigger times and reminders with trigger times".
+- Proactive follow-up reminder: see "Proactive follow-up reminder".
+- Recurring reminders: see "Recurring reminder rule constraints".
+- Matching ambiguity and creation-time duplicate/similar handling: see "Matching ambiguity handling" and "Creation-time duplicate/similar reminder handling".
+- Time and timezone interpretation: see "Time interpretation and past-time handling" and "Timezone interpretation rules".
+- Global invariants: all reminders are owner-scoped; do not expose reminder internal IDs, low-level delivery attempts, internal retry counts, error codes, queue status, or internal state-machine fields to the user.
+
+Reminder calendar page display rules:
+
+- The reminder calendar page is the main page for personal reminders. It is not a task list independent from reminders.
+- The calendar page must display reminders according to the user's global default timezone.
+- One-time reminders with trigger times are shown on the corresponding date and time.
+- Shared reminders are shown on the corresponding date and time, with related friend identifiers.
+- Recurring reminders show concrete occurrences in the currently visible time range. The user sees occurrences on the calendar, but the underlying reminder still belongs to the same recurring reminder series.
+- When multiple reminders exist on the same day or at the same time, the calendar page may merge the display entry to avoid page overload.
+- After entering a merged display entry, the user must be able to see each reminder and execute edit, complete, and delete actions separately.
+- Reminders without trigger times are not forced onto a specific day. They should be shown as unscheduled reminders in the calendar page.
+- Undelivered reminders must have clear status on the calendar page so the user knows the system already triggered them but did not successfully deliver them.
+- The current top-level requirements do not specify whether the calendar page must use month view, week view, or day view. The core requirement is that the user can view and manage reminders in a calendar context.
+
+Reminder calendar page creation and editing rules:
+
+- The user can create reminders from the reminder calendar page.
+- If the user creates a reminder from a specific date or time position on the calendar, the system defaults to using that date or time as the trigger time.
+- The user can create reminders without trigger times in the unscheduled area of the reminder calendar page.
+- The user can schedule trigger times for reminders without trigger times from the reminder calendar page.
+- The user can edit ordinary personal reminder content, trigger time, and recurrence rules from the reminder calendar page.
+- The user cannot directly edit the time or content of shared reminders from the reminder calendar page. To modify them, the user needs to cancel the entire shared reminder and create it again.
+- After the user opens a specific recurring reminder occurrence from the calendar page, completion means completing this occurrence.
+- After the user opens a specific recurring reminder occurrence from the calendar page, editing defaults to editing the entire recurring reminder series.
+- After the user opens a specific recurring reminder occurrence from the calendar page, deletion means deleting the entire recurring reminder series.
+- The current top-level requirements do not specify whether calendar-page creation or editing must use click, drag, modal, side panel, or any other specific page interaction form.
+
+Reminder status and detail fields:
+
+- Current user-visible states at least include future one-time reminders, reminders without trigger times, recurring reminder series, shared reminders, and undelivered reminders.
+- Completed status does not enter the default view of the reminder calendar page.
+- Deleted status is not retained as a user-visible state.
+- Single-reminder details show at least content, trigger time or unscheduled time, time expression in the user's global default timezone, recurrence rule, and current status.
+- Recurring reminder details must show the series rule and next trigger time.
+- A recurring reminder occurrence on the calendar is only a visible instance of the series at a certain time point, not an independent reminder.
+- Undelivered reminder details need to show the state that it has triggered but not been successfully delivered.
+- The current top-level requirements do not require exposing internal retry counts, error codes, queue status, low-level delivery attempts, internal state-machine fields, or reminder internal IDs in the user interface.
+
+Follow-up boundaries for creating reminders in conversation:
+
+- When user intent is clear but necessary information is missing, the system should ask follow-up questions instead of guessing key content.
+- Creating a timed reminder requires at least item content and trigger time.
+- Creating a reminder without a trigger time only requires clear item content and does not require trigger time.
+- Creating a recurring reminder requires at least item content, recurrence rule, and a trigger time or trigger window derivable from the rule.
+- When the user only says vague messages such as "remind me", without item content, the system must not create a reminder and should ask what to remind them about.
+- When the user gives an item but no time, the system can create a reminder without a trigger time and confirm that the reminder has no trigger time and will be summarized every night at 8 PM to ask for scheduling.
+- For vague time expressions such as "remind me next week", if no specific date or time can be determined, the system should ask a follow-up question. If the user is actually expressing an unscheduled item, the system can create a reminder without a trigger time.
+- Follow-up and confirmation replies should be generated by the Interaction LLM and accurately reflect whether the system has actually created the reminder.
+
+Reminder operation confirmation replies:
+
+- After the user creates, edits, completes, or deletes a reminder through conversation, the system should provide a text confirmation.
+- Confirmation replies should be generated by the Interaction LLM rather than fixed templates.
+- Confirmation content must include key information the user needs to check, such as reminder content, trigger time, recurrence rule, and whether there is no trigger time.
+- For reminders without trigger times, the confirmation must clearly state that it has no trigger time yet and will be summarized every night at 8 PM to ask for scheduling.
+- If creation, editing, completion, or deletion fails, or if a follow-up question is needed, the system must not provide a confirmation claiming the operation has been completed.
+
+User reply semantics after reminders:
+
+- After receiving a reminder, the user's subsequent reply can operate on the reminder based on the most recent reminder context.
+- When the user replies with completion expressions such as "done" or "finished", the most recently triggered reminder should be completed.
+- If the most recently triggered reminder is recurring, completion only completes this occurrence.
+- If the same reminder message contains multiple reminders, the user's reply "done" means all items in that reminder message are completed.
+- When the user replies with rescheduling expressions such as "remind me later", "change it to tomorrow", or "another time", if the new time is clear, the trigger time should be updated.
+- If the user wants to reschedule but the new time is unclear, the system should ask a follow-up question.
+- When the user replies with deletion expressions such as "no need to remind me" or "delete it", a one-time reminder deletes that reminder, while a recurring reminder deletes the entire series.
+- When the user replies with ordinary chat or meaningless content, reminder status should not be automatically changed.
+
+User reply semantics after reminders-without-trigger-time summaries:
+
+- After receiving the daily 8 PM summary of reminders without trigger times, the user can schedule times for one or more reminders in the summary.
+- When the user explicitly expresses batch scheduling, the system should set trigger times for the corresponding reminders in batch.
+- If the user gives only one time while the summary contains multiple reminders and the target cannot be determined, the system should ask a follow-up question.
+- The user can complete or delete a specific reminder in the summary.
+- When the user says "all of these are done", the system should batch-complete the reminders in the summary.
+- If the user does not reply, the reminders in the summary remain and will be summarized again at 8 PM the next day.
+- If the user replies with ordinary chat or meaningless content, the system should not automatically change the status of these reminders.
+
+Conversion between reminders without trigger times and reminders with trigger times:
+
+- Once a reminder without a trigger time is scheduled with a trigger time, it becomes a reminder with a trigger time.
+- If the user removes the trigger time from a reminder with a trigger time, it becomes a reminder without a trigger time.
+- Conversion does not change reminder content, owner, or creation source.
+- After conversion, the reminder should appear in the reminder calendar page according to its new state: either at the calendar position or in the unscheduled area.
+- Recurring reminders must have derivable trigger rules.
+- If the user removes the trigger time from a recurring reminder and the recurrence rule can no longer be maintained, the system should ask whether to convert it into a reminder without a trigger time or delete the entire recurring series.
+- After conversion, the system must confirm to the user whether the reminder currently has a trigger time and whether it will still remind at a due time.
+
+Proactive follow-up reminder:
+
+- Proactive follow-up is a special type of reminder.
+- Proactive follow-up reminders are used by the assistant to proactively care about the user based on the user's goals, habits, tasks, or context.
+- Proactive follow-up reminders do not require the user to explicitly create an ordinary reminder.
+- The proactive switch's impact on proactive follow-up (turning off/on and whether untriggered items are canceled) is described in §5.11 Agent settings under "proactive switch" and is not repeated here.
+- Proactive follow-up reminders are not shown on the reminder calendar page.
+- Users cannot directly view, edit, or delete proactive follow-up reminders from the reminder calendar page.
+- Users cannot directly modify proactive follow-up reminders.
+- The trigger timing and frequency of proactive follow-up reminders are driven by the configured follow-up planning prompt/settings. The system uses that prompt to decide whether and when to create, replace, or cancel proactive follow-up.
+- Proactive follow-up reminders must respect the user's disturbance willingness and avoid harassment. When consecutive proactive messages receive no user reply, the system must reduce frequency until stopping that proactive follow-up. After the user replies again, frequency may recover. Concrete thresholds are determined by the follow-up planning prompt/settings.
+- Do-not-disturb or notification preference settings are not currently provided. Proactive follow-up's low-disturbance requirement is ensured by system frequency and context rules.
+- Proactive follow-up reminders can only send text messages through the currently connected personal channel.
+- When the channel is unavailable, proactive follow-up reminders are not considered reached.
+- Failed proactive follow-up reminder delivery is not resent. If the channel is unavailable or sending fails, that follow-up expires and is discarded; it does not enter undelivered resend and is not shown on the reminder calendar page.
+- The top-level requirements do not specify concrete planning algorithms, concrete time intervals, or concrete thresholds. These are determined by the follow-up planning prompt/settings.
+
+Batch reminder operations:
+
+- A single user message may contain multiple reminder operations.
+- The system should support batch creation, editing, completion, and deletion of reminders.
+- Batch operation confirmation replies should summarize successful items, failed items, and items needing follow-up.
+- Batch operations are not required to be transactionally all-successful. When partial success occurs, the system must clearly tell the user which items succeeded and which did not.
+- If one item needs a follow-up question, it should not block other items that can be clearly executed.
+- Each sub-operation must still follow personal reminder contracts such as owner, time interpretation, global timezone, recurrence rules, delivery, and confirmation replies.
+
+Matching ambiguity handling:
+
+- The system can match reminders according to the user's description.
+- If only one clear reminder is matched, the system may execute edit, complete, or delete and provide confirmation.
+- If multiple candidate reminders are matched, the system must ask the user to clarify and choose.
+- During clarification, enough distinguishing information should be shown, such as content, trigger time, recurrence rule, and whether it has no trigger time.
+- Before the user confirms, the system must not delete, complete, or edit any candidate reminder.
+- In batch operations, ambiguity in one item only blocks that item and does not block other items that can be clearly executed.
+
+Creation-time duplicate/similar reminder handling:
+
+- The system forbids creating completely identical actionable personal reminders.
+- Definition of a completely identical personal reminder: same owner, same item/content, same trigger time; for reminders without trigger times, same owner, same item/content, and both have no trigger time.
+- Duration, creation entry point, and natural-language expression are not part of the personal reminder duplication definition.
+- If a completely identical actionable personal reminder already exists, the system should reject creation and tell the user that the reminder already exists.
+- Similar but not completely identical reminders should not be hard rejected.
+- The system allows multiple reminders with different content to have the same trigger time.
+- Multiple reminders for the same owner at the same trigger time are merged into one reminder message when reminding, to avoid disturbing the user with multiple messages. Each reminder and its event remain independent.
+- Current requirements do not require introducing complex similarity judgment for similar reminders.
+
+Reminder triggering and delivery failure handling:
+
+- When a reminder is due, it must form a reminder trigger event.
+- If the user currently has a connected personal channel, the reminder trigger event enters the Interaction LLM and sends a text reminder through that channel.
+- Currently an individual user can only have one reachable channel in personal WeChat or a shared WhatsApp channel.
+- If the user has no usable channel, the system must not consider the reminder successfully delivered.
+- If channel sending fails, the system must not consider the reminder successfully delivered.
+- Undelivered reminder triggers must retain observable status.
+- Reminders due while the channel is unavailable enter an undelivered state.
+- After the user reconnects or relinks a personal channel, future reminders use the newly connected channel.
+- After the user reconnects or relinks a personal channel, the system may resend undelivered reminders or show them as undelivered on the reminder calendar page.
+- Resending undelivered reminders only applies to reminders that have already triggered but were not delivered.
+- The resent content should let the user know this is a reminder that was not delivered earlier, not a new reminder.
+- If multiple undelivered reminders are waiting to be resent, they may be merged into one text reminder.
+- Completed or deleted reminders are not resent.
+- If an undelivered reminder has already been handled by the user on the reminder calendar page, it is not resent again after reconnection.
+- If a reminder's due moment is missed because the system itself was unavailable, the system must catch up the missed trigger when it recovers — delivering it late through a usable channel, or retaining an observable undelivered state — rather than silently dropping it. This catch-up applies to personal and shared reminders; missed proactive follow-ups are discarded per the proactive follow-up rules.
+- The current product does not support immediately switching to another unlinked or unconfirmed channel because the current channel failed.
+- The current top-level requirements do not specify concrete retry counts, expiration time, automatic resend strategy, or calendar-page-only display strategy.
+
+Time interpretation and past-time handling:
+
+- The system must determine whether the trigger time given by the user is already in the past.
+- Relative time expressions should create reminders normally, such as "in 10 minutes" and "tomorrow at 9 AM".
+- If the user gives a clear but already-past time, the system should not silently create a past reminder.
+- For past times, the system should ask through the Interaction LLM or confirm a new future time.
+- For incomplete date expressions that can be reasonably inferred, if the target time today has not passed, the system may treat it as today.
+- For incomplete date expressions where the target time today has already passed, the system should ask or confirm and must not automatically change it to a future time.
+- The system should not rewrite past times into future times by itself unless the Interaction LLM has confirmed this with the user.
+
+Timezone interpretation rules:
+
+- Reminder times are interpreted by default according to the user's global default timezone.
+- The user can modify the global default timezone in the settings page and can also switch it globally through conversation.
+- If the user explicitly mentions another timezone while creating or editing a reminder, the system should understand it as a global switch of the user's default timezone, or first confirm the global switch when the semantics may be misunderstood.
+- Independent timezone per reminder is currently not supported.
+- If the user has never set a timezone, the system may infer an initial global default timezone from account, channel, or region. All reminders still use the same global default timezone afterward.
+- Switching the global default timezone should not silently rewrite existing reminders' absolute trigger moments. Existing reminders are only displayed in the new global default timezone.
+- For recurring reminders, future occurrences are expanded using the timezone captured at creation or last edit; a global timezone switch does not recompute their windows or future trigger moments. The global timezone governs display and the timezone applied to newly created reminders.
+- The system may use a unified time basis internally for saving and comparing trigger times, but user-visible creation, editing, confirmation, and reminder copy must be expressed in the user's global default timezone.
+- The system internals, channel, and Interaction LLM should not each use different default timezones to interpret the same reminder time.
+
+Recurring reminder rule constraints:
+
+- Must support hourly, daily, weekly, monthly, and yearly recurrence.
+- Must support custom interval recurrence, such as every 2 hours or every 3 days.
+- The minimum interval for recurring reminders is hourly. Recurring reminders more frequent than once per hour are not supported.
+- Recurring intervals shorter than one day must be constrained by a time window and must not default to triggering 24 hours a day without limit.
+- Users may explicitly specify the trigger time window for recurrence intervals shorter than one day. If not specified, the system must use a default limited time window.
+- The default limited time window is 8:00 to 23:00 every day.
+- Repetition within a time window is a recurring reminder capability, such as "from X to Y, remind me every Z minutes/hours".
+- Repetition within a time window must have a start time and end time.
+- The interval for repetition within a time window must not be shorter than 1 hour.
+- Repetition within a time window only triggers within the specified time window and optional weekdays.
+- After each trigger, the system must advance the next valid trigger time.
+- If the next trigger time is outside the valid time period, the system must advance to the next valid time period.
+- Editing a recurring reminder defaults to editing the entire series and affects all future triggers.
+- Editing only one occurrence of a recurring reminder is currently not supported.
+- Completing a recurring reminder only completes this occurrence. Only deleting a recurring reminder deletes the entire series.
+- Independent "skip" is currently not supported. Skipping this occurrence is equivalent to completing this occurrence and advancing to the next valid trigger.
+- Fully stopping a recurring reminder means deleting the entire series.
+- Multiple reminders under the same owner with the same trigger time are merged into one reminder message when reminding. Merging only affects the user-visible reminder method and does not change the independence, content, ownership, or subsequent state advancement of each reminder and event.
+- Recurring reminders are active indefinitely by default until the user deletes the entire series or edits the rule to stop it.
+- The system should not set a default maximum number of triggers for all recurring reminders.
+- If the user explicitly provides an end condition, such as reminding for a fixed number of times, until a certain date, or only for the next few days, the system should include the end condition as part of the recurrence rule.
+- A recurring reminder's local time window and rule are expanded using the timezone captured when the reminder was created or last edited. Switching the global default timezone only changes display and the timezone used for newly created reminders; it does not recompute the windows or future occurrences of existing recurring reminders. This keeps the "do not silently rewrite existing reminders" rule deterministic for windowed recurrences.
+
+Requirement boundaries:
+
+- The core contract of personal reminders is not "directly sending a fixed notification", but "after a reminder event triggers, it enters the Interaction LLM, and the role-based assistant reminds the user in text".
+- The system can be responsible for time, state, and triggering. User-visible expression should be completed by the Interaction LLM.
+- Reminder operation confirmation replies are also part of the user-visible contract. They should be generated by the Interaction LLM and accurately reflect whether the operation actually succeeded.
+- Batch reminder operations are not a special entry point that bypasses validation. Each sub-operation must independently satisfy the personal reminder contract and express the real result in the summary confirmation.
+- When editing, completing, or deleting reminders, matching ambiguity must be clarified with the user first. Before confirmation, no destructive or state-changing action may be executed on candidate reminders.
+- Creating completely identical actionable personal reminders is forbidden. Similar but not completely identical reminders do not require complex similarity-based deduplication. Multiple reminders with the same trigger time control user-visible disturbance through reminder-time merging.
+- Reminder triggering and reminder delivery are different states. Trigger success does not mean the user has received the reminder.
+- No usable channel or sending failure must not be marked as successful delivery. An observable undelivered state must be left.
+- Past-time and incomplete-date handling is a user intent confirmation issue. The system should not automatically rewrite times without confirmation.
+- The system should rely on a unified user global timezone contract. Channels and the Interaction LLM should not infer different default timezones independently.
+- Reminders without trigger times belong to the personal reminder journey but are not due-time reminders. Their user-visible reach-out is the daily 8 PM scheduling prompt.
+- Scheduling prompts for reminders without trigger times should be summarized once per owner per day to avoid disturbance caused by individual messages.
+- Recurring reminders are a type of reminder and are also part of the personal reminder core contract. The system must be able to advance the next trigger according to rules.
+- Semantics for completing this occurrence / deleting the entire series / skip equivalent to completing this occurrence / editing the entire series / merging reminders at the same trigger time / forbidding completely identical reminders are described in "Recurring reminder rule constraints" and "Creation-time duplicate/similar reminder handling" and are not repeated here.
+- The default reminder calendar page should focus on actionable states. Completed records or historical lists are not currently confirmed core requirements.
+- Deleting a reminder is deletion from the current product state. Current requirements do not require retaining complex deletion history for legacy data compatibility or unconfirmed audit needs.
+- Reminders must be owner-scoped and must not depend on the LLM guessing who the reminder belongs to.
+- Duration is a reminder duration field, default 15 minutes, user-configurable. For personal reminders, it does not change whether or when the reminder triggers, nor completion or deletion. It is mainly used for display and for the receiver conflict time-window calculation in shared reminders.
+
+### 5.9 Product Notification
+
+Confirmed:
+
+- Product notification is an independent requirement item, but this document defines it only from the product requirements perspective and does not constrain implementation architecture.
+- Currently only informational notifications and system notifications are sent.
+- Product notification is not an approval flow, does not carry accept/reject, and does not directly execute actions.
+- Product notification must cover friendship creation, shared reminder creation, shared reminder cancellation, and the errors, failures, partial failures, undelivered cases, conflicts, and cancellation failures related to these events.
+- Ordinary reminders, shared reminders, and system notifications are not controlled by additional do-not-disturb or notification preference settings. There is currently no such user configuration.
+- Notification facts must clearly express who did what, what the object is, when it happened, which timezone is used, and what the duration is.
+- When an event includes an error, failure, or partial failure, the notification must include user-understandable error information.
+- Notifications should not expose raw provider errors, internal error codes, queue status, delivery attempts, or internal state-machine fields.
+- Final user-visible text is generated by the Interaction LLM based on structured facts and error facts.
+
+User journey:
+
+1. User A establishes active friendship with User B through a friend link or link code.
+2. The system sends relevant users an informational notification stating that the friendship has been established.
+3. User A creates a shared reminder involving User B and User C.
+4. The system sends a creation confirmation to the creator and informational notifications to the receivers.
+5. If creation fails, partially fails, encounters a receiver conflict, receiver channel unavailable state, or unresolvable receiver, the system sends the creator a system notification containing error information. If the current conversation is waiting for the result, it may also be presented as the final visible error reply.
+6. Any participant cancels a shared reminder.
+7. The system sends informational notifications to other participants, stating who canceled which shared reminder and that it will no longer trigger.
+8. If cancellation fails or some participant does not receive the notification, the system provides the initiating user with user-understandable error information.
+
+The system must support:
+
+- Sending friendship creation notifications.
+- Sending shared reminder creation notifications.
+- Sending shared reminder cancellation notifications.
+- Sending system notifications.
+- Including actor, action, object, participants, time, timezone, duration, and status in notifications.
+- Including user-understandable error information in failure, partial failure, undelivered, conflict, or cancellation failure cases.
+- Mapping provider/channel errors into product language, such as "the other party's channel is unavailable", "this time conflicts with the other party's existing schedule", or "cancellation did not succeed".
+- Having the Interaction LLM generate the final visible text based on structured notification facts and error facts.
+- Avoiding turning notifications into approval, confirmation, accept/reject, or action execution entry points.
+
+Requirement boundaries:
+
+- The core contract of Product notification is factual notification and error notification, not workflow control.
+- Product notification does not introduce new user notification preferences or do-not-disturb settings.
+- Product notification must not replace user-understandable error information with internal errors or provider details.
+- A shared reminder creation notification does not mean the receiver accepted an invitation. The shared reminder is already active after creation.
+- A cancellation notification is not equivalent to completing a reminder. Canceling a shared reminder stops the associated projections for the entire group.
+
+### 5.10 Calendar Import
+
+Confirmed:
+
+- Calendar import is a retained current product capability.
+- Currently only one-time import is confirmed; continuous sync is not introduced.
+- Calendar import only defines user requirements and field mapping. It does not constrain the specific implementation.
+- Users can authorize Google Calendar.
+- The system can read calendar events from the authorized calendar.
+- Future calendar events are imported as Coke reminders.
+- Historical calendar events do not generate Coke reminders.
+- Imported reminders belong to the current individual user.
+- Calendar event title and description become reminder content.
+- Calendar event start time becomes reminder trigger time.
+- Calendar event duration becomes reminder duration. If the event has no duration, use the default 15 minutes.
+- All-day calendar events are imported as Coke reminders triggered at 00:00 on the event date.
+- Recurring calendar events are preferably imported as Coke recurring reminders.
+- If a recurring calendar event cannot be reliably expressed using Coke's currently supported recurrence rules, the system should import it as one-time reminders for visible future occurrences.
+- If a recurring calendar event is downgraded to one-time reminders, the import result should let the user know the recurrence rule was not preserved.
+- When the same calendar event is imported repeatedly, the system directly skips it, does not create a duplicate reminder, and does not require user confirmation.
+- After import completion, the system must report the import result to the user.
+- The import result must include at least successfully imported count, skipped count, downgraded items, and failed items.
+- Imported reminders follow the personal reminder rules for owner, global timezone, triggering, completion, deletion, undelivered handling, and calendar display.
+- Users can stop or revoke Google Calendar authorization, or let authorization expire.
+- Stopping, revocation, or expiration only affects future imports. Coke-owned reminders already imported continue to be managed according to personal reminder rules and are not automatically deleted.
+
+User journey:
+
+1. The user enters the calendar import entry point.
+2. The system confirms that the current account/conversation is ready to receive import results.
+3. The user authorizes Google Calendar.
+4. The system reads calendar events within the user's authorized scope.
+5. The system imports future calendar events one time as Coke reminders.
+6. If a calendar event is an all-day event, the system imports it as a Coke reminder triggered at 00:00 on that event date.
+7. If a calendar event is a recurrence that can be expressed, the system imports it as a Coke recurring reminder.
+8. If a calendar event is a recurrence that cannot be reliably expressed, the system imports it as one-time reminders for visible future occurrences and explains this in the import result.
+9. If a calendar event has already been imported, the system skips it directly, creates no duplicate reminder, and requires no user confirmation.
+10. The system does not generate Coke reminders from historical calendar events.
+11. The system shows the user an import result summary.
+12. The user can view and manage imported reminders on the reminder calendar page.
+13. The user can stop or revoke Google Calendar authorization.
+14. After authorization is stopped, revoked, or expired, the user can no longer read new events from that authorization. Imported reminders remain in Coke and are managed by personal reminder rules.
+
+The system must support:
+
+- Google Calendar authorization entry point.
+- One-time reading of calendar events.
+- Converting only future calendar events into Coke reminders.
+- Not generating reminders from historical calendar events.
+- Mapping calendar event title and description to reminder content.
+- Mapping calendar event start time to reminder trigger time.
+- Mapping calendar event duration to reminder duration; if the event has no duration, use default 15 minutes.
+- Mapping all-day calendar events to reminders triggered at 00:00 on that event date.
+- Mapping recurring calendar events that can be reliably expressed to Coke recurring reminders.
+- Mapping recurring calendar events that cannot be reliably expressed with current recurrence rules to one-time reminders for visible future occurrences.
+- Explaining the import result to the user when a recurring calendar event did not preserve its recurrence rule.
+- Identifying calendar events that have already been imported and skipping them on repeated imports.
+- Not requiring user confirmation when repeated imports are skipped.
+- Reporting an import result summary after import completion.
+- Including successfully imported count in the import result summary.
+- Including skipped count in the import result summary.
+- Listing recurring calendar events that were downgraded to one-time reminders in the import result summary.
+- Listing failed items in the import result summary.
+- Setting the current individual user as owner for imported reminders.
+- Displaying imported reminders on the reminder calendar page.
+- Allowing the user to edit, complete, or delete imported reminders according to personal reminder rules.
+- Allowing the user to stop or revoke Google Calendar authorization.
+- Stopping future reads when Google Calendar authorization expires or is revoked.
+- Ensuring stopping, revocation, or expiration does not delete imported Coke-owned reminders.
+
+Currently not required:
+
+- Continuous sync.
+- Two-way sync.
+- Writing user modifications to reminders in Coke back to Google Calendar.
+- Importing historical calendar events as reminders.
+- Overwriting or recreating reminders that were already imported when importing repeatedly.
+- Automatically deleting imported reminders when Google Calendar authorization is revoked.
+
+Requirement boundaries:
+
+- Calendar import should not make Google Calendar the runtime source of truth for Coke reminders. After import, Coke reminders run according to the personal reminder contract.
+- Continuous sync, complex sync states, conflict resolution, or two-way write-back contracts are not currently required.
+- The Google Calendar authorization lifecycle only controls future read capability. It does not change the owner, triggering, completion, deletion, or display rules of imported Coke-owned reminders.
+
+### 5.11 Agent Settings
+
+Confirmed:
+
+- Agent settings are used to configure the assistant's user-visible behavior and long-term preferences.
+- Agent settings must be customer-scoped.
+- Users can view, modify, and reset their Agent settings.
+- Users can set the assistant name.
+- Users can set how the assistant addresses them.
+- Users can set persona.
+- Users can set background information.
+- Users can set speaking style.
+- Users can set extra rules.
+- The agent settings page shows the current personal channel connection status (connected / not connected / connection failed). This status is determined by the channel reachability journey and is not a freely configurable user field.
+- Users can turn proactive off and back on.
+- Users can turn memory off and back on.
+- Resetting Agent settings restores default settings.
+
+Proactive switch:
+
+- After proactive is turned off, the system no longer creates new proactive follow-up reminders.
+- When the user turns off proactive, the system should also cancel untriggered proactive follow-up reminders.
+- Turning off proactive does not delete ordinary personal reminders and does not affect due-time reminders.
+- Turning off proactive does not affect reminders-without-trigger-time summaries.
+- Turning off proactive does not affect daily conversation replies.
+- Turning off proactive does not affect Product notifications or system notifications.
+- Turning proactive back on only affects whether new proactive follow-up reminders can be created in the future.
+- Turning proactive back on does not restore follow-ups that were previously canceled.
+- The proactive switch only controls proactive follow-up. It does not control user-explicitly-created reminders, reminders-without-trigger-time summaries, daily conversation replies, Product notifications, or system notifications.
+- Do-not-disturb or notification preference settings are not currently provided.
+
+Memory switch:
+
+- The memory switch controls whether the system uses and updates long-term memory.
+- After memory is turned off, the system no longer uses long-term memory.
+- After memory is turned off, the system no longer adds long-term memory.
+- After memory is turned off, the system no longer updates long-term memory.
+- Turning off memory does not delete existing long-term memory.
+- Turning off memory does not affect recent context needed to complete the current conversation.
+- After memory is turned back on, the system can continue using existing long-term memory for future conversations, reminders, and proactive follow-ups, and can continue accumulating new long-term memory.
+- User self-service clearing of long-term memory is currently not supported.
+
+Requirement boundaries:
+
+- Agent settings are user-understandable preference configurations and should not expand into a complex persona or policy platform.
+- The memory switch should constrain the use, creation, and updating of long-term memory. It should not be interpreted as clearing all conversation history and does not provide a capability for clearing long-term memory.
+- The proactive switch should constrain proactive follow-up reminders. It should not affect ordinary personal reminders, Product notifications, or system notifications.
+
+### 5.12 Account/Data Lifecycle
+
+Confirmed:
+
+- The current product does not support user self-service account deletion.
+- The current product does not support user self-service full account export or full erasure.
+- The current product does not support user self-service clearing of long-term memory.
+- Currently supported lifecycle actions are local actions: removing a personal channel, deleting or completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization.
+- The account remains the identity subject for channels, reminders, friendships, shared reminders, and settings.
+- Local lifecycle actions cannot be interpreted as deleting the account itself.
+
+User journey:
+
+1. The user removes a personal channel on the channel management page.
+2. The system stops reaching the user through that channel, but does not delete the account, reminders, friendships, or settings.
+3. The user deletes or completes personal reminders on the reminder calendar page.
+4. The system only changes the product state of the corresponding reminders and does not delete the user account.
+5. The user cancels a shared reminder.
+6. The system cancels the entire group shared reminder, stops all participant projections, and notifies other participants.
+7. The user removes a friend on the friends page.
+8. The system removes active friendship. This action does not delete accounts, does not delete personal reminders, and does not automatically cancel existing active shared reminders.
+9. The user turns off memory.
+10. The system stops using, adding, and updating long-term memory, but does not delete existing long-term memory.
+11. The user stops or revokes Google Calendar authorization.
+12. The system stops future Google Calendar reads. Imported Coke-owned reminders continue to be managed according to personal reminder rules.
+
+The system must support:
+
+- Removing a personal channel.
+- Deleting a personal reminder.
+- Completing a personal reminder.
+- Canceling a shared reminder.
+- Removing a friend.
+- Turning memory usage off and back on.
+- Stopping or revoking Google Calendar authorization.
+- Providing accurate user-visible results after these local lifecycle actions complete.
+- Providing user-understandable error information when a local lifecycle action fails.
+
+Currently not required:
+
+- User self-service account deletion.
+- User self-service full account export.
+- User self-service full data erasure.
+- User self-service clearing of long-term memory.
+- When the user deletes imported reminders from Coke, synchronously deleting the original Google Calendar events.
+
+Requirement boundaries:
+
+- The current contract of account/data lifecycle is local management actions, not a complete privacy data management platform.
+- Removing a channel only affects future reachability paths and does not change reminder ownership.
+- Deleting or completing a reminder only affects the corresponding reminder and does not affect account or friendship.
+- Canceling a shared reminder affects the entire group shared reminder and is not equivalent to removing a friend.
+- Removing a friend does not automatically cancel existing shared reminders.
+- Turning off memory only affects the use, creation, and updating of long-term memory; it does not delete existing long-term memory.
+- Stopping or revoking Google Calendar authorization only affects future imports and does not delete imported Coke-owned reminders.
+- Runtime behavior when an account is suspended or blocked is not currently in scope; the agent continues to run as usual. Only showing the suspension/blocking reason and next step (per §5.1) is in scope.
+
+### 5.13 Account Identity and Cross-Surface Linking
+
+Confirmed:
+
+- A Coke user may originate from two paths: web registration/login (email-based), or auto-provisioning on first contact through the shared WhatsApp channel, bound to the sender's WhatsApp identity.
+- A WhatsApp-provisioned user is a first-class Coke user. It owns reminders, friendships, shared reminders, long-term memory, and agent settings like any other user.
+- A WhatsApp-provisioned user can be upgraded in place by adding login credentials (email plus verification) through conversation. Upgrading in place must not create a second Coke user for the same WhatsApp identity.
+- The same human may end up with two separate Coke users — one web-registered, one WhatsApp-provisioned — when the two surfaces were used independently. The product must support linking them into one Coke user.
+- Account linking requires explicit proof of control of both surfaces. The system must never merge accounts based on guessed identity such as a matching display name or similar profile.
+- The proof mechanism is a one-time linking code passed between the authenticated web session and the WhatsApp conversation, in either direction. Accounts are linked only after the code is verified within its validity.
+- After linking, the two accounts become one Coke user. Reminders, friendships, shared reminders, long-term memory, and agent settings are unified under the surviving account.
+- Because a user may have only one usable personal channel, if both sides carried a usable channel before linking, the user must choose which single channel to keep; the other channel binding is removed.
+- After linking, the system must re-enforce duplicate-friendship and duplicate-reminder invariants and deduplicate according to the existing personal-reminder and friendship rules.
+
+User journey:
+
+1. A human first contacts the shared WhatsApp channel and is auto-provisioned a Coke user bound to their WhatsApp sender identity.
+2. The same human later opens a friend link or the web app and registers or logs in, creating or using a web account.
+3. The system does not silently assume the WhatsApp-provisioned user and the web account are the same person.
+4. To unify them, the user requests account linking from either surface.
+5. The system issues a one-time linking code on one surface and asks the user to present it on the other surface.
+6. The user presents the code on the second surface within its validity window.
+7. The system verifies the code and links the two into one Coke user.
+8. If both accounts had a usable personal channel, the system asks the user which single channel to keep and removes the other.
+9. The system unifies reminders, friendships, shared reminders, long-term memory, and settings, deduplicating per existing rules.
+10. After linking, both the WhatsApp identity and the web credentials resolve to the same single Coke user.
+
+The system must support:
+
+- Auto-provisioning a Coke user on first shared-WhatsApp-channel contact, bound to the sender identity.
+- Upgrading a WhatsApp-provisioned user in place by adding login credentials, without creating a second user.
+- Issuing and verifying a one-time linking code passed between the web session and the WhatsApp conversation.
+- Linking a WhatsApp-provisioned user and a web-registered user into one Coke user only after explicit proof.
+- Resolving the one-channel limit at link time by keeping exactly one usable personal channel and removing the other.
+- Unifying reminders, friendships, shared reminders, long-term memory, and settings under the surviving account.
+- Re-enforcing duplicate-friendship and duplicate-reminder invariants after linking.
+
+Currently not required:
+
+- Silent or heuristic account merging based on display name, profile similarity, or guessed identity.
+- Automatic linking without explicit user-presented proof.
+- Keeping more than one usable personal channel after linking.
+- Splitting a linked account back into separate accounts (unlinking).
+
+Requirement boundaries:
+
+- Cross-surface linking is an explicit, proof-based identity operation, not an inference.
+- Linking must converge to a single Coke user that honors the single-personal-channel and single-global-timezone contracts.
+- After linking, all per-user invariants — owner-scoping, duplicate rules, friendship uniqueness — must hold as if the data had always belonged to one user.
