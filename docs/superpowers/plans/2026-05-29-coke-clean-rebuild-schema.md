@@ -26,7 +26,7 @@ In scope:
 - Create Alembic configuration and environment for the clean rebuild schema.
 - Create `coke/schema.py` with SQLAlchemy Core `Table(...)` declarations.
 - Create the initial Alembic revision for a fresh clean database.
-- Create unit tests that pin table presence, legacy table absence, unique constraints, partial unique indexes, key lifecycle/status/timezone/idempotency columns, migration source wiring, offline SQL generation, and import boundaries.
+- Create unit tests that pin table presence, legacy table absence, unique constraints, partial unique indexes, key lifecycle/status/timezone/idempotency columns, migration source wiring, no-live-DB migration drift detection, offline SQL generation, and import boundaries.
 - Prove `outbox` is a Postgres table with durable relay and worker acknowledgement columns.
 
 Out of scope:
@@ -81,13 +81,16 @@ from __future__ import annotations
 
 import ast
 import importlib
+import importlib.util
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
 import pytest
-from sqlalchemy import UniqueConstraint
+import sqlalchemy as sa
+from sqlalchemy import CheckConstraint, MetaData, Table, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 
 
@@ -171,6 +174,143 @@ def _compiled_pg_where(index) -> str:
             compile_kwargs={"literal_binds": True},
         )
     )
+
+
+def _normalize_predicate(value) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "compile"):
+        text = str(
+            value.compile(
+                dialect=postgresql.dialect(),
+                compile_kwargs={"literal_binds": True},
+            )
+        )
+    else:
+        text = str(value)
+    text = text.replace('"', "")
+    for table_name in EXPECTED_TABLES:
+        text = text.replace(f"{table_name}.", "")
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    return text
+
+
+def _type_family(column_type) -> tuple:
+    if isinstance(column_type, postgresql.JSONB):
+        return ("jsonb",)
+    if isinstance(column_type, postgresql.UUID):
+        return ("uuid",)
+    if isinstance(column_type, sa.Text):
+        return ("text",)
+    if isinstance(column_type, sa.String):
+        return ("string",)
+    if isinstance(column_type, sa.BigInteger):
+        return ("bigint",)
+    if isinstance(column_type, sa.Integer):
+        return ("integer",)
+    if isinstance(column_type, sa.Boolean):
+        return ("boolean",)
+    if isinstance(column_type, sa.DateTime):
+        return ("datetime", bool(column_type.timezone))
+    return (column_type.__class__.__name__.lower(),)
+
+
+def _column_inventory(table: Table) -> dict[str, dict[str, object]]:
+    return {
+        column.name: {
+            "type": _type_family(column.type),
+            "nullable": column.nullable,
+            "foreign_keys": tuple(
+                sorted(foreign_key.target_fullname for foreign_key in column.foreign_keys)
+            ),
+        }
+        for column in table.columns
+    }
+
+
+def _constraint_inventory(table: Table) -> dict[str, set[tuple]]:
+    unique_constraints = set()
+    check_constraints = set()
+    for constraint in table.constraints:
+        if isinstance(constraint, UniqueConstraint):
+            unique_constraints.add(
+                (
+                    constraint.name,
+                    tuple(column.name for column in constraint.columns),
+                )
+            )
+        elif isinstance(constraint, CheckConstraint):
+            check_constraints.add(
+                (
+                    constraint.name,
+                    _normalize_predicate(constraint.sqltext),
+                )
+            )
+    return {
+        "unique": unique_constraints,
+        "check": check_constraints,
+    }
+
+
+def _index_inventory_from_metadata(metadata: MetaData) -> dict[str, dict[str, object]]:
+    inventory = {}
+    for table in metadata.tables.values():
+        for index in table.indexes:
+            inventory[index.name] = {
+                "table_name": table.name,
+                "unique": index.unique is True,
+                "columns": tuple(column.name for column in index.columns),
+                "postgresql_where": _normalize_predicate(
+                    index.dialect_options["postgresql"]["where"]
+                ),
+            }
+    return inventory
+
+
+class RecordingOp:
+    def __init__(self) -> None:
+        self.metadata = MetaData()
+        self.indexes: dict[str, dict[str, object]] = {}
+        self.dropped_indexes: list[tuple[str, str | None]] = []
+        self.dropped_tables: list[str] = []
+
+    def create_table(self, name: str, *elements, **kwargs) -> Table:
+        table = Table(name, self.metadata, *elements, **kwargs)
+        return table
+
+    def create_index(
+        self,
+        name: str,
+        table_name: str,
+        columns: list[str],
+        unique: bool = False,
+        **kwargs,
+    ) -> None:
+        self.indexes[name] = {
+            "table_name": table_name,
+            "unique": unique is True,
+            "columns": tuple(columns),
+            "postgresql_where": _normalize_predicate(kwargs.get("postgresql_where")),
+        }
+
+    def drop_index(self, name: str, table_name: str | None = None, **kwargs) -> None:
+        self.dropped_indexes.append((name, table_name))
+
+    def drop_table(self, name: str, **kwargs) -> None:
+        self.dropped_tables.append(name)
+
+
+def _load_revision_module():
+    spec = importlib.util.spec_from_file_location(
+        "clean_rebuild_schema_revision_under_test",
+        REVISION_PATH,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_metadata_contains_exact_clean_target_tables():
@@ -513,7 +653,7 @@ def test_alembic_env_uses_schema_metadata_and_offline_generation():
     assert "literal_binds=True" in source
 
 
-def test_initial_revision_has_deterministic_identity_and_reverse_drop():
+def test_initial_revision_has_deterministic_identity_and_no_schema_import():
     source = REVISION_PATH.read_text()
     tree = ast.parse(source)
     imported_roots: set[str] = set()
@@ -528,19 +668,47 @@ def test_initial_revision_has_deterministic_identity_and_reverse_drop():
     assert "coke" not in imported_roots
     assert ".".join(["metadata", "create_all"]) not in source
     assert ".".join(["metadata", "drop_all"]) not in source
-    assert source.count("op.create_table(") == len(EXPECTED_TABLES)
-    assert source.count("op.create_index(") == 5
-    assert '"account",' in source
-    assert '"calendar_import_item",' in source
-    assert '"uq_channel_one_active_per_account",' in source
-    assert '"uq_reminder_active_timed_duplicate",' in source
-    assert '"uq_reminder_active_no_trigger_duplicate",' in source
-    assert 'op.drop_index("uq_reminder_active_no_trigger_duplicate"' in source
-    assert 'op.drop_index("uq_reminder_active_timed_duplicate"' in source
-    assert 'op.drop_table("account")' in source
 
 
-def test_offline_sql_contains_clean_tables_and_partial_unique_index():
+def test_initial_revision_upgrade_matches_schema_metadata_without_live_db():
+    metadata = _metadata()
+    revision = _load_revision_module()
+    recorder = RecordingOp()
+    revision.op = recorder
+
+    revision.upgrade()
+
+    assert set(recorder.metadata.tables) == set(metadata.tables)
+    for table_name, expected_table in metadata.tables.items():
+        recorded_table = recorder.metadata.tables[table_name]
+        assert _column_inventory(recorded_table) == _column_inventory(expected_table)
+        assert _constraint_inventory(recorded_table) == _constraint_inventory(
+            expected_table
+        )
+
+    assert recorder.indexes == _index_inventory_from_metadata(metadata)
+
+
+def test_initial_revision_downgrade_drops_recorded_objects_in_reverse_order():
+    revision = _load_revision_module()
+    recorder = RecordingOp()
+    revision.op = recorder
+
+    revision.downgrade()
+
+    assert [name for name, _table_name in recorder.dropped_indexes] == [
+        "uq_reminder_active_no_trigger_duplicate",
+        "uq_reminder_active_timed_duplicate",
+        "uq_shared_reminder_active_duplicate",
+        "uq_friendship_one_active_pair",
+        "uq_channel_one_active_per_account",
+    ]
+    assert recorder.dropped_tables[0] == "calendar_import_item"
+    assert recorder.dropped_tables[-1] == "account"
+    assert set(recorder.dropped_tables) == EXPECTED_TABLES
+
+
+def test_offline_sql_generation_smoke_contains_expected_objects():
     env = os.environ.copy()
     env["DATABASE_URL"] = "postgresql+psycopg://coke:pass@localhost:5432/coke"
     result = subprocess.run(
@@ -558,7 +726,6 @@ def test_offline_sql_contains_clean_tables_and_partial_unique_index():
     assert "uq_channel_one_active_per_account" in result.stdout
     assert "uq_reminder_active_timed_duplicate" in result.stdout
     assert "uq_reminder_active_no_trigger_duplicate" in result.stdout
-    assert "WHERE lifecycle = 'active'" in result.stdout
 ```
 
 - [ ] **Step 3: Run the tests and verify they fail before implementation**
@@ -1831,10 +1998,10 @@ Run:
 ```bash
 DATABASE_URL="postgresql+psycopg://coke:pass@localhost:5432/coke" \
   $python_cmd -m alembic upgrade head --sql > /tmp/coke-clean-schema.sql
-rg -n "CREATE TABLE account|uq_channel_one_active_per_account|uq_reminder_active_timed_duplicate|uq_reminder_active_no_trigger_duplicate|WHERE lifecycle = 'active'" /tmp/coke-clean-schema.sql
+rg -n "CREATE TABLE account|uq_channel_one_active_per_account|uq_reminder_active_timed_duplicate|uq_reminder_active_no_trigger_duplicate" /tmp/coke-clean-schema.sql
 ```
 
-Expected: the `rg` command prints lines for `CREATE TABLE account`, the partial unique index name `uq_channel_one_active_per_account`, the personal-reminder duplicate index names `uq_reminder_active_timed_duplicate` and `uq_reminder_active_no_trigger_duplicate`, and `WHERE lifecycle = 'active'`.
+Expected: the `rg` command prints lines for `CREATE TABLE account`, the partial unique index name `uq_channel_one_active_per_account`, and the personal-reminder duplicate index names `uq_reminder_active_timed_duplicate` and `uq_reminder_active_no_trigger_duplicate`. The recorder drift test is the semantic check for partial predicates.
 
 ## Task 4: Run Slice Verification And Commit
 
@@ -1901,5 +2068,6 @@ Before handing off the executed schema slice, verify each item explicitly:
 - [ ] The `outbox` table has durable Postgres relay and worker acknowledgement state through `published_at`, `processed_at`, `acked_at`, `status`, `retry_count`, and `last_error`.
 - [ ] `migrations/env.py` imports `coke.schema.metadata` as `target_metadata` and can emit offline SQL without connecting to Postgres.
 - [ ] The initial revision has `revision = "20260529_0001"` and `down_revision = None`, uses explicit Alembic operations, and imports no application schema module.
+- [ ] The recorder-based migration drift test loads the initial revision without a database, replaces `op`, calls `upgrade()`, and compares recorded tables, columns, broad types, nullability, FK targets, unique/check constraints, and partial indexes against `coke.schema.metadata`.
 - [ ] `coke/schema.py` imports only SQLAlchemy modules and does not import legacy runtime modules or Mongo libraries.
 - [ ] Verification commands passed, and the commit contains no domain services, repositories, routes, workers, provider adapters, scheduler code, web code, or compatibility code.
