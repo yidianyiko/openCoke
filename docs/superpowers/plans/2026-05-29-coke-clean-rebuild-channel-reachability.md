@@ -71,7 +71,7 @@ Out of scope:
 
 ## Execution Preflight
 
-- [ ] **Step 1: Enter the requested worktree**
+- [x] **Step 1: Enter the requested worktree**
 
 Run:
 
@@ -82,7 +82,7 @@ git status --short --branch
 
 Expected: branch is `clean-rebuild-exec`. Any unrelated changes remain untouched.
 
-- [ ] **Step 2: Select the Python command**
+- [x] **Step 2: Select the Python command**
 
 Run:
 
@@ -96,7 +96,7 @@ printf '%s\n' "$python_cmd"
 
 Expected: prints `.venv/bin/python` when the local virtualenv exists, otherwise `python3`.
 
-- [ ] **Step 3: Run diff-aware routing before edits**
+- [x] **Step 3: Run diff-aware routing before edits**
 
 Run:
 
@@ -108,7 +108,7 @@ zsh scripts/suggest-verification --base "$slice_base"
 
 Expected: prints the pre-edit commit SHA and output includes backend or repo-OS surfaces. Keep `slice_base` and the command output in the handoff notes for the implementation session.
 
-- [ ] **Step 4: Verify current backend foundation before edits**
+- [x] **Step 4: Verify current backend foundation before edits**
 
 Run:
 
@@ -128,7 +128,7 @@ Expected: all selected tests pass before ChannelReachability files are added.
 - Create: `coke/providers/linq.py`
 - Test: `tests/unit/coke/channel_reachability/test_provider_adapters.py`
 
-- [ ] **Step 1: Write the failing provider contract tests**
+- [x] **Step 1: Write the failing provider contract tests**
 
 Create `tests/unit/coke/channel_reachability/test_provider_adapters.py`:
 
@@ -552,7 +552,7 @@ def test_fake_send_text_returns_provider_attempt_result():
     assert result.delivered_at is None
 ```
 
-- [ ] **Step 2: Run the provider tests to verify they fail**
+- [x] **Step 2: Run the provider tests to verify they fail**
 
 Run:
 
@@ -562,7 +562,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_provider_adapter
 
 Expected: fail during import because `coke.providers.base` and `coke.domains.channel_reachability.models` do not exist.
 
-- [ ] **Step 3: Add provider-facing models**
+- [x] **Step 3: Add provider-facing models**
 
 Create `coke/domains/channel_reachability/__init__.py`:
 
@@ -707,7 +707,7 @@ class NormalizedInbound:
 
 `NormalizedInbound.payload` is provider evidence, not a mutable working object. Provider adapters must set it to an immutable mapping whose nested mappings are immutable, whose nested JSON arrays are tuples, and whose scalar values are JSON scalars. The implementation helper below rejects non-JSON evidence values instead of storing opaque mutable objects; tuple input is rejected because provider webhook ingress is JSON-shaped, even though accepted JSON arrays are frozen as tuples internally.
 
-- [ ] **Step 4: Add the provider protocol and fakes**
+- [x] **Step 4: Add the provider protocol and fakes**
 
 Create `coke/providers/base.py`:
 
@@ -1204,7 +1204,7 @@ def _required_string(provider_type: str, payload: Mapping[str, object], field: s
     return value
 ```
 
-- [ ] **Step 5: Run the provider tests to verify they pass**
+- [x] **Step 5: Run the provider tests to verify they pass**
 
 Run:
 
@@ -1214,7 +1214,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_provider_adapter
 
 Expected: all provider adapter tests pass.
 
-- [ ] **Step 6: Commit provider contract**
+- [x] **Step 6: Commit provider contract**
 
 Run:
 
@@ -1235,7 +1235,7 @@ Expected: commit succeeds.
 - Modify test: `tests/unit/coke/identity_access/test_identity_access_service.py`
 - Test: `tests/unit/coke/channel_reachability/test_channel_reachability_service.py`
 
-- [ ] **Step 1: Write the failing service tests**
+- [x] **Step 1: Write the failing service tests**
 
 Create `tests/unit/coke/channel_reachability/test_channel_reachability_service.py`:
 
@@ -1899,7 +1899,7 @@ Task 2 also must include the quality-hardening regressions from code review:
 - `test_repository_rejects_second_active_route_for_same_channel`: a channel cannot have multiple active delivery routes.
 - `test_repository_rejects_existing_route_key_reassigned_to_another_channel`: an existing route key cannot be mutated onto another account/channel/provider address.
 
-- [ ] **Step 2: Run the service tests to verify they fail**
+- [x] **Step 2: Run the service tests to verify they fail**
 
 Run:
 
@@ -1909,7 +1909,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_channel_reachabi
 
 Expected: fail during import because `coke.domains.channel_reachability.repository` and `service` do not exist.
 
-- [ ] **Step 3: Add focused IdentityAccess preview tests**
+- [x] **Step 3: Add focused IdentityAccess preview tests**
 
 Append to `tests/unit/coke/identity_access/test_identity_access_service.py`:
 
@@ -1969,7 +1969,7 @@ def test_preview_pairing_code_account_rejects_wrong_expired_or_consumed_artifact
         expired_service.preview_pairing_code_account(expiring.code)
 ```
 
-- [ ] **Step 4: Run IdentityAccess preview tests to verify they fail**
+- [x] **Step 4: Run IdentityAccess preview tests to verify they fail**
 
 Run:
 
@@ -1979,7 +1979,7 @@ $python_cmd -m pytest tests/unit/coke/identity_access/test_identity_access_servi
 
 Expected: fail with `AttributeError` for `preview_pairing_code_account`.
 
-- [ ] **Step 5: Add read-only IdentityAccess methods when absent**
+- [x] **Step 5: Add read-only IdentityAccess methods when absent**
 
 Modify `coke/domains/identity_access/service.py` by adding these methods immediately after `can_remove_channel_identity`:
 
@@ -2004,7 +2004,7 @@ Modify `coke/domains/identity_access/service.py` by adding these methods immedia
 
 Expected: both methods read IdentityAccess-owned data and do not add any channel identity writer or consume any artifact.
 
-- [ ] **Step 6: Run IdentityAccess preview tests to verify they pass**
+- [x] **Step 6: Run IdentityAccess preview tests to verify they pass**
 
 Run:
 
@@ -2014,7 +2014,7 @@ $python_cmd -m pytest tests/unit/coke/identity_access/test_identity_access_servi
 
 Expected: both preview tests pass.
 
-- [ ] **Step 7: Add channel repository boundary**
+- [x] **Step 7: Add channel repository boundary**
 
 Create `coke/domains/channel_reachability/repository.py`:
 
@@ -2174,7 +2174,7 @@ class InMemoryChannelReachabilityRepository:
         return list(self.attempts_by_id.values())
 ```
 
-- [ ] **Step 8: Add status and webhook result models**
+- [x] **Step 8: Add status and webhook result models**
 
 Append to `coke/domains/channel_reachability/models.py`:
 
@@ -2200,7 +2200,7 @@ class ProviderWebhookAcceptance:
     raw_event_id: str
 ```
 
-- [ ] **Step 9: Add the ChannelReachability service**
+- [x] **Step 9: Add the ChannelReachability service**
 
 Create `coke/domains/channel_reachability/service.py`:
 
@@ -2566,7 +2566,7 @@ class ChannelReachabilityService:
             raise ChannelReachabilityError(error.code, fact=error.fact) from error
 ```
 
-- [ ] **Step 10: Run the service tests to verify they pass**
+- [x] **Step 10: Run the service tests to verify they pass**
 
 Run:
 
@@ -2576,7 +2576,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_channel_reachabi
 
 Expected: all service tests pass.
 
-- [ ] **Step 11: Export service class from the package initializer**
+- [x] **Step 11: Export service class from the package initializer**
 
 Modify `coke/domains/channel_reachability/__init__.py`:
 
@@ -2608,7 +2608,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 12: Run the service tests after the package export**
+- [x] **Step 12: Run the service tests after the package export**
 
 Run:
 
@@ -2618,7 +2618,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_channel_reachabi
 
 Expected: all service tests still pass.
 
-- [ ] **Step 13: Commit service lifecycle**
+- [x] **Step 13: Commit service lifecycle**
 
 Run:
 
@@ -2635,7 +2635,7 @@ Expected: commit succeeds.
 - Create: `coke/api/provider_webhooks.py`
 - Test: `tests/unit/coke/channel_reachability/test_provider_webhooks.py`
 
-- [ ] **Step 1: Write the failing webhook route tests**
+- [x] **Step 1: Write the failing webhook route tests**
 
 Create `tests/unit/coke/channel_reachability/test_provider_webhooks.py`:
 
@@ -2792,7 +2792,7 @@ def test_provider_webhook_maps_reachability_error_to_json_error():
     }
 ```
 
-- [ ] **Step 2: Run the webhook tests to verify they fail**
+- [x] **Step 2: Run the webhook tests to verify they fail**
 
 Run:
 
@@ -2802,7 +2802,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_provider_webhook
 
 Expected: fail during import because `coke.api.provider_webhooks` does not exist.
 
-- [ ] **Step 3: Add the provider webhook blueprint**
+- [x] **Step 3: Add the provider webhook blueprint**
 
 Create `coke/api/provider_webhooks.py`:
 
@@ -2896,7 +2896,7 @@ def _error_body(code: str, fact: dict | None = None) -> dict:
     return body
 ```
 
-- [ ] **Step 4: Run the webhook tests to verify they pass**
+- [x] **Step 4: Run the webhook tests to verify they pass**
 
 Run:
 
@@ -2906,7 +2906,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_provider_webhook
 
 Expected: all provider webhook tests pass.
 
-- [ ] **Step 5: Commit provider webhook ingress**
+- [x] **Step 5: Commit provider webhook ingress**
 
 Run:
 
@@ -2924,7 +2924,7 @@ Expected: commit succeeds.
 - Modify: `coke/app.py`
 - Test: `tests/unit/coke/channel_reachability/test_channel_routes.py`
 
-- [ ] **Step 1: Write the failing route tests**
+- [x] **Step 1: Write the failing route tests**
 
 Create `tests/unit/coke/channel_reachability/test_channel_routes.py`:
 
@@ -3303,7 +3303,7 @@ def test_create_app_registers_provider_webhooks_when_service_and_adapters_are_su
     assert response.get_json()["account_id"] == "acct_1"
 ```
 
-- [ ] **Step 2: Run the route tests to verify they fail**
+- [x] **Step 2: Run the route tests to verify they fail**
 
 Run:
 
@@ -3313,7 +3313,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_channel_routes.p
 
 Expected: fail during import because `coke.api.channel_routes` does not exist or `create_app` lacks `channel_reachability_service`.
 
-- [ ] **Step 3: Add the thin channel blueprint**
+- [x] **Step 3: Add the thin channel blueprint**
 
 Create `coke/api/channel_routes.py`:
 
@@ -3524,7 +3524,7 @@ def _error_body(code: str, fact: dict | None = None) -> dict:
     return body
 ```
 
-- [ ] **Step 4: Register channel routes optionally in app factory**
+- [x] **Step 4: Register channel routes optionally in app factory**
 
 Modify `coke/app.py`:
 
@@ -3574,7 +3574,7 @@ def create_app(
     return app
 ```
 
-- [ ] **Step 5: Run the route tests to verify they pass**
+- [x] **Step 5: Run the route tests to verify they pass**
 
 Run:
 
@@ -3584,7 +3584,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability/test_channel_routes.p
 
 Expected: all channel route tests pass.
 
-- [ ] **Step 6: Commit channel routes**
+- [x] **Step 6: Commit channel routes**
 
 Run:
 
@@ -3605,7 +3605,7 @@ Expected: commit succeeds.
 - Review: `coke/api/provider_webhooks.py`
 - Review: `tests/unit/coke/channel_reachability/*`
 
-- [ ] **Step 1: Run focused unit tests**
+- [x] **Step 1: Run focused unit tests**
 
 Run:
 
@@ -3615,7 +3615,7 @@ $python_cmd -m pytest tests/unit/coke/channel_reachability tests/unit/coke/ident
 
 Expected: all selected tests pass. This proves the in-memory repository contract, IdentityAccess read/anchor integration, API thinness, provider normalization, and route idempotency behavior.
 
-- [ ] **Step 2: Run schema contract tests**
+- [x] **Step 2: Run schema contract tests**
 
 Run:
 
@@ -3625,7 +3625,7 @@ $python_cmd -m pytest tests/unit/coke/test_clean_schema_contract.py -v
 
 Expected: all selected tests pass. This confirms the existing SQL table names and unique indexes remain available for a future SQLAlchemy repository that implements the same repository protocol.
 
-- [ ] **Step 3: Run backend surface verification**
+- [x] **Step 3: Run backend surface verification**
 
 Run:
 
@@ -3635,7 +3635,7 @@ zsh scripts/verify-surface clean-rebuild-backend
 
 Expected: command exits 0. If it fails, classify the failure as product/runtime bug, test/eval bug, environment instability, or plan gap before editing.
 
-- [ ] **Step 4: Run diff-aware verification routing**
+- [x] **Step 4: Run diff-aware verification routing**
 
 Run:
 
@@ -3648,7 +3648,7 @@ git diff --stat "$slice_base"..HEAD
 
 Expected: `suggest-verification` prints the relevant surface commands for the whole ChannelReachability slice, `review-trigger` prints a non-blocking risk report, and `git diff --stat` shows the full slice range from the pre-edit `slice_base`. Copy the risk report summary and diff range into the handoff.
 
-- [ ] **Step 5: Run repo structure checks and whitespace guard**
+- [x] **Step 5: Run repo structure checks and whitespace guard**
 
 Run:
 
@@ -3659,7 +3659,7 @@ git diff --check
 
 Expected: both commands exit 0.
 
-- [ ] **Step 6: Commit final verification or documentation adjustments**
+- [x] **Step 6: Commit final verification or documentation adjustments**
 
 Run:
 
