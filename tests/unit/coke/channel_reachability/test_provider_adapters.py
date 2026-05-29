@@ -149,6 +149,27 @@ def test_provider_adapters_reject_non_json_payload_evidence_values():
     }
 
 
+def test_provider_adapters_reject_tuple_payload_evidence_values():
+    adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
+
+    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+        adapter.normalize_inbound(
+            {
+                "message_id": "wa_msg_1",
+                "sender": "whatsapp:+15555550123",
+                "text": "hello",
+                "metadata": {"attachments": ("att_1",)},
+            }
+        )
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": "whatsapp_evolution",
+        "field": "payload.metadata.attachments",
+        "reason": "non_json_payload_value",
+    }
+
+
 @pytest.mark.parametrize(
     ("adapter", "payload", "missing_field"),
     [
@@ -208,6 +229,101 @@ def test_provider_adapters_reject_malformed_required_fields(adapter, payload, fi
         "provider_type": adapter.provider_type,
         "field": field,
         "reason": "invalid_required_field",
+    }
+
+
+@pytest.mark.parametrize(
+    ("adapter", "payload", "field"),
+    [
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {"message_id": True, "sender": "whatsapp:+15555550123", "text": "hello"},
+            "message_id",
+        ),
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {"message_id": "wa_msg_1", "sender": False, "text": "hello"},
+            "sender",
+        ),
+        (
+            WeChatPersonalAdapter(now=lambda: NOW),
+            {"message_id": "wx_msg_1", "wxid": True, "text": "hello"},
+            "wxid",
+        ),
+        (
+            WeChatECloudAdapter(now=lambda: NOW),
+            {"msg_id": "gewe_msg_1", "sender_id": False, "content": "hello"},
+            "sender_id",
+        ),
+        (
+            LinqAdapter(now=lambda: NOW),
+            {"id": "sms_msg_1", "from": True, "body": "hello"},
+            "from",
+        ),
+    ],
+)
+def test_provider_adapters_reject_boolean_required_fields(adapter, payload, field):
+    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+        adapter.normalize_inbound(payload)
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": adapter.provider_type,
+        "field": field,
+        "reason": "invalid_required_field",
+    }
+
+
+@pytest.mark.parametrize(
+    ("adapter", "payload"),
+    [
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {
+                "message_id": "wa_msg_1",
+                "sender": "whatsapp:+15555550123",
+                "text": "hello",
+                "pairing_code": ["ABC123"],
+            },
+        ),
+        (
+            WeChatPersonalAdapter(now=lambda: NOW),
+            {
+                "message_id": "wx_msg_1",
+                "wxid": "wxid_alice",
+                "text": "hello",
+                "pairing_code": {"code": "WXPAIR"},
+            },
+        ),
+        (
+            WeChatECloudAdapter(now=lambda: NOW),
+            {
+                "msg_id": "gewe_msg_1",
+                "sender_id": "gewe_alice",
+                "content": "hello",
+                "pairing_code": ("ECLOUDPAIR",),
+            },
+        ),
+        (
+            LinqAdapter(now=lambda: NOW),
+            {
+                "id": "sms_msg_1",
+                "from": "+15555550123",
+                "body": "hello",
+                "pairing_code": {"code": "SMSPAIR"},
+            },
+        ),
+    ],
+)
+def test_provider_adapters_reject_malformed_pairing_code(adapter, payload):
+    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+        adapter.normalize_inbound(payload)
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": adapter.provider_type,
+        "field": "pairing_code",
+        "reason": "invalid_optional_field",
     }
 
 

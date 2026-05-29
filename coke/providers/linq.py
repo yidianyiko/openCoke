@@ -4,12 +4,11 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 
 from coke.domains.channel_reachability.models import (
-    ChannelReachabilityError,
     DeliveryAttemptResult,
     DeliveryRoute,
     NormalizedInbound,
 )
-from coke.providers.base import freeze_json
+from coke.providers.base import freeze_json, optional_string_field, required_string_field
 
 
 class LinqAdapter:
@@ -21,11 +20,11 @@ class LinqAdapter:
     def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound:
         return NormalizedInbound(
             provider_type=self.provider_type,
-            provider_subject=_required_string(self.provider_type, payload, "from"),
-            text=_optional_string(payload.get("body")) or "",
-            raw_event_id=_required_string(self.provider_type, payload, "id"),
+            provider_subject=required_string_field(self.provider_type, payload, "from"),
+            text=optional_string_field(self.provider_type, payload, "body") or "",
+            raw_event_id=required_string_field(self.provider_type, payload, "id"),
             received_at=self._now(),
-            pairing_code=_optional_string(payload.get("pairing_code")),
+            pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
@@ -41,37 +40,3 @@ class LinqAdapter:
             error_code=None,
             delivered_at=None,
         )
-
-
-def _optional_string(value: object) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, (list, dict, tuple, set)):
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def _required_string(provider_type: str, payload: Mapping[str, object], field: str) -> str:
-    if field not in payload:
-        raise ChannelReachabilityError(
-            "invalid_provider_payload",
-            fact={
-                "type": "invalid_provider_payload",
-                "provider_type": provider_type,
-                "field": field,
-                "reason": "missing_required_field",
-            },
-        )
-    value = _optional_string(payload[field])
-    if value is None:
-        raise ChannelReachabilityError(
-            "invalid_provider_payload",
-            fact={
-                "type": "invalid_provider_payload",
-                "provider_type": provider_type,
-                "field": field,
-                "reason": "invalid_required_field",
-            },
-        )
-    return value
