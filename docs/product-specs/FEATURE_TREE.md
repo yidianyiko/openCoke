@@ -1,157 +1,170 @@
-# Coke Feature Tree
+# Product Feature Tree
 
-Status: manual baseline, created 2026-05-09.
+This file is the canonical product, route, and API surface index for the Coke
+clean rebuild. Product requirements are defined in
+`docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`.
+Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 
-This file indexes the product and API surfaces that agents should inspect
-before changing routes, endpoints, channel flows, or user-visible capabilities.
-It is intentionally smaller than Routa's generated tree until Coke has a
-checked generator.
+## Product Modules
 
-This file is the entry point for route and endpoint discovery. It is a
-repo-local map, not a product roadmap and not a replacement for
-`docs/roadmap.md`.
+- IdentityAccess: account identity, access gate, activation, credentials,
+  sessions, channel identity, and claim/auth artifacts.
+- ChannelReachability: one reachable personal channel, connection state,
+  delivery route, and delivery attempts.
+- ConversationRuntime: conversations, messages, inbound media references, turns,
+  output disposition, waiting/async reply, and stale-reply safety.
+- Reminder: personal reminders, proactive follow-ups, recurrence, due fires,
+  nightly summaries, undelivered reminders, and reminder calendar read models.
+- SocialScheduling: friend links, friendships, availability queries, shared
+  reminders, projections, and product notifications.
+- CalendarImport: Google authorization, import runs, per-occurrence import
+  items, and imported Coke reminders.
 
-For Ownership system classification, use
-`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`.
-This feature tree remains a discovery map; it does not decide ownership by
-directory alone.
+## Public Web
 
-## Runtime Surfaces
+- `/`
+- `/faqs`
+- `/demos`
+- `/privacy`
+- `/terms`
+- `/u/:code`
 
-- Worker runtime
-  - `agent/runner/agent_runner.py`
-  - `agent/runner/message_processor.py`
-  - `agent/runner/reminder_scheduler.py`
-  - `agent/runner/reminder_event_handler.py`
-  - `agent/agno_agent/runtime/`
-  - `agent/agno_agent/capabilities/`
-- Reminder System
-  - visible reminder command protocol through
-    `agent/agno_agent/tools/reminder_protocol/`
-  - durable state in MongoDB `reminders`
-  - internal agent follow-up state in MongoDB `reminders` with
-    `visibility=internal` and `fire_mode=followup`
-  - fired-event handoff through `ReminderFireEventHandler`
-  - owner-scoped reminder management service:
-    `connector/clawscale_bridge/reminder_management_service.py`
-  - bridge internal reminder management API:
-    `/bridge/internal/reminders`
-  - bridge internal reminder calendar facts API:
-    `/bridge/internal/reminder-calendar-facts`
-- Memo runtime contract
-  - headless embedded package: `memo-runtime/`
-  - Coke agent adapter: `agent/agno_agent/capabilities/memo.py`
-  - product behavior: memo cards, search, review queue, and agent proposals
-  - frontend implementation is a consumer and must not own memo business rules
-- Timezone System
-  - domain service: `agent/timezone_service.py`
-  - runtime port: `agent/agno_agent/capabilities/timezone_port.py`
-  - tool adapter: `agent/agno_agent/tools/timezone_tools.py`
-  - runtime identity resolution: `agent/runner/identity.py`
-  - durable state read/write: `dao/user_dao.py`
+## Customer Web
 
-## Bridge Surfaces
+- `/account/*`
+- `/channels`
+- `/reminders`
+- `/friends`
+- `/shared-reminders`
+- `/settings`
+- `/calendar-import`
+- `/subscription`
+- `/claim`
 
-- ClawScale bridge runtime
-  - `connector/clawscale_bridge/app.py`
-  - `/bridge/healthz`
-  - `/bridge/inbound`
-  - bridge ingress, egress, synchronous reply waiting, and late reply promotion
-- Outbound dispatch
-  - `connector/clawscale_bridge/output_dispatcher.py`
-  - gateway `/api/outbound`
+## Python Public API
 
-## Platform / Gateway Surfaces
+- `/api/auth/*`
+- `/api/account/*`
+- `/api/channels/*`
+- `/api/reminders/*`
+- `/api/friends/*`
+- `/api/shared-reminders/*`
+- `/api/settings/*`
+- `/api/calendar-import/*`
+- `/api/subscription/*`
+- `/api/claim/*`
 
-- Frontend App
-  - `gateway/packages/web`
-  - public homepage, customer auth, customer account, and customer product-entry surfaces
-- Platform System
-  - `gateway/packages/api/src/routes/customer-auth-routes.ts`
-  - `gateway/packages/api/src/routes/customer-claim-routes.ts`
-  - subscription and account-management routes
-- Friend Link And Shared Reminders
-  - customer web entry:
-    `gateway/packages/web/app/(customer)/account/friends/page.tsx`
-  - public web entry: `gateway/packages/web/app/u/[code]/page.tsx`
-    - opens public link sessions for unauthenticated visitors, then hands
-      authenticated `link_session` traffic to the customer Friends page
-  - public QR route: `gateway/packages/web/app/u/[code]/qr/route.ts`
-  - public API: `gateway/packages/api/src/routes/public-user-link-routes.ts`
-  - customer API: `gateway/packages/api/src/routes/customer-scheduling-routes.ts`
-  - internal agent API: `gateway/packages/api/src/routes/internal-scheduling-routes.ts`
-  - internal agent scheduling tools include direct friend-link creation,
-    friend-calendar lookup, active shared-reminder create/list/cancel, and
-    focus context for active selections
-  - friend links create or reuse active friendships directly and notify only
-    the link owner
-  - shared reminders persist `durationMinutes`, become active immediately
-    after receiver conflict checks pass, and project that duration into
-    participant Reminder Runtime records
-  - duplicate active shared reminders are constrained by creator, receiver,
-    idempotency key, title, fire time, timezone, and nullable duration
-  - pending friend-request and shared-reminder accept/reject flows are retired;
-    product notifications for direct friendship and shared reminders are
-    informational
-  - Gateway domain services: `gateway/packages/api/src/scheduling/`
-  - Reminder Runtime projection client: `gateway/packages/api/src/lib/reminder-runtime-client.ts`
-  - Worker agent tools: `agent/agno_agent/capabilities/scheduling.py`
-- User Agent Instance Settings
-  - customer web entry:
-    `gateway/packages/web/app/(customer)/account/my-agent/page.tsx`
-  - customer API:
-    `gateway/packages/api/src/routes/customer-agent-instance-routes.ts`
-  - gateway bridge client:
-    `gateway/packages/api/src/lib/agent-instance-runtime-client.ts`
-  - bridge internal API: `/bridge/internal/agent-instances`
-  - bridge service: `connector/clawscale_bridge/agent_instance_service.py`
-  - worker storage: MongoDB `agent_instances` through
-    `dao/agent_instance_dao.py`
-  - runtime prompt composition:
-    `agent/runner/context.py`,
-    `agent/agno_agent/runtime/context.py`,
-    `agent/agno_agent/runtime/chat_response_instructions.py`
-- Calendar Import Integration
-  - customer API:
-    `gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts`
-  - customer callback API:
-    `gateway/packages/api/src/routes/customer-google-calendar-import-callback-routes.ts`
-  - handoff API:
-    `gateway/packages/api/src/routes/calendar-import-handoff-routes.ts`
-  - bridge adapter:
-    `connector/clawscale_bridge/google_calendar_import_service.py`
-  - agent capability and handoff tool:
-    `agent/agno_agent/capabilities/calendar_import_port.py`,
-    `agent/agno_agent/tools/calendar_import_handoff.py`
+## Provider Webhooks
 
-## Channel Surfaces
+- `/webhooks/whatsapp/evolution`
+- `/webhooks/wechat/personal`
+- `/webhooks/wechat/ecloud`
+- `/webhooks/linq`
 
-- Channel System
-  - `gateway/packages/api/src/gateway/message-router.ts`
-  - `gateway/packages/api/src/lib/route-message.ts`
-  - `gateway/packages/api/src/routes/customer-channel-routes.ts`
-  - `gateway/packages/api/src/routes/outbound.ts`
-  - provider-specific config and dispatch helpers under `gateway/packages/api/src/channel/`
+## Internal Runtime
 
-## Operations Surfaces
+- `/internal/outbound/delivery-callback`
+- `/internal/reply-wait/:causal_inbound_event_id`
 
-- Deployment
-  - `docker-compose.prod.yml`
-  - `scripts/deploy-compose-to-gcp.sh`
-  - `docs/deploy.md`
-- Release and rollout
-  - `docs/release-guide.md`
-  - `docs/RELEASE_CHECKLIST.md`
-- Architecture
-  - `docs/ARCHITECTURE.md`
-  - `docs/clawscale_bridge.md`
+## User Journeys
 
-## Update Rule
+### Account And Access
 
-- Update this file when adding, removing, renaming, or retiring user-visible
-  routes, bridge endpoints, gateway APIs, worker-triggered product surfaces, or
-  deployment entrypoints.
-- Keep behavioral intent in design docs, ADRs, or architecture docs. Keep this
-  file focused on discoverability.
-- If this file becomes generated, document the generator command here and wire
-  it into repo-OS checks before claiming generated status.
+- Register, log in, verify email, reset password, maintain session, view account
+  access status, and recover from denied access.
+- Claim a messaging-first account through a one-time login URL or web-initiated
+  claim code.
+- Bind a web-first channel through a pairing code.
+- Block normal assistant processing, channel connection, and calendar import
+  when account access is denied.
+
+### First Activation
+
+- Web-first activation requires login/registration, one usable personal channel,
+  and one received personal-channel message.
+- Shared WhatsApp messaging-first activation requires trusted sender binding,
+  a usable messaging channel, and one received inbound message.
+- Creating the first reminder or completing settings is not an activation
+  requirement.
+
+### Channel Reachability
+
+- View, connect, retry, remove where allowed, and recover a single personal
+  channel.
+- Current product channels are personal WeChat and shared WhatsApp.
+- Shared WhatsApp is the only messaging-first auto-provisioning path.
+- A messaging-first user cannot remove the only sender identity that anchors the
+  account.
+
+### Daily Conversation
+
+- Receive text and channel-carried media as processable inbound input.
+- Bind every inbound to a trusted account before assistant processing.
+- Run an InboundTurn through The Turn.
+- Send text replies, intentional no-reply, waiting text for slow processing, and
+  asynchronous final replies when needed.
+- Preserve observable failure when processing or output validation fails.
+
+### Personal Reminders
+
+- Create, view, edit, complete, delete, schedule, unschedule, and manage
+  reminders through conversation and the calendar page.
+- Support one-time, no-trigger-time, recurring, proactive, and shared-projection
+  reminders.
+- Use one global user timezone for interpretation and display; recurring windows
+  remain pinned to the timezone captured at creation or last edit.
+- Merge same-owner same-time due reminders into one rendered ReminderFireTurn.
+- Retain undelivered reminder status and resend after reconnect when applicable.
+- Discard failed proactive follow-ups.
+
+### Friendship
+
+- Generate, reset, disable, and share friend links and QR codes.
+- Establish active friendship directly after the joiner authenticates or claims
+  an account and has a usable personal channel.
+- Establish friendship through a friend-link code in conversation.
+- View and remove friends.
+- No friend request approval flow is part of the current product.
+
+### Shared Reminders
+
+- Create one group shared reminder for one or more active friends.
+- Query privacy-safe friend availability.
+- Validate required fields, unique active friends, receiver conflicts, and
+  participant reachability before creation.
+- Create participant projections immediately after validation.
+- View participant-scoped shared reminders.
+- Cancel the whole group by any participant.
+- No shared-reminder accept/reject flow is part of the current product.
+
+### Product Notifications
+
+- Send informational notifications for friendship creation, shared-reminder
+  creation/cancellation, and related errors or partial failures.
+- Store structured facts and per-recipient state; final visible text is rendered
+  through The Turn.
+- Notifications never approve, reject, or execute product actions.
+
+### Calendar Import
+
+- Authorize Google Calendar for one-time import.
+- Convert future events into Coke-owned reminders.
+- Deduplicate by occurrence grain.
+- Report imported, skipped, downgraded, and failed items.
+- Stop/revoke future authorization without deleting imported reminders.
+
+### Settings And Data Lifecycle
+
+- View/update/reset assistant settings, user profile fields, global timezone,
+  proactive switch, and memory switch.
+- Remove removable channels, delete/complete reminders, cancel shared reminders,
+  remove friends, turn off memory usage, and stop calendar authorization.
+- Full account deletion, full export, full erasure, and self-service memory
+  clearing are out of scope.
+
+## Superseded Discovery Surfaces
+
+Future-route ownership must not be inferred from `gateway/packages/api` or
+`connector/clawscale_bridge`. Those directories describe legacy implementation
+surfaces until deleted or rewritten. The clean rebuild's discoverable route
+contract is the Python API and webhook list above.

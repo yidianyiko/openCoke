@@ -1,125 +1,86 @@
 # Coke Working Contract
 
-This document defines the repository-specific work surfaces in `coke` and how
-to reason about them when planning or reviewing a change.
+This document defines Coke-specific work surfaces for agents. It complements
+`docs/design-docs/human-ai-working-contract.md`.
 
-## Ownership Axis
+## Clean-Rebuild Premise
 
-Planning surfaces describe where verification runs. Ownership systems describe
-who owns behavior and contracts. Use this document for verification surfaces,
-`docs/design-docs/interface-contract.md` for route ownership, and active
-feature specs for feature-specific boundary decisions, such as the
-Gateway-hosted Scheduling boundary spec.
+Coke is in a destructive clean-rebuild track. Work should follow the current
+requirements and target architecture instead of preserving old runtime shape.
 
-A change can touch one planning surface while affecting multiple ownership
-systems. Name both in non-trivial plans and reviews.
+Source documents:
 
-## Core Runtime Surfaces
+- `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
+- `docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md`
+- `docs/ARCHITECTURE.md`
+- `docs/product-specs/FEATURE_TREE.md`
+- `docs/design-docs/interface-contract.md`
 
-### 1. Worker Runtime
+## Future Clean-Rebuild Services
 
-Primary files:
+- `coke-api`: Python ingress/egress HTTP tier.
+- `coke-worker`: Python Redis Stream turn workers.
+- `coke-scheduler`: singleton Python reminder scheduler.
+- `coke-outbox-relay`: Postgres outbox to Redis Stream relay.
+- `coke-web`: Next.js thin client.
+- `postgres`: product state, Agno session/history/memory/knowledge, pgvector.
+- `redis`: wake-up stream, locks, reply pub/sub.
 
-- `agent/runner/agent_runner.py`
-- `agent/runner/message_processor.py`
-- `agent/runner/agent_handler.py`
-- `agent/agno_agent/runtime/`
-- `agent/agno_agent/capabilities/`
-- `agent/agno_agent/adapters/`
-- `agent/agno_agent/schemas/`
-- `agent/agno_agent/model_factory.py`
-- `agent/agno_agent/tools/`
-- `agent/prompt/`
+The standalone ClawScale bridge is superseded. ClawScale remains only as the
+`wechat_personal` provider adapter behind Coke's canonical provider contract.
 
-Use this surface when the change affects:
+## Work Surfaces
 
-- message acquisition or queue mode
-- turn processing
-- single-Agent runtime, typed runtime events, and capability tool wrappers
-- background handling
-- prompt behavior
-- reminder, context, or runtime state logic
+- Product/API discovery: `docs/product-specs/FEATURE_TREE.md` and
+  `docs/design-docs/interface-contract.md`.
+- Runtime architecture: `docs/ARCHITECTURE.md`.
+- Clean-rebuild service operations: `docs/deploy.md`.
+- ClawScale adapter boundary: `docs/clawscale_bridge.md`.
+- Verification routing: `docs/fitness/coke-verification-matrix.md` and
+  `docs/fitness/surfaces.yaml`.
+- Design specs and execution plans: `docs/superpowers/specs/` and
+  `docs/superpowers/plans/`.
 
-### 2. Coke Bridge
+Legacy/current-checkout pointers that still help agents locate the surface they
+are replacing or deleting:
 
-Primary files:
+- Worker runtime entry: `agent/runner/agent_runner.py`.
+- Superseded bridge ingress: `connector/clawscale_bridge/app.py`.
+- Superseded bridge egress: `connector/clawscale_bridge/output_dispatcher.py`.
+- Superseded TypeScript API package: `gateway/packages/api`.
+- Thin web package to repoint/de-brand: `gateway/packages/web`.
+- Existing deploy regression script: `scripts/test-deploy-compose-to-gcp.sh`.
 
-- `connector/clawscale_bridge/app.py`
-- `connector/clawscale_bridge/output_dispatcher.py`
-- `connector/clawscale_bridge/message_gateway.py`
-- `connector/clawscale_bridge/reply_waiter.py`
-- `connector/clawscale_bridge/gateway_*_client.py`
+## Implementation Rules
 
-Use this surface when the change affects:
+- Keep product behavior in Python domain modules, not in route handlers or
+  provider adapters.
+- Treat TypeScript Gateway API and standalone bridge ownership as superseded
+  unless the task is explicitly deleting, migrating, or documenting that legacy
+  surface.
+- Keep all durable state in Postgres and all coordination in Redis.
+- Do not add Mongo-backed runtime state.
+- Keep The Turn as the only normal chat/channel-visible product prose producer.
+- Do not add legacy compatibility shims, parser fallbacks, alias routes, or
+  duplicate old implementations without a current canonical requirement.
+- Friendships and shared reminders are direct active product states; approval
+  flows are out of scope.
 
-- inbound request translation
-- synchronous reply waiting
-- late reply promotion
-- outbound push delivery
-- bridge auth, identity, or delivery-route integration
+## Verification Rules
 
-### 3. Gateway Planning Surface
+For clean-rebuild docs, run:
 
-Primary files:
+```bash
+bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh
+zsh scripts/check
+zsh scripts/verify-surface repo-os-docs
+```
 
-- `gateway/packages/api`
-- `gateway/packages/web`
-- `gateway/packages/shared`
+For non-trivial changes, also run diff-aware routing:
 
-Use this surface when the change affects:
+```bash
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
 
-- gateway-hosted API or web files change
-- customer, channel, admin, reminder, calendar-import, or subscription routes under `gateway/` change
-- shared frontend/backend DTOs under `gateway/packages/shared` change
-- Prisma schema or gateway platformization logic changes
-
-### 4. Deployment And Rollout
-
-Primary files:
-
-- `docker-compose.prod.yml`
-- `deploy/nginx/coke.conf`
-- `deploy/systemd/coke-compose.service`
-- `scripts/deploy-compose-to-gcp.sh`
-- `scripts/test-deploy-compose-to-gcp.sh`
-- `docs/deploy.md`
-
-Use this surface when the change affects:
-
-- production topology
-- deploy flow
-- public URL or env propagation
-- rollout and smoke-check procedures
-
-## Control-Plane Artifacts
-
-For non-trivial work:
-
-- human/AI collaboration and verification trust rules live in
-  `docs/design-docs/human-ai-working-contract.md`
-- new multi-step plans go in `docs/superpowers/plans/`
-- durable repository workflow rules go in `docs/design-docs/` or `docs/adr/`
-- local issues, incidents, one-off repairs, and historical runbooks go in
-  `docs/issues/`
-- product and API surface discovery goes in
-  `docs/product-specs/FEATURE_TREE.md`
-- release workflow and rollout closeout go in `docs/release-guide.md` and
-  `docs/RELEASE_CHECKLIST.md`
-- generated verification evidence goes in `artifacts/evidence/`
-- historical design and implementation context remains in
-  `docs/superpowers/specs/` and `docs/superpowers/plans/`
-
-## Planning Rule
-
-Every non-trivial task should name the surfaces it touches. At minimum, choose
-from:
-
-- `worker-runtime`
-- `bridge`
-- `gateway-api`
-- `gateway-web`
-- `deploy`
-- `repo-os`
-
-That keeps verification scoped to the actual blast radius instead of defaulting
-to vague "run tests" language.
+`review-trigger` is a risk report, not a human-review completion gate.

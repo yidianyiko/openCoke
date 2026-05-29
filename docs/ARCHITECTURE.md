@@ -1,407 +1,277 @@
 # Architecture Reference
 
-This is Coke's canonical architecture document. `docs/architecture.md` is kept
-only as a compatibility symlink for older references.
+This document describes the clean-rebuild target architecture for Coke. The
+requirements source of truth is
+`docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`;
+the technical target is
+`docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md`.
+If this document and those specs disagree, treat the settled specs as the
+authority and update this reference.
 
-This document describes the current ClawScale-backed runtime wired in this
-repository, including the gateway-hosted shared-channel experiments that feed
-the same Coke worker pipeline.
+## Runtime Topology
 
-This document describes runtime topology. Ownership boundaries are routed by
-`docs/design-docs/coke-working-contract.md` and
-`docs/design-docs/interface-contract.md`, with feature-specific boundary
-decisions recorded in active specs such as
-`docs/superpowers/specs/2026-05-28-direct-friendship-shared-reminders-design.md`.
-Planning surfaces and ownership systems are related but not identical.
+Coke is a Python backend split into an ingress/egress tier and a worker tier,
+with a thin Next.js client. Durable product state lives in Postgres. Redis is
+coordination only: stream wake-up, locks, and reply pub/sub. MongoDB: Removed entirely.
 
-## 1. Runtime Topology
+Services in the target deployment:
 
-The production stack consists of:
+- `coke-api`: Python ingress/egress HTTP tier. It receives provider webhooks,
+  exposes the public and customer APIs, enforces identity/access gates, persists
+  durable facts and outbox rows, and calls provider adapters for outbound sends.
+- `coke-worker`: Python Redis Stream turn workers. It owns The Turn execution,
+  context assembly, Interaction Agent invocation, output disposition, and domain
+  tool calls.
+- `coke-scheduler`: singleton Python reminder scheduler. It creates durable
+  reminder-fire facts and outbox wake-ups.
+- `coke-outbox-relay`: Postgres outbox to Redis Stream relay. Postgres remains
+  the source of truth; Redis only wakes workers.
+- `coke-web`: thin Next.js client over the Python API.
+- `postgres`: product state, Agno session/history/memory/knowledge, pgvector,
+  and the single transactional outbox.
+- `redis`: wake-up stream, per-conversation locks, and reply pub/sub.
 
-- `agent/runner/agent_runner.py`
-  - runs Coke message workers
-  - boots the in-process reminder runtime
-  - runs background maintenance jobs
-- `agent/reminder/runtime.py`
-  - owns the in-process Reminder Runtime object
-  - holds the runtime contract, scheduler, and fire consumer wired by Coke
-- `agent/runner/reminder_scheduler.py`
-  - rebuilds APScheduler reminder jobs from MongoDB `reminders.next_fire_at`
-  - emits structured reminder fired events to the configured fire consumer
-- `agent/runner/reminder_fire_consumer.py`
-  - adapts Reminder fired events to Coke's existing continuation handler
-- `agent/runner/reminder_event_handler.py`
-  - resolves the reminder output target back into conversation context
-  - writes final reminder output through the Agent System output boundary
-- `connector/clawscale_bridge/app.py`
-  - validates bridge/internal integration requests
-  - adapts Coke ingress and egress protocol traffic
-  - waits for synchronous replies and promotes late replies
-  - dispatches outbound replies to the gateway
-- `gateway/`
-  - serves the web UI on `4040`
-  - serves the API on `4041`
-  - hosts Platform, Channel, Reminder customer API, and Calendar Import routes in one process
-  - keeps provider webhook normalization and outbound dispatch under Channel ownership
-- data services
-  - MongoDB for Coke runtime state, including visible `reminders`
-  - Redis for stream wake-up / trigger events
-  - Postgres for gateway state
-
-```mermaid
-flowchart LR
-    subgraph Web
-        UI[Gateway Web :4040]
-        API[Gateway API :4041]
-        PROVIDERS[Shared Channel Providers]
-    end
-
-    subgraph Coke
-        BRIDGE[ClawScale Bridge :8090]
-        RUNNER[agent_runner.py]
-        RRUNTIME[ReminderRuntime]
-        RSCHED[ReminderScheduler]
-        RFCONSUMER[CokeReminderFireConsumer]
-        RHANDLER[ReminderFireEventHandler]
-        BG[background_handler]
-    end
-
-    subgraph Storage
-        MONGO[(MongoDB)]
-        REDIS[(Redis)]
-        PG[(Postgres)]
-    end
-
-    UI --> API
-    PROVIDERS --> API
-    API --> BRIDGE
-    BRIDGE --> RUNNER
-    BRIDGE --> API
-    RUNNER --> RRUNTIME
-    RRUNTIME --> RSCHED
-    RSCHED --> RFCONSUMER
-    RFCONSUMER --> RHANDLER
-    RUNNER --> MONGO
-    RUNNER -. stream trigger .-> REDIS
-    RSCHED --> MONGO
-    RHANDLER --> MONGO
-    BG --> MONGO
-    API --> PG
-```
-
-## 2. Inbound Path
-
-Current personal-channel inbound traffic comes through ClawScale:
+The TypeScript Gateway API is superseded by the Python API. The standalone
+ClawScale bridge is superseded. ClawScale remains only as the `wechat_personal`
+provider adapter behind Coke's canonical provider contract.
 
 ```text
-user channel
-  -> gateway
-  -> bridge /bridge/inbound
-  -> MongoDB inputmessages
-  -> optional Redis XADD
-  -> agent workers
+providers
+  -> coke-api (webhooks, account access gate, provider normalization)
+  -> Postgres durable facts + outbox
+  -> coke-outbox-relay
+  -> Redis Stream wake-up
+  -> coke-worker (The Turn, domain services, Interaction Agent)
+  -> coke-api provider egress
+
+coke-web -> coke-api -> Postgres-backed domains
 ```
 
-Active shared-channel experiments enter through provider-specific gateway
-webhook routes before converging on the same Coke bridge and worker runtime:
+## The Turn
 
-```text
-provider webhook
-  -> gateway /gateway/evolution/whatsapp | /gateway/ecloud/wechat | /gateway/linq
-  -> shared-channel provisioning and route binding
-  -> bridge /bridge/inbound
-  -> MongoDB inputmessages
-  -> optional Redis XADD
-  -> agent workers
+All chat/channel-visible product prose flows through The Turn. Turn triggers are
+InboundTurn, ReminderFireTurn, ProactiveFireTurn, NightlySummaryTurn,
+NotificationTurn, AccessDeniedTurn, and UndeliveredResendTurn. The only normal
+prose producer is the Interaction Agent. The runtime-owned waiting text is the
+sole typed signal exception.
+
+Turn execution has one spine:
+
+1. Resolve the trigger and durable `trigger_id`.
+2. Apply the pre-LLM gate: identity, account access, channel reachability, and
+   claim/handoff validity.
+3. Take a per-conversation Redis lock with an ownership token.
+4. Assemble trusted context: TrustFraming, SemanticInterpreter, Focus,
+   ReferenceResolver, Freshness, and Memory.
+5. Invoke the Interaction Agent in interactive mode for inbound user turns or
+   render mode for structured reminder, notification, access, and recovery facts.
+6. Validate the first returned structured output. Malformed, empty, blocked, or
+   timed-out-after-budget output is a failed turn, not an invented replacement
+   reply.
+7. Record exactly one turn disposition:
+   `replied | no_reply | pending_async_reply | failed | superseded`.
+8. Persist outbound messages with deterministic segment ids and provider
+   idempotency keys.
+9. Deliver through the current channel route and record delivery attempts.
+10. Update output-class-specific lifecycle state from delivery callbacks.
+
+Interactive mode exposes domain tools and may mutate product state through
+domain services. Render mode receives already-trusted structured facts and has no
+business mutation tools.
+
+## Bounded Contexts
+
+IdentityAccess owns account identity, access gate, activation, sessions,
+credentials, channel identity, and auth artifacts. ChannelReachability owns the
+single reachable channel, delivery route, and delivery attempts.
+ConversationRuntime owns conversation order, messages, media references, turns,
+and output disposition. Reminder owns reminders, fires, recurrence, scheduler,
+and calendar read models. SocialScheduling owns friend links, friendships,
+shared reminders, projections, and product notifications. CalendarImport owns
+Google authorization, import runs, and per-occurrence import items.
+
+Rules that apply to every bounded context:
+
+- API routes and agent tools are adapters over domain services. They do not own
+  business rules or write another context's tables directly.
+- Cross-context async work uses the single Postgres outbox. Redis is a wake-up
+  signal, not durable state.
+- New tables must protect a current product invariant such as identity integrity,
+  access gating, single-channel reachability, reminder firing, recurrence
+  determinism, friendship uniqueness, shared-reminder projection consistency,
+  outbound idempotency, or user-visible turn auditability.
+- Legacy compatibility paths, alias routes, and fallback parsers are not kept
+  unless a current canonical spec names them as active requirements.
+
+## Storage Topology
+
+Postgres stores all durable state:
+
+- IdentityAccess: `account`, `agent_settings`, `user_profile`,
+  `account_activation`, `account_access`, `credential`, `session`,
+  `channel_identity`, and `auth_artifact`.
+- ChannelReachability: `channel`, `delivery_route`, and `delivery_attempt`.
+- ConversationRuntime: `conversation`, `message`, `inbound_media`, `turn`,
+  `output_disposition`, and the shared `outbox`.
+- Reminder: `reminder`, `reminder_fire`, recurrence data, and reminder calendar
+  read models.
+- SocialScheduling: `friend_link`, `friendship`, `shared_reminder`,
+  `reminder_projection`, `notification_fact`, and `notification_recipient`.
+- CalendarImport: `calendar_import_run` and `calendar_import_item`.
+- Agno substrate: session, history, memory, knowledge, and pgvector.
+
+Redis stores only coordination state:
+
+- Redis Streams for worker wake-up.
+- Per-conversation locks using ownership tokens.
+- Reply pub/sub keyed by `causal_inbound_event_id`.
+
+Nothing durable lives only in Redis. A Redis restart may lose wake-up signals,
+but unacknowledged Postgres outbox rows are replayed.
+
+## Web Target
+
+The web app is a thin Next.js client over the Python API. It keeps the required
+product pages and moves business decisions into Python domains.
+
+Public web:
+
+- `/`
+- `/faqs`
+- `/demos`
+- `/privacy`
+- `/terms`
+- `/u/:code`
+
+Customer web:
+
+- `/account/*`
+- `/channels`
+- `/reminders`
+- `/friends`
+- `/shared-reminders`
+- `/settings`
+- `/calendar-import`
+- `/subscription`
+- `/claim`
+
+Python public API:
+
+- `/api/auth/*`
+- `/api/account/*`
+- `/api/channels/*`
+- `/api/reminders/*`
+- `/api/friends/*`
+- `/api/shared-reminders/*`
+- `/api/settings/*`
+- `/api/calendar-import/*`
+- `/api/subscription/*`
+- `/api/claim/*`
+
+Provider webhooks:
+
+- `/webhooks/whatsapp/evolution`
+- `/webhooks/wechat/personal`
+- `/webhooks/wechat/ecloud`
+- `/webhooks/linq`
+
+Internal runtime:
+
+- `/internal/outbound/delivery-callback`
+- `/internal/reply-wait/:causal_inbound_event_id`
+
+## Channel And Provider Boundary
+
+Coke owns the canonical message, identity, route, and delivery contracts.
+Providers are edge adapters. Current product channels are personal WeChat and
+shared WhatsApp; retained provider adapters are `wechat_personal`,
+`whatsapp_evolution`, `wechat_ecloud`, and `linq`.
+
+`wechat_personal` is the only remaining ClawScale-shaped responsibility. It is
+an adapter peer, not a runtime center. Provider-specific identity or message
+shapes must be normalized at the ingress/egress boundary before they reach
+domain modules or the Interaction Agent.
+
+## Product Invariants
+
+- Account access fails closed for inbound assistant processing, channel
+  connection, and calendar import.
+- One messaging identity maps to one account. Accounts are not merged or
+  heuristically matched.
+- A messaging-first anchor channel identity is not removable while it is the only
+  identity anchoring the account.
+- Each account has at most one reachable personal channel.
+- Chat/channel-visible product prose is produced by the Interaction Agent, except
+  for the runtime-owned waiting text.
+- Turn disposition and delivery state are separate. Reminder undelivered state,
+  proactive discard, shared-reminder projection delivery, and notification
+  recipient delivery are not collapsed into a generic failure bucket.
+- Reminder fires are atomic, idempotent, replay-safe, and caught up after
+  downtime. Proactive follow-ups are discarded on delivery failure.
+- Friendships are direct active relationships, not owner-approval requests.
+- Shared reminders are active immediately after validation. Any participant may
+  cancel the whole group; completion affects only that participant's projection.
+- Product notifications are structured facts rendered by The Turn. Notifications
+  are informational and never approval or action-execution workflows.
+- Calendar import is one-time import into Coke-owned reminders with
+  occurrence-grain dedupe.
+
+## Deleted Legacy Surfaces
+
+The clean rebuild deletes or supersedes these surfaces:
+
+- TypeScript Gateway API product ownership.
+- Standalone Python ClawScale bridge process, bridge reply waiter, bridge
+  outbound dispatcher, bridge callbacks, and Gateway-to-Bridge notification
+  enqueue.
+- Mongo runtime storage for messages, sessions, reminders, locks, vector search,
+  and runtime transcript state.
+- Gateway-owned notification text and any stored final notification prose.
+- Pending friend request approval and shared-reminder accept/reject flows.
+- Order, usage, quota, and billing ledgers. The access gate remains in scope.
+- SaaS organization graph concepts that are not current product requirements.
+- LangBot, hardcoded admin chat commands, busy/hold scripts, relationship-score
+  simulation, Moments/photo album/media generation, and dead terminal direct
+  Mongo bypasses.
+- Compatibility shims for old data, old protocols, and old runtime shapes.
+
+## Verification Implications
+
+The canonical docs gate is:
+
+```bash
+bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh
 ```
 
-Key points:
+Docs-only clean-rebuild changes should also run:
 
-- `connector/clawscale_bridge/app.py` validates bridge requests and converts them into Coke input documents.
-- `gateway/packages/api/src/gateway/message-router.ts` owns provider webhook
-  normalization for active shared-channel experiments.
-- `gateway/packages/api/src/lib/route-message.ts` and shared-channel
-  provisioning map external senders onto Coke customers and delivery routes
-  before handing messages to the bridge.
-- Worker conversation state must preserve the trusted
-  `business_conversation_key` supplied by bridge/gateway delivery-route
-  binding. Coke workers must not synthesize `business_conversation_key` values
-  from Mongo conversation ids, because proactive outputs use that key as the
-  gateway delivery-route lookup key.
-- `util/redis_stream.py` is only a wake-up path; MongoDB remains the source of truth.
-- `agent/runner/message_processor.py` still acquires work from `inputmessages` and conversation locks in MongoDB.
-
-Product notifications generated by gateway scheduling features, such as direct
-friendship creation and shared reminder changes, are system-originated chat
-events, not user-authored inbound messages. Gateway owns the
-`product_notifications` fact ledger and lifecycle, resolves the recipient
-account's latest active `delivery_routes` row, and enqueues an async
-`message_type=product_notification` turn through `/bridge/inbound` with
-structured facts. The Interaction Agent owns the final chat prose through the
-normal `user.turn` runtime path. The bridge output dispatcher later posts the
-Agent-generated `outputmessages` to `/api/outbound` as push deliveries, and
-Gateway reconciles `product_notifications.status` after outbound delivery
-succeeds or returns an idempotent duplicate-success response.
-
-## 3. Worker Runtime
-
-`agent/runner/agent_runner.py` now has three responsibilities:
-
-1. run N message workers
-2. boot one in-process Reminder System scheduler
-3. run the background handler loop
-
-Each worker:
-
-1. checks queue mode
-2. optionally drains Redis stream triggers
-3. executes the shared handler from `create_handler(worker_id)`
-
-`agent/runner/message_processor.py` still handles:
-
-- message acquisition
-- conversation locking
-- batching pending messages for the same conversation
-- final status updates
-
-The Reminder System owns assistant-created reminders and internal follow-ups:
-
-- `reminders` stores visible user reminders and internal agent follow-ups.
-  Visible reminders are created through the
-  `agent.agno_agent.tools.reminder_protocol` adapter. Internal follow-ups use
-  `visibility=internal` and `fire_mode=followup`, are hidden from customer
-  management surfaces, and fire through `ReminderFireEventHandler` into the
-  normal Agent System runtime.
-- `agent/reminder/runtime_contract.py` is the in-process Reminder Runtime
-  Contract. Agno tools, PostAnalyze follow-up creation, and bridge reminder
-  management adapters call this contract instead of owning reminder business
-  behavior.
-- `agent/reminder/runtime.py` is the in-process Reminder Runtime object owned
-  by the worker runtime. It holds the runtime contract, scheduler, and fire
-  consumer.
-- reminder documents include schedule data, output target, lifecycle, and the
-  next durable wake-up in `next_fire_at`
-- visible reminder creation through bridge/customer management must resolve a
-  durable delivery route key before it calls the Reminder Runtime Contract. If
-  an explicit business conversation hint is supplied but cannot be resolved,
-  the adapter fails closed instead of falling back to a different latest
-  conversation.
-- visible reminder schedules may include optional `duration_minutes`, exposed
-  as `durationMinutes` through Bridge/Gateway APIs; positive duration makes the
-  reminder occupy calendar time, while absent duration remains a point reminder
-- Bridge exposes `/bridge/internal/reminder-calendar-facts` for internal
-  privacy-preserving busy interval reads; it filters by owner, visible
-  reminders, active lifecycle state, bounded local date range, and occupied
-  duration before returning busy intervals without reminder private details
-- `ReminderScheduler` reconstructs active jobs from `reminders.next_fire_at` on
-  startup and keeps APScheduler as an in-process wake-up mechanism only
-- `ReminderScheduler` emits `ReminderFiredEvent` objects to a
-  `ReminderFireConsumer`; Coke wires `CokeReminderFireConsumer` to the
-  existing `ReminderFireEventHandler` so conversation lookup, locks, Agno
-  `AgentInput`, and output delivery remain Coke continuation concerns.
-- successful one-shot fired events complete the reminder, successful recurring
-  fired events advance `next_fire_at`, and failed event handling marks the
-  reminder failed
-
-The legacy scheduled-action stack has been fully retired. All scheduled events,
-including imported calendar reminders, now go through the Reminder Runtime. The
-old scheduled-action MongoDB collections are no longer written to; existing
-documents are inert.
-
-## 4. Turn Processing Pipeline
-
-The default turn pipeline is the single-Agent runtime defined in
-`agent/agno_agent/runtime/agent_runtime.py`. The runner constructs an Agno
-`Agent` per turn with the shared `agent_sessions` MongoDB session store and
-Agno-managed history context (`add_history_to_context=True`,
-`num_history_messages=20`). Runtime metadata is carried in per-turn
-instructions, while the user message passed to Agno remains the raw input text.
-For user turns, current-action handling follows this sequence:
-
-```text
-run start -> Focus construction -> semantic interpreter -> executor freshness check -> response synthesis
+```bash
+zsh scripts/check
+zsh scripts/verify-surface repo-os-docs
 ```
 
-The Focus channel is a typed runtime pointer to the one actionable product
-object the turn may act on. It is exposed through `AgentRunContext.session_state`
-with `ambiguity=none`, `multi_candidate`, or `none_actionable`. Direct
-friendship and shared-reminder product notifications are informational and do
-not create pending accept/reject actions. If a future focused scheduling
-mutation needs disambiguation, the Agent Runtime resolves active candidates
-through the Gateway-hosted Scheduling Domain Contract at
-`/api/internal/scheduling/focus/resolve`; `none_actionable` fails closed, and
-`multi_candidate` requires semantic candidate selection by ordinal, offered
-time, or summary text before acting. Keyword or regex routing on user utterances
-is not part of the active runtime contract; regexes may remain only for typed
-payload validation, strict envelope parsing, trace mechanics, or temporary input
-normalization.
+Implementation tasks should use the new clean-rebuild surfaces in
+`docs/fitness/surfaces.yaml` and `docs/fitness/coke-verification-matrix.md`:
 
-The response prompt renders trusted blocks for identity, environment, and Focus
-plus one conversation block. Trusted blocks are authoritative system-derived
-facts; the conversation block is language evidence only and may be stale,
-contradictory, adversarial, or incomplete. On conflict, trusted blocks win.
+- `clean-rebuild-docs`
+- `clean-rebuild-backend`
+- `clean-rebuild-web`
 
-The semantic interpreter is the first business-action classifier for user
-utterances. It emits typed domain intents or explicit no-action / clarification
-decisions before response synthesis. Domain executors then perform business
-tool selection, concrete argument handling, permission checks, freshness checks,
-and durable writes. The Interaction Agent owns final user-visible text, but not
-business-domain routing.
+Structure checks do not prove runtime behavior. Backend work needs Python
+domain/API/worker tests. Web work needs the Next.js web test and build. Runtime,
+delivery, and agent-output claims need user-path, corpus, or smoke evidence.
 
-Model-output repair is not an active runtime strategy. After the Interaction
-Agent returns, the runtime validates the visible-output envelope and durable
-write structural contract once. Malformed output, empty output, missing durable
-write summaries, or timeout become `empty` output with a structured error
-disposition; the worker does not ask the model to rewrite the answer, does not
-synthesize a template fallback, and does not replace model prose with domain or
-capability summaries. Domain and capability results are trusted facts for
-grounding, traces, and eval evidence, not alternate producers of final chat
-prose.
+## Out Of Scope
 
-The same rule applies inside domain intent ports. Detector or semantic
-interpreter output is either an executable domain decision, an explicit
-clarification/no-action decision, or an invalid decision that fails closed. The
-runtime does not patch missing business arguments from the original utterance
-with regexes, rewrite detector fields, normalize impossible model values into
-safer ones, or add post-detector semantic policing for past model mistakes.
-
-`DomainExecutionResult` JSON is the domain-to-Interaction-Agent contract:
-operation facts, missing fields, safety boundaries, a minimal reply intent, and
-structured errors. It does not carry prompt-quality repair fields such as
-required questions or prohibited claim lists. Before Focus-driven scheduling
-writes, the scheduling executor binds the opaque focus handle through Scheduling
-and fails with
-`safety_boundary=stale_focus` when the handle is unknown, expired, already
-consumed, or no longer maps to an actionable request. Focus is a pointer, not
-fresh state. Any remaining Interaction Agent exposure of business-domain tools
-is migration compatibility under
-`docs/superpowers/specs/2026-05-26-coke-focus-and-semantic-router-design.md`,
-not the target ownership boundary.
-
-Non-domain utility tools (`timezone`, `calendar_import`, and `url_context`)
-continue to return `CapabilityResult` values for utility visible-output
-behavior. `DomainExecutionResult` values are trusted execution facts for prompt
-grounding, traces, metrics, manager payloads, tests, and eval evidence, not a
-production output rewrite or reply-quality gate. The scheduling domain
-delegates execution to friend-link and shared-reminder tools:
-`get_user_link`, `reset_user_link`, `disable_user_link`,
-`create_friendship_by_user_link_code`, `list_friends`, `remove_friendship`,
-`list_friend_calendar_facts`, `create_shared_reminder`,
-`list_shared_reminders`, and `cancel_shared_reminder`. Friend links create
-active friendships directly, and shared reminders become active immediately
-after the receiver conflict check passes; pending request accept/reject flows
-and account block/unblock tools are retired. The runner remains responsible for
-locks, output writes, replay checks, scheduler boot, post-analyze dispatch, and
-delivery state transitions. It does not own business rollback compensation or
-message-level retry/rollback counters. The former prepare/chat workflow runtime,
-legacy multi-agent runtime, and module-level Agno agent singletons have been
-retired.
-
-`agent/runner/agent_handler.py` is the turn orchestrator. Its implementation
-concerns are split across three focused modules:
-
-- `agent/runner/runtime_lock.py` — lock lifecycle and heartbeat
-- `agent/runner/message_history.py` — chat history reads and embedding writes
-- `agent/runner/output_delivery.py` — outbound message delivery
-
-Agent-facing external capabilities follow
-`docs/design-docs/agent-capability-contract.md`: tool wrappers, HTTP routes,
-future MCP tools, future CLI commands, and web UI surfaces are adapters over a
-stable domain contract, not separate owners of business behavior.
-
-The Memo Runtime follows the same contract-first boundary as a headless
-embedded Python package at `memo-runtime/`. Coke agent adapters and future
-frontend/API adapters must call the Memo Runtime Contract instead of writing
-memo storage directly. The package owns memo cards, events, proposals, search,
-review, and storage migrations; frontend implementation is intentionally a
-separate consumer.
-
-## 5. Outbound Path
-
-Outbound replies now follow:
-
-```text
-agent outputmessages
-  -> bridge output dispatcher
-  -> gateway /api/outbound
-  -> delivery route
-  -> ClawScale-managed personal route or shared-channel provider route
-```
-
-Push `outputmessages` that are dispatched through the bridge/gateway outbound
-path carry the current `customer_id` identifier. `account_id` is not an active
-outbound dispatch selector.
-
-Agent-generated product-notification outputs are push `outputmessages` keyed by
-`metadata.notification_id` / `metadata.product_notification.notification_id`.
-The same notification id is used as the outbound idempotency key so retries
-reconcile delivery state without generating duplicate visible chat text.
-
-For personal `wechat_personal`, delivery is ClawScale-backed. For active
-shared-channel experiments, gateway dispatches through the provider-specific
-delivery branch for `whatsapp_evolution`, `wechat_ecloud`, or `linq`. Retired
-Coke-owned direct channel runtimes should not be reintroduced for the personal
-onboarding path.
-
-## 6. Channel System Boundary
-
-Shared-channel implementation currently lives under `gateway/`, but provider
-webhook handling, normalization, route binding, and outbound provider dispatch
-belong to the Channel System. Platform owns customer/account context and the
-customer-facing management edge.
-
-Runtime ownership is split as follows:
-
-- `gateway/`
-  - hosts the customer-facing channel management edge
-  - hosts provider webhook verification and normalization
-  - hosts shared-customer provisioning and delivery-route binding
-  - hosts provider-specific outbound delivery through `/api/outbound`
-- `connector/clawscale_bridge/`
-  - remains the boundary that converts normalized inbound events into Coke
-    `inputmessages`
-  - dispatches Coke `outputmessages` back to the gateway
-- worker runtime
-  - treats shared-channel turns like normal Coke turns after the bridge handoff
-
-Current active shared-channel kinds:
-
-- `whatsapp_evolution`
-- `wechat_ecloud`
-- `linq`
-
-## 7. Google Calendar Import Boundary
-
-The first-version Google Calendar import flow is a one-time migration for a
-claimed customer's `primary` calendar. Imported events become Coke-owned
-reminders, and historical imports are written as completed records so they do
-not schedule future work.
-
-Runtime ownership is split as follows:
-
-- `gateway/`
-  - owns claim-entry
-  - owns Google OAuth and callback handling
-  - owns Postgres audit state for import runs
-  - serves the customer-facing web/API flow
-- `connector/clawscale_bridge/`
-  - resolves the target Coke conversation for an import
-  - exposes the internal preflight and import routes that hand work into the
-    worker/runtime reminder path
-
-## 8. Deployment Topology
-
-The checked-in production deployment matches the runtime above:
-
-- `docker-compose.prod.yml`
-- host Nginx reverse proxy
-- `deploy/systemd/coke-compose.service`
-
-The active services are:
-
-- `mongo`
-- `redis`
-- `postgres`
-- `coke-agent`
-- `coke-bridge`
-- `gateway`
+- Historical production data preservation, protocol migration, dual writes, and
+  compatibility recovery.
+- Media understanding, media generation, voice ASR/TTS, photo album, and Moments.
+  Inbound media preservation remains in scope.
+- Order/usage metering and billing ledgers. Account access status and public
+  checkout recovery remain in scope.
+- More than one personal channel per account.
+- Account merging, unlinking, heuristic identity matching, or passwords for
+  messaging-first accounts.
+- Performance/load testing and current-server operational hardening.
+- Web auth hardening beyond the required product surfaces, unless a later task
+  explicitly scopes it.

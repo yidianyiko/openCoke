@@ -1,162 +1,86 @@
 # Interface Contract
 
-This document is the canonical contract for public and internal interfaces in
-`coke`.
+This document is the canonical route namespace contract for the Coke clean
+rebuild. Product details are indexed in
+`docs/product-specs/FEATURE_TREE.md`; runtime ownership is defined in
+`docs/ARCHITECTURE.md`.
 
-## Core Rule
+## Ownership Rule
 
-A path must answer two questions in order:
+Routes are adapters over Python domain modules. Product behavior is owned by
+IdentityAccess, ChannelReachability, ConversationRuntime, Reminder,
+SocialScheduling, and CalendarImport. Provider-specific code normalizes into or
+out of Coke's canonical contracts and does not own product state.
 
-1. who is this interface for?
-2. what resource or workflow surface does it expose?
+Legacy implementation directories are not future ownership contracts. Do not
+assign new product behavior to the TypeScript Gateway API or the standalone
+ClawScale bridge.
 
-Historical product names are not valid namespace categories for new interfaces.
+## Public Web
 
-## Ownership Axis
+- `/`
+- `/faqs`
+- `/demos`
+- `/privacy`
+- `/terms`
+- `/u/:code`
 
-Interface namespaces describe audience and transport shape. Ownership systems
-describe who owns the behavior behind that interface. Use
-`docs/design-docs/coke-working-contract.md` for repository planning surfaces
-and active feature specs for feature-specific route ownership decisions.
+## Customer Web
 
-A route under `gateway/packages/api` is not automatically Platform-owned. For
-example, `/api/customer/reminders` is customer-facing but Reminder-owned, while
-`/api/customer/channels/wechat-personal` is Platform-shaped at the HTTP edge
-and Channel-owned for provider semantics.
-
-## Namespace Rules
-
-### Web
-
-- `/auth/*`
-  - customer sign-in, registration, verification, password reset, and claim
-- `/channels/*`
-  - customer-managed communication channels
 - `/account/*`
-  - customer account state that is neither authentication nor a channel
+- `/channels`
+- `/reminders`
+- `/friends`
+- `/shared-reminders`
+- `/settings`
+- `/calendar-import`
+- `/subscription`
+- `/claim`
 
-### Public API
+## Python Public API
 
 - `/api/auth/*`
-  - customer authentication and session hydration
-- `/api/customer/*`
-  - customer-owned resources and customer-triggered business actions
-- `/api/public/*`
-  - unauthenticated tokenized or externally-linked handoff endpoints
-- `/api/webhooks/*`
-  - third-party callback endpoints
-- `/api/admin/*`
-  - authenticated admin/operator interfaces
+- `/api/account/*`
+- `/api/channels/*`
+- `/api/reminders/*`
+- `/api/friends/*`
+- `/api/shared-reminders/*`
+- `/api/settings/*`
+- `/api/calendar-import/*`
+- `/api/subscription/*`
+- `/api/claim/*`
 
-### Internal API
+## Provider Webhooks
 
-- `/api/internal/*`
-  - gateway-to-bridge or gateway-only operational endpoints
-  - not for browser navigation or public customer callers
+- `/webhooks/whatsapp/evolution`
+- `/webhooks/wechat/personal`
+- `/webhooks/wechat/ecloud`
+- `/webhooks/linq`
 
-## Current Canonical Surface
+## Internal Runtime
 
-### Web
+- `/internal/outbound/delivery-callback`
+- `/internal/reply-wait/:causal_inbound_event_id`
 
-- `/auth/login`
-- `/auth/register`
-- `/auth/forgot-password`
-- `/auth/reset-password`
-- `/auth/verify-email`
-- `/auth/claim`
-- `/channels/wechat-personal`
-- `/account/subscription`
-- `/account/my-agent`
+## Route Semantics
 
-### Public API
+- Public web routes provide explanation, FAQ, demo, policy, terms, and public
+  friend-link entry.
+- Customer web routes are thin client pages over the Python API.
+- Python public API routes enforce auth/access gates, validate request shape,
+  and call domain services.
+- Provider webhooks normalize provider payloads into canonical inbound events.
+- Internal runtime routes are private operational edges for delivery callbacks
+  and synchronous reply waiting.
 
-- `/api/auth/register` — Platform System
-- `/api/auth/login` — Platform System
-- `/api/auth/verify-email` — Platform System
-- `/api/auth/resend-verification` — Platform System
-- `/api/auth/forgot-password` — Platform System
-- `/api/auth/reset-password` — Platform System
-- `/api/auth/me` — Platform System
-- `/api/auth/claim` — Platform System
-- `/api/customer/channels/wechat-personal` — Platform edge, Channel semantics
-- `/api/customer/channels/wechat-personal/connect` — Platform edge, Channel semantics
-- `/api/customer/channels/wechat-personal/disconnect` — Platform edge, Channel semantics
-- `/api/customer/channels/wechat-personal/status` — Platform edge, Channel semantics
-- `/api/customer/reminders` — Reminder System
-- `/api/customer/agent-instance` — Platform edge, Agent Runtime semantics
-- `/api/customer/google-calendar-import` — Calendar Import System
-- `/api/customer/calendar-import-handoffs` — Calendar Import System
-- `/api/customer/subscription` — Platform System
-- `/api/customer/subscription/checkout` — Platform System
-- `/api/public/subscription-checkout` — Platform System
-- `/api/webhooks/stripe` — Platform System
+## Deleted Or Out-Of-Scope Route Families
 
-### Internal API
+- Legacy public login aliases and Coke-specific old auth aliases.
+- Standalone bridge HTTP routes as product architecture.
+- Gateway-owned `/api/internal/*` product callbacks.
+- Provider-specific product routes that bypass canonical domain modules.
+- Friend-request and shared-reminder approval routes.
+- Mongo-backed transcript or reminder route surfaces.
 
-- `/api/outbound` — Channel System bridge-to-gateway outbound dispatch
-- `/api/internal/coke-bindings` — Platform System
-- `/api/internal/coke-delivery` — Channel System
-- `/api/internal/coke-users/provision` — Platform System
-- `/bridge/internal/agent-instances` — Bridge internal edge, Agent Runtime semantics
-
-## Active Payload Compatibility
-
-These are current contracts, not open-ended compatibility permission. New
-callers should use the canonical field names.
-
-- `/bridge/inbound` accepts both gateway-normalized top-level snake_case fields
-  and ClawScale live-message `metadata` camelCase fields. The bridge normalizes
-  `coke_account_id`, `customer_id`, `customerId`, `metadata.cokeAccountId`,
-  `metadata.customerId`, and `metadata.customer_id` to the internal
-  `coke_account_id` field before enqueueing.
-- `/api/outbound` requires `customer_id` at the HTTP edge. `account_id` is not
-  an accepted request alias. Its idempotency comparison may still read
-  historical text-only stored payloads that predate `mediaUrls` and
-  `audioAsVoice`; this is stored-data compatibility only.
-- `/api/internal/coke-bindings` requires `customer_id` for the account to bind.
-  `account_id` and `coke_account_id` are retired HTTP aliases for this route.
-- `/api/internal/coke-users/provision` accepts `customer_id` and
-  `coke_account_id`. The latter remains active for synthetic smoke-account
-  provisioning until that seeding path is migrated. `account_id` is retired.
-- `/api/internal/scheduling/tools/create_shared_reminder` accepts canonical
-  active-sharing fields: `receiver_account_id`, `receiver_name`, or
-  `friendship_id`. `friend_id` and invitee-shaped fields are retired at the
-  gateway route boundary.
-- `/api/internal/scheduling/tools/cancel_shared_reminder` accepts
-  `shared_reminder_id`, `friendship_id`, `friend_name`, and/or `title` for
-  active shared reminders. Pending-request IDs are not active cancellation
-  identifiers.
-- `/api/internal/scheduling/focus/resolve` and
-  `/api/internal/scheduling/focus/bind` are Scheduling Domain Contract
-  endpoints for Agent Runtime focus. Agent callers pass `customer_id` plus a
-  conversation key to resolve focus, then pass `focus_token` and opaque
-  `handle` to bind a selected candidate. Inbound `product_notification`
-  candidate payloads are not the source of actionable request IDs.
-- Shared-reminder confirmation tools are retired. Do not expose accept,
-  reject, or pending-bulk shared-reminder tool routes.
-
-## Forbidden Public Patterns
-
-Do not introduce new public interfaces under:
-
-- `/coke/*`
-- `/api/coke/*`
-- `/user/*`
-
-Those forms are either historical product-shell leftovers or ambiguous about
-audience.
-
-## Migration Rule
-
-When an interface is migrated to this contract:
-
-- update every in-repo caller in the same change
-- update deploy/smoke checks in the same change
-- update live docs in the same change
-- remove the retired route handler, alias, and compatibility shim instead of
-  preserving a dedicated retired-path response
-
-## Documentation Rule
-
-If a new public or internal namespace is introduced, update this document in
-the same change.
+Any future route family must be added here and to
+`docs/product-specs/FEATURE_TREE.md` in the same change.

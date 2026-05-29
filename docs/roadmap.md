@@ -1,148 +1,96 @@
 # Roadmap
 
-Last updated: 2026-05-28
+Last updated: 2026-05-29
 
-This document is the primary product and platform direction view for this
-repository.
+This document is the primary product and platform direction view for the Coke
+clean rebuild. The requirements source is
+`docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`;
+the target architecture source is
+`docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md`.
 
-Use this file when you want to understand:
+## Product Direction
 
-- what Coke is trying to become as a product
-- which product direction the current codebase primarily serves
-- which platform capabilities are supporting current product work
+Coke is a personal accountability companionship product for individual users. It
+keeps the following current product journeys:
 
-Detailed design docs, implementation notes, and migration history remain under
-`docs/superpowers/specs/` and `docs/superpowers/plans/`.
+- account registration, login, access status, subscription recovery, and account
+  claim
+- first activation through web-first channel connection or shared WhatsApp
+  messaging-first entry
+- one reachable personal channel
+- daily conversation through The Turn
+- personal reminders, recurring reminders, proactive follow-ups, nightly
+  summaries, undelivered reminders, and reminder calendar management
+- friendship through direct active links/codes
+- shared reminders with active friends
+- informational product notifications
+- one-time Google Calendar import
+- assistant settings, global timezone, memory switch, and limited local
+  lifecycle actions
 
-## Product Track
+The product is not trying to preserve legacy implementation shape. Historical
+data migration, old protocols, old route aliases, pending approval workflows,
+photo/social features, media generation, and organization/SaaS account graphs are
+not current roadmap goals.
 
-### Phase 1: Personal Supervision Companion
+## Clean Rebuild Track
 
-Goal:
+The active implementation direction is destructive clean rebuild:
 
-- build a personal supervision and companionship assistant for individual users
-- help a single user confirm goals, maintain habits, execute tasks, and stay in
-  motion through reminders, follow-up, and ongoing conversation
+- one Python backend
+- one thin Next.js client
+- Postgres for durable product and Agno state
+- Redis for coordination only
+- Mongo removed
+- ClawScale demoted to the `wechat_personal` provider adapter
+- TypeScript Gateway API superseded by the Python API
+- standalone ClawScale bridge superseded by provider adapters in the Python
+  ingress/egress tier
+- The Turn as the runtime spine
+- six product modules: IdentityAccess, ChannelReachability,
+  ConversationRuntime, Reminder, SocialScheduling, CalendarImport
 
-Core product shape:
+Implementation should proceed from the canonical docs and specs rather than from
+legacy Gateway/Bridge/Mongo assumptions.
 
-- one user
-- one assistant relationship
-- personal reminders and proactive follow-up
-- personal channel delivery, especially personal WeChat
-- shared-channel entrypoints may also route new external conversations into the
-  same personal supervision runtime when they support acquisition or channel
-  coverage experiments
+## Platform Priorities
 
-Current status:
+1. Keep canonical documentation synchronized with the clean target architecture.
+2. Build the Python domain/API/worker contracts around the six product modules.
+3. Repoint and de-brand the Next.js thin client to the Python API.
+4. Replace provider-specific runtime ownership with canonical provider adapters.
+5. Move durable runtime state to Postgres and coordination to Redis.
+6. Preserve strict output and product contracts: no compatibility shims, no
+   heuristic parser fallback, and no user-visible prose outside The Turn.
 
-- this is the phase the repository has substantially completed
-- the core runtime is already implemented: inbound queueing, conversation
-  locking, the single-Agent turn path, `PostAnalyzeWorkflow`, reminders,
-  future/proactive messages, and outbound delivery paths
-- the current work around ClawScale personal WeChat, bridge auth, async push,
-  and rollout validation is still serving Phase 1 delivery and stabilization
-- shared-channel integrations for `whatsapp_evolution`, `wechat_ecloud`, and
-  `linq` are active platform experiments that feed the same Coke worker/runtime
-  through gateway provisioning, webhook normalization, delivery routes, and
-  `/api/outbound`
+## Route Direction
 
-Near-term focus for Phase 1:
+The discoverable route surface is:
 
-- finish rollout validation for personal `wechat_personal`
-- stabilize the current shared-channel experiments where they support real
-  acquisition or delivery paths: Evolution WhatsApp, Ecloud private WeChat, and
-  Linq
-- keep reminder and proactive delivery stable across bridge, worker, and
-  gateway restarts
-- keep the ClawScale-backed deployment path stable and repeatable
+- Public web: `/`, `/faqs`, `/demos`, `/privacy`, `/terms`, `/u/:code`
+- Customer web: `/account/*`, `/channels`, `/reminders`, `/friends`,
+  `/shared-reminders`, `/settings`, `/calendar-import`, `/subscription`,
+  `/claim`
+- Python public API: `/api/auth/*`, `/api/account/*`, `/api/channels/*`,
+  `/api/reminders/*`, `/api/friends/*`, `/api/shared-reminders/*`,
+  `/api/settings/*`, `/api/calendar-import/*`, `/api/subscription/*`,
+  `/api/claim/*`
+- Provider webhooks: `/webhooks/whatsapp/evolution`,
+  `/webhooks/wechat/personal`, `/webhooks/wechat/ecloud`, `/webhooks/linq`
+- Internal runtime: `/internal/outbound/delivery-callback`,
+  `/internal/reply-wait/:causal_inbound_event_id`
 
-## Platform Track
+## Verification Direction
 
-The platform track exists to support the product direction above. It is not the
-main storyline of the roadmap, but it determines how safely and how fast the
-product can evolve.
-
-### Current platform themes
-
-- channel and gateway integration
-- shared-channel webhook ingestion, provisioning, and outbound delivery
-- bridge runtime and translation boundaries
-- identity and account provisioning
-- async delivery for reminders and proactive messages
-- queueing, locking, and worker reliability
-- observability, rollout safety, and operator documentation
-
-### Current platform reality
-
-- ClawScale integration is implemented beyond the design stage
-- the repository contains a working Coke bridge, Coke user auth, gateway-side
-  unified user model, and a personal WeChat channel lifecycle exposed through
-  `/channels/wechat-personal`, `/account/subscription`, `/api/auth/*`, and the
-  `/api/customer/*` / `/api/public/*` contract
-- the gateway also contains active shared-channel integrations for
-  `whatsapp_evolution`, `wechat_ecloud`, and `linq`; these are not legacy
-  compatibility paths, and they currently depend on the shared-channel admin
-  surface, provider-specific webhook routes, shared-customer provisioning, and
-  outbound delivery branches
-- the internal API remains under `/api/internal/*`
-- retired public entrypoints `/login`, `/coke/login`, and `/api/coke/auth/login`
-  have been removed and now return 404
-- old Coke-owned direct channel runtimes have been retired from the personal
-  onboarding path; current shared-channel provider integrations live in the
-  gateway and are part of the active platform surface
-- ClawScale-backed bridge delivery is the supported production path for
-  personal Coke users, while shared-channel provider routes remain active for
-  external-channel experiments
-
-### Platform priorities now
-
-- stabilize personal `wechat_personal` async push in end-to-end environments
-- keep `whatsapp_evolution`, `wechat_ecloud`, and `linq` shared-channel
-  behavior reliable enough to evaluate as acquisition and external delivery
-  paths
-- keep the new personal-channel path as the default Phase 1 onboarding flow
-- continue removing Coke-side legacy compatibility code, obsolete product
-  concepts, and unused generic channel adapters
-- continue moving toward clearer ownership boundaries between Coke business
-  state, bridge translation logic, and gateway/channel state
-
-## TODO
-
-### Phase 1 用户调研（优先级：最高）
-
-背景：截至 2026-04-09，Coke 有约 10 名核心日常活跃用户（近 7 天活跃≥2 天），
-24 名近 7 天内发过消息的用户。MAU 从 2025-12 的 195 持续下降至当前约 60。
-所有 269 名注册用户均为真实付费用户（一次性 10-50 元），无测试账号。
-
-任务：以创始人身份（非 Coke 身份）与核心用户沟通，用 Mom Test 方式提问：
-
-1. 你上一次用 Coke 是什么时候？当时在干嘛？
-2. 在用 Coke 之前，你怎么管这件事的？
-3. 有没有哪次 Coke 提醒你了但你觉得烦？那次是什么情况？
-
-目的：在继续产品方向投入前，确认 Phase 1 的留存衰减是产品问题还是运营缺位，
-并从留下来的用户身上提取真正的产品价值点。
-
-### 创始人 Dogfooding（优先级：最高，与迭代并行）
-
-从 2026-04-09 起，创始人开始日常使用 Coke。不阻塞产品迭代进度。
-目的：建立第一手产品体感，尤其关注作为"不爱聊天"的用户时哪些环节
-让人不舒服。这些不适点可能正是 83% 用户流失的线索。
-
-## Phase Mapping
-
-If you need a simple summary of where the codebase stands today:
-
-- Phase 1 is the active product phase and is largely implemented
-- the current engineering backlog is mostly Phase 1 stabilization and migration
-  cleanup, plus active shared-channel experiments around Evolution WhatsApp,
-  Ecloud private WeChat, and Linq
+Clean-rebuild documentation changes use `clean-rebuild-docs`. Backend work uses
+`clean-rebuild-backend`. Web work uses `clean-rebuild-web`. The verification
+matrix and surfaces file carry the current command mapping.
 
 ## Canonical References
 
-- `docs/ARCHITECTURE.md`: runtime architecture wired in code today
-- `docs/clawscale_bridge.md`: Coke user and personal WeChat rollout notes
-- `docs/superpowers/specs/`: dated design decisions and target architectures
-- `docs/superpowers/plans/`: implementation checklists, rollout tasks, and
-  migration details
+- `docs/ARCHITECTURE.md`: clean-rebuild runtime architecture.
+- `docs/product-specs/FEATURE_TREE.md`: route and product surface discovery.
+- `docs/design-docs/interface-contract.md`: route namespace contract.
+- `docs/clawscale_bridge.md`: ClawScale as `wechat_personal` adapter only.
+- `docs/deploy.md`: future clean-rebuild service topology.
+- `docs/fitness/coke-verification-matrix.md`: verification routing.

@@ -12,6 +12,80 @@ zsh scripts/verify-surface <surface>
 Use `--dry-run` when you want to inspect the command mapping without executing
 it.
 
+## Clean Rebuild Docs
+
+Use when changing the canonical docs that define the clean-rebuild target:
+
+- `docs/ARCHITECTURE.md`
+- `docs/product-specs/FEATURE_TREE.md`
+- `docs/roadmap.md`
+- `docs/clawscale_bridge.md`
+- `docs/deploy.md`
+- `docs/design-docs/coke-working-contract.md`
+- `docs/design-docs/interface-contract.md`
+- `docs/design-docs/data-retention-policy.md`
+- `docs/fitness/coke-verification-matrix.md`
+- `docs/fitness/surfaces.yaml`
+- `scripts/e2e/clean-rebuild-canonical-doc-sync.sh`
+
+Surface:
+
+```yaml
+clean-rebuild-docs:
+  description: Canonical docs agree on the clean target architecture.
+  commands:
+    - bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh
+    - zsh scripts/check
+```
+
+Commands:
+
+```bash
+bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh
+zsh scripts/check
+```
+
+## Clean Rebuild Backend
+
+Use when changing Python domain, API, worker, scheduler, outbox, or provider
+adapter contracts for the clean rebuild.
+
+Surface:
+
+```yaml
+clean-rebuild-backend:
+  description: Python domain/API/worker rebuild contracts.
+  commands:
+    - .venv/bin/python -m pytest tests/unit/coke -v
+```
+
+Commands:
+
+```bash
+.venv/bin/python -m pytest tests/unit/coke -v
+```
+
+## Clean Rebuild Web
+
+Use when changing the thin Next.js client over the Python API.
+
+Surface:
+
+```yaml
+clean-rebuild-web:
+  description: Thin Next.js client over the Python API.
+  commands:
+    - cd gateway && pnpm --filter @coke/web test
+    - cd gateway && pnpm --filter @coke/web build
+```
+
+Commands:
+
+```bash
+cd gateway && pnpm --filter @coke/web test
+cd gateway && pnpm --filter @coke/web build
+```
+
 ## Repo OS Docs
 
 Use when changing:
