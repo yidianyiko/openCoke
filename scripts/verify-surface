@@ -26,6 +26,17 @@ surface_commands() {
   local surface="$1"
 
   case "$surface" in
+    clean-rebuild-docs)
+      print "bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh"
+      print "zsh scripts/check"
+      ;;
+    clean-rebuild-backend)
+      print ".venv/bin/python -m pytest tests/unit/coke -v"
+      ;;
+    clean-rebuild-web)
+      print "cd gateway && pnpm --filter @coke/web test"
+      print "cd gateway && pnpm --filter @coke/web build"
+      ;;
     repo-os-docs)
       print "zsh scripts/check"
       ;;
