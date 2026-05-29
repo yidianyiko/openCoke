@@ -30,6 +30,7 @@ In scope:
 - Known provider identity resolution without duplicate accounts.
 - Pairing-code binding of a first-seen provider identity to an existing web-first account.
 - Fail-closed access gate for inbound turns and gated web actions.
+- Pairing-code issuance gated by `check_access_for_action(account_id, "connect_channel")`.
 - `AccessDeniedTurn` structured facts with denial reasons `email_verification_required`, `subscription_inactive`, and `suspended`.
 - Activation projection fields: `first_inbound_received_at`, `activation_completed_at`, `first_guidance_sent_at`.
 - Auth artifact domain contract for `login_url`, `claim_code`, `pairing_code`, `email_verification`, and `password_reset`.
@@ -209,6 +210,12 @@ def test_pairing_code_binds_first_seen_provider_identity_to_web_account(identity
         email="a@example.com",
         password_hash="hash_1",
     )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
     pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
 
     resolved = identity_service.resolve_or_create_channel_identity(
@@ -234,10 +241,53 @@ def test_messaging_first_account_cannot_issue_pairing_code(identity_service):
         identity_service.issue_pairing_code(account_id=resolved.account.id)
 
 
+@pytest.mark.parametrize(
+    ("email_state", "subscription_state", "suspension_state", "reason"),
+    [
+        ("required", "active", "active", "email_verification_required"),
+        ("verified", "inactive", "active", "subscription_inactive"),
+        ("verified", "active", "suspended", "suspended"),
+    ],
+)
+def test_pairing_code_issuance_requires_allowed_channel_connection_access(
+    identity_service,
+    email_state,
+    subscription_state,
+    suspension_state,
+    reason,
+):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state=email_state,
+        subscription_state=subscription_state,
+        suspension_state=suspension_state,
+    )
+
+    with pytest.raises(IdentityAccessError, match="access_denied") as exc_info:
+        identity_service.issue_pairing_code(account_id=registered.account.id)
+
+    assert exc_info.value.fact == {
+        "type": "account_access_denied",
+        "account_id": registered.account.id,
+        "denial_reason": reason,
+        "checkout_url": None,
+    }
+
+
 def test_pairing_code_is_single_use(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
     )
     pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
     identity_service.resolve_or_create_channel_identity(
@@ -391,6 +441,12 @@ def test_claim_code_wrong_type_and_expired_fail_closed(identity_service):
         email="a@example.com",
         password_hash="hash_1",
     )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
     pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
 
     with pytest.raises(IdentityAccessError, match="artifact_wrong_type"):
@@ -436,6 +492,12 @@ def test_wrong_type_and_expired_artifacts_fail_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
     )
     pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
 
@@ -524,6 +586,12 @@ def test_web_first_bound_identity_can_be_removed_by_channel_reachability(identit
     registered = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
     )
     pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
     resolved = identity_service.resolve_or_create_channel_identity(
@@ -788,8 +856,14 @@ class ArtifactType:
 
 
 class IdentityAccessError(RuntimeError):
-    def __init__(self, code: str, message: str | None = None) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str | None = None,
+        fact: dict[str, Any] | None = None,
+    ) -> None:
         self.code = code
+        self.fact = fact
         super().__init__(message or code)
 
 
@@ -1384,6 +1458,12 @@ class IdentityAccessService:
         account = self._require_account(account_id)
         if account.origin != "web_first":
             raise IdentityAccessError("pairing_requires_web_first_account")
+        access_decision = self.check_access_for_action(
+            account_id=account_id,
+            action="connect_channel",
+        )
+        if not access_decision.allowed:
+            raise IdentityAccessError("access_denied", fact=access_decision.fact)
         return self._issue_artifact(
             artifact_type=ArtifactType.PAIRING_CODE,
             purpose="channel_pairing",
@@ -1888,6 +1968,19 @@ class ErrorService(FakeService):
         raise IdentityAccessError("pairing_requires_web_first_account")
 
 
+class AccessDeniedService(FakeService):
+    def issue_pairing_code(self, account_id):
+        raise IdentityAccessError(
+            "access_denied",
+            fact={
+                "type": "account_access_denied",
+                "account_id": account_id,
+                "denial_reason": "email_verification_required",
+                "checkout_url": None,
+            },
+        )
+
+
 def make_client(service=None):
     service = service or FakeService()
     app = Flask(__name__)
@@ -2109,6 +2202,25 @@ def test_pairing_code_issue_route_returns_json_error_when_service_rejects_origin
     }
 
 
+def test_pairing_code_issue_route_returns_access_denied_fact():
+    client, _service = make_client(AccessDeniedService())
+
+    response = client.post("/api/claim/pairing-code", json={"account_id": "acct_1"})
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "access_denied",
+            "fact": {
+                "type": "account_access_denied",
+                "account_id": "acct_1",
+                "denial_reason": "email_verification_required",
+                "checkout_url": None,
+            },
+        }
+    }
+
+
 def test_pairing_code_issue_and_redeem_routes_call_service():
     client, service = make_client()
 
@@ -2179,7 +2291,10 @@ def create_auth_blueprint(identity_service) -> Blueprint:
 
     @blueprint.errorhandler(IdentityAccessError)
     def handle_identity_access_error(error: IdentityAccessError):
-        return jsonify({"error": {"code": error.code}}), 400
+        body = {"error": {"code": error.code}}
+        if error.fact is not None:
+            body["error"]["fact"] = error.fact
+        return jsonify(body), 400
 
     @blueprint.post("/register")
     def register():
@@ -2291,7 +2406,10 @@ def create_claim_blueprint(identity_service) -> Blueprint:
 
     @blueprint.errorhandler(IdentityAccessError)
     def handle_identity_access_error(error: IdentityAccessError):
-        return jsonify({"error": {"code": error.code}}), 400
+        body = {"error": {"code": error.code}}
+        if error.fact is not None:
+            body["error"]["fact"] = error.fact
+        return jsonify(body), 400
 
     @blueprint.post("/code")
     def issue_claim_code():
@@ -2531,6 +2649,7 @@ Before handoff, confirm each item:
 - [ ] Channel-side `claim_code` redemption never returns a web session token; only the original browser session can complete the claim and receive the authenticated web session.
 - [ ] Wrong-browser, unknown-sender, expired, consumed, and wrong-type claim artifacts fail closed with `IdentityAccessError`.
 - [ ] `pairing_code` issuance is allowed only for `web_first` accounts.
+- [ ] `pairing_code` issuance calls `check_access_for_action(account_id, "connect_channel")` and fails closed with an access-denied fact when email verification, subscription, or suspension blocks channel connection.
 - [ ] `pairing_code` binds the sender identity to the issuing web-first account instead of auto-provisioning.
 - [ ] Auth and claim route adapters map `IdentityAccessError` to JSON error facts and do not render prose.
 - [ ] Channel identity anchor protection is exposed for ChannelReachability and no `channel`, `delivery_route`, or `delivery_attempt` lifecycle behavior is implemented.
