@@ -229,6 +229,98 @@ def test_create_route_requires_boolean_removable_before_service_call():
     assert service.calls == []
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("account_id", 123),
+        ("provider_type", []),
+        ("provider_type", ""),
+        ("channel_identity_id", {}),
+    ],
+)
+def test_create_route_requires_string_body_fields_before_service_call(field, value):
+    client, service = make_client()
+    payload = {
+        "account_id": "acct_1",
+        "provider_type": "whatsapp_evolution",
+        "channel_identity_id": "ci_1",
+        "removable": True,
+    }
+    payload[field] = value
+
+    response = client.post("/api/channels", json=payload)
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "field": field,
+                "reason": "string_field_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/channels/channel_1/connect",
+        "/api/channels/channel_1/remove",
+        "/api/channels/channel_1/retry",
+    ],
+)
+def test_channel_body_action_routes_require_string_account_id_before_service_call(path):
+    client, service = make_client()
+
+    response = client.post(path, json={"account_id": []})
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "field": "account_id",
+                "reason": "string_field_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/channels/status?account_id=",
+        "/api/channels/channel_1/poll?account_id=",
+        "/api/channels/resolve-route?account_id=",
+    ],
+)
+def test_channel_query_routes_require_non_empty_account_id_before_service_call(path):
+    client, service = make_client()
+
+    response = client.get(path)
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "query",
+                "field": "account_id",
+                "reason": "string_field_required",
+            },
+        }
+    }
+    assert service.calls == []
+
+
 def test_channel_route_errors_are_json():
     client, _service = make_client(service=ErrorService())
 

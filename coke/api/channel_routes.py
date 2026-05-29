@@ -17,7 +17,9 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
 
     @blueprint.get("/status")
     def status():
-        result = reachability_service.get_status(account_id=_query_field("account_id"))
+        result = reachability_service.get_status(
+            account_id=_query_str_field("account_id")
+        )
         return jsonify(
             {
                 "account_id": result.account_id,
@@ -31,7 +33,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     @blueprint.post("")
     def create():
         payload = _json_payload()
-        provider_type = _body_field(payload, "provider_type")
+        provider_type = _body_str_field(payload, "provider_type")
         if provider_type not in PRODUCT_CHANNEL_PROVIDER_TYPES:
             raise ChannelReachabilityError(
                 "unsupported_product_channel",
@@ -42,9 +44,9 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
                 },
             )
         channel = reachability_service.create_channel(
-            account_id=_body_field(payload, "account_id"),
+            account_id=_body_str_field(payload, "account_id"),
             provider_type=provider_type,
-            channel_identity_id=_body_field(payload, "channel_identity_id"),
+            channel_identity_id=_body_str_field(payload, "channel_identity_id"),
             removable=_body_bool_field(payload, "removable"),
         )
         return jsonify(_channel_body(channel)), 201
@@ -53,7 +55,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     def connect(channel_id: str):
         payload = _json_payload()
         channel = reachability_service.connect_channel(
-            account_id=_body_field(payload, "account_id"),
+            account_id=_body_str_field(payload, "account_id"),
             channel_id=channel_id,
         )
         return jsonify(_channel_body(channel))
@@ -61,7 +63,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     @blueprint.get("/<channel_id>/poll")
     def poll(channel_id: str):
         channel = reachability_service.poll_channel(
-            account_id=_query_field("account_id"),
+            account_id=_query_str_field("account_id"),
             channel_id=channel_id,
         )
         return jsonify(_channel_body(channel))
@@ -70,7 +72,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     def remove(channel_id: str):
         payload = _json_payload()
         channel = reachability_service.remove_channel(
-            account_id=_body_field(payload, "account_id"),
+            account_id=_body_str_field(payload, "account_id"),
             channel_id=channel_id,
         )
         return jsonify(_channel_body(channel))
@@ -79,14 +81,16 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     def retry(channel_id: str):
         payload = _json_payload()
         channel = reachability_service.retry_connection(
-            account_id=_body_field(payload, "account_id"),
+            account_id=_body_str_field(payload, "account_id"),
             channel_id=channel_id,
         )
         return jsonify(_channel_body(channel))
 
     @blueprint.get("/resolve-route")
     def resolve_route():
-        route = reachability_service.resolve_route(account_id=_query_field("account_id"))
+        route = reachability_service.resolve_route(
+            account_id=_query_str_field("account_id")
+        )
         return jsonify(
             {
                 "route_id": route.id,
@@ -157,7 +161,22 @@ def _body_bool_field(payload: dict, field: str) -> bool:
     return value
 
 
-def _query_field(field: str) -> str:
+def _body_str_field(payload: dict, field: str) -> str:
+    value = _body_field(payload, field)
+    if not isinstance(value, str) or value.strip() == "":
+        raise ChannelReachabilityError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "body",
+                "field": field,
+                "reason": "string_field_required",
+            },
+        )
+    return value.strip()
+
+
+def _query_str_field(field: str) -> str:
     value = request.args.get(field)
     if value is None:
         raise ChannelReachabilityError(
@@ -169,7 +188,17 @@ def _query_field(field: str) -> str:
                 "reason": "required_field_missing",
             },
         )
-    return value
+    if value.strip() == "":
+        raise ChannelReachabilityError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "query",
+                "field": field,
+                "reason": "string_field_required",
+            },
+        )
+    return value.strip()
 
 
 def _error_body(code: str, fact: dict | None = None) -> dict:
