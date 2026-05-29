@@ -2,14 +2,14 @@
 
 Status: draft  
 Created: 2026-05-28  
-Updated: 2026-05-29 (web-first vs messaging-first activation; requirement-language cleanup; proactive undelivered = discard; shared-reminder creator channel precondition; shared-reminder duplicate duration/timezone; WhatsApp sender-identity binding; messaging-first identity + web claim §5.13; friendship requires authenticated/claimed users with channels; recurring-window timezone pinning; downtime catch-up; out-of-scope notes)
+Updated: 2026-05-29 (web-first vs messaging-first activation; requirement-language cleanup; proactive undelivered = discard; shared-reminder creator channel precondition; shared-reminder duplicate duration/timezone; WhatsApp sender-identity binding; messaging-first identity + web claim §5.13; friendship requires authenticated/claimed users with channels; recurring-window timezone pinning; downtime catch-up; account access gate; shared WhatsApp-only auto-provisioning; messaging-first channel removal boundary; out-of-scope notes)
 Scope: Current product: personal accountability companionship, friend system, shared reminders, Product notifications, account/data lifecycle
 
 ## 0. Usage Boundaries
 
 This draft is the top-level requirements and user journey matrix for the current Coke product. It is used to define the user journeys, features, and sub-features that the system must support.
 
-This document only records product requirements, user journeys, capabilities the system must support, and current requirement trade-offs. It does not reference code, documents, file paths, or line numbers in the requirements document. Implementation basis, code locations, and refactoring plans are not included here. Architecture refactoring design and refactoring priorities are maintained in the clean-rebuild target architecture design spec (`2026-05-28-coke-clean-rebuild-target-architecture-design.md`) and are not included in this document.
+This document only records product requirements, user journeys, capabilities the system must support, and current requirement trade-offs. It does not define code locations, file paths, line numbers, implementation basis, architecture refactoring design, or refactoring priorities.
 
 Key premises:
 
@@ -17,7 +17,7 @@ Key premises:
 - There are no real production-environment constraints.
 - Destructive refactoring is acceptable.
 - Do not design complex migrations for compatibility with old data, old protocols, or old runtime shapes.
-- System implementation must serve clear user requirements and user journeys, rather than abstraction for abstraction's sake.
+- System behavior must serve clear user requirements and user journeys, rather than abstraction for abstraction's sake.
 
 ## 1. Product Scope
 
@@ -39,7 +39,7 @@ Current product users:
 
 Non-product user participants within the current system boundary:
 
-- Channel provider / shared channel. The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries to complete inbound handling, user/route binding, and outbound delivery. This is not an independent product journey.
+- Shared-channel personal reachability. The WhatsApp entry point is currently carried by a shared channel, but ordinary users experience it as their own personal conversation entry point. This is not an independent product journey.
 
 Confirmed as not part of current product requirements:
 
@@ -48,7 +48,7 @@ Confirmed as not part of current product requirements:
 First-use definition:
 
 - For web-first users, onboarding completion requires registration/login to be complete, at least one usable personal channel to be connected, and the user to send one message through that channel that the system successfully receives.
-- For messaging-first users, including shared WhatsApp users, onboarding completion does not require web registration or login. It requires the sender identity to be bound to a Coke user, the messaging channel to be usable for replies and reminders, and the first inbound message to be successfully received.
+- For shared WhatsApp messaging-first users, onboarding completion does not require web registration or login. It requires the sender identity to be bound to a Coke user, the messaging channel to be usable for replies and reminders, and the first inbound message to be successfully received.
 - Onboarding refers to the product journey from never activated to first activation complete. The assistant may send first-use guidance, but onboarding completion does not require creating the first reminder, completing agent settings, or completing a web account when the user is messaging-first.
 - Features that have already been implemented are not removed by default simply because they are not currently core. A capability only enters deletion discussion when it clearly creates maintenance burden, misleads the product contract, obstructs clarity of the current product contract, or the user confirms it is no longer needed.
 
@@ -56,20 +56,20 @@ First-use definition:
 
 | # | Product Role | User Type | Trigger Entry | User Goal | System Behavior That Must Hold | Status |
 |---|---|---|---|---|---|---|
-| 1 | Support journey: registration/login | Individual user | Registration page, login page, email verification page, account access status page, public explanation page | Create a web account, log in, establish a session; know the next step when verification or access status requires action | Support registration, login, email verification, resending verification emails, forgot/reset password, current user query, session/token; support showing users email verification status, subscription/access status, and the next step; public explanation, FAQ, demo, privacy, and terms pages may serve as product understanding and compliance support | Confirmed to retain |
-| 2 | Support journey: first activation | Individual user | Web registration/login plus channel connection, or messaging-first channel contact, followed by first personal-channel inbound message | Complete the first usable activation and confirm that identity, channel, and first-message paths all work | For web-first users, onboarding completion requires registration/login, one usable personal channel, and one successfully received personal-channel message. For messaging-first users, including shared WhatsApp users, onboarding completion does not require web registration/login; it requires trusted sender identity binding, a usable messaging channel, and one successfully received inbound message. The user is not required to create the first reminder or complete agent settings. The assistant may provide first-use guidance, but the completion definition is based on product-path facts | Current product contract |
-| 3 | Support journey: personal channel reachability | Individual user | Channel management page, personal channel page | Establish a personal communication entry point on personal WeChat or a shared WhatsApp channel, so daily conversations, reminders, and proactive follow-ups are reachable | Currently only supports an individual user having one reachable channel in personal WeChat or a shared WhatsApp channel; supports viewing channel status, selecting channel type, creating a channel, initiating connection, polling connection status, removing a channel, retrying or relinking after failure. Personal WeChat may have an independent personal lifecycle. The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries, but from the user's view it is still their own conversation entry point. After removal, that channel is no longer usable, but the user's account and historical reminder ownership are unaffected. Reminders and proactive reach-outs use the user's current only connected personal channel. Currently only one personal channel may be linked | Confirmed to retain |
-| 4 | Core journey: daily conversation | Individual user | Personal WeChat or shared WhatsApp channel inbound message | Have daily conversations with the assistant; currently support multimodal input that the channel can carry; receive a text reply when a reply is needed; receive no message when the system explicitly decides no-reply; receive a waiting message when processing is slow, then later receive the final text reply | Inbound messages must be bound to a trusted account/customer context. The system executes a single-Agent turn. Shared WhatsApp channel inbound messages must first be standardized and bound to user/route. The system must decide whether the message needs a response: if a response is needed, send a text reply; if the system explicitly produces intentional no-reply, do not send any user-visible message; if processing times out but is still ongoing, send a visible waiting text and eventually an asynchronous final text reply; if processing fails, the error/failure must be observable. Current output contract only requires text replies and does not require voice, image, or video replies. Intentional no-reply must be distinguished from system failure | Confirmed core |
+| 1 | Support journey: registration/login and account access | Individual user | Registration page, login page, email verification page, account access status page, subscription page, public explanation page | Create a web account, log in, establish a session; know the next step when verification, subscription, or access status blocks use | Support registration, login, email verification, resending verification emails, forgot/reset password, current user query, session/token; show users email verification status, subscription/access status, and the next step; enforce account access before channel connection, inbound assistant processing, and calendar import; public explanation, FAQ, demo, privacy, terms, and subscription pages may serve as product understanding, recovery, and compliance support | Current product contract |
+| 2 | Support journey: first activation | Individual user | Web registration/login plus channel connection, or shared WhatsApp messaging-first contact, followed by first personal-channel inbound message | Complete the first usable activation and confirm that identity, channel, and first-message paths all work | For web-first users, onboarding completion requires registration/login, one usable personal channel, and one successfully received personal-channel message. For shared WhatsApp messaging-first users, onboarding completion does not require web registration/login; it requires trusted sender identity binding, a usable messaging channel, and one successfully received inbound message. The user is not required to create the first reminder or complete agent settings. The assistant may provide first-use guidance, but the completion definition is based on product-path facts | Current product contract |
+| 3 | Support journey: personal channel reachability | Individual user | Channel management page, personal channel page, shared WhatsApp conversation entry | Establish a personal communication entry point on personal WeChat or shared WhatsApp, so daily conversations, reminders, and proactive follow-ups are reachable | Currently only supports an individual user having one reachable personal channel in personal WeChat or shared WhatsApp; supports viewing channel status, selecting channel type, creating a channel, initiating connection, checking connection status, removing a removable channel, retrying or relinking after failure. Personal WeChat is web-first and connection-first. Shared WhatsApp is the only current messaging-first auto-provisioning entry point. From the user's view, shared WhatsApp is still their own conversation entry point. Messaging-first users cannot remove the only channel identity that anchors their account. After a removable channel is removed, that channel is no longer usable, but the user's account and historical reminder ownership are unaffected. Reminders and proactive reach-outs use the user's current only connected personal channel. Currently only one personal channel may be linked | Current product contract |
+| 4 | Core journey: daily conversation | Individual user | Personal WeChat or shared WhatsApp channel inbound message | Have daily conversations with the assistant; currently support multimodal input that the channel can carry; receive a text reply when a reply is needed; receive no message when the system explicitly decides no-reply; receive a waiting message when processing is slow, then later receive the final text reply | Inbound messages must be bound to a trusted account/customer context before assistant processing. If account access is not allowed, the user receives a user-understandable access-status reply instead of normal assistant intent execution. Shared WhatsApp inbound messages must be associated with the correct Coke user by sender identity, or by a valid pairing/claim path, before they enter the conversation journey. The system must decide whether the message needs a response: if a response is needed, send a text reply; if the system explicitly produces intentional no-reply, do not send any user-visible message; if processing times out but is still ongoing, send a visible waiting text and eventually an asynchronous final text reply; if processing fails, the error/failure must be observable. Current output contract only requires text replies and does not require voice, image, or video replies. Intentional no-reply must be distinguished from system failure | Confirmed core |
 | 5 | Core journey: user timezone | Individual user | Agent settings page, reminder calendar page, timezone expressions in conversation | Let all reminders, calendar displays, and friend availability be interpreted according to the same personal timezone | A user has only one global default timezone. It can be viewed/modified in the settings page and can also be switched globally through conversation. Independent timezone per reminder is not supported. When the user mentions another timezone, the system should interpret it as an overall timezone switch or confirm the switch. Existing reminders' absolute trigger moments must not be silently rewritten because of a timezone switch; they are only displayed in the new timezone | Current product contract |
 | 6 | Core journey: personal reminders | Individual user | Reminder intent in conversation, reminder calendar page, or proactive follow-up scenario | Create, view, edit, complete, and delete personal reminders; receive reminders when due; be asked to schedule reminders that have no trigger time; receive agent-created proactive follow-up reminders when proactive is enabled | Reminders must be owner-scoped. Support natural-language and page-based create, view, edit, complete, and delete. The reminders page is a calendar page used to display reminders that the user can directly manage. Shared reminders also appear on the reminder calendar page and show related friend identifiers, but direct editing follows shared-reminder boundaries. Support relative time, specific time, global timezone, recurrence rules, and configurable duration (default 15 minutes). Support reminders without trigger times. Forbid creating completely identical actionable personal reminders. Proactive follow-up is an agent-created reminder, but it is not shown on the reminder calendar page and cannot be directly modified by the user. When the user turns off proactive, all untriggered proactive follow-up reminders are canceled as well. When due, the reminder enters the Interaction LLM; the LLM knows this is a system reminder and uses text in the role's tone to notify the user. Every night at 8 PM, summarize reminders without trigger times and ask the user whether to schedule trigger times. After a recurring reminder triggers or this occurrence is completed, advance it to the next valid trigger. Deleting a recurring reminder deletes the entire series | Confirmed core |
 | 7 | Core journey: friendship | Individual user | Friends page, public friend link, QR code, friend link code in conversation | Generate one's own friend link; let others authenticate as a Coke user or claim an existing messaging-first account after scanning or opening it and establish friendship; manage friend list | Friend links must be openable. Unauthenticated visitors can first be carried into login/registration or existing messaging-first account claim. Only users who have connected a usable personal channel may issue a friend link or link code. Establishing active friendship also requires the joining user to be authenticated as a Coke user or to have claimed an existing messaging-first account, and to have a usable personal channel, so both friends always have a usable channel at establishment time. Authenticated users can establish active friendship through a link session or a friend link code in conversation. The same pair of users must not create duplicate active friendships. Users can reset/disable links, view friends, and remove friends. Pending friend request accept/reject is not a current requirement | Current product contract |
 | 8 | Core journey: shared reminders | Individual user + one or more friends | Social scheduling intent in conversation, friend availability query, reminder calendar page, shared reminder list/cancel entry | Create the same shared reminder for one or more friends, view or cancel shared reminders, and check one or more friends' availability before scheduling | Active friendship must exist. Each friend reference must resolve to a unique active friend. Support privacy-safe availability queries for one or more friends. Before creating a shared reminder, confirm the creator has a usable personal channel, check each receiver for conflicts, and confirm each receiver has a usable personal channel. If any receiver has a conflict or any participant has no usable channel, do not silently create a partial reminder; report the conflicting or unreachable participant to the creator. The creator's own time conflict is intentionally not checked. After checks pass, create one group shared reminder. Creator and all receivers should each receive their own associated reminder when due. Shared reminders appear on the reminder calendar page and show related friend identifiers. A user's completion action only handles that user's own projection. Any participant may cancel the whole group. Notifications are informational. Forbid creating completely identical active shared reminders. Pending accept/reject is not a current requirement | Current product contract |
-| 9 | Support journey: Product notification | Individual user + friends | Friendship creation, shared reminder creation/cancellation, system events or error events | Receive factually clear and understandable informational notifications; know what happened and what to do next when there is a failure | Only send informational and system notifications; do not use notifications for approval or action execution. Must cover friendship creation, shared reminder creation, shared reminder cancellation, related errors/failures/partial failures/undelivered/conflict/cancellation failure. Notification facts must include at least who, did what, object, time/timezone/duration. Errors must include user-understandable error information and must not expose raw provider errors or internal error codes. Final visible text is generated by the Interaction LLM based on structured facts and error facts | Current product contract |
+| 9 | Support journey: Product notification | Individual user + friends | Friendship creation, shared reminder creation/cancellation, system events or error events | Receive factually clear and understandable informational notifications; know what happened and what to do next when there is a failure | Only send informational and system notifications; do not use notifications for approval or action execution. Must cover friendship creation, shared reminder creation, shared reminder cancellation, related errors/failures/partial failures/undelivered/conflict/cancellation failure. Notification facts must include at least who, did what, object, time/timezone/duration. Errors must include user-understandable error information and must not expose raw channel errors or internal error codes. Final visible text is generated by the Interaction LLM based on structured facts and error facts | Current product contract |
 | 10 | Support journey: calendar import | Individual user | Calendar import page, or handoff link given by assistant | Import Google Calendar into Coke reminders one time, and stop future Google Calendar authorization if needed | Confirm account/conversation ready before import. User authorizes calendar access. System fetches calendar events. Future events are converted into Coke-owned reminders. Event title and description become reminder content, event start time becomes reminder trigger time, event duration becomes reminder duration (use default 15 minutes when the event has no duration). All-day events are imported as reminders triggered at 00:00 on that date. Recurring events are preferably imported as Coke recurring reminders. When a recurring event cannot be reliably expressed using current recurrence rules, import it as one-time reminders for visible future occurrences and explain this in the import result. When the same calendar event is imported repeatedly, skip it directly without generating duplicate reminders and without requiring user confirmation. Historical events do not generate reminders. After import completion, report successfully imported count, skipped count, downgraded items, and failed items. The user may stop or revoke Google Calendar authorization. Revocation only affects future imports and does not delete imported Coke-owned reminders. Currently only one-time import is confirmed; continuous sync is not introduced | Confirmed to retain; one-time import |
 | 11 | Support journey: agent settings | Individual user | Agent settings page | Set the assistant name, how the assistant addresses the user, persona, background, speaking style, extra rules, proactive switch, and memory switch; view channel connection status | Settings must be customer-scoped. Support view, update, and reset. Users can configure the assistant's user-visible behavior and long-term preferences. After proactive is turned off, the system no longer creates new proactive follow-up reminders and cancels untriggered proactive follow-up reminders. Turning off proactive does not affect ordinary personal reminders, reminders-without-trigger-time summaries, daily conversation replies, or Product notifications. After memory is turned off, the system no longer uses, adds, or updates long-term memory, but does not delete existing long-term memory. After memory is turned back on, existing long-term memory can continue to be used. User self-service clearing of long-term memory is currently not supported | Confirmed to retain; field-level scope confirmed |
-| 12 | Support journey: account/data lifecycle | Individual user | Channel management page, reminder calendar page, friends page, agent settings page, calendar import page | Understand which connections, data, and relationships the user can remove, and which account-level actions are not yet supported | Currently supports removing a personal channel, deleting/completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization. These actions do not delete the account itself. User self-service account deletion, full account export, full erasure, and clearing long-term memory are not currently supported | Current product contract |
-| 13 | Supporting capability: provider-backed/shared channel integration | Individual user; channel provider boundary | Provider webhook, shared WhatsApp channel, Evolution, Linq, Ecloud inbound/outbound | Let personal conversation entry points that depend on provider/shared channels enter Coke conversations, reminders, and proactive follow-up delivery | Provider/shared channel inbound must be standardized. On first inbound or connection completion, it must be able to bind to a trusted Coke user/customer and delivery route. For the shared WhatsApp channel, binding is by sender identity: the channel exposes a single outbound account, and the system routes by each sender's own WhatsApp identity — a known sender routes to its existing Coke user, and a first-seen sender provisions a new Coke user bound to that identity, unless the inbound carries a valid pairing code from a web-first user's channel-connection flow, which binds the sender to that existing account instead (see §5.13). Outbound must be delivered through the provider/shared channel. Provider errors must be mappable to user-understandable channel status and recovery actions. This capability supports personal channel reachability and is not an independent product journey | Confirmed to retain; shared WhatsApp channel, Evolution, Linq, and Ecloud depend on it |
-| 14 | Support journey: account identity and web claim | Individual user | Shared WhatsApp first contact; web registration/login; friend link or calendar import on web; one-time login link in conversation | Keep one human mapped to one Coke user, and let a messaging-first user reach an authenticated web session without a second account | A Coke user is either web-first (email) or messaging-first (auto-provisioned on first contact through a supported shared-channel messaging entry point, currently shared WhatsApp, bound to the sender identity, no password). Each messaging identity maps to its own Coke user; the system does not merge or unlink accounts. A messaging user reaches an authenticated web session by claiming their existing account, bidirectionally: a chat-initiated one-time login URL, or a web-initiated one-time code sent to the channel. During a web-first user's channel-connection flow, an inbound carrying a valid pairing code binds the channel identity to the existing account instead of auto-provisioning. Login URLs, claim codes, and pairing codes are one-time, time-limited, single-use | Current product contract |
+| 12 | Support journey: account/data lifecycle | Individual user | Channel management page, reminder calendar page, friends page, agent settings page, calendar import page | Understand which connections, data, and relationships the user can remove, and which account-level actions are not yet supported | Currently supports removing a removable personal channel, deleting/completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization. A messaging-first user cannot remove the only channel identity that anchors the account. These actions do not delete the account itself. User self-service account deletion, full account export, full erasure, and clearing long-term memory are not currently supported | Current product contract |
+| 13 | Supporting capability: shared-channel personal reachability | Individual user | Shared WhatsApp conversation entry; personal channel status surfaces | Let a shared WhatsApp conversation behave as the user's personal Coke channel for conversations, reminders, and proactive follow-up delivery | Shared WhatsApp inbound messages must be associated with exactly one trusted Coke user before assistant processing or reminder delivery. A known sender continues as the existing Coke user. A first-seen shared WhatsApp sender provisions a messaging-first Coke user bound to that sender identity, unless the inbound carries a valid pairing code from a web-first user's channel-connection flow, which binds the sender to that existing account instead (see §5.13). Visible replies, reminders, and proactive follow-ups must be delivered through the user's current connected personal channel. Channel failures must appear as user-understandable channel unavailable, connection failed, or reconnection required states. This capability supports personal channel reachability and is not an independent product journey | Current product contract |
+| 14 | Support journey: account identity and web claim | Individual user | Shared WhatsApp first contact; web registration/login; friend link or calendar import on web; one-time login link in conversation | Keep one human mapped to one Coke user, and let a messaging-first user reach an authenticated web session without a second account | A Coke user is either web-first (email) or messaging-first (auto-provisioned only on first contact through shared WhatsApp, bound to the sender identity, no password). Each messaging identity maps to its own Coke user; the system does not merge or unlink accounts. A messaging-first user cannot remove the only channel identity that anchors the account. A messaging user reaches an authenticated web session by claiming their existing account, bidirectionally: a chat-initiated one-time login URL, or a web-initiated one-time code sent to the channel. During a web-first user's channel-connection flow, an inbound carrying a valid pairing code binds the channel identity to the existing account instead of auto-provisioning. Login URLs, claim codes, and pairing codes are one-time, time-limited, single-use | Current product contract |
 
 ## 3. Current Requirements List
 
@@ -77,11 +77,11 @@ This section consolidates the user journeys in the matrix into current requireme
 
 | Current Requirement Item | Related Journey | Current Requirement Statement |
 |---|---|---|
-| Account access status and public explanation | Registration/login; channel reachability; calendar import | The system can show the user account access status, email verification status, subscription/access status, and guide the user to the next step. Public explanation, FAQ, demo, privacy, and terms pages may be retained as product understanding and compliance support. Subscription/access status is a current requirement item. |
-| First activation | Registration/login; channel reachability; daily conversation | Web-first onboarding completion requires registration/login, at least one usable personal channel, and one personal-channel message that the system successfully receives. Messaging-first onboarding completion, including shared WhatsApp users, does not require web registration/login; it requires trusted sender identity binding, a usable messaging channel, and one inbound message that the system successfully receives. The assistant may send first-use guidance, but onboarding completion does not require the user to create the first reminder, complete agent settings, or finish a fixed tutorial. |
+| Account access status and public explanation | Registration/login; channel reachability; daily conversation; calendar import | The system can show the user account access status, email verification status, subscription/access status, and guide the user to the next step. Account access is also a product gate: when access is denied because email verification is still required, subscription access is inactive, or the account is suspended, normal inbound assistant processing, channel connection, and calendar import must not proceed. The user must receive user-understandable recovery information. For shared WhatsApp messaging-first users whose subscription access is inactive, the conversation recovery reply may include a public checkout link. Public explanation, FAQ, demo, privacy, terms, and subscription pages may be retained as product understanding, recovery, and compliance support. Subscription/access status is a current requirement item. |
+| First activation | Registration/login; channel reachability; daily conversation | Web-first onboarding completion requires registration/login, at least one usable personal channel, and one personal-channel message that the system successfully receives. Shared WhatsApp messaging-first onboarding completion does not require web registration/login; it requires trusted sender identity binding, a usable messaging channel, and one inbound message that the system successfully receives. The assistant may send first-use guidance, but onboarding completion does not require the user to create the first reminder, complete agent settings, or finish a fixed tutorial. |
 | User timezone | User timezone; personal reminders; shared reminders; calendar import; agent settings | A user has only one global default timezone. It can be viewed and modified in the settings page and can also be switched globally through conversation. Reminder creation, editing, display, reminder calendar page, reminders-without-trigger-time summary, friend availability, and shared reminders all use this global timezone. Independent timezone per reminder is not supported. When the user mentions another timezone, the system should treat it as an overall timezone switch or confirm the switch. Existing reminders' absolute trigger moments must not be silently rewritten because of timezone switching; they are only displayed in the new timezone. |
-| Trusted inbound message receiving | Daily conversation; channel reachability; provider-backed/shared channel integration | The system must receive personal WeChat or shared WhatsApp channel inbound messages, bind each message to a trusted Coke account/customer context, and preserve the message for the user's conversation without silent loss. For the shared WhatsApp channel, the channel exposes a single outbound account and messages are bound by each sender's own WhatsApp identity: a known sender identity routes to its existing Coke user, and a first-seen sender identity provisions a new Coke user. During a web-first user's channel-connection flow, an inbound carrying a valid pairing code binds the sender to that existing account instead of provisioning (see §5.13). The sender's provider identity is the trust anchor, so this is identity-based binding, not identity guessing. Inbound can include text, images, voice, and other multimodal content that the channel can carry. The top-level requirement is that the system can receive and normalize the content into processable input; it does not require output media content. If a received message cannot be processed or associated with a trusted user, the failure must be observable. |
-| Message sending and outbound delivery | Daily conversation; personal reminders; shared reminders; provider-backed/shared channel integration | The system must push visible replies, reminder triggers, and proactive follow-ups to the user's current only connected personal channel. Currently an individual user can only have one reachable channel in personal WeChat or a shared WhatsApp channel. Text reply is the current product output contract. Media URL delivery is a channel capability, not a requirement that the AI generate media replies. After a reminder triggers, if the user has no usable channel or sending fails, it cannot be considered successfully delivered. |
+| Trusted inbound message receiving | Daily conversation; channel reachability; shared-channel personal reachability | The system must receive personal WeChat or shared WhatsApp channel inbound messages, associate each message with a trusted Coke account/customer context, and preserve the message for the user's conversation without silent loss. For shared WhatsApp, messages are associated by each sender's own WhatsApp identity: a known sender identity continues as its existing Coke user, and a first-seen sender identity provisions a new messaging-first Coke user. During a web-first user's channel-connection flow, an inbound carrying a valid pairing code binds the sender to that existing account instead of provisioning (see §5.13). Sender identity is the account anchor for messaging-first shared WhatsApp users, so this is identity-based association, not identity guessing. Inbound can include text, images, voice, and other multimodal content that the channel can carry. The top-level requirement is that the system can receive the content into processable input; it does not require output media content. If a received message cannot be processed or associated with a trusted user, the failure must be observable. |
+| Message sending and outbound delivery | Daily conversation; personal reminders; shared reminders; shared-channel personal reachability | The system must push visible replies, reminder triggers, and proactive follow-ups to the user's current only connected personal channel. Currently an individual user can only have one reachable channel in personal WeChat or shared WhatsApp. Text reply is the current product output contract. Media URL delivery is a channel capability, not a requirement that the AI generate media replies. After a reminder triggers, if the user has no usable channel or sending fails, it cannot be considered successfully delivered. |
 | Conversation ordering and stale-reply safety | Daily conversation; personal reminders | When multiple messages arrive in the same conversation, the system must preserve the correct user-intent order. Older in-progress context must not continue to act as the latest user intent after a newer message changes the conversation. The system must not send duplicate replies or stale replies for work the user has already superseded. Partial, waiting, or already sent replies must be remembered well enough to avoid confusing repetition, and failures must remain observable. |
 | Conversation generation and segmented visible output | Daily conversation | The Interaction Agent must output user-visible text replies. Currently output may be in 1-3 segments. When a reply is needed, the text reply must be delivered through outbound delivery. |
 | Reply necessity determination and intentional no-reply | Daily conversation | Daily conversations do not require a reply to every message. The system must determine whether the user's message needs a response: if a response is needed, send a text reply; if the system explicitly produces intentional no-reply, do not send any user-visible message; if processing times out but is still ongoing, send a visible waiting text and send the final asynchronous text reply after completion; if processing fails, the error/failure must be observable. Intentional no-reply must be distinguished from system failure, empty-output exception, and tool-fallback failure. |
@@ -90,15 +90,15 @@ This section consolidates the user journeys in the matrix into current requireme
 | Reminder triggering and recurring reminders | Personal reminders; shared reminder reachability | Due reminders must form reminder trigger events and enter the Interaction LLM. The LLM must know this is a system reminder and use text in the role's tone to notify the user. After a recurring reminder triggers or this occurrence is completed, advance the next valid trigger. Multiple reminders for the same owner at the same trigger time are merged into one reminder message when reminding, but each reminder and its event remain independent. If there is no usable channel or sending fails, an observable undelivered status must be retained. |
 | Summary prompt for reminders without trigger times | Personal reminders | For reminders without trigger times, the system summarizes reminders still lacking scheduled times every night at 8 PM and asks the user through the Interaction LLM whether to schedule trigger times for these reminders. |
 | Proactive follow-up reminder | Personal reminders; channel reachability; daily conversation; agent settings | Proactive follow-up is an agent-created reminder, used by the assistant to proactively care about the user based on the user's goals, habits, tasks, or context. It is not shown on the reminder calendar page and cannot be directly modified by the user. The user/agent settings can turn off proactive. When proactive is turned off, no new proactive follow-up reminders are created, and untriggered proactive follow-up reminders are canceled as well. Turning proactive back on only affects whether new proactive follow-up reminders can be created in the future; it does not restore previously canceled follow-ups. The prompt decides whether and when to create proactive follow-up reminders; this requirements layer does not define an independently verifiable frequency target. Do-not-disturb or notification preference settings are not currently provided. Proactive follow-up is user-invisible: when the channel is unavailable or sending fails, the follow-up expires and is discarded — it is not resent, does not enter undelivered handling, and is not shown on the reminder calendar page. |
-| Product notification | Product notification; friendship; shared reminders; personal reminder reachability; provider-backed/shared channel integration | The system only sends informational and system notifications, and does not use notifications for approval or action execution. It must cover friendship creation, shared reminder creation, shared reminder cancellation, related system events, and error events. Notification facts must include at least who, did what, object, time/timezone/duration. In failure, partial failure, undelivered, conflict, or cancellation failure scenarios, the notification must include user-understandable error information, such as the other party's channel being unavailable, the time conflicting with the other party's existing schedule, or cancellation not succeeding. It must not expose raw provider errors, internal error codes, queue status, or low-level delivery attempts. Final visible text is generated by the Interaction LLM based on structured facts and error facts. |
+| Product notification | Product notification; friendship; shared reminders; personal reminder reachability; shared-channel personal reachability | The system only sends informational and system notifications, and does not use notifications for approval or action execution. It must cover friendship creation, shared reminder creation, shared reminder cancellation, related system events, and error events. Notification facts must include at least who, did what, object, time/timezone/duration. In failure, partial failure, undelivered, conflict, or cancellation failure scenarios, the notification must include user-understandable error information, such as the other party's channel being unavailable, the time conflicting with the other party's existing schedule, or cancellation not succeeding. It must not expose raw channel errors, internal error codes, queue status, or low-level delivery attempts. Final visible text is generated by the Interaction LLM based on structured facts and error facts. |
 | Calendar import | Calendar import; personal reminders; account/data lifecycle | Users can authorize Google Calendar and import future calendar events one time as Coke reminders. Imported reminders belong to the current individual user. Event title and description become reminder content, event start time becomes trigger time, and event duration becomes reminder duration (use default 15 minutes if the event has no duration). All-day events are imported as reminders triggered at 00:00 on that date. Recurring events are preferably imported as Coke recurring reminders. When a recurring event cannot be reliably expressed using current recurrence rules, import it as one-time reminders for visible future occurrences and explain this in the import result. When the same calendar event is imported repeatedly, skip it directly and do not generate duplicate reminders or require user confirmation. Historical events do not generate reminders. After import completion, the system must report successfully imported count, skipped count, downgraded items, and failed items. The user may stop or revoke Google Calendar authorization. Revocation only affects future imports and does not delete imported Coke-owned reminders. Currently only one-time import is confirmed; continuous sync is not required. |
 | Agent settings configuration | Agent settings; daily conversation; personal reminders; proactive follow-up reminder | Users can view, modify, and reset their assistant name, how the assistant addresses the user, persona, background information, speaking style, extra rules, proactive switch, and memory switch, and view channel connection status. Settings must be customer-scoped. Reset restores default settings. After memory is turned off, the system no longer uses, adds, or updates long-term memory, but does not delete existing long-term memory. After memory is turned back on, existing long-term memory can continue to be used. User self-service clearing of long-term memory is currently not supported. The memory switch does not affect recent context needed to complete the current conversation. |
 | User profile, relationship description, role goals/attitude updates | Daily conversation; agent settings; personalization support | The system can update the user's real name/nickname/description, relationship descriptions, and the role's long-term/short-term goals and attitude as personalization support. This item does not include numerical intimacy, trust, or dislike scores. |
 | Friendship | Friendship; shared reminders | Users can generate, view, reset, and disable their public friend links and QR codes. A user who visits a friend link can establish active friendship after authenticating as a Coke user or claiming an existing messaging-first account, and after connecting a usable personal channel. Only users who have connected a usable personal channel may issue friend links or link codes. Users can establish active friendship through a friend link code in conversation. Users can view their friend list and remove friends. The same pair of users must not create duplicate active friendship. Users cannot become friends with themselves. Pending friend request accept/reject is not a current requirement. |
 | Shared reminders | Shared reminders; friendship; personal reminder reachability; Product notification | Users can create one group shared reminder for one or more active friends, view shared reminders, cancel shared reminders, and check one or more friends' availability before scheduling. Creating a shared reminder must resolve each receiver to a unique active friend. If title, time, or necessary context is missing, the system must ask follow-up questions. Before creation, the creator must have a usable personal channel, each receiver conflict must be checked, and each receiver must resolve to a usable personal channel. The creator's own time conflict is intentionally not checked. If any receiver has a conflict or any participant has no usable channel, the system explains who is conflicting or unreachable and who is available, and asks the creator to adjust time or participants; it must not silently create a partial reminder. After checks pass, the shared reminder immediately becomes active. Creator and all receivers should each receive their own associated projection when due. Shared reminders appear on the personal reminder calendar page and show related friend identifiers. A user's completion action only completes that user's own projection, and does not automatically complete for other participants. Any participant may cancel the whole group. Pending shared reminder accept/reject is not a current requirement. Notifications are informational only and not approval. Completely identical active shared reminders are forbidden: same creator, same participant set, same title/activity content, same local trigger time, same timezone, and same duration. |
-| Personal channel/provider delivery | personal WeChat; shared WhatsApp channel; provider-backed/shared channel integration | Currently an individual user may have only one reachable channel in personal WeChat or a shared WhatsApp channel. A provider-backed/shared channel must appear to the user as that user's own conversation entry point. The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries. This is not legacy connector retention as-is. |
-| Account identity and web claim | Registration/login; channel reachability; daily conversation; friendship; calendar import | A Coke user is either web-first (email registration/login) or messaging-first (auto-provisioned on first contact through a supported shared-channel messaging entry point — currently shared WhatsApp — bound to the sender identity, with no password). Each messaging identity maps to its own Coke user; the system does not merge separate accounts or provide unlinking. A messaging user reaches an authenticated web session by claiming their existing account, never by registering a second one: bidirectionally via a chat-initiated one-time login URL or a web-initiated one-time code sent to the channel. During a web-first user's channel-connection flow, an inbound carrying a valid pending pairing code binds the channel identity to the existing account instead of auto-provisioning. Login URLs, claim codes, and pairing codes are one-time, time-limited, and single-use. Personal WeChat remains a web-first channel-connection path unless a later current requirement explicitly changes it. |
-| Account/data lifecycle | Account/data lifecycle; channel reachability; personal reminders; shared reminders; friendship; agent settings; calendar import | Currently supports removing a personal channel, deleting or completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization. Removing a channel does not delete the account or reminders. Deleting/completing reminders does not delete the account. Canceling a shared reminder stops all associated projections for the entire group. Removing a friend does not automatically cancel existing shared reminders. Turning off memory does not delete long-term memory. Revoking Google Calendar authorization does not delete imported Coke-owned reminders. User self-service account deletion, full account export, full erasure, and user self-service clearing of long-term memory are not currently supported. |
+| Personal channel delivery | personal WeChat; shared WhatsApp channel; shared-channel personal reachability | Currently an individual user may have only one reachable channel in personal WeChat or shared WhatsApp. Shared WhatsApp must appear to the user as that user's own conversation entry point. Personal WeChat remains web-first and connection-first. Shared WhatsApp is the only current messaging-first auto-provisioning entry point. A messaging-first user cannot remove the only channel identity that anchors their account. |
+| Account identity and web claim | Registration/login; channel reachability; daily conversation; friendship; calendar import | A Coke user is either web-first (email registration/login) or messaging-first (auto-provisioned only on first contact through shared WhatsApp, bound to the sender identity, with no password). Each messaging identity maps to its own Coke user; the system does not merge separate accounts or provide unlinking. A messaging-first user cannot remove the only channel identity that anchors the account. A messaging user reaches an authenticated web session by claiming their existing account, never by registering a second one: bidirectionally via a chat-initiated one-time login URL or a web-initiated one-time code sent to the channel. During a web-first user's channel-connection flow, an inbound carrying a valid pending pairing code binds the channel identity to the existing account instead of auto-provisioning. Login URLs, claim codes, and pairing codes are one-time, time-limited, and single-use. Personal WeChat remains a web-first channel-connection path unless a later current requirement explicitly changes it. |
+| Account/data lifecycle | Account/data lifecycle; channel reachability; personal reminders; shared reminders; friendship; agent settings; calendar import | Currently supports removing a removable personal channel, deleting or completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization. Removing a removable channel does not delete the account or reminders. A messaging-first user cannot remove the only channel identity that anchors the account. Deleting/completing reminders does not delete the account. Canceling a shared reminder stops all associated projections for the entire group. Removing a friend does not automatically cancel existing shared reminders. Turning off memory does not delete long-term memory. Revoking Google Calendar authorization does not delete imported Coke-owned reminders. User self-service account deletion, full account export, full erasure, and user self-service clearing of long-term memory are not currently supported. |
 
 ## 4. Capabilities Explicitly Not Included in the Current Requirements List
 
@@ -129,15 +129,19 @@ Confirmed:
 
 - The onboarding completion definition is in §1 "First-use definition"; the first activation journey is in §5.2; first conversation guidance is in §5.4.
 - Already implemented features are not removed by default. Implemented sub-features that are not part of the core contract should retain their current factual status, but must not dominate the core requirements.
-- A Coke user may also originate from auto-provisioning on first contact through a supported shared-channel messaging entry point, currently shared WhatsApp. Such messaging-first accounts have no password and reach the web by claiming their existing account, not by registering again. Account origin paths and web claim are detailed in §5.13.
+- A Coke user may also originate from auto-provisioning on first contact through shared WhatsApp. Such messaging-first accounts have no password and reach the web by claiming their existing account, not by registering again. Account origin paths and web claim are detailed in §5.13.
+- Account access is a current product gate, not only a display status. Access can be denied because email verification is still required, subscription access is inactive, or the account is suspended.
+- When account access is denied, normal inbound assistant processing, channel connection, and calendar import must not proceed. The user must see or receive a user-understandable recovery step.
+- For shared WhatsApp messaging-first users whose access is denied because subscription access is inactive, the conversation recovery reply may include a public checkout link.
 
 User journey:
 
 1. The individual user opens the registration or login entry point.
 2. The user completes registration or login.
 3. The user completes email verification when necessary.
-4. The system establishes a session/token and can return the current user identity.
-5. Subsequent channel, reminder, friendship, and shared reminder usage can continue under the same logged-in account.
+4. The user completes subscription or renewal when necessary.
+5. The system establishes a session/token and can return the current user identity and access status.
+6. Subsequent channel connection, reminder, friendship, shared reminder, and calendar import usage can continue only when account access allows that surface.
 
 The system must support:
 
@@ -149,12 +153,19 @@ The system must support:
 - Current user query.
 - Session/token.
 - Current user identity.
+- Account access status and denied reason.
+- Blocking normal inbound assistant processing when account access is denied.
+- Blocking channel connection when account access is denied.
+- Blocking calendar import when account access is denied.
+- Showing or sending the recovery step for email verification, subscription renewal, or suspended-account support.
+- Public checkout recovery for shared WhatsApp messaging-first subscription renewal.
 
 Implemented and retained supporting capabilities:
 
 - Subscription/access status.
 - Membership/subscription status return.
 - Display of account access status, email verification status, and subscription/access status.
+- Account access gate for inbound assistant processing, channel connection, and calendar import.
 - Public explanation, FAQ, demo, privacy, and terms pages.
 
 ### 5.2 First Activation
@@ -162,18 +173,18 @@ Implemented and retained supporting capabilities:
 Confirmed:
 
 - Web-first onboarding completion must satisfy all of the following: registration/login complete; at least one usable personal channel connected; the user sends one message through that channel and the system successfully receives it.
-- Messaging-first onboarding completion, including shared WhatsApp users, does not require web registration or login. It must satisfy all of the following: sender identity bound to a Coke user; messaging channel usable for replies and reminders; the system successfully receives the first inbound message.
+- Messaging-first onboarding completion currently applies only to shared WhatsApp users. It does not require web registration or login. It must satisfy all of the following: sender identity bound to a Coke user; messaging channel usable for replies and reminders; the system successfully receives the first inbound message.
 - Creating the first reminder is not a condition for onboarding completion.
 - Completing Agent settings is not a condition for onboarding completion.
 - The assistant may send guidance in the first conversation, but onboarding completion does not depend on the user completing a fixed tutorial or replying with fixed content.
-- A personal channel being "usable" must mean Coke can already send conversation replies, reminders, and proactive follow-ups through that channel. It cannot merely mean the provider-side connection succeeded.
+- A personal channel being "usable" must mean Coke can already send conversation replies, reminders, and proactive follow-ups through that channel. It cannot merely mean an upstream connection step succeeded.
 - The first message must be bindable to a trusted account/customer context. The assistant must not guess the user's identity.
 
 User journey:
 
 1. A web-first user completes registration or login, then enters the channel connection entry point.
 2. The web-first user connects a personal conversation entry point carried by personal WeChat or a shared WhatsApp channel.
-3. A messaging-first user, including a shared WhatsApp user, starts from the messaging channel without web registration or login.
+3. A shared WhatsApp messaging-first user starts from the messaging channel without web registration or login.
 4. The system binds the user's web account or sender identity to a trusted Coke user/customer context.
 5. The system confirms that the channel is usable for replies and reminders.
 6. The user sends the first message through that channel, or the messaging-first user's first inbound message is the activation message.
@@ -185,7 +196,7 @@ The system must support:
 
 - Determining whether activation is web-first or messaging-first.
 - For web-first users, determining whether the user is registered/logged in.
-- For messaging-first users, determining whether the sender identity is bound to a Coke user without requiring web registration or login.
+- For shared WhatsApp messaging-first users, determining whether the sender identity is bound to a Coke user without requiring web registration or login.
 - Determining whether the user has at least one usable personal channel.
 - Determining whether the first personal-channel inbound message has been successfully received.
 - Binding the first inbound message to a trusted account/customer context.
@@ -197,57 +208,60 @@ Requirement boundaries:
 
 - The core contract of first activation is that the account, channel, and first-message paths are valid.
 - Onboarding guidance copy is conversation experience, not a completion condition.
-- The system must not count states such as provider connection in progress, connection failure, route not bound, or first message not inbound as onboarding complete.
+- The system must not count states such as channel still connecting, connection failure, no trusted account/channel association, or first message not inbound as onboarding complete.
 
 ### 5.3 Personal Communication Channel Integration and Reachability
 
 Confirmed:
 
-- Currently, an individual user may link only one personal channel.
-- The current personal channel only supports personal WeChat or a personal conversation entry point carried by a shared WhatsApp channel.
-- The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud rely on provider-backed/shared-channel boundaries.
-- A provider-backed/shared channel must still appear to the user as that user's own conversation entry point, not as an independent product journey.
-- In pages and conversations, the user only needs to see channel type and connection status, such as WeChat, WhatsApp, not connected, connecting, connected, connection failed, and reconnection required. Provider names such as Evolution, Linq, and Ecloud are not exposed as product objects ordinary users need to select or understand.
-- A user-visible "connected" state must mean Coke can already send conversation replies, reminders, and proactive follow-ups through that channel. It cannot merely mean provider-side connection succeeded.
-- Currently only one personal channel may be linked. The only connected channel is the sending channel.
+- Currently, an individual user may link only one usable personal channel.
+- The current personal channel choices are personal WeChat and shared WhatsApp.
+- Personal WeChat is web-first and connection-first: the user starts from the web, initiates channel connection, waits for connection status, and then sends a message through that channel.
+- Shared WhatsApp is the only current messaging-first auto-provisioning entry point: a first-seen shared WhatsApp sender creates a messaging-first Coke user bound to that sender identity; a known sender continues as the existing Coke user; a valid pairing code from a web-first channel-connection flow binds the sender to the existing web account instead.
+- In pages and conversations, the user only needs to see channel type and connection status, such as WeChat, WhatsApp, not connected, connecting, connected, connection failed, and reconnection required.
+- A user-visible "connected" state must mean Coke can already send conversation replies, reminders, and proactive follow-ups through that channel.
 - This journey is the reachability support journey for daily conversations, reminder triggers, and proactive follow-up.
-- There is currently no need to support a "disconnect channel" action. The user only needs to be able to remove a channel.
-- After the user removes a personal channel, the system must no longer reach the user through that channel.
-- Removing a personal channel does not delete the account, delete reminders, or change reminder ownership.
-- The user does not need to see removed channels or historical channels. After removal, the page returns to an unconnected, reconnectable channel state.
-- The user can reconnect or relink a personal channel. Future reminders, conversation replies, and proactive follow-ups use the newly connected channel.
+- There is currently no separate "disconnect channel" action. The user only needs channel removal where removal is allowed.
+- A web-first user may remove a connected personal channel. After removal, the system must no longer reach the user through that channel.
+- A messaging-first user cannot remove the only shared WhatsApp sender identity that anchors the account. Removing that identity would strand the user's account claim and reachability path, so it is not a supported lifecycle action.
+- Removing a removable personal channel does not delete the account, delete reminders, or change reminder ownership.
+- The user does not need to see removed channels or historical channels. After an allowed removal, the page returns to an unconnected, reconnectable channel state.
+- The user can reconnect or relink a removable personal channel. Future reminders, conversation replies, and proactive follow-ups use the newly connected channel.
 
 User journey:
 
 1. A logged-in individual user opens the channel management entry point.
 2. The user views the current personal channel status.
 3. If there is no channel, the user selects personal WeChat or a shared WhatsApp channel and creates a reachable channel.
-4. If the selected channel depends on a provider-backed/shared channel, the system shows the user the connection action and connection status for that channel.
-5. The user initiates connection and waits for the connection status to change from "connecting" to "connected" or "connection failed".
-6. After connection completes or the first valid inbound arrives, the system binds the provider identity to the trusted Coke user/customer and usable delivery route.
-7. If connection fails or the provider is unavailable, the user sees understandable states and recovery actions such as "connection failed", "needs reconnection", or "retry available". Ordinary user copy does not show internal error reasons from Evolution, Linq, or Ecloud.
-8. The user can retry connection, refresh connection status, remove the channel, and relink.
+4. For personal WeChat, the user initiates connection from the web and waits for the connection status to change from "connecting" to "connected" or "connection failed".
+5. For shared WhatsApp messaging-first use, the first inbound message can create the Coke user and count as the first channel message once the sender identity is trusted.
+6. A known shared WhatsApp sender continues as the existing Coke user.
+7. A shared WhatsApp inbound carrying a valid pairing code during a web-first channel-connection flow binds that channel identity to the existing web account instead of creating a messaging-first account.
+8. If connection fails or the channel is unavailable, the user sees understandable states and recovery actions such as "connection failed", "needs reconnection", or "retry available".
 9. If the user has already linked a personal channel, the system does not allow linking a second personal channel at the same time. The user must first remove the existing channel.
-10. The user can remove the channel when needed.
-11. After connection succeeds, the system can deliver that user's conversation replies, reminders, and proactive follow-ups to that personal channel.
-12. After the user removes the channel, they can no longer receive conversation replies, reminders, or proactive follow-ups through that channel.
-13. If the user switches from personal WeChat to a shared WhatsApp channel, or from a shared WhatsApp channel to personal WeChat, they must first remove the old channel.
-14. After the user reconnects or relinks a personal channel, future reach-outs use the newly connected channel.
+10. A web-first user can remove a removable channel when needed.
+11. A messaging-first user cannot remove the only shared WhatsApp sender identity that anchors the account.
+12. After connection succeeds, the system can deliver that user's conversation replies, reminders, and proactive follow-ups to that personal channel.
+13. After an allowed removal, the user can no longer receive conversation replies, reminders, or proactive follow-ups through that removed channel.
+14. If a web-first user switches from personal WeChat to shared WhatsApp, or from shared WhatsApp to personal WeChat, they must first remove the old channel. Switching the only channel of a messaging-first account is not currently defined.
+15. After the user reconnects or relinks a personal channel, future reach-outs use the newly connected channel.
 
 The system must support:
 
 - Personal channel status.
 - WeChat personal channel.
 - Shared WhatsApp channel.
-- Provider-backed channel inbound/outbound.
-- Provider-backed channel connection entry point.
-- Provider-backed channel connection status polling or refresh.
-- Provider-backed channel user/route binding.
-- Provider-backed channel provider error mapping.
-- Provider-backed channel retry, removal, and relinking.
-- Refreshing connection status and retrying connection (meaning defined in "provider-backed channel user-visible sub-features" below).
+- Shared WhatsApp messaging-first first contact.
+- Shared WhatsApp known-sender continuation.
+- Shared WhatsApp pairing-code binding to an existing web-first account.
+- User-visible channel connection entry point.
+- User-visible channel connection status polling or refresh.
+- User-visible channel unavailable, connection failed, and reconnection required states.
+- Channel retry, removal where allowed, and relinking.
+- Refreshing connection status and retrying connection (meaning defined in "shared-channel user-visible sub-features" below).
 - At most one linked personal channel for the same user.
 - Create channel, connect channel, poll connection status, and remove channel.
+- Preventing removal of the only channel identity that anchors a messaging-first account.
 - The only connected personal channel as the sending channel.
 - Semantics for removal, relinking, and switching between personal WeChat and shared WhatsApp channel are defined below in "removal and relinking semantics" and are not repeated here.
 
@@ -258,50 +272,51 @@ User-visible states that must hold:
 - Connected.
 - Connection failed / needs reconnection.
 
-Provider-backed channel user-visible sub-features:
+Shared-channel user-visible sub-features:
 
-- The user sees their own conversation entry point and does not need to understand the internal implementation of provider-backed/shared channels.
-- The WhatsApp entry point is currently carried by a shared WhatsApp channel. Evolution, Linq, and Ecloud all rely on provider-backed/shared-channel boundaries.
-- Ordinary user copy only expresses WeChat/WhatsApp and connection status. It does not require the user to select or debug providers such as Evolution, Linq, or Ecloud.
-- A provider-backed channel must allow the user to initiate a linking or connection flow from the user side.
+- The user sees their own conversation entry point and does not need to understand how shared WhatsApp is operated behind the product.
+- Ordinary user copy only expresses WeChat/WhatsApp and connection status.
+- Personal WeChat must allow the user to initiate a linking or connection flow from the web side.
 - "Connecting" means the user has initiated connection, but Coke has not yet confirmed that the channel has completed user binding and usable delivery. A connecting state must not be treated as reachable.
 - The user can refresh connection status while connecting.
 - The user can retry connection after a connection failure.
-- Connection flow may differ by provider, but the requirements layer does not constrain the specific implementation.
-- Provider-backed channel status must be normalized into personal channel status.
-- Inbound messages from provider-backed channels must be bindable to the current trusted Coke user/customer. Ambiguous provider identity must not route messages into the wrong user.
-- For the shared WhatsApp channel, the channel exposes a single outbound account, but each sender is distinguished by their own WhatsApp sender identity. The system routes by sender identity: a known sender identity routes to its existing Coke user; a first-seen sender identity provisions a new Coke user bound to that identity, and the assistant communicates with them as that user — unless the inbound carries a valid pending pairing code from a web-first user's channel-connection flow, in which case the sender identity is bound to that existing account instead. The sender's provider identity is the trust anchor, so this is identity-based binding, not identity guessing. Messaging-first accounts reach authenticated web sessions by claiming their existing account; this and the web-first pairing flow are detailed in §5.13.
-- A provider-backed channel must complete trusted Coke user/customer binding and establish a usable delivery route before it can be considered user-visibly "connected".
-- Provider-backed channel outbound failure must not be considered successful delivery.
-- Provider-backed channel provider errors should be mapped to user-understandable channel unavailable, connection failed, or reconnection required states.
-- Ordinary users do not need to see raw provider errors or know what internal error Evolution, Linq, or Ecloud returned.
+- Channel-specific details must be presented as personal channel status.
+- Inbound messages must be associable with the correct trusted Coke user/customer. Ambiguous sender identity must not attach messages to the wrong user.
+- For shared WhatsApp, each sender is distinguished by their own WhatsApp sender identity. A known sender identity continues as its existing Coke user; a first-seen sender identity provisions a new messaging-first Coke user bound to that identity, and the assistant communicates with them as that user, unless the inbound carries a valid pending pairing code from a web-first user's channel-connection flow, in which case the sender identity is bound to that existing account instead. Messaging-first accounts reach authenticated web sessions by claiming their existing account; this and the web-first pairing flow are detailed in §5.13.
+- A channel must complete trusted Coke user/customer association and be usable for replies/reminders before it can be considered user-visibly "connected".
+- Channel sending failure must not be considered successful delivery.
+- Channel failures should be mapped to user-understandable channel unavailable, connection failed, or reconnection required states.
 - Users must be able to retry connection or relink after failure.
-- Users must be able to remove provider-backed channels.
-- After a provider-backed channel is removed, that channel's provider identity and route are no longer used for future reachability.
+- Users must be able to remove removable channels.
+- Messaging-first users must not be able to remove the only shared WhatsApp sender identity that anchors the account.
+- After a removable channel is removed, that channel is no longer used for future reachability.
 - After removal, the user-visible status returns to "not connected" and removed or historical channel lists are not shown.
-- Provider-backed/shared channels count toward the same per-user limit of at most one reachable channel.
-- Switching provider-backed/shared channels and switching between personal WeChat / shared WhatsApp channel both require removing the old channel first.
-- A provider-backed channel does not introduce a second user identity system, a second reminder owner system, or an independent operation role.
+- Shared WhatsApp counts toward the same per-user limit of at most one reachable channel.
+- Switching between personal WeChat and shared WhatsApp requires removing the old channel first when removal is allowed.
+- Shared WhatsApp does not introduce a second user identity system, a second reminder owner system, or an independent operation role.
 
 Removal and relinking semantics:
 
-- After the user removes a personal channel, they can no longer receive conversation replies, reminders, or proactive follow-ups through that channel.
+- After the user removes a removable personal channel, they can no longer receive conversation replies, reminders, or proactive follow-ups through that channel.
 - Removing a channel does not delete the user's account.
 - Removing a channel does not delete reminders or change reminder ownership.
-- The user page does not show removed channels or historical channels. Whether provider identity/route records are retained internally is not a user-visible requirement.
+- A messaging-first user cannot remove the only shared WhatsApp sender identity that anchors the account.
+- The user page does not show removed channels or historical channels.
 - Reminders due while the channel is unavailable enter an undelivered state.
 - After the user reconnects or relinks a personal channel, future reminders, conversation replies, and proactive follow-ups use the newly connected channel.
 - Undelivered reminders may be resent or shown as undelivered on the reminder calendar page.
-- If the user switches from personal WeChat to a shared WhatsApp channel, or from a shared WhatsApp channel to personal WeChat, they must first remove the old channel, because currently only one reachable channel is allowed.
+- If a web-first user switches from personal WeChat to shared WhatsApp, or from shared WhatsApp to personal WeChat, they must first remove the old channel, because currently only one reachable channel is allowed.
+- Switching the only channel of a messaging-first account is not currently supported.
 
 Requirement boundaries:
 
 - The core contract of a personal channel is channel ownership, connection state, and user reachability.
-- The core contract of a provider-backed channel is user-visible connection status, provider inbound standardization, user/route binding, outbound delivery, and observable failure.
-- Daily conversations, reminders, and proactive follow-ups only need to depend on trusted account, channel, and delivery status; they do not need to understand WeChat, WhatsApp, or provider connection details.
+- The core contract of shared WhatsApp as a personal channel is user-visible connection status, trusted user association, reply/reminder delivery, and observable failure.
+- Daily conversations, reminders, and proactive follow-ups only need to depend on trusted account, channel, and delivery status; they do not need to understand channel-specific connection details.
 - States such as connection failure, connecting, and removal should appear as unified channel states, not as special conversation branches that the user must understand.
-- Provider identity, provider errors, and route binding are internal system details. Ordinary users only see channel type, connection status, and recovery actions.
-- After a user removes a personal channel, that channel is no longer available for reachability, but it does not affect the user account, historical reminder ownership, or other user data.
+- Ordinary users only see channel type, connection status, and recovery actions.
+- After a user removes a removable personal channel, that channel is no longer available for reachability, but it does not affect the user account, historical reminder ownership, or other user data.
+- The removal boundary for messaging-first users is stricter: the only sender identity that anchors the account is not removable under the current product contract.
 
 ### 5.4 Daily Conversation
 
@@ -333,7 +348,6 @@ The system must support:
 
 - Receiving personal WeChat inbound messages.
 - Receiving shared WhatsApp channel inbound messages.
-- Receiving provider-backed/shared channel inbound messages.
 - Supporting multimodal input that the channel can carry.
 - Binding inbound messages to a trusted account/customer context.
 - Preserving received messages so accepted user input is not silently lost.
@@ -351,7 +365,7 @@ Sub-features that must hold:
 - Account context is trusted and does not rely on the agent guessing the user.
 - Conversation/session can be stably identified.
 - Synchronous waiting and asynchronous supplementary delivery semantics are clear. On timeout, a visible waiting text must be sent first, and the final text reply must be delivered asynchronously.
-- The outbound route is usable.
+- The user's current personal channel is usable for outbound delivery.
 - The minimum and currently necessary contract for user-visible output is text reply. Voice reply, image reply, video reply, or matching input and output media types is not required.
 - System failure, empty-output exception, and intentional model no-reply must be distinguishable: system failure must not be silent; intentional no-reply sends no user-visible message; slow processing must not be misclassified as no-reply.
 
@@ -367,7 +381,7 @@ Requirement boundaries:
 
 - The core contract of daily conversation is trusted account context, text reply, turn execution, reply necessity determination, reply delivery, timeout/fallback semantics, intentional no-reply, and failure observability.
 - Multimodal input is part of inbound message standardization and Interaction LLM processable input. It does not change the current output contract of "text reply".
-- Daily conversation is not responsible for establishing the channel or selecting the provider. These must become trusted context before the message enters the conversation journey.
+- Daily conversation is not responsible for establishing the channel. Trusted account and usable-channel context must already exist before the message enters the conversation journey.
 - No matter how the system processes messages internally, the user-visible semantics must remain: the message is received and will be processed; when a reply is needed, it is replied to in text; timeout produces a visible waiting text, and the final text reply can be delivered asynchronously; when the model intentionally no-replies, no user-visible message is sent; stale or duplicate replies should not appear after a newer user intent supersedes older work.
 - Intentional no-reply must be retained as an observable result, not mixed with failure.
 - Reply language is identified and handled by the Interaction LLM based on the user's language. It is not a configurable settings field.
@@ -948,14 +962,14 @@ Requirement boundaries:
 
 Confirmed:
 
-- Product notification is an independent requirement item, but this document defines it only from the product requirements perspective and does not constrain implementation architecture.
+- Product notification is an independent requirement item, but this document defines it only from the product requirements perspective; technical architecture is out of scope.
 - Currently only informational notifications and system notifications are sent.
 - Product notification is not an approval flow, does not carry accept/reject, and does not directly execute actions.
 - Product notification must cover friendship creation, shared reminder creation, shared reminder cancellation, and the errors, failures, partial failures, undelivered cases, conflicts, and cancellation failures related to these events.
 - Ordinary reminders, shared reminders, and system notifications are not controlled by additional do-not-disturb or notification preference settings. There is currently no such user configuration.
 - Notification facts must clearly express who did what, what the object is, when it happened, which timezone is used, and what the duration is.
 - When an event includes an error, failure, or partial failure, the notification must include user-understandable error information.
-- Notifications should not expose raw provider errors, internal error codes, queue status, delivery attempts, or internal state-machine fields.
+- Notifications should not expose raw channel errors, internal error codes, queue status, delivery attempts, or internal state-machine fields.
 - Final user-visible text is generated by the Interaction LLM based on structured facts and error facts.
 
 User journey:
@@ -977,7 +991,7 @@ The system must support:
 - Sending system notifications.
 - Including actor, action, object, participants, time, timezone, duration, and status in notifications.
 - Including user-understandable error information in failure, partial failure, undelivered, conflict, or cancellation failure cases.
-- Mapping provider/channel errors into product language, such as "the other party's channel is unavailable", "this time conflicts with the other party's existing schedule", or "cancellation did not succeed".
+- Mapping channel failures into product language, such as "the other party's channel is unavailable", "this time conflicts with the other party's existing schedule", or "cancellation did not succeed".
 - Having the Interaction LLM generate the final visible text based on structured notification facts and error facts.
 - Avoiding turning notifications into approval, confirmation, accept/reject, or action execution entry points.
 
@@ -985,7 +999,7 @@ Requirement boundaries:
 
 - The core contract of Product notification is factual notification and error notification, not workflow control.
 - Product notification does not introduce new user notification preferences or do-not-disturb settings.
-- Product notification must not replace user-understandable error information with internal errors or provider details.
+- Product notification must not replace user-understandable error information with internal errors or channel details.
 - A shared reminder creation notification does not mean the receiver accepted an invitation. The shared reminder is already active after creation.
 - A cancellation notification is not equivalent to completing a reminder. Canceling a shared reminder stops the associated projections for the entire group.
 
@@ -995,7 +1009,7 @@ Confirmed:
 
 - Calendar import is a retained current product capability.
 - Currently only one-time import is confirmed; continuous sync is not introduced.
-- Calendar import only defines user requirements and field mapping. It does not constrain the specific implementation.
+- Calendar import only defines user requirements and field mapping. It does not choose a technical design.
 - Users can authorize Google Calendar.
 - The system can read calendar events from the authorized calendar.
 - Future calendar events are imported as Coke reminders.
@@ -1129,13 +1143,14 @@ Confirmed:
 - The current product does not support user self-service account deletion.
 - The current product does not support user self-service full account export or full erasure.
 - The current product does not support user self-service clearing of long-term memory.
-- Currently supported lifecycle actions are local actions: removing a personal channel, deleting or completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization.
+- Currently supported lifecycle actions are local actions: removing a removable personal channel, deleting or completing personal reminders, canceling shared reminders, removing friends, turning off memory usage, and stopping or revoking Google Calendar authorization.
+- A messaging-first user cannot remove the only shared WhatsApp sender identity that anchors the account.
 - The account remains the identity subject for channels, reminders, friendships, shared reminders, and settings.
 - Local lifecycle actions cannot be interpreted as deleting the account itself.
 
 User journey:
 
-1. The user removes a personal channel on the channel management page.
+1. The user removes a removable personal channel on the channel management page.
 2. The system stops reaching the user through that channel, but does not delete the account, reminders, friendships, or settings.
 3. The user deletes or completes personal reminders on the reminder calendar page.
 4. The system only changes the product state of the corresponding reminders and does not delete the user account.
@@ -1150,7 +1165,8 @@ User journey:
 
 The system must support:
 
-- Removing a personal channel.
+- Removing a removable personal channel.
+- Preventing removal of the only shared WhatsApp sender identity that anchors a messaging-first account.
 - Deleting a personal reminder.
 - Completing a personal reminder.
 - Canceling a shared reminder.
@@ -1171,7 +1187,8 @@ Currently not required:
 Requirement boundaries:
 
 - The current contract of account/data lifecycle is local management actions, not a complete privacy data management platform.
-- Removing a channel only affects future reachability paths and does not change reminder ownership.
+- Removing a removable channel only affects future reachability paths and does not change reminder ownership.
+- Messaging-first account-anchor channel removal is not supported under the current product contract.
 - Deleting or completing a reminder only affects the corresponding reminder and does not affect account or friendship.
 - Canceling a shared reminder affects the entire group shared reminder and is not equivalent to removing a friend.
 - Removing a friend does not automatically cancel existing shared reminders.
@@ -1182,10 +1199,11 @@ Requirement boundaries:
 
 Confirmed:
 
-- A Coke user has one of two origins: web-first (email registration/login per §5.1), or messaging-first (auto-provisioned on first contact through a supported shared-channel messaging entry point, currently shared WhatsApp, bound to the sender's channel identity).
-- Auto-provisioning currently applies to supported shared-channel messaging entry points such as shared WhatsApp. A first-seen sender identity on that entry point provisions a new Coke user; a known sender identity routes to its existing Coke user. Personal WeChat remains a web-first channel-connection path unless a later current requirement explicitly changes it.
+- A Coke user has one of two origins: web-first (email registration/login per §5.1), or messaging-first (auto-provisioned only on first contact through shared WhatsApp, bound to the sender's channel identity).
+- Auto-provisioning currently applies only to shared WhatsApp. A first-seen shared WhatsApp sender identity provisions a new Coke user; a known shared WhatsApp sender identity continues as its existing Coke user. Personal WeChat remains a web-first channel-connection path unless a later current requirement explicitly changes it.
 - A messaging-first account has no password. Its only web authentication path is a one-time login claim. A web-first account uses email and password (and forgot/reset per §5.1). The two credential types do not cross.
 - Each Coke user owns exactly one usable personal channel, so each messaging identity corresponds to its own Coke user. The system does not merge separate accounts and does not provide account unlinking.
+- A messaging-first user cannot remove the only shared WhatsApp sender identity that anchors the account. The known-sender continuation rule depends on this identity remaining valid.
 - If the same human uses two different auto-provisioned sender identities, each channel identity becomes its own separate Coke user. This is an accepted product outcome, not a defect; the system does not merge them.
 - A messaging user reaches an authenticated web session by claiming their existing account; no second account is created for them. One human who consistently uses the claim path keeps a single Coke user.
 - Claiming is bidirectional:
@@ -1197,7 +1215,7 @@ Confirmed:
 
 User journey (messaging-first user reaching web):
 
-1. A human first contacts a supported shared-channel messaging entry point and is auto-provisioned a Coke user bound to their channel identity.
+1. A human first contacts shared WhatsApp and is auto-provisioned a Coke user bound to their channel identity.
 2. The user later needs a web-only surface — opening a friend link, importing a calendar, or using a web page.
 3. If the user triggered the need in conversation, the assistant issues a one-time login URL; opening it authenticates the web session as that account.
 4. If the user is already on a web page, the page shows a one-time code; the user sends it to the messaging channel; the page then authenticates the web session as that account.
@@ -1210,12 +1228,12 @@ User journey (web-first user connecting a channel):
 2. The user starts the channel-connection flow and receives a pairing code.
 3. The user sends the pairing code from their own messaging identity to the channel.
 4. The inbound carrying the valid pairing code binds that channel identity to the web account, instead of auto-provisioning a new account.
-5. From then on, inbound from that channel identity routes to the same single Coke user.
+5. From then on, inbound from that channel identity is associated with the same single Coke user.
 
 The system must support:
 
-- Auto-provisioning a Coke user on first contact through a supported shared-channel messaging entry point, bound to the sender identity.
-- Routing a known sender identity to its existing Coke user.
+- Auto-provisioning a Coke user on first contact through shared WhatsApp, bound to the sender identity.
+- Continuing a known shared WhatsApp sender identity as its existing Coke user.
 - Issuing and validating a one-time, time-limited, single-use chat-initiated login URL that authenticates a web session as the issuing account.
 - Issuing and validating a one-time, time-limited, single-use web-initiated code that, when sent to the messaging channel, authenticates the web session as that account.
 - Binding a new channel identity to an existing web account when the inbound carries a valid pending pairing code, instead of auto-provisioning.
@@ -1227,6 +1245,7 @@ Currently not required:
 - Account unlinking or splitting.
 - Passwords for messaging-first accounts.
 - Messaging-first auto-provisioning for personal WeChat.
+- Removing the only shared WhatsApp sender identity that anchors a messaging-first account.
 - Heuristic or silent identity matching based on display name, profile similarity, or guessed identity.
 - More than one usable personal channel per Coke user.
 
@@ -1234,4 +1253,5 @@ Requirement boundaries:
 
 - Identity reconciliation across surfaces is claim-based, not merge-based: a messaging user authenticates as their existing account rather than creating and later merging a second one.
 - Each Coke user honors the single-personal-channel and single-global-timezone contracts; one messaging identity maps to one Coke user.
+- For a messaging-first account, the sender identity is the account anchor and is not removable while it is the only channel identity for that account.
 - Login URLs, web-initiated claim codes, and channel pairing codes are authentication artifacts: one-time, time-limited, single-use, and never reusable to access a different account.
