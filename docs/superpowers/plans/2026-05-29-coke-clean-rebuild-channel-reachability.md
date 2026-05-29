@@ -281,6 +281,27 @@ def test_provider_adapters_reject_non_json_payload_evidence_values():
     }
 
 
+def test_provider_adapters_reject_tuple_payload_evidence_values():
+    adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
+
+    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+        adapter.normalize_inbound(
+            {
+                "message_id": "wa_msg_1",
+                "sender": "whatsapp:+15555550123",
+                "text": "hello",
+                "metadata": {"attachments": ("att_1",)},
+            }
+        )
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": "whatsapp_evolution",
+        "field": "payload.metadata.attachments",
+        "reason": "non_json_payload_value",
+    }
+
+
 @pytest.mark.parametrize(
     ("adapter", "payload", "missing_field"),
     [
@@ -336,6 +357,101 @@ def test_provider_adapters_reject_malformed_required_fields(adapter, payload, fi
         "provider_type": adapter.provider_type,
         "field": field,
         "reason": "invalid_required_field",
+    }
+
+
+@pytest.mark.parametrize(
+    ("adapter", "payload", "field"),
+    [
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {"message_id": True, "sender": "whatsapp:+15555550123", "text": "hello"},
+            "message_id",
+        ),
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {"message_id": "wa_msg_1", "sender": False, "text": "hello"},
+            "sender",
+        ),
+        (
+            WeChatPersonalAdapter(now=lambda: NOW),
+            {"message_id": "wx_msg_1", "wxid": True, "text": "hello"},
+            "wxid",
+        ),
+        (
+            WeChatECloudAdapter(now=lambda: NOW),
+            {"msg_id": "gewe_msg_1", "sender_id": False, "content": "hello"},
+            "sender_id",
+        ),
+        (
+            LinqAdapter(now=lambda: NOW),
+            {"id": "sms_msg_1", "from": True, "body": "hello"},
+            "from",
+        ),
+    ],
+)
+def test_provider_adapters_reject_boolean_required_fields(adapter, payload, field):
+    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+        adapter.normalize_inbound(payload)
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": adapter.provider_type,
+        "field": field,
+        "reason": "invalid_required_field",
+    }
+
+
+@pytest.mark.parametrize(
+    ("adapter", "payload"),
+    [
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {
+                "message_id": "wa_msg_1",
+                "sender": "whatsapp:+15555550123",
+                "text": "hello",
+                "pairing_code": ["ABC123"],
+            },
+        ),
+        (
+            WeChatPersonalAdapter(now=lambda: NOW),
+            {
+                "message_id": "wx_msg_1",
+                "wxid": "wxid_alice",
+                "text": "hello",
+                "pairing_code": {"code": "WXPAIR"},
+            },
+        ),
+        (
+            WeChatECloudAdapter(now=lambda: NOW),
+            {
+                "msg_id": "gewe_msg_1",
+                "sender_id": "gewe_alice",
+                "content": "hello",
+                "pairing_code": ("ECLOUDPAIR",),
+            },
+        ),
+        (
+            LinqAdapter(now=lambda: NOW),
+            {
+                "id": "sms_msg_1",
+                "from": "+15555550123",
+                "body": "hello",
+                "pairing_code": {"code": "SMSPAIR"},
+            },
+        ),
+    ],
+)
+def test_provider_adapters_reject_malformed_pairing_code(adapter, payload):
+    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+        adapter.normalize_inbound(payload)
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": adapter.provider_type,
+        "field": "pairing_code",
+        "reason": "invalid_optional_field",
     }
 
 
@@ -546,7 +662,7 @@ class NormalizedInbound:
     payload: Mapping[str, ImmutableJsonValue] | None = None
 ```
 
-`NormalizedInbound.payload` is provider evidence, not a mutable working object. Provider adapters must set it to an immutable mapping whose nested mappings are immutable, whose nested arrays are tuples, and whose scalar values are JSON scalars. The implementation helper below rejects non-JSON evidence values instead of storing opaque mutable objects.
+`NormalizedInbound.payload` is provider evidence, not a mutable working object. Provider adapters must set it to an immutable mapping whose nested mappings are immutable, whose nested JSON arrays are tuples, and whose scalar values are JSON scalars. The implementation helper below rejects non-JSON evidence values instead of storing opaque mutable objects; tuple input is rejected because provider webhook ingress is JSON-shaped, even though accepted JSON arrays are frozen as tuples internally.
 
 - [ ] **Step 4: Add the provider protocol and fakes**
 
@@ -593,6 +709,69 @@ def provider_registry(adapters: Iterable[ProviderAdapter]) -> dict[str, Provider
     return registry
 
 
+def optional_string_field(
+    provider_type: str,
+    payload: Mapping[str, object],
+    field: str,
+) -> str | None:
+    if field not in payload or payload[field] is None:
+        return None
+    value = _string_value(payload[field])
+    if value is None:
+        raise ChannelReachabilityError(
+            "invalid_provider_payload",
+            fact={
+                "type": "invalid_provider_payload",
+                "provider_type": provider_type,
+                "field": field,
+                "reason": "invalid_optional_field",
+            },
+        )
+    return value
+
+
+def required_string_field(
+    provider_type: str,
+    payload: Mapping[str, object],
+    field: str,
+) -> str:
+    if field not in payload:
+        raise ChannelReachabilityError(
+            "invalid_provider_payload",
+            fact={
+                "type": "invalid_provider_payload",
+                "provider_type": provider_type,
+                "field": field,
+                "reason": "missing_required_field",
+            },
+        )
+    value = _string_value(payload[field])
+    if value is None:
+        raise ChannelReachabilityError(
+            "invalid_provider_payload",
+            fact={
+                "type": "invalid_provider_payload",
+                "provider_type": provider_type,
+                "field": field,
+                "reason": "invalid_required_field",
+            },
+        )
+    return value
+
+
+def _string_value(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, float) and not isfinite(value):
+        return None
+    if isinstance(value, (Mapping, list, tuple, set)):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def freeze_json(value: object, provider_type: str, path: str = "payload") -> ImmutableJsonValue:
     if isinstance(value, Mapping):
         frozen: dict[str, ImmutableJsonValue] = {}
@@ -609,7 +788,7 @@ def freeze_json(value: object, provider_type: str, path: str = "payload") -> Imm
                 )
             frozen[key] = freeze_json(nested_value, provider_type, f"{path}.{key}")
         return MappingProxyType(frozen)
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list):
         return tuple(
             freeze_json(nested_value, provider_type, f"{path}[{index}]")
             for index, nested_value in enumerate(value)
@@ -651,7 +830,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
-from coke.providers.base import freeze_json
+from coke.providers.base import freeze_json, optional_string_field, required_string_field
 
 
 class WhatsAppEvolutionAdapter:
@@ -663,11 +842,11 @@ class WhatsAppEvolutionAdapter:
     def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound:
         return NormalizedInbound(
             provider_type=self.provider_type,
-            provider_subject=_required_string(self.provider_type, payload, "sender"),
-            text=_optional_string(payload.get("text")) or "",
-            raw_event_id=_required_string(self.provider_type, payload, "message_id"),
+            provider_subject=required_string_field(self.provider_type, payload, "sender"),
+            text=optional_string_field(self.provider_type, payload, "text") or "",
+            raw_event_id=required_string_field(self.provider_type, payload, "message_id"),
             received_at=self._now(),
-            pairing_code=_optional_string(payload.get("pairing_code")),
+            pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
@@ -733,7 +912,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
-from coke.providers.base import freeze_json
+from coke.providers.base import freeze_json, optional_string_field, required_string_field
 
 
 class WeChatPersonalAdapter:
@@ -745,11 +924,11 @@ class WeChatPersonalAdapter:
     def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound:
         return NormalizedInbound(
             provider_type=self.provider_type,
-            provider_subject=_required_string(self.provider_type, payload, "wxid"),
-            text=_optional_string(payload.get("text")) or "",
-            raw_event_id=_required_string(self.provider_type, payload, "message_id"),
+            provider_subject=required_string_field(self.provider_type, payload, "wxid"),
+            text=optional_string_field(self.provider_type, payload, "text") or "",
+            raw_event_id=required_string_field(self.provider_type, payload, "message_id"),
             received_at=self._now(),
-            pairing_code=_optional_string(payload.get("pairing_code")),
+            pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
@@ -815,7 +994,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
-from coke.providers.base import freeze_json
+from coke.providers.base import freeze_json, optional_string_field, required_string_field
 
 
 class WeChatECloudAdapter:
@@ -827,11 +1006,11 @@ class WeChatECloudAdapter:
     def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound:
         return NormalizedInbound(
             provider_type=self.provider_type,
-            provider_subject=_required_string(self.provider_type, payload, "sender_id"),
-            text=_optional_string(payload.get("content")) or "",
-            raw_event_id=_required_string(self.provider_type, payload, "msg_id"),
+            provider_subject=required_string_field(self.provider_type, payload, "sender_id"),
+            text=optional_string_field(self.provider_type, payload, "content") or "",
+            raw_event_id=required_string_field(self.provider_type, payload, "msg_id"),
             received_at=self._now(),
-            pairing_code=_optional_string(payload.get("pairing_code")),
+            pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
@@ -897,7 +1076,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
-from coke.providers.base import freeze_json
+from coke.providers.base import freeze_json, optional_string_field, required_string_field
 
 
 class LinqAdapter:
@@ -909,11 +1088,11 @@ class LinqAdapter:
     def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound:
         return NormalizedInbound(
             provider_type=self.provider_type,
-            provider_subject=_required_string(self.provider_type, payload, "from"),
-            text=_optional_string(payload.get("body")) or "",
-            raw_event_id=_required_string(self.provider_type, payload, "id"),
+            provider_subject=required_string_field(self.provider_type, payload, "from"),
+            text=optional_string_field(self.provider_type, payload, "body") or "",
+            raw_event_id=required_string_field(self.provider_type, payload, "id"),
             received_at=self._now(),
-            pairing_code=_optional_string(payload.get("pairing_code")),
+            pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
