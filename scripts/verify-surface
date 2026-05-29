@@ -6,10 +6,13 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
 dry_run=0
-pytest_cmd="python -m pytest"
 
 if [[ -x ".venv/bin/python" ]]; then
   pytest_cmd=".venv/bin/python -m pytest"
+elif command -v python3 >/dev/null 2>&1; then
+  pytest_cmd="python3 -m pytest"
+else
+  pytest_cmd="python -m pytest"
 fi
 
 if [[ "${1:-}" == "--dry-run" ]]; then

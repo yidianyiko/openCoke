@@ -254,7 +254,13 @@ def test_outbox_event_is_immutable_and_carries_traceparent():
         idempotency_key="inbound:provider-message-1",
         payload={
             "trigger_id": "inbound:provider-message-1",
-            "nested": {"attempts": [1, 2], "tags": {"turn", "inbound"}},
+            "nested": {
+                "attempts": [1, 2],
+                "status": "queued",
+                "count": 2,
+                "sampled": True,
+                "optional": None,
+            },
         },
         traceparent=TRACEPARENT,
     )
@@ -264,7 +270,10 @@ def test_outbox_event_is_immutable_and_carries_traceparent():
     assert event.idempotency_key == "inbound:provider-message-1"
     assert event.payload["trigger_id"] == "inbound:provider-message-1"
     assert event.payload["nested"]["attempts"] == (1, 2)
-    assert event.payload["nested"]["tags"] == frozenset({"turn", "inbound"})
+    assert event.payload["nested"]["status"] == "queued"
+    assert event.payload["nested"]["count"] == 2
+    assert event.payload["nested"]["sampled"] is True
+    assert event.payload["nested"]["optional"] is None
     assert event.traceparent == TRACEPARENT
     assert event.created_at.tzinfo is not None
 
@@ -276,6 +285,45 @@ def test_outbox_event_is_immutable_and_carries_traceparent():
         event.payload["nested"]["extra"] = "value"
     with pytest.raises(TypeError):
         event.payload["nested"]["attempts"][0] = 99
+
+
+def test_outbox_event_requires_mapping_payload():
+    from coke.infra.outbox import OutboxEvent
+
+    with pytest.raises(TypeError, match="payload must be a JSON object mapping"):
+        OutboxEvent(
+            id="evt_1",
+            topic="turn.inbound",
+            idempotency_key="inbound:provider-message-1",
+            payload=["not", "an", "object"],
+            traceparent=TRACEPARENT,
+        )
+
+
+def test_outbox_event_rejects_non_json_like_payload_values():
+    from coke.infra.outbox import OutboxEvent
+
+    with pytest.raises(TypeError, match="payload.unsupported must be JSON-like"):
+        OutboxEvent(
+            id="evt_1",
+            topic="turn.inbound",
+            idempotency_key="inbound:provider-message-1",
+            payload={"unsupported": object()},
+            traceparent=TRACEPARENT,
+        )
+
+
+def test_outbox_event_requires_string_payload_keys():
+    from coke.infra.outbox import OutboxEvent
+
+    with pytest.raises(TypeError, match="payload keys must be strings"):
+        OutboxEvent(
+            id="evt_1",
+            topic="turn.inbound",
+            idempotency_key="inbound:provider-message-1",
+            payload={1: "not-json-object-key"},
+            traceparent=TRACEPARENT,
+        )
 
 
 @pytest.mark.parametrize(
@@ -735,16 +783,26 @@ from typing import Any, Mapping
 from coke.infra.tracing import is_valid_traceparent
 
 
-def _freeze_payload(value: Any) -> Any:
+JSONPrimitive = str | int | float | bool | None
+JSONLike = JSONPrimitive | Mapping[str, Any] | list[Any]
+
+
+def _freeze_payload(value: Any, path: str = "payload") -> Any:
     if isinstance(value, MappingABC):
-        return MappingProxyType(
-            {key: _freeze_payload(item) for key, item in value.items()}
+        frozen: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(f"{path} keys must be strings")
+            frozen[key] = _freeze_payload(item, f"{path}.{key}")
+        return MappingProxyType(frozen)
+    if isinstance(value, list):
+        return tuple(
+            _freeze_payload(item, f"{path}[{index}]")
+            for index, item in enumerate(value)
         )
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze_payload(item) for item in value)
-    if isinstance(value, set):
-        return frozenset(_freeze_payload(item) for item in value)
-    return value
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    raise TypeError(f"{path} must be JSON-like")
 
 
 @dataclass(frozen=True, slots=True)
@@ -752,7 +810,7 @@ class OutboxEvent:
     id: str
     topic: str
     idempotency_key: str
-    payload: Mapping[str, Any]
+    payload: Mapping[str, JSONLike]
     traceparent: str
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -763,8 +821,10 @@ class OutboxEvent:
 
         if not is_valid_traceparent(self.traceparent):
             raise ValueError("traceparent must be a valid W3C traceparent")
-        if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
+        if self.created_at.tzinfo is None or self.created_at.strftime("%z") == "":
             raise ValueError("created_at must be timezone-aware")
+        if not isinstance(self.payload, MappingABC):
+            raise TypeError("payload must be a JSON object mapping")
 
         object.__setattr__(self, "id", self.id.strip())
         object.__setattr__(self, "topic", self.topic.strip())
@@ -897,6 +957,7 @@ Expected:
 - [ ] Confirm app construction does not create Postgres engines, Redis clients, workers, schedulers, or provider network clients.
 - [ ] Confirm Postgres and Redis helpers are factories only and do not connect during import.
 - [ ] Confirm `OutboxEvent` includes `id`, `topic`, `idempotency_key`, `payload`, `traceparent`, and `created_at`.
+- [ ] Confirm `OutboxEvent.payload` requires a top-level JSON object mapping with string keys and rejects non-JSON-like nested values.
 - [ ] Confirm `OutboxEvent` rejects blank `topic` and blank `idempotency_key`.
 - [ ] Confirm trace helpers validate, extract, generate, and preserve W3C `traceparent`.
 - [ ] Confirm `coke` imports do not touch `dao`, `connector`, or `gateway`.

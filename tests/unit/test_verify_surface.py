@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 import subprocess
 
 
@@ -6,8 +7,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def expected_pytest_cmd() -> str:
-    if (ROOT / ".venv" / "bin" / "python").exists():
+    if (ROOT / ".venv" / "bin" / "python").is_file():
         return ".venv/bin/python -m pytest"
+    if shutil.which("python3"):
+        return "python3 -m pytest"
     return "python -m pytest"
 
 
@@ -89,3 +92,13 @@ def test_verify_surface_dry_run_prints_clean_rebuild_commands():
     assert "== clean-rebuild-web ==" in result.stdout
     assert "cd gateway && pnpm --filter @coke/web test" in result.stdout
     assert "cd gateway && pnpm --filter @coke/web build" in result.stdout
+
+
+def test_verify_surface_clean_rebuild_backend_uses_available_python_fallback():
+    result = run_verify_surface("--dry-run", "clean-rebuild-backend")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.splitlines() == [
+        "== clean-rebuild-backend ==",
+        f"{expected_pytest_cmd()} tests/unit/coke -v",
+    ]
