@@ -113,7 +113,9 @@ Create `tests/unit/coke/identity_access/test_identity_access_service.py`:
 ```python
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from itertools import count
 
 import pytest
 
@@ -128,13 +130,18 @@ from coke.domains.identity_access.service import IdentityAccessService
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 
 
+def sequence_factory(kind: str):
+    counter = count(1)
+    return lambda prefix: f"{prefix}_{kind}_{next(counter)}"
+
+
 @pytest.fixture
 def identity_service() -> IdentityAccessService:
     return IdentityAccessService(
         repository=InMemoryIdentityAccessRepository(now=lambda: NOW),
         now=lambda: NOW,
-        token_factory=lambda prefix: f"{prefix}_token",
-        id_factory=lambda prefix: f"{prefix}_id",
+        token_factory=sequence_factory("token"),
+        id_factory=sequence_factory("id"),
         checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
     )
 
@@ -166,6 +173,28 @@ def test_login_reuses_existing_web_account_and_creates_session(identity_service)
 
     assert logged_in.account.id == registered.account.id
     assert logged_in.session.account_id == registered.account.id
+
+
+def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_codes(identity_service):
+    first = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    second = identity_service.register_web_account(
+        email="b@example.com",
+        password_hash="hash_2",
+    )
+    login = identity_service.login(email="a@example.com", password_hash="hash_1")
+    first_reset = identity_service.issue_password_reset(email="a@example.com")
+    second_reset = identity_service.issue_password_reset(email="a@example.com")
+
+    assert first.account.id != second.account.id
+    assert first.session.token != second.session.token
+    assert login.session.token not in {first.session.token, second.session.token}
+    assert first.email_verification.id != second.email_verification.id
+    assert first.email_verification.code != second.email_verification.code
+    assert first_reset.artifact.id != second_reset.artifact.id
+    assert first_reset.code != second_reset.code
 
 
 def test_login_rejects_unknown_or_wrong_password(identity_service):
@@ -414,24 +443,29 @@ def test_web_claim_code_resolves_target_account_at_redemption(identity_service):
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
     )
+
+    assert channel_redemption.account_id == sender.account.id
+    assert channel_redemption.continuation == {"friend_link_id": "fl_1"}
+    saved_artifact = identity_service.repository.get_artifact_by_code(claim.code)
+    assert saved_artifact is not None
+    assert saved_artifact.target_account_id == sender.account.id
+    assert saved_artifact.consumed_at == NOW
+    assert saved_artifact.delivery_state == "consumed"
     browser_completion = identity_service.complete_web_claim_from_browser(
         code=claim.code,
         browser_session="browser_1",
     )
-
-    assert channel_redemption.account_id == sender.account.id
-    assert channel_redemption.continuation == {"friend_link_id": "fl_1"}
     assert browser_completion.account_id == sender.account.id
     assert browser_completion.session.account_id == sender.account.id
     assert browser_completion.continuation == {"friend_link_id": "fl_1"}
 
 
 def test_claim_code_status_requires_original_browser_session(identity_service):
-    identity_service.issue_web_claim_code(browser_session="browser_1")
+    claim = identity_service.issue_web_claim_code(browser_session="browser_1")
 
     with pytest.raises(IdentityAccessError, match="browser_session_mismatch"):
         identity_service.get_claim_code_status(
-            code="claim_code_token",
+            code=claim.code,
             browser_session="browser_2",
         )
 
@@ -449,10 +483,28 @@ def test_claim_code_browser_completion_requires_original_browser_session(identit
     )
 
     with pytest.raises(IdentityAccessError, match="browser_session_mismatch"):
+        identity_service.get_claim_code_status(
+            code=claim.code,
+            browser_session="browser_2",
+        )
+
+    with pytest.raises(IdentityAccessError, match="browser_session_mismatch"):
         identity_service.complete_web_claim_from_browser(
             code=claim.code,
             browser_session="browser_2",
         )
+
+    completed = identity_service.complete_web_claim_from_browser(
+        code=claim.code,
+        browser_session="browser_1",
+    )
+    identity = identity_service.repository.get_channel_identity_by_provider(
+        "whatsapp_evolution",
+        "whatsapp:+15555550123",
+    )
+
+    assert identity is not None
+    assert completed.account_id == identity.account_id
 
 
 def test_claim_code_browser_completion_requires_channel_redemption(identity_service):
@@ -535,8 +587,8 @@ def test_claim_code_wrong_type_and_expired_fail_closed(identity_service):
     expired_service = IdentityAccessService(
         repository=identity_service.repository,
         now=lambda: NOW + timedelta(hours=2),
-        token_factory=lambda prefix: f"{prefix}_late_token",
-        id_factory=lambda prefix: f"{prefix}_late_id",
+        token_factory=sequence_factory("late_token"),
+        id_factory=sequence_factory("late_id"),
     )
 
     with pytest.raises(IdentityAccessError, match="artifact_expired"):
@@ -579,8 +631,8 @@ def test_wrong_type_and_expired_artifacts_fail_closed(identity_service):
     expired_service = IdentityAccessService(
         repository=identity_service.repository,
         now=lambda: NOW + timedelta(hours=2),
-        token_factory=lambda prefix: f"{prefix}_late_token",
-        id_factory=lambda prefix: f"{prefix}_late_id",
+        token_factory=sequence_factory("late_token"),
+        id_factory=sequence_factory("late_id"),
     )
 
     with pytest.raises(IdentityAccessError, match="artifact_expired"):
@@ -589,6 +641,121 @@ def test_wrong_type_and_expired_artifacts_fail_closed(identity_service):
             provider_subject="whatsapp:+15555550123",
             pairing_code=pairing.code,
         )
+
+
+def test_verify_email_updates_credential_and_access_state(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+
+    credential = identity_service.verify_email(token=registered.email_verification.code)
+    access = identity_service.get_access_status(account_id=registered.account.id)
+
+    assert credential.email_verified_at == NOW
+    assert access.email_verification_state == "verified"
+    assert access.access_allowed is True
+    assert access.denial_reason is None
+
+
+def test_verify_email_is_single_use(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+
+    identity_service.verify_email(token=registered.email_verification.code)
+
+    with pytest.raises(IdentityAccessError, match="artifact_consumed"):
+        identity_service.verify_email(token=registered.email_verification.code)
+
+
+def test_expired_email_verification_fails_closed(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    expired_service = IdentityAccessService(
+        repository=identity_service.repository,
+        now=lambda: NOW + timedelta(hours=25),
+        token_factory=sequence_factory("late_token"),
+        id_factory=sequence_factory("late_id"),
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_expired"):
+        expired_service.verify_email(token=registered.email_verification.code)
+
+    credential = identity_service.repository.get_credential_by_account(registered.account.id)
+    assert credential.email_verified_at is None
+
+
+def test_password_reset_updates_password_hash(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    reset = identity_service.issue_password_reset(email="a@example.com")
+
+    credential = identity_service.reset_password(
+        token=reset.code,
+        password_hash="hash_2",
+    )
+
+    assert credential.account_id == registered.account.id
+    assert credential.password_hash == "hash_2"
+    assert credential.reset_required is False
+
+
+def test_password_reset_is_single_use(identity_service):
+    identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    reset = identity_service.issue_password_reset(email="a@example.com")
+
+    identity_service.reset_password(token=reset.code, password_hash="hash_2")
+
+    with pytest.raises(IdentityAccessError, match="artifact_consumed"):
+        identity_service.reset_password(token=reset.code, password_hash="hash_3")
+
+
+def test_expired_password_reset_fails_closed(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    reset = identity_service.issue_password_reset(email="a@example.com")
+    expired_service = IdentityAccessService(
+        repository=identity_service.repository,
+        now=lambda: NOW + timedelta(hours=2),
+        token_factory=sequence_factory("late_token"),
+        id_factory=sequence_factory("late_id"),
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_expired"):
+        expired_service.reset_password(token=reset.code, password_hash="hash_2")
+
+    credential = identity_service.repository.get_credential_by_account(registered.account.id)
+    assert credential.password_hash == "hash_1"
+
+
+def test_resend_artifact_increments_count_and_sets_pending(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    failed = replace(
+        registered.email_verification,
+        delivery_state="failed",
+        resend_count=2,
+    )
+    identity_service.repository.save_artifact(failed)
+
+    resent = identity_service.resend_artifact(code=registered.email_verification.code)
+
+    assert resent.resend_count == 3
+    assert resent.delivery_state == "pending"
+    assert resent.updated_at == NOW
 
 
 def test_activation_web_first_requires_registration_channel_and_first_inbound(identity_service):
@@ -704,6 +871,7 @@ Create `tests/unit/coke/identity_access/test_access_gate.py`:
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from itertools import count
 
 import pytest
 
@@ -715,13 +883,18 @@ from coke.domains.identity_access.service import IdentityAccessService
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 
 
+def sequence_factory(kind: str):
+    counter = count(1)
+    return lambda prefix: f"{prefix}_{kind}_{next(counter)}"
+
+
 @pytest.fixture
 def identity_service() -> IdentityAccessService:
     return IdentityAccessService(
         repository=InMemoryIdentityAccessRepository(now=lambda: NOW),
         now=lambda: NOW,
-        token_factory=lambda prefix: f"{prefix}_token",
-        id_factory=lambda prefix: f"{prefix}_id",
+        token_factory=sequence_factory("token"),
+        id_factory=sequence_factory("id"),
         checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
     )
 
@@ -876,7 +1049,10 @@ from coke.domains.identity_access.models import (
     IdentityAccessError,
     Session,
 )
-from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
+from coke.domains.identity_access.repository import (
+    IdentityAccessRepository,
+    InMemoryIdentityAccessRepository,
+)
 from coke.domains.identity_access.service import IdentityAccessService
 
 __all__ = [
@@ -892,6 +1068,7 @@ __all__ = [
     "ClaimCodeStatus",
     "Credential",
     "IdentityAccessError",
+    "IdentityAccessRepository",
     "InMemoryIdentityAccessRepository",
     "Session",
     "IdentityAccessService",
@@ -1093,7 +1270,7 @@ $python_cmd -m pytest tests/unit/coke/identity_access/test_identity_access_servi
 
 Expected: FAIL because `coke.domains.identity_access.repository` does not exist.
 
-## Task 4: In-Memory Repository Boundary
+## Task 4: Repository Protocol And In-Memory Boundary
 
 **Files:**
 - Create: `coke/domains/identity_access/repository.py`
@@ -1107,6 +1284,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Protocol
 
 from coke.domains.identity_access.models import (
     Account,
@@ -1117,6 +1295,60 @@ from coke.domains.identity_access.models import (
     Credential,
     Session,
 )
+
+
+class IdentityAccessRepository(Protocol):
+    def count_accounts(self) -> int: ...
+
+    def add_account(self, account: Account) -> None: ...
+
+    def get_account(self, account_id: str) -> Account | None: ...
+
+    def add_activation(self, activation: AccountActivation) -> None: ...
+
+    def get_activation(self, account_id: str) -> AccountActivation | None: ...
+
+    def save_activation(self, activation: AccountActivation) -> None: ...
+
+    def add_access(self, access: AccountAccess) -> None: ...
+
+    def get_access(self, account_id: str) -> AccountAccess | None: ...
+
+    def save_access(self, access: AccountAccess) -> None: ...
+
+    def add_credential(self, credential: Credential) -> None: ...
+
+    def get_credential_by_email(self, email: str) -> Credential | None: ...
+
+    def get_credential_by_account(self, account_id: str) -> Credential | None: ...
+
+    def save_credential(self, credential: Credential) -> None: ...
+
+    def add_session(self, session: Session) -> None: ...
+
+    def get_session_by_token(self, token: str) -> Session | None: ...
+
+    def add_channel_identity(self, channel_identity: ChannelIdentity) -> None: ...
+
+    def get_channel_identity_by_provider(
+        self,
+        provider_type: str,
+        provider_subject: str,
+    ) -> ChannelIdentity | None: ...
+
+    def get_channel_identity(self, channel_identity_id: str) -> ChannelIdentity | None: ...
+
+    def list_channel_identities(self, account_id: str) -> list[ChannelIdentity]: ...
+
+    def add_artifact(self, artifact: AuthArtifact) -> None: ...
+
+    def get_artifact_by_code(self, code: str) -> AuthArtifact | None: ...
+
+    def save_artifact(self, artifact: AuthArtifact) -> None: ...
+
+    def mark_usable_channel(self, account_id: str) -> None: ...
+
+    def has_usable_channel(self, account_id: str) -> bool: ...
 
 
 class InMemoryIdentityAccessRepository:
@@ -1140,32 +1372,47 @@ class InMemoryIdentityAccessRepository:
         return len(self.accounts)
 
     def add_account(self, account: Account) -> None:
+        if account.id in self.accounts:
+            raise ValueError("duplicate_account_id")
         self.accounts[account.id] = account
 
     def get_account(self, account_id: str) -> Account | None:
         return self.accounts.get(account_id)
 
     def add_activation(self, activation: AccountActivation) -> None:
+        if activation.account_id in self.activations:
+            raise ValueError("duplicate_activation_account")
         self.activations[activation.account_id] = activation
 
     def get_activation(self, account_id: str) -> AccountActivation | None:
         return self.activations.get(account_id)
 
     def save_activation(self, activation: AccountActivation) -> None:
+        if activation.account_id not in self.activations:
+            raise ValueError("activation_not_found")
         self.activations[activation.account_id] = activation
 
     def add_access(self, access: AccountAccess) -> None:
+        if access.account_id in self.access:
+            raise ValueError("duplicate_access_account")
         self.access[access.account_id] = access
 
     def get_access(self, account_id: str) -> AccountAccess | None:
         return self.access.get(account_id)
 
     def save_access(self, access: AccountAccess) -> None:
+        if access.account_id not in self.access:
+            raise ValueError("access_not_found")
         self.access[access.account_id] = access
 
     def add_credential(self, credential: Credential) -> None:
+        email_key = credential.email.lower()
+        if credential.account_id in self.credentials_by_account:
+            raise ValueError("duplicate_credential_account")
+        if email_key in self.credentials_by_email:
+            raise ValueError("duplicate_credential_email")
         self.credentials_by_account[credential.account_id] = credential
-        self.credentials_by_email[credential.email.lower()] = credential
+        self.credentials_by_email[email_key] = credential
 
     def get_credential_by_email(self, email: str) -> Credential | None:
         return self.credentials_by_email.get(email.lower())
@@ -1174,10 +1421,22 @@ class InMemoryIdentityAccessRepository:
         return self.credentials_by_account.get(account_id)
 
     def save_credential(self, credential: Credential) -> None:
+        existing = self.credentials_by_account.get(credential.account_id)
+        if existing is None:
+            raise ValueError("credential_not_found")
+        email_key = credential.email.lower()
+        email_owner = self.credentials_by_email.get(email_key)
+        if email_owner is not None and email_owner.account_id != credential.account_id:
+            raise ValueError("duplicate_credential_email")
+        old_email_key = existing.email.lower()
+        if old_email_key != email_key:
+            self.credentials_by_email.pop(old_email_key, None)
         self.credentials_by_account[credential.account_id] = credential
-        self.credentials_by_email[credential.email.lower()] = credential
+        self.credentials_by_email[email_key] = credential
 
     def add_session(self, session: Session) -> None:
+        if session.token in self.sessions_by_token:
+            raise ValueError("duplicate_session_token")
         self.sessions_by_token[session.token] = session
 
     def get_session_by_token(self, token: str) -> Session | None:
@@ -1185,6 +1444,10 @@ class InMemoryIdentityAccessRepository:
 
     def add_channel_identity(self, channel_identity: ChannelIdentity) -> None:
         key = (channel_identity.provider_type, channel_identity.provider_subject)
+        if channel_identity.id in self.channel_identities_by_id:
+            raise ValueError("duplicate_channel_identity_id")
+        if key in self.channel_identities_by_provider:
+            raise ValueError("duplicate_channel_identity_provider")
         self.channel_identities_by_id[channel_identity.id] = channel_identity
         self.channel_identities_by_provider[key] = channel_identity
 
@@ -1206,12 +1469,16 @@ class InMemoryIdentityAccessRepository:
         ]
 
     def add_artifact(self, artifact: AuthArtifact) -> None:
+        if artifact.code in self.artifacts_by_code:
+            raise ValueError("duplicate_artifact_code")
         self.artifacts_by_code[artifact.code] = artifact
 
     def get_artifact_by_code(self, code: str) -> AuthArtifact | None:
         return self.artifacts_by_code.get(code)
 
     def save_artifact(self, artifact: AuthArtifact) -> None:
+        if artifact.code not in self.artifacts_by_code:
+            raise ValueError("artifact_not_found")
         self.artifacts_by_code[artifact.code] = artifact
 
     def mark_usable_channel(self, account_id: str) -> None:
@@ -1246,6 +1513,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from secrets import token_urlsafe
+from uuid import uuid4
 
 from coke.domains.identity_access.models import (
     AccessDecision,
@@ -1267,13 +1536,13 @@ from coke.domains.identity_access.models import (
     RegistrationResult,
     Session,
 )
-from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
+from coke.domains.identity_access.repository import IdentityAccessRepository
 
 
 class IdentityAccessService:
     def __init__(
         self,
-        repository: InMemoryIdentityAccessRepository,
+        repository: IdentityAccessRepository,
         now: Callable[[], datetime] | None = None,
         token_factory: Callable[[str], str] | None = None,
         id_factory: Callable[[str], str] | None = None,
@@ -1281,7 +1550,7 @@ class IdentityAccessService:
     ) -> None:
         self.repository = repository
         self._now = now or (lambda: datetime.now(UTC))
-        self._token_factory = token_factory or (lambda prefix: f"{prefix}_{int(self._now().timestamp() * 1000000)}")
+        self._token_factory = token_factory or (lambda prefix: f"{prefix}_{token_urlsafe(32)}")
         self._id_factory = id_factory or self._default_id
         self._checkout_url_factory = checkout_url_factory or (lambda account_id: f"https://checkout.example/{account_id}")
 
@@ -1490,13 +1759,15 @@ class IdentityAccessService:
         if identity is None:
             raise IdentityAccessError("unknown_channel_identity")
 
-        artifact = self._consume_artifact(code, expected_type=ArtifactType.CLAIM_CODE)
-        consumed = replace(
+        artifact = self._require_unconsumed_artifact(code, expected_type=ArtifactType.CLAIM_CODE)
+        updated = replace(
             artifact,
+            consumed_at=self._now(),
+            delivery_state="consumed",
             target_account_id=identity.account_id,
             updated_at=self._now(),
         )
-        self.repository.save_artifact(consumed)
+        self.repository.save_artifact(updated)
         return ChannelClaimRedemption(
             account_id=identity.account_id,
             continuation=dict(artifact.continuation),
@@ -1857,7 +2128,7 @@ class IdentityAccessService:
         return access
 
     def _default_id(self, prefix: str) -> str:
-        return f"{prefix}_{int(self._now().timestamp() * 1000000)}"
+        return f"{prefix}_{uuid4().hex}"
 ```
 
 - [ ] **Step 2: Run the domain tests**
@@ -1869,6 +2140,17 @@ $python_cmd -m pytest tests/unit/coke/identity_access/test_identity_access_servi
 ```
 
 Expected: PASS for both test files.
+
+- [ ] **Step 3: Commit the domain-service slice**
+
+Run:
+
+```bash
+git add coke/domains tests/unit/coke/identity_access/test_identity_access_service.py tests/unit/coke/identity_access/test_access_gate.py
+git commit -m "feat: add identity access domain service"
+```
+
+Expected: commit succeeds with only IdentityAccess domain package files and domain/access-gate tests.
 
 ## Task 6: Auth And Claim Route Adapter Tests
 
@@ -1886,8 +2168,10 @@ from types import SimpleNamespace
 
 from flask import Flask
 
+from coke.app import create_app
 from coke.api.auth_routes import create_auth_blueprint
 from coke.api.claim_routes import create_claim_blueprint
+from coke.config import Settings
 from coke.domains.identity_access.models import IdentityAccessError
 
 
@@ -2083,6 +2367,47 @@ def make_client(service=None):
     app.register_blueprint(create_auth_blueprint(service))
     app.register_blueprint(create_claim_blueprint(service))
     return app.test_client(), service
+
+
+def make_factory_client(service=None):
+    service = service or FakeService()
+    app = create_app(
+        Settings(
+            database_url="sqlite+pysqlite:///:memory:",
+            redis_url="redis://localhost:6379/0",
+            app_env="test",
+        ),
+        identity_access_service=service,
+    )
+    return app.test_client(), service
+
+
+def test_create_app_registers_auth_and_claim_routes_with_identity_service():
+    client, service = make_factory_client()
+
+    auth_response = client.post(
+        "/api/auth/login",
+        json={"email": "a@example.com", "password_hash": "hash_1"},
+    )
+    claim_response = client.post(
+        "/api/claim/code",
+        json={"browser_session": "browser_1", "continuation": {"next": "/channels"}},
+    )
+
+    assert auth_response.status_code == 200
+    assert auth_response.get_json() == {"account_id": "acct_1", "session_token": "session_token"}
+    assert claim_response.status_code == 201
+    assert claim_response.get_json() == {"code": "claim_code", "artifact_id": "artifact_3"}
+    assert service.calls == [
+        ("login", {"email": "a@example.com", "password_hash": "hash_1"}),
+        (
+            "issue_web_claim_code",
+            {
+                "browser_session": "browser_1",
+                "continuation": {"next": "/channels"},
+            },
+        ),
+    ]
 
 
 def test_register_route_calls_service_and_returns_json():
@@ -2664,6 +2989,17 @@ $python_cmd -m pytest tests/unit/coke/identity_access/test_auth_routes.py -v
 
 Expected: PASS.
 
+- [ ] **Step 6: Commit the route/app slice**
+
+Run:
+
+```bash
+git add coke/api coke/app.py tests/unit/coke/identity_access/test_auth_routes.py
+git commit -m "feat: add identity access auth and claim routes"
+```
+
+Expected: commit succeeds with only API route files, app blueprint registration, and fake-service route tests.
+
 ## Task 8: IdentityAccess Surface Verification
 
 **Files:**
@@ -2713,7 +3049,7 @@ git diff --check
 
 Expected: both commands exit 0.
 
-## Task 9: Commit
+## Task 9: Commit Audit
 
 **Files:**
 - Add: `coke/domains/__init__.py`
@@ -2729,33 +3065,46 @@ Expected: both commands exit 0.
 - Add: `tests/unit/coke/identity_access/test_access_gate.py`
 - Add: `tests/unit/coke/identity_access/test_auth_routes.py`
 
-- [ ] **Step 1: Review the final diff**
+- [ ] **Step 1: Review the committed IdentityAccess change range**
 
 Run:
 
 ```bash
-git diff -- coke/domains coke/api coke/app.py tests/unit/coke/identity_access
+git show --stat --oneline --no-renames HEAD~2..HEAD
 ```
 
-Expected: diff contains only IdentityAccess domain, API adapter, app blueprint registration, and IdentityAccess tests.
+Expected: the two-commit range contains only IdentityAccess domain files, API adapter files, app blueprint registration, and IdentityAccess tests.
 
-- [ ] **Step 2: Commit the implementation**
+- [ ] **Step 2: Confirm the planned split commits exist**
 
 Run:
 
 ```bash
-git add coke/domains coke/api coke/app.py tests/unit/coke/identity_access
-git commit -m "feat: implement clean identity access domain"
+git log --oneline -2
 ```
 
-Expected: commit succeeds.
+Expected: the two newest commits are `feat: add identity access auth and claim routes` and `feat: add identity access domain service`.
+
+- [ ] **Step 3: Confirm the worktree is clean after split commits**
+
+Run:
+
+```bash
+git status --short
+```
+
+Expected: no output.
 
 ## Self-Review Checklist
 
 Before handoff, confirm each item:
 
 - [ ] The implementation does not write SQLAlchemy IdentityAccess persistence; the repository remains protocol-friendly and in-memory for this slice.
+- [ ] `IdentityAccessService` depends on `IdentityAccessRepository` protocol, not the concrete in-memory implementation.
+- [ ] Unit-test fixtures use monotonic deterministic factories, while production defaults use `uuid4()` for IDs and `secrets.token_urlsafe()` for tokens/codes.
+- [ ] The in-memory repository rejects duplicate account IDs, activation/access rows per account, credential account/email keys, session tokens, channel identity IDs/provider tuples, and artifact codes.
 - [ ] Routes call IdentityAccess service methods only and do not write repository dictionaries or schema tables directly.
+- [ ] `create_app(Settings(...), identity_access_service=fake)` registers at least one auth route and one claim route in route tests.
 - [ ] Shared WhatsApp auto-provisioning is limited to `whatsapp_evolution`.
 - [ ] Known provider identity lookup returns the existing account and channel identity without duplicates.
 - [ ] Non-WhatsApp first-seen identities fail closed unless a valid pairing code is supplied.
@@ -2767,13 +3116,17 @@ Before handoff, confirm each item:
 - [ ] Messaging-first activation requires sender identity binding, usable messaging channel signal, and first inbound.
 - [ ] First guidance stamping is idempotent.
 - [ ] `login_url`, `claim_code`, `pairing_code`, `email_verification`, and `password_reset` artifacts are one-time, time-limited, single-use, and wrong-type failures are closed.
+- [ ] Real-service tests cover email verification success, single-use verification, expired verification, password reset success, single-use reset, expired reset, and resend state updates.
 - [ ] `claim_code` target account is resolved from `channel_identity` at redemption, not issuance.
+- [ ] `claim_code` channel redemption writes `consumed_at`, `delivery_state`, `target_account_id`, and `updated_at` in one repository save.
 - [ ] Channel-side `claim_code` redemption never returns a web session token; only the original browser session can complete the claim and receive the authenticated web session.
 - [ ] Wrong-browser, unknown-sender, expired, consumed, and wrong-type claim artifacts fail closed with `IdentityAccessError`.
+- [ ] Wrong-browser claim polling and completion attempts do not consume or complete the artifact before the original browser finishes.
 - [ ] `pairing_code` issuance is allowed only for `web_first` accounts.
 - [ ] `pairing_code` issuance calls `check_access_for_action(account_id, "connect_channel")` and fails closed with an access-denied fact when email verification, subscription, or suspension blocks channel connection.
 - [ ] `pairing_code` redemption validates the artifact without consuming it, calls `check_access_for_action(account_id, "connect_channel")`, and fails closed before `channel_identity` creation when access is denied.
 - [ ] `pairing_code` binds the sender identity to the issuing web-first account instead of auto-provisioning.
 - [ ] Auth and claim route adapters map `IdentityAccessError` to JSON error facts and do not render prose.
 - [ ] Channel identity anchor protection is exposed for ChannelReachability and no `channel`, `delivery_route`, or `delivery_attempt` lifecycle behavior is implemented.
+- [ ] The implementation is split into a domain-service commit and a route/app commit before final verification.
 - [ ] `zsh scripts/verify-surface clean-rebuild-backend`, `zsh scripts/check`, and `git diff --check` passed with fresh output.
