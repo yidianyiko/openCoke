@@ -112,3 +112,24 @@ class NormalizedInbound:
     received_at: datetime
     pairing_code: str | None = None
     payload: Mapping[str, ImmutableJsonValue] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelStatus:
+    account_id: str
+    channel_id: str | None
+    provider_type: str | None
+    connection_state: ChannelConnectionState
+    reachable: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderWebhookAcceptance:
+    accepted: bool
+    provider_type: str
+    provider_subject: str
+    account_id: str
+    channel_identity_id: str
+    channel_id: str
+    created_account: bool
+    raw_event_id: str

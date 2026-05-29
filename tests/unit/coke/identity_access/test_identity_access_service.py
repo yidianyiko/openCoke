@@ -33,7 +33,9 @@ def identity_service() -> IdentityAccessService:
     )
 
 
-def test_register_web_account_creates_credential_session_and_verification_artifact(identity_service):
+def test_register_web_account_creates_credential_session_and_verification_artifact(
+    identity_service,
+):
     result = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
@@ -62,7 +64,9 @@ def test_login_reuses_existing_web_account_and_creates_session(identity_service)
     assert logged_in.session.account_id == registered.account.id
 
 
-def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_codes(identity_service):
+def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_codes(
+    identity_service,
+):
     first = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
@@ -111,9 +115,14 @@ def test_repository_duplicate_guards_reject_silent_overwrites(identity_service):
         identity_service.repository.add_channel_identity(duplicate_provider_tuple)
 
     assert identity_service.repository.count_accounts() == 2
-    assert identity_service.repository.get_session_by_token(registered.session.token) == registered.session
     assert (
-        identity_service.repository.get_artifact_by_code(registered.email_verification.code)
+        identity_service.repository.get_session_by_token(registered.session.token)
+        == registered.session
+    )
+    assert (
+        identity_service.repository.get_artifact_by_code(
+            registered.email_verification.code
+        )
         == registered.email_verification
     )
     assert (
@@ -135,7 +144,9 @@ def test_login_rejects_unknown_or_wrong_password(identity_service):
         identity_service.login(email="missing@example.com", password_hash="hash_1")
 
 
-def test_shared_whatsapp_first_seen_auto_provisions_one_messaging_account(identity_service):
+def test_shared_whatsapp_first_seen_auto_provisions_one_messaging_account(
+    identity_service,
+):
     first = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -162,7 +173,9 @@ def test_non_whatsapp_first_seen_identity_fails_closed(identity_service):
     assert identity_service.repository.count_accounts() == 0
 
 
-def test_pairing_code_binds_first_seen_provider_identity_to_web_account(identity_service):
+def test_pairing_code_binds_first_seen_provider_identity_to_web_account(
+    identity_service,
+):
     registered = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
@@ -288,7 +301,10 @@ def test_pairing_code_redemption_requires_allowed_channel_connection_access_befo
         )
         is None
     )
-    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+    assert (
+        identity_service.repository.get_artifact_by_code(pairing.code).consumed_at
+        is None
+    )
 
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -304,7 +320,10 @@ def test_pairing_code_redemption_requires_allowed_channel_connection_access_befo
 
     assert resolved.account.id == registered.account.id
     assert resolved.channel_identity.account_id == registered.account.id
-    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is not None
+    assert (
+        identity_service.repository.get_artifact_by_code(pairing.code).consumed_at
+        is not None
+    )
 
 
 def test_pairing_code_is_single_use(identity_service):
@@ -333,7 +352,9 @@ def test_pairing_code_is_single_use(identity_service):
         )
 
 
-def test_known_provider_identity_with_expired_pairing_code_fails_closed(identity_service):
+def test_known_provider_identity_with_expired_pairing_code_fails_closed(
+    identity_service,
+):
     existing = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -370,10 +391,15 @@ def test_known_provider_identity_with_expired_pairing_code_fails_closed(identity
     assert identity == existing.channel_identity
     assert identity.account_id == existing.account.id
     assert identity.account_id != registered.account.id
-    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+    assert (
+        identity_service.repository.get_artifact_by_code(pairing.code).consumed_at
+        is None
+    )
 
 
-def test_known_provider_identity_with_wrong_type_pairing_code_fails_closed(identity_service):
+def test_known_provider_identity_with_wrong_type_pairing_code_fails_closed(
+    identity_service,
+):
     existing = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -398,10 +424,15 @@ def test_known_provider_identity_with_wrong_type_pairing_code_fails_closed(ident
     assert identity == existing.channel_identity
     assert identity.account_id == existing.account.id
     assert identity.account_id != registered.account.id
-    assert identity_service.repository.get_artifact_by_code(login_url.code).consumed_at is None
+    assert (
+        identity_service.repository.get_artifact_by_code(login_url.code).consumed_at
+        is None
+    )
 
 
-def test_known_provider_identity_with_consumed_pairing_code_fails_closed(identity_service):
+def test_known_provider_identity_with_consumed_pairing_code_fails_closed(
+    identity_service,
+):
     existing = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -439,7 +470,9 @@ def test_known_provider_identity_with_consumed_pairing_code_fails_closed(identit
     assert identity.account_id != registered.account.id
 
 
-def test_known_provider_identity_with_access_denied_pairing_code_fails_closed(identity_service):
+def test_known_provider_identity_with_access_denied_pairing_code_fails_closed(
+    identity_service,
+):
     existing = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -482,10 +515,15 @@ def test_known_provider_identity_with_access_denied_pairing_code_fails_closed(id
     assert identity == existing.channel_identity
     assert identity.account_id == existing.account.id
     assert identity.account_id != registered.account.id
-    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+    assert (
+        identity_service.repository.get_artifact_by_code(pairing.code).consumed_at
+        is None
+    )
 
 
-def test_known_provider_identity_cannot_be_rebound_with_valid_pairing_code(identity_service):
+def test_known_provider_identity_cannot_be_rebound_with_valid_pairing_code(
+    identity_service,
+):
     existing = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -516,7 +554,10 @@ def test_known_provider_identity_cannot_be_rebound_with_valid_pairing_code(ident
     assert identity == existing.channel_identity
     assert identity.account_id == existing.account.id
     assert identity.account_id != registered.account.id
-    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+    assert (
+        identity_service.repository.get_artifact_by_code(pairing.code).consumed_at
+        is None
+    )
 
 
 def test_login_url_authenticates_bound_account_once(identity_service):
@@ -584,7 +625,9 @@ def test_claim_code_status_requires_original_browser_session(identity_service):
         )
 
 
-def test_claim_code_browser_completion_requires_original_browser_session(identity_service):
+def test_claim_code_browser_completion_requires_original_browser_session(
+    identity_service,
+):
     identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -740,7 +783,9 @@ def test_wrong_type_and_expired_artifacts_fail_closed(identity_service):
     pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
 
     with pytest.raises(IdentityAccessError, match="artifact_wrong_type"):
-        identity_service.redeem_login_url(token=pairing.code, browser_session="browser_1")
+        identity_service.redeem_login_url(
+            token=pairing.code, browser_session="browser_1"
+        )
 
     expired_service = IdentityAccessService(
         repository=identity_service.repository,
@@ -799,7 +844,9 @@ def test_expired_email_verification_fails_closed(identity_service):
     with pytest.raises(IdentityAccessError, match="artifact_expired"):
         expired_service.verify_email(token=registered.email_verification.code)
 
-    credential = identity_service.repository.get_credential_by_account(registered.account.id)
+    credential = identity_service.repository.get_credential_by_account(
+        registered.account.id
+    )
     assert credential.email_verified_at is None
 
 
@@ -849,7 +896,9 @@ def test_expired_password_reset_fails_closed(identity_service):
     with pytest.raises(IdentityAccessError, match="artifact_expired"):
         expired_service.reset_password(token=reset.code, password_hash="hash_2")
 
-    credential = identity_service.repository.get_credential_by_account(registered.account.id)
+    credential = identity_service.repository.get_credential_by_account(
+        registered.account.id
+    )
     assert credential.password_hash == "hash_1"
 
 
@@ -898,9 +947,12 @@ def test_resend_expired_artifact_fails_closed(identity_service):
     with pytest.raises(IdentityAccessError, match="artifact_expired"):
         expired_service.resend_artifact(code=registered.email_verification.code)
 
-    assert identity_service.repository.get_artifact_by_code(
-        registered.email_verification.code
-    ).resend_count == 0
+    assert (
+        identity_service.repository.get_artifact_by_code(
+            registered.email_verification.code
+        ).resend_count
+        == 0
+    )
 
 
 def test_resend_non_resendable_artifact_type_fails_closed(identity_service):
@@ -913,7 +965,10 @@ def test_resend_non_resendable_artifact_type_fails_closed(identity_service):
     with pytest.raises(IdentityAccessError, match="artifact_not_resendable"):
         identity_service.resend_artifact(code=login_url.code)
 
-    assert identity_service.repository.get_artifact_by_code(login_url.code).resend_count == 0
+    assert (
+        identity_service.repository.get_artifact_by_code(login_url.code).resend_count
+        == 0
+    )
 
 
 def test_pairing_identity_collision_does_not_consume_artifact():
@@ -948,7 +1003,9 @@ def test_pairing_identity_collision_does_not_consume_artifact():
     )
     pairing = service.issue_pairing_code(account_id=registered.account.id)
 
-    with pytest.raises(IdentityAccessError, match="channel_identity_write_conflict") as exc_info:
+    with pytest.raises(
+        IdentityAccessError, match="channel_identity_write_conflict"
+    ) as exc_info:
         service.resolve_or_create_channel_identity(
             provider_type="whatsapp_evolution",
             provider_subject="whatsapp:+15555550124",
@@ -970,16 +1027,24 @@ def test_pairing_identity_collision_does_not_consume_artifact():
     )
 
 
-def test_activation_web_first_requires_registration_channel_and_first_inbound(identity_service):
+def test_activation_web_first_requires_registration_channel_and_first_inbound(
+    identity_service,
+):
     registered = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
     )
 
-    assert identity_service.get_activation(registered.account.id).activation_completed_at is None
+    assert (
+        identity_service.get_activation(registered.account.id).activation_completed_at
+        is None
+    )
 
     identity_service.observe_usable_channel(account_id=registered.account.id)
-    assert identity_service.get_activation(registered.account.id).activation_completed_at is None
+    assert (
+        identity_service.get_activation(registered.account.id).activation_completed_at
+        is None
+    )
 
     identity_service.mark_first_inbound_received(account_id=registered.account.id)
 
@@ -988,16 +1053,24 @@ def test_activation_web_first_requires_registration_channel_and_first_inbound(id
     assert activation.activation_completed_at == NOW
 
 
-def test_activation_messaging_first_requires_anchor_channel_and_first_inbound(identity_service):
+def test_activation_messaging_first_requires_anchor_channel_and_first_inbound(
+    identity_service,
+):
     resolved = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
     )
 
-    assert identity_service.get_activation(resolved.account.id).activation_completed_at is None
+    assert (
+        identity_service.get_activation(resolved.account.id).activation_completed_at
+        is None
+    )
 
     identity_service.mark_first_inbound_received(account_id=resolved.account.id)
-    assert identity_service.get_activation(resolved.account.id).activation_completed_at is None
+    assert (
+        identity_service.get_activation(resolved.account.id).activation_completed_at
+        is None
+    )
 
     identity_service.observe_usable_channel(account_id=resolved.account.id)
 
@@ -1018,7 +1091,9 @@ def test_first_guidance_is_marked_once(identity_service):
     assert second.first_guidance_sent_at == NOW
 
 
-def test_anchor_identity_cannot_be_removed_when_it_is_messaging_first_only_identity(identity_service):
+def test_anchor_identity_cannot_be_removed_when_it_is_messaging_first_only_identity(
+    identity_service,
+):
     resolved = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -1033,7 +1108,9 @@ def test_anchor_identity_cannot_be_removed_when_it_is_messaging_first_only_ident
     )
 
 
-def test_web_first_bound_identity_can_be_removed_by_channel_reachability(identity_service):
+def test_web_first_bound_identity_can_be_removed_by_channel_reachability(
+    identity_service,
+):
     registered = identity_service.register_web_account(
         email="a@example.com",
         password_hash="hash_1",
@@ -1058,3 +1135,65 @@ def test_web_first_bound_identity_can_be_removed_by_channel_reachability(identit
         )
         is True
     )
+
+
+def test_preview_pairing_code_account_returns_account_without_consuming(
+    identity_service,
+):
+    registered = identity_service.register_web_account(
+        email="preview@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
+
+    account_id = identity_service.preview_pairing_code_account(pairing.code)
+
+    assert account_id == registered.account.id
+    assert (
+        identity_service.repository.get_artifact_by_code(pairing.code).consumed_at
+        is None
+    )
+
+
+def test_preview_pairing_code_account_rejects_wrong_expired_or_consumed_artifact(
+    identity_service,
+):
+    registered = identity_service.register_web_account(
+        email="preview@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    login_url = identity_service.issue_login_url(account_id=registered.account.id)
+    consumed = identity_service.issue_pairing_code(account_id=registered.account.id)
+    identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+        pairing_code=consumed.code,
+    )
+    expiring = identity_service.issue_pairing_code(account_id=registered.account.id)
+    expired_service = IdentityAccessService(
+        repository=identity_service.repository,
+        now=lambda: NOW + timedelta(hours=2),
+        token_factory=sequence_factory("late_token"),
+        id_factory=sequence_factory("late_id"),
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_wrong_type"):
+        identity_service.preview_pairing_code_account(login_url.code)
+
+    with pytest.raises(IdentityAccessError, match="artifact_consumed"):
+        identity_service.preview_pairing_code_account(consumed.code)
+
+    with pytest.raises(IdentityAccessError, match="artifact_expired"):
+        expired_service.preview_pairing_code_account(expiring.code)

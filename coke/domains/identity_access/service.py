@@ -40,7 +40,9 @@ class IdentityAccessService:
     ) -> None:
         self.repository = repository
         self._now = now or (lambda: datetime.now(UTC))
-        self._token_factory = token_factory or (lambda prefix: f"{prefix}_{token_urlsafe(32)}")
+        self._token_factory = token_factory or (
+            lambda prefix: f"{prefix}_{token_urlsafe(32)}"
+        )
         self._id_factory = id_factory or self._default_id
         self._checkout_url_factory = checkout_url_factory or (
             lambda account_id: f"https://checkout.example/{account_id}"
@@ -55,7 +57,9 @@ class IdentityAccessService:
         if self.repository.get_credential_by_email(email):
             raise IdentityAccessError("email_already_registered")
 
-        account = self._create_account(origin="web_first", default_timezone=default_timezone)
+        account = self._create_account(
+            origin="web_first", default_timezone=default_timezone
+        )
         credential = Credential(
             id=self._id_factory("credential"),
             account_id=account.id,
@@ -91,7 +95,11 @@ class IdentityAccessService:
 
     def current_user(self, session_token: str) -> Account:
         session = self.repository.get_session_by_token(session_token)
-        if session is None or session.revoked_at is not None or session.expires_at <= self._now():
+        if (
+            session is None
+            or session.revoked_at is not None
+            or session.expires_at <= self._now()
+        ):
             raise IdentityAccessError("invalid_session")
         return self._require_account(session.account_id)
 
@@ -125,12 +133,16 @@ class IdentityAccessService:
         return access
 
     def check_access_for_inbound(self, account_id: str) -> AccessDecision:
-        return self._check_access(account_id=account_id, include_checkout_for_messaging=True)
+        return self._check_access(
+            account_id=account_id, include_checkout_for_messaging=True
+        )
 
     def check_access_for_action(self, account_id: str, action: str) -> AccessDecision:
         if action not in {"connect_channel", "calendar_import"}:
             raise IdentityAccessError("unsupported_gated_action")
-        return self._check_access(account_id=account_id, include_checkout_for_messaging=False)
+        return self._check_access(
+            account_id=account_id, include_checkout_for_messaging=False
+        )
 
     def resolve_or_create_channel_identity(
         self,
@@ -152,7 +164,9 @@ class IdentityAccessService:
             )
             if not access_decision.allowed:
                 raise IdentityAccessError("access_denied", fact=access_decision.fact)
-            existing = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
+            existing = self.repository.get_channel_identity_by_provider(
+                provider_type, provider_subject
+            )
             if existing is not None:
                 raise IdentityAccessError("channel_identity_already_bound")
             consumed = replace(
@@ -168,7 +182,9 @@ class IdentityAccessService:
                 is_account_anchor=False,
             )
             try:
-                self.repository.add_channel_identity_and_save_artifact(identity, consumed)
+                self.repository.add_channel_identity_and_save_artifact(
+                    identity, consumed
+                )
             except ValueError as error:
                 raise IdentityAccessError(
                     "channel_identity_write_conflict",
@@ -184,7 +200,9 @@ class IdentityAccessService:
                 created_account=False,
             )
 
-        existing = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
+        existing = self.repository.get_channel_identity_by_provider(
+            provider_type, provider_subject
+        )
         if existing is not None:
             return ChannelIdentityResolution(
                 account=self._require_account(existing.account_id),
@@ -269,11 +287,15 @@ class IdentityAccessService:
         provider_type: str,
         provider_subject: str,
     ) -> ChannelClaimRedemption:
-        identity = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
+        identity = self.repository.get_channel_identity_by_provider(
+            provider_type, provider_subject
+        )
         if identity is None:
             raise IdentityAccessError("unknown_channel_identity")
 
-        artifact = self._require_unconsumed_artifact(code, expected_type=ArtifactType.CLAIM_CODE)
+        artifact = self._require_unconsumed_artifact(
+            code, expected_type=ArtifactType.CLAIM_CODE
+        )
         updated = replace(
             artifact,
             consumed_at=self._now(),
@@ -349,7 +371,9 @@ class IdentityAccessService:
         )
 
     def reset_password(self, token: str, password_hash: str) -> Credential:
-        artifact = self._consume_artifact(token, expected_type=ArtifactType.PASSWORD_RESET)
+        artifact = self._consume_artifact(
+            token, expected_type=ArtifactType.PASSWORD_RESET
+        )
         if artifact.account_id is None:
             raise IdentityAccessError("artifact_missing_account")
         credential = self.repository.get_credential_by_account(artifact.account_id)
@@ -365,7 +389,9 @@ class IdentityAccessService:
         return updated
 
     def verify_email(self, token: str) -> Credential:
-        artifact = self._consume_artifact(token, expected_type=ArtifactType.EMAIL_VERIFICATION)
+        artifact = self._consume_artifact(
+            token, expected_type=ArtifactType.EMAIL_VERIFICATION
+        )
         if artifact.account_id is None:
             raise IdentityAccessError("artifact_missing_account")
         credential = self.repository.get_credential_by_account(artifact.account_id)
@@ -380,7 +406,9 @@ class IdentityAccessService:
         self.set_access_state(
             account_id=artifact.account_id,
             email_verification_state="verified",
-            subscription_state=self._require_access(artifact.account_id).subscription_state,
+            subscription_state=self._require_access(
+                artifact.account_id
+            ).subscription_state,
             suspension_state=self._require_access(artifact.account_id).suspension_state,
         )
         return updated
@@ -389,7 +417,10 @@ class IdentityAccessService:
         artifact = self.repository.get_artifact_by_code(code)
         if artifact is None:
             raise IdentityAccessError("artifact_not_found")
-        if artifact.type not in {ArtifactType.EMAIL_VERIFICATION, ArtifactType.PASSWORD_RESET}:
+        if artifact.type not in {
+            ArtifactType.EMAIL_VERIFICATION,
+            ArtifactType.PASSWORD_RESET,
+        }:
             raise IdentityAccessError("artifact_not_resendable")
         if artifact.consumed_at is not None:
             raise IdentityAccessError("artifact_consumed")
@@ -438,15 +469,44 @@ class IdentityAccessService:
             raise IdentityAccessError("activation_not_found")
         return activation
 
-    def can_remove_channel_identity(self, account_id: str, channel_identity_id: str) -> bool:
+    def can_remove_channel_identity(
+        self, account_id: str, channel_identity_id: str
+    ) -> bool:
         account = self._require_account(account_id)
         identity = self.repository.get_channel_identity(channel_identity_id)
         if identity is None or identity.account_id != account_id:
             raise IdentityAccessError("channel_identity_not_found")
         active_identities = self.repository.list_channel_identities(account_id)
-        if account.origin == "messaging_first" and identity.is_account_anchor and len(active_identities) == 1:
+        if (
+            account.origin == "messaging_first"
+            and identity.is_account_anchor
+            and len(active_identities) == 1
+        ):
             return False
         return True
+
+    def get_owned_channel_identity(
+        self, account_id: str, channel_identity_id: str
+    ) -> ChannelIdentity:
+        self._require_account(account_id)
+        identity = self.repository.get_channel_identity(channel_identity_id)
+        if (
+            identity is None
+            or identity.account_id != account_id
+            or identity.lifecycle != "active"
+        ):
+            raise IdentityAccessError("channel_identity_not_found")
+        return identity
+
+    def preview_pairing_code_account(self, pairing_code: str) -> str:
+        artifact = self._require_unconsumed_artifact(
+            pairing_code,
+            expected_type=ArtifactType.PAIRING_CODE,
+        )
+        if artifact.account_id is None:
+            raise IdentityAccessError("artifact_missing_account")
+        self._require_account(artifact.account_id)
+        return artifact.account_id
 
     def _create_account(self, origin: str, default_timezone: str) -> Account:
         account = Account(
@@ -473,12 +533,16 @@ class IdentityAccessService:
             AccountAccess(
                 id=self._id_factory("access"),
                 account_id=account.id,
-                email_verification_state="required" if origin == "web_first" else "verified",
+                email_verification_state="required"
+                if origin == "web_first"
+                else "verified",
                 subscription_state="active",
                 suspension_state="active",
                 access_allowed=origin == "messaging_first",
                 denial_reason=(
-                    AccessDeniedReason.EMAIL_VERIFICATION_REQUIRED if origin == "web_first" else None
+                    AccessDeniedReason.EMAIL_VERIFICATION_REQUIRED
+                    if origin == "web_first"
+                    else None
                 ),
                 created_at=self._now(),
                 updated_at=self._now(),
@@ -563,7 +627,9 @@ class IdentityAccessService:
         self.repository.add_artifact(artifact)
         return ArtifactIssueResult(artifact=artifact, code=artifact.code)
 
-    def _require_unconsumed_artifact(self, code: str, expected_type: str) -> AuthArtifact:
+    def _require_unconsumed_artifact(
+        self, code: str, expected_type: str
+    ) -> AuthArtifact:
         artifact = self.repository.get_artifact_by_code(code)
         if artifact is None:
             raise IdentityAccessError("artifact_not_found")
@@ -586,7 +652,9 @@ class IdentityAccessService:
         self.repository.save_artifact(consumed)
         return consumed
 
-    def _check_access(self, account_id: str, include_checkout_for_messaging: bool) -> AccessDecision:
+    def _check_access(
+        self, account_id: str, include_checkout_for_messaging: bool
+    ) -> AccessDecision:
         account = self._require_account(account_id)
         access = self._require_access(account_id)
         if access.access_allowed:
@@ -631,10 +699,13 @@ class IdentityAccessService:
         activation = self.get_activation(account_id)
         has_identity_condition = False
         if account.origin == "web_first":
-            has_identity_condition = self.repository.get_credential_by_account(account_id) is not None
+            has_identity_condition = (
+                self.repository.get_credential_by_account(account_id) is not None
+            )
         elif account.origin == "messaging_first":
             has_identity_condition = any(
-                identity.is_account_anchor for identity in self.repository.list_channel_identities(account_id)
+                identity.is_account_anchor
+                for identity in self.repository.list_channel_identities(account_id)
             )
 
         complete = (
