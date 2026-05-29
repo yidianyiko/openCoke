@@ -288,7 +288,7 @@ Owns: relationship-based scheduling. Realizes §5.6, §5.7, §5.9.
 | Table | Purpose / invariant |
 |---|---|
 | `friend_link` | Owner's public link + QR + link code; state `active | disabled`; reset rotates the token. Reset/disable affect only future new friendships. |
-| `friendship` | Per unordered pair, lifecycle `active | removed`. **Uniqueness is on the active relationship only**, so a removed pair can re-establish through a valid link/code. Established directly (no pending request); self-friendship forbidden; establishment requires both sides authenticated/claimed **and** holding a usable channel. Removal flips to `removed`: it drops the pair from active friend lists and blocks new shared reminders, but does not cancel existing shared reminders and does not delete accounts or reminders (§5.6/§5.12). |
+| `friendship` | Per unordered pair, lifecycle `active | removed`. **Uniqueness is on the active relationship only**, so a removed pair can re-establish through a valid link/code. Established directly (no pending request); self-friendship forbidden; establishment requires both sides authenticated/claimed **and** holding a usable channel — a joiner who authenticates/claims without a usable channel has establishment **deferred** (intent carried on the handoff `continuation`, §3.1), not dropped, and completes automatically on channel connect (§9). Removal flips to `removed`: it drops the pair from active friend lists and blocks new shared reminders, but does not cancel existing shared reminders and does not delete accounts or reminders (§5.6/§5.12). |
 | `shared_reminder` | Group reminder: creator + participant set, title, trigger time, `captured_timezone`, duration, status (`active | cancelled`). Uniqueness key: creator + participant set + title + local trigger time + timezone + duration (order-insensitive). |
 | `reminder_projection` | Per-participant projection (a `kind=shared_projection` `reminder` row). Completion affects only that participant's projection; cancellation by any participant stops all projections. |
 | `notification_fact` | Immutable structured facts (who/what/object/time/timezone/duration/**status**, §5.9) + `facts_hash` (covering `status`) + idempotency key + outbox evidence. **No `payload.text`** — final chat prose is never stored here (§5). One fact can fan out to many recipients (friendship pair, shared-reminder participants). |
@@ -731,7 +731,11 @@ adapters behind it, all peers, none a first-class architectural concept.
   identifiers), unscheduled, undelivered, and merged groups that expand into
   per-entry actions — with display times in the user's global timezone (§5.8).
   **Action handles are type-specific:** a personal reminder exposes
-  edit / complete / delete; a `shared_projection` exposes only
+  edit / complete / delete. For a **recurring-occurrence** entry opened on the
+  calendar these handles are series-vs-occurrence grained per §5.8: complete acts
+  on **this occurrence** (the series advances), while edit and delete act on the
+  **whole series** — there is no edit-one-occurrence or per-occurrence delete
+  (§3.4, §5.8). A `shared_projection` exposes only
   complete-own-projection and cancel-whole-shared-reminder — shared reminders are
   **not directly editable** (changing time/content = cancel the group and recreate,
   §5.7). The thin web client renders this read model; it does not re-derive
@@ -757,7 +761,14 @@ hop, no circuit breaker, no split ownership.
   friend link or link code requires the owner to hold a usable channel;
   establishing friendship requires the joiner to be authenticated/claimed and to
   hold a usable channel — so both sides always have a channel at establishment.
-  Friend-link reset/disable affect only future new friendships. Establishment is
+  When a friend-link visitor authenticates/claims but does **not yet** hold a
+  usable channel, the channel gate defers — not drops — the establishment: the
+  friend-link intent (the `friend_link_id` carried on the handoff `continuation`,
+  §3.1) persists, and the friendship is established automatically once that joiner
+  connects a usable channel (§5.6 step 6). This is a deferred *self-completion*
+  gated on the joiner's channel readiness, **not** a pending owner-approval
+  request (which §15 deletes) and **not** a silently abandoned link. Friend-link
+  reset/disable affect only future new friendships. Establishment is
   idempotent; the same pair never creates a duplicate active friendship;
   self-friendship is forbidden. **Remove-friend** is a domain command that flips
   the friendship to `removed`: the pair leaves both active friend lists and can no
