@@ -197,6 +197,47 @@ def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_c
     assert first_reset.code != second_reset.code
 
 
+def test_repository_duplicate_guards_reject_silent_overwrites(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    sender = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+
+    with pytest.raises(ValueError, match="duplicate_account_id"):
+        identity_service.repository.add_account(registered.account)
+
+    with pytest.raises(ValueError, match="duplicate_session_token"):
+        identity_service.repository.add_session(registered.session)
+
+    with pytest.raises(ValueError, match="duplicate_artifact_code"):
+        identity_service.repository.add_artifact(registered.email_verification)
+
+    duplicate_provider_tuple = replace(
+        sender.channel_identity,
+        id="channel_identity_duplicate_provider",
+    )
+    with pytest.raises(ValueError, match="duplicate_channel_identity_provider"):
+        identity_service.repository.add_channel_identity(duplicate_provider_tuple)
+
+    assert identity_service.repository.count_accounts() == 2
+    assert identity_service.repository.get_session_by_token(registered.session.token) == registered.session
+    assert (
+        identity_service.repository.get_artifact_by_code(registered.email_verification.code)
+        == registered.email_verification
+    )
+    assert (
+        identity_service.repository.get_channel_identity_by_provider(
+            "whatsapp_evolution",
+            "whatsapp:+15555550123",
+        )
+        == sender.channel_identity
+    )
+
+
 def test_login_rejects_unknown_or_wrong_password(identity_service):
     identity_service.register_web_account(email="a@example.com", password_hash="hash_1")
 
@@ -3032,11 +3073,11 @@ Expected: command exits 0 and runs all `tests/unit/coke -v`.
 Run:
 
 ```bash
-zsh scripts/suggest-verification --base HEAD~1
-zsh scripts/review-trigger --base HEAD~1
+zsh scripts/suggest-verification --base HEAD~2
+zsh scripts/review-trigger --base HEAD~2
 ```
 
-Expected: `suggest-verification` includes `clean-rebuild-backend`; `review-trigger` exits 0 and reports risk without blocking completion.
+Expected: commands cover both planned implementation commits; `suggest-verification` includes `clean-rebuild-backend`; `review-trigger` exits 0 and reports risk without blocking completion.
 
 - [ ] **Step 4: Run repository checks**
 
@@ -3102,6 +3143,7 @@ Before handoff, confirm each item:
 - [ ] The implementation does not write SQLAlchemy IdentityAccess persistence; the repository remains protocol-friendly and in-memory for this slice.
 - [ ] `IdentityAccessService` depends on `IdentityAccessRepository` protocol, not the concrete in-memory implementation.
 - [ ] Unit-test fixtures use monotonic deterministic factories, while production defaults use `uuid4()` for IDs and `secrets.token_urlsafe()` for tokens/codes.
+- [ ] Real-service tests prove duplicate repository writes fail for account ID, session token, artifact code, and provider identity tuple instead of overwriting.
 - [ ] The in-memory repository rejects duplicate account IDs, activation/access rows per account, credential account/email keys, session tokens, channel identity IDs/provider tuples, and artifact codes.
 - [ ] Routes call IdentityAccess service methods only and do not write repository dictionaries or schema tables directly.
 - [ ] `create_app(Settings(...), identity_access_service=fake)` registers at least one auth route and one claim route in route tests.
