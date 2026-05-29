@@ -42,7 +42,9 @@ version-gated interactive commits (based_on_inbound_seq as an expected-version
 precondition at commit, not just before the reply) and available_participants in
 the shared-reminder failure result. Then architect-review round 8: participant-scoped
 shared-reminder view/cancel, shared-reminder required-field follow-up states, and
-the nightly summary bound to the owner's global timezone)
+the nightly summary bound to the owner's global timezone. Then architect-review
+round 9 (no HIGH/MEDIUM remained): added Reminder-domain calendar-page command
+endpoints for page-based create/schedule/edit)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -734,6 +736,14 @@ adapters behind it, all peers, none a first-class architectural concept.
   **not directly editable** (changing time/content = cancel the group and recreate,
   §5.7). The thin web client renders this read model; it does not re-derive
   reminder state.
+- **Calendar-page commands are Reminder-domain endpoints too**, not client logic:
+  create a timed reminder from a selected calendar slot (the slot defaults the
+  trigger time), create an unscheduled reminder, schedule an unscheduled reminder,
+  and edit an ordinary personal reminder's content / trigger / recurrence /
+  duration — all reusing the one Reminder domain and its time-validation,
+  conversion, and duplicate rules. The shared-reminder no-direct-edit boundary
+  still holds: the page may create or cancel a shared reminder but never edits one
+  in place (§5.8).
 
 ## 9. Social Scheduling
 
