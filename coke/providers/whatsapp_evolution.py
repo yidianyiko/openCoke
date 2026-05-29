@@ -21,7 +21,10 @@ class WhatsAppEvolutionAdapter:
         return NormalizedInbound(
             provider_type=self.provider_type,
             provider_subject=required_string_field(self.provider_type, payload, "sender"),
-            text=optional_string_field(self.provider_type, payload, "text") or "",
+            text=optional_string_field(
+                self.provider_type, payload, "text", allow_blank=True
+            )
+            or "",
             raw_event_id=required_string_field(self.provider_type, payload, "message_id"),
             received_at=self._now(),
             pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),

@@ -229,6 +229,49 @@ def test_provider_adapters_normalize_inbound_payloads(
     assert inbound.payload is not payload
 
 
+@pytest.mark.parametrize(
+    ("adapter", "payload"),
+    [
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {
+                "message_id": "wa_msg_blank",
+                "sender": "whatsapp:+15555550123",
+                "text": "",
+            },
+        ),
+        (
+            WeChatPersonalAdapter(now=lambda: NOW),
+            {
+                "message_id": "wx_msg_blank",
+                "wxid": "wxid_alice",
+                "text": "   ",
+            },
+        ),
+        (
+            WeChatECloudAdapter(now=lambda: NOW),
+            {
+                "msg_id": "gewe_msg_blank",
+                "sender_id": "gewe_alice",
+                "content": "",
+            },
+        ),
+        (
+            LinqAdapter(now=lambda: NOW),
+            {
+                "id": "sms_msg_blank",
+                "from": "+15555550123",
+                "body": "   ",
+            },
+        ),
+    ],
+)
+def test_provider_adapters_normalize_explicit_blank_text(adapter, payload):
+    inbound = adapter.normalize_inbound(payload)
+
+    assert inbound.text == ""
+
+
 def test_normalized_inbound_payload_is_recursively_immutable_copy():
     adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
     payload = {
@@ -713,10 +756,11 @@ def optional_string_field(
     provider_type: str,
     payload: Mapping[str, object],
     field: str,
+    allow_blank: bool = False,
 ) -> str | None:
     if field not in payload or payload[field] is None:
         return None
-    value = _string_value(payload[field])
+    value = _string_value(payload[field], allow_blank=allow_blank)
     if value is None:
         raise ChannelReachabilityError(
             "invalid_provider_payload",
@@ -745,7 +789,7 @@ def required_string_field(
                 "reason": "missing_required_field",
             },
         )
-    value = _string_value(payload[field])
+    value = _string_value(payload[field], allow_blank=False)
     if value is None:
         raise ChannelReachabilityError(
             "invalid_provider_payload",
@@ -759,7 +803,7 @@ def required_string_field(
     return value
 
 
-def _string_value(value: object) -> str | None:
+def _string_value(value: object, allow_blank: bool) -> str | None:
     if value is None:
         return None
     if isinstance(value, bool):
@@ -769,7 +813,11 @@ def _string_value(value: object) -> str | None:
     if isinstance(value, (Mapping, list, tuple, set)):
         return None
     text = str(value).strip()
-    return text or None
+    if text:
+        return text
+    if allow_blank:
+        return ""
+    return None
 
 
 def freeze_json(value: object, provider_type: str, path: str = "payload") -> ImmutableJsonValue:
@@ -843,7 +891,10 @@ class WhatsAppEvolutionAdapter:
         return NormalizedInbound(
             provider_type=self.provider_type,
             provider_subject=required_string_field(self.provider_type, payload, "sender"),
-            text=optional_string_field(self.provider_type, payload, "text") or "",
+            text=optional_string_field(
+                self.provider_type, payload, "text", allow_blank=True
+            )
+            or "",
             raw_event_id=required_string_field(self.provider_type, payload, "message_id"),
             received_at=self._now(),
             pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
@@ -925,7 +976,10 @@ class WeChatPersonalAdapter:
         return NormalizedInbound(
             provider_type=self.provider_type,
             provider_subject=required_string_field(self.provider_type, payload, "wxid"),
-            text=optional_string_field(self.provider_type, payload, "text") or "",
+            text=optional_string_field(
+                self.provider_type, payload, "text", allow_blank=True
+            )
+            or "",
             raw_event_id=required_string_field(self.provider_type, payload, "message_id"),
             received_at=self._now(),
             pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
@@ -1007,7 +1061,10 @@ class WeChatECloudAdapter:
         return NormalizedInbound(
             provider_type=self.provider_type,
             provider_subject=required_string_field(self.provider_type, payload, "sender_id"),
-            text=optional_string_field(self.provider_type, payload, "content") or "",
+            text=optional_string_field(
+                self.provider_type, payload, "content", allow_blank=True
+            )
+            or "",
             raw_event_id=required_string_field(self.provider_type, payload, "msg_id"),
             received_at=self._now(),
             pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
@@ -1089,7 +1146,10 @@ class LinqAdapter:
         return NormalizedInbound(
             provider_type=self.provider_type,
             provider_subject=required_string_field(self.provider_type, payload, "from"),
-            text=optional_string_field(self.provider_type, payload, "body") or "",
+            text=optional_string_field(
+                self.provider_type, payload, "body", allow_blank=True
+            )
+            or "",
             raw_event_id=required_string_field(self.provider_type, payload, "id"),
             received_at=self._now(),
             pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),

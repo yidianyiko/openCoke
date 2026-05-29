@@ -21,7 +21,10 @@ class LinqAdapter:
         return NormalizedInbound(
             provider_type=self.provider_type,
             provider_subject=required_string_field(self.provider_type, payload, "from"),
-            text=optional_string_field(self.provider_type, payload, "body") or "",
+            text=optional_string_field(
+                self.provider_type, payload, "body", allow_blank=True
+            )
+            or "",
             raw_event_id=required_string_field(self.provider_type, payload, "id"),
             received_at=self._now(),
             pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),

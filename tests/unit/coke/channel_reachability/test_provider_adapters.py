@@ -94,6 +94,49 @@ def test_provider_adapters_normalize_inbound_payloads(
     assert inbound.payload is not payload
 
 
+@pytest.mark.parametrize(
+    ("adapter", "payload"),
+    [
+        (
+            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            {
+                "message_id": "wa_msg_blank",
+                "sender": "whatsapp:+15555550123",
+                "text": "",
+            },
+        ),
+        (
+            WeChatPersonalAdapter(now=lambda: NOW),
+            {
+                "message_id": "wx_msg_blank",
+                "wxid": "wxid_alice",
+                "text": "   ",
+            },
+        ),
+        (
+            WeChatECloudAdapter(now=lambda: NOW),
+            {
+                "msg_id": "gewe_msg_blank",
+                "sender_id": "gewe_alice",
+                "content": "",
+            },
+        ),
+        (
+            LinqAdapter(now=lambda: NOW),
+            {
+                "id": "sms_msg_blank",
+                "from": "+15555550123",
+                "body": "   ",
+            },
+        ),
+    ],
+)
+def test_provider_adapters_normalize_explicit_blank_text(adapter, payload):
+    inbound = adapter.normalize_inbound(payload)
+
+    assert inbound.text == ""
+
+
 def test_normalized_inbound_payload_is_recursively_immutable_copy():
     adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
     payload = {

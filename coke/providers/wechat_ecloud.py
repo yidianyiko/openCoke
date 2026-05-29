@@ -21,7 +21,10 @@ class WeChatECloudAdapter:
         return NormalizedInbound(
             provider_type=self.provider_type,
             provider_subject=required_string_field(self.provider_type, payload, "sender_id"),
-            text=optional_string_field(self.provider_type, payload, "content") or "",
+            text=optional_string_field(
+                self.provider_type, payload, "content", allow_blank=True
+            )
+            or "",
             raw_event_id=required_string_field(self.provider_type, payload, "msg_id"),
             received_at=self._now(),
             pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),

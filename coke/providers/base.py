@@ -42,10 +42,11 @@ def optional_string_field(
     provider_type: str,
     payload: Mapping[str, object],
     field: str,
+    allow_blank: bool = False,
 ) -> str | None:
     if field not in payload or payload[field] is None:
         return None
-    value = _string_value(payload[field])
+    value = _string_value(payload[field], allow_blank=allow_blank)
     if value is None:
         raise ChannelReachabilityError(
             "invalid_provider_payload",
@@ -74,7 +75,7 @@ def required_string_field(
                 "reason": "missing_required_field",
             },
         )
-    value = _string_value(payload[field])
+    value = _string_value(payload[field], allow_blank=False)
     if value is None:
         raise ChannelReachabilityError(
             "invalid_provider_payload",
@@ -88,7 +89,7 @@ def required_string_field(
     return value
 
 
-def _string_value(value: object) -> str | None:
+def _string_value(value: object, allow_blank: bool) -> str | None:
     if value is None:
         return None
     if isinstance(value, bool):
@@ -98,7 +99,11 @@ def _string_value(value: object) -> str | None:
     if isinstance(value, (Mapping, list, tuple, set)):
         return None
     text = str(value).strip()
-    return text or None
+    if text:
+        return text
+    if allow_blank:
+        return ""
+    return None
 
 
 def freeze_json(
