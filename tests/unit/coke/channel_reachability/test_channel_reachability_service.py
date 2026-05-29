@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from itertools import count
+from uuid import UUID
 
 import pytest
 
@@ -124,6 +125,27 @@ def paired_identity(identity_service, account_id, provider_type, provider_subjec
         provider_subject=provider_subject,
         pairing_code=pairing.code,
     ).channel_identity
+
+
+def test_default_channel_reachability_ids_are_schema_uuid_strings(identity_service):
+    adapter = RecordingAdapter()
+    service = ChannelReachabilityService(
+        repository=InMemoryChannelReachabilityRepository(),
+        identity_access=identity_service,
+        providers={adapter.provider_type: adapter},
+        now=lambda: NOW,
+    )
+    account, identity = verified_web_account(identity_service)
+
+    channel = service.create_channel(
+        account.id, "whatsapp_evolution", identity.id, removable=True
+    )
+    service.mark_connected(account.id, channel.id)
+    route = service.resolve_route(account.id)
+    attempt = service.send_text(account.id, "hello", "idem_uuid")
+
+    for value in [channel.id, route.id, attempt.id]:
+        assert UUID(value).hex == value
 
 
 def test_single_active_channel_requires_remove_before_switch(
@@ -538,10 +560,52 @@ def test_reconnect_reuses_route_key_safely(identity_service, reachability):
     second_route = service.resolve_route(account.id)
 
     assert second_route.id == first_route.id
-    assert second_route.route_key == (
-        f"{channel.id}:whatsapp_evolution:whatsapp:+15555550123"
-    )
+    assert second_route.route_key == first_route.route_key
+    assert second_route.route_key.startswith("delivery-route:")
+    assert len(second_route.route_key) <= 255
+    assert "whatsapp:+15555550123" not in second_route.route_key
     assert service.get_status(account.id).reachable is True
+
+
+def test_route_key_is_bounded_for_max_schema_provider_subject(
+    identity_service, reachability
+):
+    registration = identity_service.register_web_account("long@example.com", "hash_1")
+    identity_service.set_access_state(
+        account_id=registration.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    provider_subject = "w" * 255
+    identity = paired_identity(
+        identity_service,
+        registration.account.id,
+        "whatsapp_evolution",
+        provider_subject,
+    )
+    service, _adapter = reachability
+    channel = service.create_channel(
+        registration.account.id,
+        "whatsapp_evolution",
+        identity.id,
+        removable=True,
+    )
+
+    service.mark_connected(registration.account.id, channel.id)
+    route = service.resolve_route(registration.account.id)
+    service.mark_reconnection_required(
+        registration.account.id, channel.id, "provider_session_lost"
+    )
+    service.retry_connection(registration.account.id, channel.id)
+    service.mark_connected(registration.account.id, channel.id)
+    second_route = service.resolve_route(registration.account.id)
+
+    assert len(route.route_key) <= 255
+    assert route.route_key.startswith("delivery-route:")
+    assert provider_subject not in route.route_key
+    assert second_route.id == route.id
+    assert second_route.route_key == route.route_key
 
 
 def test_mark_connected_missing_activation_maps_error_without_connection_write(

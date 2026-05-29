@@ -735,4 +735,4 @@ class IdentityAccessService:
         return access
 
     def _default_id(self, prefix: str) -> str:
-        return f"{prefix}_{uuid4().hex}"
+        return uuid4().hex

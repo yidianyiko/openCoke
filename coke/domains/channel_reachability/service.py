@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Protocol, TypeVar
 from uuid import uuid4
 
@@ -80,7 +81,7 @@ class ChannelReachabilityService:
         self.identity_access = identity_access
         self.providers = dict(providers)
         self._now = now or (lambda: datetime.now(UTC))
-        self._id_factory = id_factory or (lambda prefix: f"{prefix}_{uuid4().hex}")
+        self._id_factory = id_factory or (lambda prefix: uuid4().hex)
 
     def get_status(self, account_id: str) -> ChannelStatus:
         channel = self.repository.get_active_channel(account_id)
@@ -213,7 +214,11 @@ class ChannelReachabilityService:
             channel.account_id, channel.channel_identity_id
         )
         now = self._now()
-        route_key = f"{channel.id}:{channel.provider_type}:{identity.provider_subject}"
+        route_key = _delivery_route_key(
+            channel.id,
+            channel.provider_type,
+            identity.provider_subject,
+        )
         route = DeliveryRoute(
             id=self._id_factory("delivery_route"),
             account_id=channel.account_id,
@@ -400,3 +405,12 @@ class ChannelReachabilityService:
             return callback()
         except IdentityAccessError as error:
             raise ChannelReachabilityError(error.code, fact=error.fact) from error
+
+
+def _delivery_route_key(
+    channel_id: str,
+    provider_type: str,
+    provider_subject: str,
+) -> str:
+    material = f"{channel_id}\0{provider_type}\0{provider_subject}".encode("utf-8")
+    return f"delivery-route:{sha256(material).hexdigest()}"

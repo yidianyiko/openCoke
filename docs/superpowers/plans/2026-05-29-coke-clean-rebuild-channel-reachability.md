@@ -10,9 +10,10 @@
 
 ---
 
-**Plan Status:** ready for execution
+**Plan Status:** complete
 **Status Date:** 2026-05-29
 **Parent Plan:** `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md`, Task 5: ChannelReachability And Provider Adapter Contract
+**Completion Note:** Implementation reached final review with bounded route keys, UUID-compatible default runtime IDs, strict channel route field validation, and all plan checkboxes closed.
 
 **Source Specs:**
 - `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
@@ -1679,7 +1680,10 @@ def test_reconnect_reuses_route_key_safely(identity_service, reachability):
     second_route = service.resolve_route(account.id)
 
     assert second_route.id == first_route.id
-    assert second_route.route_key == f"{channel.id}:whatsapp_evolution:whatsapp:+15555550123"
+    assert second_route.route_key == first_route.route_key
+    assert second_route.route_key.startswith("delivery-route:")
+    assert len(second_route.route_key) <= 255
+    assert "whatsapp:+15555550123" not in second_route.route_key
     assert service.get_status(account.id).reachable is True
 
 
@@ -2210,6 +2214,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Protocol, TypeVar
 from uuid import uuid4
 
@@ -2285,7 +2290,7 @@ class ChannelReachabilityService:
         self.identity_access = identity_access
         self.providers = dict(providers)
         self._now = now or (lambda: datetime.now(UTC))
-        self._id_factory = id_factory or (lambda prefix: f"{prefix}_{uuid4().hex}")
+        self._id_factory = id_factory or (lambda prefix: uuid4().hex)
 
     def get_status(self, account_id: str) -> ChannelStatus:
         channel = self.repository.get_active_channel(account_id)
@@ -2403,7 +2408,11 @@ class ChannelReachabilityService:
 
     def _resolve_route_for_channel(self, channel: Channel) -> DeliveryRoute:
         identity = self._require_owned_identity(channel.account_id, channel.channel_identity_id)
-        route_key = f"{channel.id}:{channel.provider_type}:{identity.provider_subject}"
+        route_key = _delivery_route_key(
+            channel.id,
+            channel.provider_type,
+            identity.provider_subject,
+        )
         route = DeliveryRoute(
             id=self._id_factory("delivery_route"),
             account_id=channel.account_id,
@@ -2564,6 +2573,15 @@ class ChannelReachabilityService:
             return callback()
         except IdentityAccessError as error:
             raise ChannelReachabilityError(error.code, fact=error.fact) from error
+
+
+def _delivery_route_key(
+    channel_id: str,
+    provider_type: str,
+    provider_subject: str,
+) -> str:
+    material = f"{channel_id}\0{provider_type}\0{provider_subject}".encode("utf-8")
+    return f"delivery-route:{sha256(material).hexdigest()}"
 ```
 
 - [x] **Step 10: Run the service tests to verify they pass**
@@ -3786,3 +3804,4 @@ Type and boundary consistency:
 - Pairing-code inbound calls `preview_pairing_code_account` first, checks active channel conflicts before consuming the code, and only then calls the existing IdentityAccess bind/resolve method.
 - The app factory examples instantiate `Settings(database_url=DATABASE_URL, redis_url=REDIS_URL, app_env="test")` so route tests match the required config contract.
 - New runtime IDs use `uuid4().hex` defaults when callers do not inject deterministic test factories; no default ID generation is derived from wall-clock time.
+- Delivery route keys use a bounded hash of the channel/provider/provider-subject identity, keeping `delivery_route.route_key` within the clean schema `String(255)` limit without leaking raw provider addresses into the key.

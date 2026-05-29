@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from itertools import count
+from uuid import UUID
 
 import pytest
 
@@ -86,6 +87,40 @@ def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_c
     assert first.email_verification.code != second.email_verification.code
     assert first_reset.artifact.id != second_reset.artifact.id
     assert first_reset.code != second_reset.code
+
+
+def test_default_identity_access_ids_are_schema_uuid_strings():
+    repository = InMemoryIdentityAccessRepository(now=lambda: NOW)
+    service = IdentityAccessService(
+        repository=repository,
+        now=lambda: NOW,
+        token_factory=sequence_factory("token"),
+        checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
+    )
+
+    registered = service.register_web_account(
+        email="uuid@example.com",
+        password_hash="hash_1",
+    )
+    resolved = service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+
+    ids = [
+        registered.account.id,
+        registered.credential.id,
+        registered.session.id,
+        registered.email_verification.id,
+        repository.get_activation(registered.account.id).id,
+        repository.get_access(registered.account.id).id,
+        resolved.account.id,
+        resolved.channel_identity.id,
+        repository.get_activation(resolved.account.id).id,
+        repository.get_access(resolved.account.id).id,
+    ]
+    for value in ids:
+        assert UUID(value).hex == value
 
 
 def test_repository_duplicate_guards_reject_silent_overwrites(identity_service):
