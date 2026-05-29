@@ -333,6 +333,192 @@ def test_pairing_code_is_single_use(identity_service):
         )
 
 
+def test_known_provider_identity_with_expired_pairing_code_fails_closed(identity_service):
+    existing = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
+    expired_service = IdentityAccessService(
+        repository=identity_service.repository,
+        now=lambda: NOW + timedelta(hours=2),
+        token_factory=sequence_factory("late_token"),
+        id_factory=sequence_factory("late_id"),
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_expired"):
+        expired_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+            pairing_code=pairing.code,
+        )
+
+    identity = identity_service.repository.get_channel_identity_by_provider(
+        "whatsapp_evolution",
+        "whatsapp:+15555550123",
+    )
+    assert identity == existing.channel_identity
+    assert identity.account_id == existing.account.id
+    assert identity.account_id != registered.account.id
+    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+
+
+def test_known_provider_identity_with_wrong_type_pairing_code_fails_closed(identity_service):
+    existing = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    login_url = identity_service.issue_login_url(account_id=registered.account.id)
+
+    with pytest.raises(IdentityAccessError, match="artifact_wrong_type"):
+        identity_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+            pairing_code=login_url.code,
+        )
+
+    identity = identity_service.repository.get_channel_identity_by_provider(
+        "whatsapp_evolution",
+        "whatsapp:+15555550123",
+    )
+    assert identity == existing.channel_identity
+    assert identity.account_id == existing.account.id
+    assert identity.account_id != registered.account.id
+    assert identity_service.repository.get_artifact_by_code(login_url.code).consumed_at is None
+
+
+def test_known_provider_identity_with_consumed_pairing_code_fails_closed(identity_service):
+    existing = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
+    identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550124",
+        pairing_code=pairing.code,
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_consumed"):
+        identity_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+            pairing_code=pairing.code,
+        )
+
+    identity = identity_service.repository.get_channel_identity_by_provider(
+        "whatsapp_evolution",
+        "whatsapp:+15555550123",
+    )
+    assert identity == existing.channel_identity
+    assert identity.account_id == existing.account.id
+    assert identity.account_id != registered.account.id
+
+
+def test_known_provider_identity_with_access_denied_pairing_code_fails_closed(identity_service):
+    existing = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="inactive",
+        suspension_state="active",
+    )
+
+    with pytest.raises(IdentityAccessError, match="access_denied") as exc_info:
+        identity_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+            pairing_code=pairing.code,
+        )
+
+    assert exc_info.value.fact == {
+        "type": "account_access_denied",
+        "account_id": registered.account.id,
+        "denial_reason": "subscription_inactive",
+        "checkout_url": None,
+    }
+    identity = identity_service.repository.get_channel_identity_by_provider(
+        "whatsapp_evolution",
+        "whatsapp:+15555550123",
+    )
+    assert identity == existing.channel_identity
+    assert identity.account_id == existing.account.id
+    assert identity.account_id != registered.account.id
+    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+
+
+def test_known_provider_identity_cannot_be_rebound_with_valid_pairing_code(identity_service):
+    existing = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
+
+    with pytest.raises(IdentityAccessError, match="channel_identity_already_bound"):
+        identity_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+            pairing_code=pairing.code,
+        )
+
+    identity = identity_service.repository.get_channel_identity_by_provider(
+        "whatsapp_evolution",
+        "whatsapp:+15555550123",
+    )
+    assert identity == existing.channel_identity
+    assert identity.account_id == existing.account.id
+    assert identity.account_id != registered.account.id
+    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+
+
 def test_login_url_authenticates_bound_account_once(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",

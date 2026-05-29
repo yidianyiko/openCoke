@@ -138,14 +138,6 @@ class IdentityAccessService:
         provider_subject: str,
         pairing_code: str | None = None,
     ) -> ChannelIdentityResolution:
-        existing = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
-        if existing is not None:
-            return ChannelIdentityResolution(
-                account=self._require_account(existing.account_id),
-                channel_identity=existing,
-                created_account=False,
-            )
-
         if pairing_code is not None:
             artifact = self._require_unconsumed_artifact(
                 pairing_code,
@@ -160,6 +152,9 @@ class IdentityAccessService:
             )
             if not access_decision.allowed:
                 raise IdentityAccessError("access_denied", fact=access_decision.fact)
+            existing = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
+            if existing is not None:
+                raise IdentityAccessError("channel_identity_already_bound")
             self._consume_artifact(pairing_code, expected_type=ArtifactType.PAIRING_CODE)
             identity = self._create_channel_identity(
                 account_id=account.id,
@@ -170,6 +165,14 @@ class IdentityAccessService:
             return ChannelIdentityResolution(
                 account=account,
                 channel_identity=identity,
+                created_account=False,
+            )
+
+        existing = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
+        if existing is not None:
+            return ChannelIdentityResolution(
+                account=self._require_account(existing.account_id),
+                channel_identity=existing,
                 created_account=False,
             )
 
