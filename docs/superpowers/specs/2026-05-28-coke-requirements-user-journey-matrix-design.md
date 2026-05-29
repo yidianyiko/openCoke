@@ -1,8 +1,8 @@
-# Coke Requirements and User Journey Matrix Draft
+# Coke Requirements and User Journey Matrix
 
-Status: draft  
+Status: review pass
 Created: 2026-05-28  
-Updated: 2026-05-29 (web-first vs messaging-first activation; requirement-language cleanup; proactive undelivered = discard; shared-reminder creator channel precondition; shared-reminder duplicate duration/timezone; WhatsApp sender-identity binding; messaging-first identity + web claim §5.13; friendship requires authenticated/claimed users with channels; recurring-window timezone pinning; downtime catch-up; account access gate; shared WhatsApp-only auto-provisioning; messaging-first channel removal boundary; out-of-scope notes)
+Updated: 2026-05-29 (web-first vs messaging-first activation; requirement-language cleanup; proactive undelivered = discard; shared-reminder creator channel precondition; shared-reminder duplicate duration/timezone; WhatsApp sender-identity binding; messaging-first identity + web claim §5.13; friendship requires authenticated/claimed users with channels; recurring-window timezone pinning; downtime catch-up; account access gate; shared WhatsApp-only auto-provisioning; messaging-first channel removal boundary; out-of-scope notes; review pass; spec path restored; account-identity channel cardinality cleanup)
 Scope: Current product: personal accountability companionship, friend system, shared reminders, Product notifications, account/data lifecycle
 
 ## 0. Usage Boundaries
@@ -1202,7 +1202,7 @@ Confirmed:
 - A Coke user has one of two origins: web-first (email registration/login per §5.1), or messaging-first (auto-provisioned only on first contact through shared WhatsApp, bound to the sender's channel identity).
 - Auto-provisioning currently applies only to shared WhatsApp. A first-seen shared WhatsApp sender identity provisions a new Coke user; a known shared WhatsApp sender identity continues as its existing Coke user. Personal WeChat remains a web-first channel-connection path unless a later current requirement explicitly changes it.
 - A messaging-first account has no password. Its only web authentication path is a one-time login claim. A web-first account uses email and password (and forgot/reset per §5.1). The two credential types do not cross.
-- Each Coke user owns exactly one usable personal channel, so each messaging identity corresponds to its own Coke user. The system does not merge separate accounts and does not provide account unlinking.
+- Each Coke user may have at most one usable personal channel at a time, so each messaging identity corresponds to its own Coke user. The system does not merge separate accounts and does not provide account unlinking.
 - A messaging-first user cannot remove the only shared WhatsApp sender identity that anchors the account. The known-sender continuation rule depends on this identity remaining valid.
 - If the same human uses two different auto-provisioned sender identities, each channel identity becomes its own separate Coke user. This is an accepted product outcome, not a defect; the system does not merge them.
 - A messaging user reaches an authenticated web session by claiming their existing account; no second account is created for them. One human who consistently uses the claim path keeps a single Coke user.
