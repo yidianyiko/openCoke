@@ -37,7 +37,10 @@ password-reset auth_artifact types, a sharper inbound-media contract
 non-authoritative hint, and explicit channel_identity ownership. Then
 architect-review round 6: type-specific calendar action handles (no direct edit on
 shared reminders), subscription page/renewal in the web list, notification `status`
-fact, and idempotent shared-reminder cancellation)
+fact, and idempotent shared-reminder cancellation. Then architect-review round 7:
+version-gated interactive commits (based_on_inbound_seq as an expected-version
+precondition at commit, not just before the reply) and available_participants in
+the shared-reminder failure result)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -409,8 +412,17 @@ The interactive-mode stack, in order:
   the current `latest_inbound_seq` — if a newer inbound has superseded this turn,
   the stale reply is suppressed and the turn resolves to the distinct
   **`superseded`** disposition (never `no_reply`, which is reserved for intentional
-  no-reply, and never `failed`, which implies retry/operator attention). This
-  prevents duplicate or stale replies after newer intent (§5.4).
+  no-reply, and never `failed`, which implies retry/operator attention). Crucially
+  this is **not only an outbound check**: for interactive turns, `based_on_inbound_seq`
+  is an **expected-version precondition on every state-changing domain commit**
+  (reminder/friendship/shared-reminder create/edit/delete), checked atomically at
+  commit, not just before send. If a newer inbound has superseded the turn, the
+  commit is rejected — no business mutation is applied and no operation facts are
+  emitted — and the turn records `superseded`. So a stale, lock-lost, or late-async
+  turn cannot *act* on outdated intent, not merely fail to reply about it (§3
+  conversation ordering, §5.4). This is consistent with the no-rollback rule (§5):
+  facts that *did* commit before supersession stay true; supersession only blocks
+  the not-yet-committed stale action.
 - **Memory** — short-term recent context (always available, even when the memory
   switch is off, because it is needed to complete the current turn) plus
   long-term memory via Agno memory storage/retrieval. A custom `MemoryManager`
@@ -559,6 +571,10 @@ dual-ownership at once.
   even if later wording, output validation, reply waiting, or delivery fails.
   Recovery is via retryable generation, delivery, and reconciliation state — never
   by silently deleting committed reminders, friendships, or shared reminders.
+  Conversely, an interactive commit is **version-gated** by `based_on_inbound_seq`
+  (§4 Freshness): a turn superseded by newer intent does not commit at all.
+  No-rollback governs facts that already committed; it never licenses a stale turn
+  to commit outdated intent.
 - **Atomic domain write + outbox:** each domain service commits its facts and the
   corresponding outbox event in one Postgres transaction. Personal reminder
   creation, shared-reminder creation, friendship changes, notification facts, and
@@ -740,8 +756,11 @@ hop, no circuit breaker, no split ownership.
   follow-up), then enforces two hard pre-creation constraints — receiver conflict
   (overlap on duration window, from personal + shared reminders) and participant
   channel availability (creator + every receiver reachable). The creator's own
-  conflict is not checked. Failing either reports who conflicts / who is
-  unreachable and creates nothing partial. On success the reminder is immediately
+  conflict is not checked. Failing either creates nothing partial and returns the
+  privacy-safe breakdown — `conflicting_participants`, `unreachable_participants`,
+  **and `available_participants`** — so the creator is told who conflicts, who is
+  unreachable, *and who is free*, then asked to adjust time or participants (§5.7).
+  On success the reminder is immediately
   active with a per-participant projection; uniqueness is enforced by the §3.5
   key. Any participant cancels the whole group: `cancel_shared_reminder` is
   status-aware/idempotent — `active → cancelled` stops all projections and emits
