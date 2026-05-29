@@ -470,18 +470,18 @@ class CaseContext:
         account = self.accounts[owner_key]
         turn = self.step(owner_key, "把我自己的好友邀请链接给我，我要分享给朋友。", f"{self.case_id}_setup_{owner_key}_link")
         code = _parse_link_code(turn.reply_text)
-        fallback = False
+        used_internal_link_lookup = False
         if not code or not _public_link_active(code):
             code = _internal_link(account, "get_user_link")
-            fallback = True
+            used_internal_link_lookup = True
         if code and not _public_link_active(code):
             code = _internal_link(account, "reset_user_link")
-            fallback = True
+            used_internal_link_lookup = True
         if not code:
             raise BlockedSetup(f"{self.case_id}: could not obtain {owner_key} link")
         self.link_codes[owner_key] = code
-        if fallback:
-            self.extras.setdefault("link_fallbacks", []).append({"owner": owner_key, "code": code})
+        if used_internal_link_lookup:
+            self.extras.setdefault("link_code_setup_recoveries", []).append({"owner": owner_key, "code": code})
         print(f"[{self.case_id} setup] {owner_key}_link_code={code}", flush=True)
         return code
 

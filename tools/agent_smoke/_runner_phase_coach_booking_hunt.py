@@ -744,10 +744,10 @@ def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> lis
         ok = len(added) == 3 and not empty and not slow_empty
         observed = f"shared added={len(added)} empty={empty} slow_empty={slow_empty}"
         if ok:
-            return _passed("C12-concurrent-burst", "all three parallel requests land without empty fallback or causal hijack", observed, turns, delta)
-        return _finding("C12-concurrent-burst", "all three parallel requests land without empty fallback or causal hijack", observed, turns, delta, mutation_expected=True, mutation_happened=bool(added), severity="silent-bad-side-effect")
+            return _passed("C12-concurrent-burst", "all three parallel requests land without empty reply or causal hijack", observed, turns, delta)
+        return _finding("C12-concurrent-burst", "all three parallel requests land without empty reply or causal hijack", observed, turns, delta, mutation_expected=True, mutation_happened=bool(added), severity="silent-bad-side-effect")
 
-    results.append(_case_result("C12-concurrent-burst", "all three parallel requests land without empty fallback or causal hijack", accounts, transcript, c12_body, c12_judge))
+    results.append(_case_result("C12-concurrent-burst", "all three parallel requests land without empty reply or causal hijack", accounts, transcript, c12_body, c12_judge))
     return results
 
 

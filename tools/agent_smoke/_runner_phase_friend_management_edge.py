@@ -728,25 +728,25 @@ def _ensure_link(ctx: "CaseContext", owner_key: str, *, fresh: bool = False) -> 
         return ctx.link_codes[owner_key]
     account = ctx.accounts[owner_key]
     code: str | None = None
-    fallback_used = False
+    used_internal_link_lookup = False
     if fresh:
         code = _internal_reset_user_link_code(account)
-        fallback_used = True
+        used_internal_link_lookup = True
     if not code:
         turn = ctx.step(owner_key, "把我自己的好友邀请链接给我，我要分享给朋友。", f"setup_{owner_key}_link")
         code = _parse_link_code(turn.reply_text)
     if not code or not _public_link_active(code):
         code = _internal_get_user_link_code(account)
-        fallback_used = True
+        used_internal_link_lookup = True
     if code and not _public_link_active(code):
         code = _internal_reset_user_link_code(account)
-        fallback_used = True
+        used_internal_link_lookup = True
     if not code:
         raise BlockedSetup(f"could not obtain {owner_key} user-link code")
     ctx.link_codes[owner_key] = code
-    if fallback_used:
-        ctx.extras.setdefault("link_fallbacks", []).append({"owner": owner_key, "code": code})
-        print(f"[setup] {owner_key}_link_code fallback={code}", flush=True)
+    if used_internal_link_lookup:
+        ctx.extras.setdefault("link_code_setup_recoveries", []).append({"owner": owner_key, "code": code})
+        print(f"[setup] {owner_key}_link_code recovered={code}", flush=True)
     else:
         print(f"[setup] {owner_key}_link_code={code}", flush=True)
     return code

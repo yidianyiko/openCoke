@@ -61,8 +61,8 @@ def main():
     t = Transcript(batch_id=BATCH)
     t.add_account(alice)
 
-    # T0: warm-up greeting — fresh-account first turn frequently hits the
-    # empty-response fallback if the model hasn't seen a chat history yet.
+    # T0: warm-up greeting — fresh-account first turns can produce an empty
+    # reply before the model has seen chat history.
     step(t, alice, "你好。", "warmup_greeting")
 
     # T1: create a reminder for ~75 seconds in the future.
