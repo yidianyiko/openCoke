@@ -34,6 +34,7 @@ In scope:
 - Activation projection fields: `first_inbound_received_at`, `activation_completed_at`, `first_guidance_sent_at`.
 - Auth artifact domain contract for `login_url`, `claim_code`, `pairing_code`, `email_verification`, and `password_reset`.
 - One-time, time-limited, single-use artifact behavior with delivery state and resend count.
+- Web-initiated `claim_code` split flow: browser issuance, channel-side account resolution, and original-browser-only session completion.
 - Channel identity ownership and anchor protection checks.
 - Thin Flask blueprints under `/api/auth/*` and `/api/claim/*`.
 
@@ -223,6 +224,16 @@ def test_pairing_code_binds_first_seen_provider_identity_to_web_account(identity
     assert identity_service.repository.count_accounts() == 1
 
 
+def test_messaging_first_account_cannot_issue_pairing_code(identity_service):
+    resolved = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+
+    with pytest.raises(IdentityAccessError, match="pairing_requires_web_first_account"):
+        identity_service.issue_pairing_code(account_id=resolved.account.id)
+
+
 def test_pairing_code_is_single_use(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
@@ -276,15 +287,136 @@ def test_web_claim_code_resolves_target_account_at_redemption(identity_service):
         continuation={"friend_link_id": "fl_1"},
     )
 
-    redeemed = identity_service.redeem_claim_code_from_channel(
+    channel_redemption = identity_service.redeem_claim_code_from_channel(
+        code=claim.code,
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    browser_completion = identity_service.complete_web_claim_from_browser(
+        code=claim.code,
+        browser_session="browser_1",
+    )
+
+    assert channel_redemption.account_id == sender.account.id
+    assert channel_redemption.continuation == {"friend_link_id": "fl_1"}
+    assert browser_completion.account_id == sender.account.id
+    assert browser_completion.session.account_id == sender.account.id
+    assert browser_completion.continuation == {"friend_link_id": "fl_1"}
+
+
+def test_claim_code_status_requires_original_browser_session(identity_service):
+    identity_service.issue_web_claim_code(browser_session="browser_1")
+
+    with pytest.raises(IdentityAccessError, match="browser_session_mismatch"):
+        identity_service.get_claim_code_status(
+            code="claim_code_token",
+            browser_session="browser_2",
+        )
+
+
+def test_claim_code_browser_completion_requires_original_browser_session(identity_service):
+    identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    claim = identity_service.issue_web_claim_code(browser_session="browser_1")
+    identity_service.redeem_claim_code_from_channel(
         code=claim.code,
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
     )
 
-    assert redeemed.account_id == sender.account.id
-    assert redeemed.session.account_id == sender.account.id
-    assert redeemed.continuation == {"friend_link_id": "fl_1"}
+    with pytest.raises(IdentityAccessError, match="browser_session_mismatch"):
+        identity_service.complete_web_claim_from_browser(
+            code=claim.code,
+            browser_session="browser_2",
+        )
+
+
+def test_claim_code_browser_completion_requires_channel_redemption(identity_service):
+    claim = identity_service.issue_web_claim_code(browser_session="browser_1")
+
+    with pytest.raises(IdentityAccessError, match="claim_not_redeemed"):
+        identity_service.complete_web_claim_from_browser(
+            code=claim.code,
+            browser_session="browser_1",
+        )
+
+
+def test_claim_code_browser_completion_is_single_use(identity_service):
+    identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    claim = identity_service.issue_web_claim_code(browser_session="browser_1")
+    identity_service.redeem_claim_code_from_channel(
+        code=claim.code,
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    identity_service.complete_web_claim_from_browser(
+        code=claim.code,
+        browser_session="browser_1",
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_consumed"):
+        identity_service.complete_web_claim_from_browser(
+            code=claim.code,
+            browser_session="browser_1",
+        )
+
+
+def test_claim_code_channel_redemption_is_single_use(identity_service):
+    identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    claim = identity_service.issue_web_claim_code(browser_session="browser_1")
+    identity_service.redeem_claim_code_from_channel(
+        code=claim.code,
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_consumed"):
+        identity_service.redeem_claim_code_from_channel(
+            code=claim.code,
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+        )
+
+
+def test_claim_code_wrong_type_and_expired_fail_closed(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
+
+    with pytest.raises(IdentityAccessError, match="artifact_wrong_type"):
+        identity_service.complete_web_claim_from_browser(
+            code=pairing.code,
+            browser_session="browser_1",
+        )
+
+    identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    claim = identity_service.issue_web_claim_code(browser_session="browser_1")
+    expired_service = IdentityAccessService(
+        repository=identity_service.repository,
+        now=lambda: NOW + timedelta(hours=2),
+        token_factory=lambda prefix: f"{prefix}_late_token",
+        id_factory=lambda prefix: f"{prefix}_late_id",
+    )
+
+    with pytest.raises(IdentityAccessError, match="artifact_expired"):
+        expired_service.redeem_claim_code_from_channel(
+            code=claim.code,
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+        )
 
 
 def test_claim_code_requires_known_sender_identity_at_redemption(identity_service):
@@ -597,6 +729,7 @@ from coke.domains.identity_access.models import (
     AccountActivation,
     ArtifactType,
     AuthArtifact,
+    ChannelClaimRedemption,
     ChannelIdentity,
     ClaimCodeStatus,
     Credential,
@@ -615,6 +748,7 @@ __all__ = [
     "ArtifactType",
     "AuthArtifact",
     "ChannelIdentity",
+    "ChannelClaimRedemption",
     "ClaimCodeStatus",
     "Credential",
     "IdentityAccessError",
@@ -778,6 +912,12 @@ class ArtifactIssueResult:
 class ArtifactRedemption:
     account_id: str
     session: Session
+    continuation: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelClaimRedemption:
+    account_id: str
     continuation: dict[str, Any]
 
 
@@ -971,6 +1111,7 @@ from coke.domains.identity_access.models import (
     ArtifactRedemption,
     ArtifactType,
     AuthArtifact,
+    ChannelClaimRedemption,
     ChannelIdentity,
     ChannelIdentityResolution,
     ClaimCodeStatus,
@@ -1166,7 +1307,7 @@ class IdentityAccessService:
             ttl=timedelta(minutes=15),
         )
 
-    def get_claim_code_status(self, code: str) -> ClaimCodeStatus:
+    def get_claim_code_status(self, code: str, browser_session: str) -> ClaimCodeStatus:
         artifact = self.repository.get_artifact_by_code(code)
         if artifact is None or artifact.type != ArtifactType.CLAIM_CODE:
             return ClaimCodeStatus(
@@ -1175,6 +1316,10 @@ class IdentityAccessService:
                 target_account_id=None,
                 delivery_state=None,
             )
+        if artifact.expires_at <= self._now():
+            raise IdentityAccessError("artifact_expired")
+        if artifact.browser_session != browser_session:
+            raise IdentityAccessError("browser_session_mismatch")
         return ClaimCodeStatus(
             found=True,
             consumed=artifact.consumed_at is not None,
@@ -1187,27 +1332,58 @@ class IdentityAccessService:
         code: str,
         provider_type: str,
         provider_subject: str,
-    ) -> ArtifactRedemption:
+    ) -> ChannelClaimRedemption:
         identity = self.repository.get_channel_identity_by_provider(provider_type, provider_subject)
         if identity is None:
             raise IdentityAccessError("unknown_channel_identity")
 
         artifact = self._consume_artifact(code, expected_type=ArtifactType.CLAIM_CODE)
-        session = self._create_session(identity.account_id)
         consumed = replace(
             artifact,
             target_account_id=identity.account_id,
             updated_at=self._now(),
         )
         self.repository.save_artifact(consumed)
-        return ArtifactRedemption(
+        return ChannelClaimRedemption(
             account_id=identity.account_id,
+            continuation=dict(artifact.continuation),
+        )
+
+    def complete_web_claim_from_browser(
+        self,
+        code: str,
+        browser_session: str,
+    ) -> ArtifactRedemption:
+        artifact = self.repository.get_artifact_by_code(code)
+        if artifact is None:
+            raise IdentityAccessError("artifact_not_found")
+        if artifact.type != ArtifactType.CLAIM_CODE:
+            raise IdentityAccessError("artifact_wrong_type")
+        if artifact.expires_at <= self._now():
+            raise IdentityAccessError("artifact_expired")
+        if artifact.browser_session != browser_session:
+            raise IdentityAccessError("browser_session_mismatch")
+        if artifact.consumed_at is None or artifact.target_account_id is None:
+            raise IdentityAccessError("claim_not_redeemed")
+        if artifact.delivery_state == "completed":
+            raise IdentityAccessError("artifact_consumed")
+        session = self._create_session(artifact.target_account_id)
+        completed = replace(
+            artifact,
+            delivery_state="completed",
+            updated_at=self._now(),
+        )
+        self.repository.save_artifact(completed)
+        return ArtifactRedemption(
+            account_id=artifact.target_account_id,
             session=session,
             continuation=dict(artifact.continuation),
         )
 
     def issue_pairing_code(self, account_id: str) -> ArtifactIssueResult:
-        self._require_account(account_id)
+        account = self._require_account(account_id)
+        if account.origin != "web_first":
+            raise IdentityAccessError("pairing_requires_web_first_account")
         return self._issue_artifact(
             artifact_type=ArtifactType.PAIRING_CODE,
             purpose="channel_pairing",
@@ -1549,6 +1725,7 @@ from flask import Flask
 
 from coke.api.auth_routes import create_auth_blueprint
 from coke.api.claim_routes import create_claim_blueprint
+from coke.domains.identity_access.models import IdentityAccessError
 
 
 class FakeObject(SimpleNamespace):
@@ -1640,8 +1817,16 @@ class FakeService:
         )
         return FakeObject(code="claim_code", artifact=FakeObject(id="artifact_3"))
 
-    def get_claim_code_status(self, code):
-        self.calls.append(("get_claim_code_status", {"code": code}))
+    def get_claim_code_status(self, code, browser_session):
+        self.calls.append(
+            (
+                "get_claim_code_status",
+                {
+                    "code": code,
+                    "browser_session": browser_session,
+                },
+            )
+        )
         return FakeObject(
             found=True,
             consumed=False,
@@ -1657,6 +1842,18 @@ class FakeService:
                     "code": code,
                     "provider_type": provider_type,
                     "provider_subject": provider_subject,
+                },
+            )
+        )
+        return FakeObject(account_id="acct_1", continuation={"friend_link_id": "fl_1"})
+
+    def complete_web_claim_from_browser(self, code, browser_session):
+        self.calls.append(
+            (
+                "complete_web_claim_from_browser",
+                {
+                    "code": code,
+                    "browser_session": browser_session,
                 },
             )
         )
@@ -1680,8 +1877,19 @@ class FakeService:
         return FakeObject(account=self.account, channel_identity=FakeObject(id="ci_1", account_id="acct_1"))
 
 
-def make_client():
-    service = FakeService()
+class ErrorService(FakeService):
+    def login(self, email, password_hash):
+        raise IdentityAccessError("invalid_credentials")
+
+    def redeem_claim_code_from_channel(self, code, provider_type, provider_subject):
+        raise IdentityAccessError("unknown_channel_identity")
+
+    def issue_pairing_code(self, account_id):
+        raise IdentityAccessError("pairing_requires_web_first_account")
+
+
+def make_client(service=None):
+    service = service or FakeService()
     app = Flask(__name__)
     app.register_blueprint(create_auth_blueprint(service))
     app.register_blueprint(create_claim_blueprint(service))
@@ -1813,15 +2021,15 @@ def test_claim_code_issue_and_redeem_routes_call_service():
     assert redeem_response.status_code == 200
     assert redeem_response.get_json() == {
         "account_id": "acct_1",
-        "session_token": "session_token",
         "continuation": {"friend_link_id": "fl_1"},
     }
+    assert "session_token" not in redeem_response.get_json()
 
 
 def test_claim_code_poll_route_calls_service():
     client, service = make_client()
 
-    response = client.get("/api/claim/code/claim_code/status")
+    response = client.get("/api/claim/code/claim_code/status?browser_session=browser_1")
 
     assert response.status_code == 200
     assert response.get_json() == {
@@ -1830,7 +2038,75 @@ def test_claim_code_poll_route_calls_service():
         "target_account_id": None,
         "delivery_state": "pending",
     }
-    assert service.calls[-1] == ("get_claim_code_status", {"code": "claim_code"})
+    assert service.calls[-1] == (
+        "get_claim_code_status",
+        {
+            "code": "claim_code",
+            "browser_session": "browser_1",
+        },
+    )
+
+
+def test_claim_code_browser_complete_route_returns_session_to_original_browser():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/claim/code/complete",
+        json={"code": "claim_code", "browser_session": "browser_1"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "account_id": "acct_1",
+        "session_token": "session_token",
+        "continuation": {"friend_link_id": "fl_1"},
+    }
+    assert service.calls[-1] == (
+        "complete_web_claim_from_browser",
+        {
+            "code": "claim_code",
+            "browser_session": "browser_1",
+        },
+    )
+
+
+def test_auth_route_errors_are_json_facts():
+    client, _service = make_client(ErrorService())
+
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "a@example.com", "password_hash": "wrong"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": {"code": "invalid_credentials"}}
+
+
+def test_claim_route_errors_are_json_facts():
+    client, _service = make_client(ErrorService())
+
+    response = client.post(
+        "/api/claim/code/redeem",
+        json={
+            "code": "claim_code",
+            "provider_type": "whatsapp_evolution",
+            "provider_subject": "whatsapp:+15555550123",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": {"code": "unknown_channel_identity"}}
+
+
+def test_pairing_code_issue_route_returns_json_error_when_service_rejects_origin():
+    client, _service = make_client(ErrorService())
+
+    response = client.post("/api/claim/pairing-code", json={"account_id": "acct_msg"})
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {"code": "pairing_requires_web_first_account"}
+    }
 
 
 def test_pairing_code_issue_and_redeem_routes_call_service():
@@ -1895,9 +2171,15 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
+from coke.domains.identity_access.models import IdentityAccessError
+
 
 def create_auth_blueprint(identity_service) -> Blueprint:
     blueprint = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+    @blueprint.errorhandler(IdentityAccessError)
+    def handle_identity_access_error(error: IdentityAccessError):
+        return jsonify({"error": {"code": error.code}}), 400
 
     @blueprint.post("/register")
     def register():
@@ -2001,9 +2283,15 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
+from coke.domains.identity_access.models import IdentityAccessError
+
 
 def create_claim_blueprint(identity_service) -> Blueprint:
     blueprint = Blueprint("claim", __name__, url_prefix="/api/claim")
+
+    @blueprint.errorhandler(IdentityAccessError)
+    def handle_identity_access_error(error: IdentityAccessError):
+        return jsonify({"error": {"code": error.code}}), 400
 
     @blueprint.post("/code")
     def issue_claim_code():
@@ -2016,7 +2304,10 @@ def create_claim_blueprint(identity_service) -> Blueprint:
 
     @blueprint.get("/code/<code>/status")
     def poll_claim_code(code: str):
-        status = identity_service.get_claim_code_status(code=code)
+        status = identity_service.get_claim_code_status(
+            code=code,
+            browser_session=request.args["browser_session"],
+        )
         if not status.found:
             return (
                 jsonify(
@@ -2045,6 +2336,20 @@ def create_claim_blueprint(identity_service) -> Blueprint:
             code=payload["code"],
             provider_type=payload["provider_type"],
             provider_subject=payload["provider_subject"],
+        )
+        return jsonify(
+            {
+                "account_id": redeemed.account_id,
+                "continuation": redeemed.continuation,
+            }
+        )
+
+    @blueprint.post("/code/complete")
+    def complete_claim_code():
+        payload = request.get_json(silent=True) or {}
+        redeemed = identity_service.complete_web_claim_from_browser(
+            code=payload["code"],
+            browser_session=payload["browser_session"],
         )
         return jsonify(
             {
@@ -2223,6 +2528,10 @@ Before handoff, confirm each item:
 - [ ] First guidance stamping is idempotent.
 - [ ] `login_url`, `claim_code`, `pairing_code`, `email_verification`, and `password_reset` artifacts are one-time, time-limited, single-use, and wrong-type failures are closed.
 - [ ] `claim_code` target account is resolved from `channel_identity` at redemption, not issuance.
+- [ ] Channel-side `claim_code` redemption never returns a web session token; only the original browser session can complete the claim and receive the authenticated web session.
+- [ ] Wrong-browser, unknown-sender, expired, consumed, and wrong-type claim artifacts fail closed with `IdentityAccessError`.
+- [ ] `pairing_code` issuance is allowed only for `web_first` accounts.
 - [ ] `pairing_code` binds the sender identity to the issuing web-first account instead of auto-provisioning.
+- [ ] Auth and claim route adapters map `IdentityAccessError` to JSON error facts and do not render prose.
 - [ ] Channel identity anchor protection is exposed for ChannelReachability and no `channel`, `delivery_route`, or `delivery_attempt` lifecycle behavior is implemented.
 - [ ] `zsh scripts/verify-surface clean-rebuild-backend`, `zsh scripts/check`, and `git diff --check` passed with fresh output.
