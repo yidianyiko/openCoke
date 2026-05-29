@@ -30,7 +30,7 @@ In scope:
 - Known provider identity resolution without duplicate accounts.
 - Pairing-code binding of a first-seen provider identity to an existing web-first account.
 - Fail-closed access gate for inbound turns and gated web actions.
-- Pairing-code issuance gated by `check_access_for_action(account_id, "connect_channel")`.
+- Pairing-code issuance and redemption gated by `check_access_for_action(account_id, "connect_channel")`.
 - `AccessDeniedTurn` structured facts with denial reasons `email_verification_required`, `subscription_inactive`, and `suspended`.
 - Activation projection fields: `first_inbound_received_at`, `activation_completed_at`, `first_guidance_sent_at`.
 - Auth artifact domain contract for `login_url`, `claim_code`, `pairing_code`, `email_verification`, and `password_reset`.
@@ -276,6 +276,78 @@ def test_pairing_code_issuance_requires_allowed_channel_connection_access(
         "denial_reason": reason,
         "checkout_url": None,
     }
+
+
+@pytest.mark.parametrize(
+    ("email_state", "subscription_state", "suspension_state", "reason"),
+    [
+        ("required", "active", "active", "email_verification_required"),
+        ("verified", "inactive", "active", "subscription_inactive"),
+        ("verified", "active", "suspended", "suspended"),
+    ],
+)
+def test_pairing_code_redemption_requires_allowed_channel_connection_access_before_consuming_artifact(
+    identity_service,
+    email_state,
+    subscription_state,
+    suspension_state,
+    reason,
+):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password_hash="hash_1",
+    )
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = identity_service.issue_pairing_code(account_id=registered.account.id)
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state=email_state,
+        subscription_state=subscription_state,
+        suspension_state=suspension_state,
+    )
+
+    with pytest.raises(IdentityAccessError, match="access_denied") as exc_info:
+        identity_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="whatsapp:+15555550123",
+            pairing_code=pairing.code,
+        )
+
+    assert exc_info.value.fact == {
+        "type": "account_access_denied",
+        "account_id": registered.account.id,
+        "denial_reason": reason,
+        "checkout_url": None,
+    }
+    assert (
+        identity_service.repository.get_channel_identity_by_provider(
+            "whatsapp_evolution",
+            "whatsapp:+15555550123",
+        )
+        is None
+    )
+    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is None
+
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    resolved = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+        pairing_code=pairing.code,
+    )
+
+    assert resolved.account.id == registered.account.id
+    assert resolved.channel_identity.account_id == registered.account.id
+    assert identity_service.repository.get_artifact_by_code(pairing.code).consumed_at is not None
 
 
 def test_pairing_code_is_single_use(identity_service):
@@ -1314,10 +1386,17 @@ class IdentityAccessService:
             )
 
         if pairing_code is not None:
-            artifact = self._consume_artifact(pairing_code, expected_type=ArtifactType.PAIRING_CODE)
+            artifact = self._require_unconsumed_artifact(pairing_code, expected_type=ArtifactType.PAIRING_CODE)
             if artifact.account_id is None:
                 raise IdentityAccessError("artifact_missing_account")
             account = self._require_account(artifact.account_id)
+            access_decision = self.check_access_for_action(
+                account_id=account.id,
+                action="connect_channel",
+            )
+            if not access_decision.allowed:
+                raise IdentityAccessError("access_denied", fact=access_decision.fact)
+            self._consume_artifact(pairing_code, expected_type=ArtifactType.PAIRING_CODE)
             identity = self._create_channel_identity(
                 account_id=account.id,
                 provider_type=provider_type,
@@ -1677,7 +1756,7 @@ class IdentityAccessService:
         self.repository.add_artifact(artifact)
         return ArtifactIssueResult(artifact=artifact, code=artifact.code)
 
-    def _consume_artifact(self, code: str, expected_type: str) -> AuthArtifact:
+    def _require_unconsumed_artifact(self, code: str, expected_type: str) -> AuthArtifact:
         artifact = self.repository.get_artifact_by_code(code)
         if artifact is None:
             raise IdentityAccessError("artifact_not_found")
@@ -1687,6 +1766,10 @@ class IdentityAccessService:
             raise IdentityAccessError("artifact_consumed")
         if artifact.expires_at <= self._now():
             raise IdentityAccessError("artifact_expired")
+        return artifact
+
+    def _consume_artifact(self, code: str, expected_type: str) -> AuthArtifact:
+        artifact = self._require_unconsumed_artifact(code, expected_type)
         consumed = replace(
             artifact,
             consumed_at=self._now(),
@@ -1981,6 +2064,19 @@ class AccessDeniedService(FakeService):
         )
 
 
+class PairingRedemptionAccessDeniedService(FakeService):
+    def resolve_or_create_channel_identity(self, provider_type, provider_subject, pairing_code=None):
+        raise IdentityAccessError(
+            "access_denied",
+            fact={
+                "type": "account_access_denied",
+                "account_id": "acct_1",
+                "denial_reason": "subscription_inactive",
+                "checkout_url": None,
+            },
+        )
+
+
 def make_client(service=None):
     service = service or FakeService()
     app = Flask(__name__)
@@ -2215,6 +2311,32 @@ def test_pairing_code_issue_route_returns_access_denied_fact():
                 "type": "account_access_denied",
                 "account_id": "acct_1",
                 "denial_reason": "email_verification_required",
+                "checkout_url": None,
+            },
+        }
+    }
+
+
+def test_pairing_code_redeem_route_returns_access_denied_fact():
+    client, _service = make_client(PairingRedemptionAccessDeniedService())
+
+    response = client.post(
+        "/api/claim/pairing-code/redeem",
+        json={
+            "pairing_code": "pairing_code",
+            "provider_type": "whatsapp_evolution",
+            "provider_subject": "whatsapp:+15555550123",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "access_denied",
+            "fact": {
+                "type": "account_access_denied",
+                "account_id": "acct_1",
+                "denial_reason": "subscription_inactive",
                 "checkout_url": None,
             },
         }
@@ -2650,6 +2772,7 @@ Before handoff, confirm each item:
 - [ ] Wrong-browser, unknown-sender, expired, consumed, and wrong-type claim artifacts fail closed with `IdentityAccessError`.
 - [ ] `pairing_code` issuance is allowed only for `web_first` accounts.
 - [ ] `pairing_code` issuance calls `check_access_for_action(account_id, "connect_channel")` and fails closed with an access-denied fact when email verification, subscription, or suspension blocks channel connection.
+- [ ] `pairing_code` redemption validates the artifact without consuming it, calls `check_access_for_action(account_id, "connect_channel")`, and fails closed before `channel_identity` creation when access is denied.
 - [ ] `pairing_code` binds the sender identity to the issuing web-first account instead of auto-provisioning.
 - [ ] Auth and claim route adapters map `IdentityAccessError` to JSON error facts and do not render prose.
 - [ ] Channel identity anchor protection is exposed for ChannelReachability and no `channel`, `delivery_route`, or `delivery_attempt` lifecycle behavior is implemented.
