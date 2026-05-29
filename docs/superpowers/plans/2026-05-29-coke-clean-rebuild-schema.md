@@ -4,7 +4,7 @@
 
 **Goal:** Create the first clean Postgres schema contract for the Coke rebuild, with SQLAlchemy Core metadata, Alembic bootstrap migration, and tests that pin the product invariants before domain code exists.
 
-**Architecture:** This slice is schema-only. `coke.schema.metadata` is the single metadata source for tests and Alembic, the first Alembic revision creates the clean rebuild tables and indexes for a fresh Postgres database, and Redis remains coordination-only because durable async state is recorded in the shared Postgres `outbox` table.
+**Architecture:** This slice is schema-only. `coke.schema.metadata` is the current schema source for tests and Alembic autogenerate configuration, while the first Alembic revision is a frozen historical script with explicit operations so later edits to `coke/schema.py` cannot change already-authored migration behavior. Redis remains coordination-only because durable async state is recorded in the shared Postgres `outbox` table.
 
 **Tech Stack:** Python 3.12, SQLAlchemy 2.x Core, Alembic, Postgres dialect features including JSONB and partial unique indexes, pytest.
 
@@ -40,7 +40,7 @@ Out of scope:
 
 - Create `alembic.ini`: Alembic CLI configuration that points at `migrations`, uses `DATABASE_URL` through `migrations/env.py`, and supports offline SQL.
 - Create `migrations/env.py`: Alembic environment that imports `coke.schema.metadata` as `target_metadata`, configures online migrations from `DATABASE_URL`, and configures offline SQL generation from the same URL.
-- Create `migrations/versions/20260529_0001_clean_rebuild_schema.py`: deterministic initial revision with revision id `20260529_0001`, no `down_revision`, and upgrade/downgrade commands for the clean schema.
+- Create `migrations/versions/20260529_0001_clean_rebuild_schema.py`: deterministic initial revision with revision id `20260529_0001`, no `down_revision`, explicit `op.create_table`, `op.create_index`, `op.drop_index`, and `op.drop_table` calls for the clean schema, and no imports from `coke.schema`.
 - Create `coke/schema.py`: SQLAlchemy Core metadata, table declarations, naming convention, unique constraints, partial unique indexes, and helper functions only.
 - Create `tests/unit/coke/test_clean_schema_contract.py`: schema and migration contract tests.
 
@@ -80,6 +80,7 @@ Create `tests/unit/coke/test_clean_schema_contract.py` with exactly this content
 from __future__ import annotations
 
 import ast
+import importlib
 import os
 from pathlib import Path
 import subprocess
@@ -141,9 +142,8 @@ LEGACY_TABLES = {
 
 
 def _metadata():
-    from coke.schema import metadata
-
-    return metadata
+    schema = importlib.import_module("coke.schema")
+    return schema.metadata
 
 
 def _constraint_columns(table_name: str, constraint_name: str) -> tuple[str, ...]:
@@ -235,6 +235,30 @@ def test_required_partial_unique_indexes_are_declared_for_postgres():
         "duration_minutes",
     )
     assert _compiled_pg_where(shared_index) == "shared_reminder.status = 'active'"
+
+    timed_reminder_index = _index("reminder", "uq_reminder_active_timed_duplicate")
+    assert timed_reminder_index.unique is True
+    assert tuple(column.name for column in timed_reminder_index.columns) == (
+        "owner_account_id",
+        "content_hash",
+        "next_fire_at",
+    )
+    assert _compiled_pg_where(timed_reminder_index) == (
+        "reminder.lifecycle = 'active' AND reminder.next_fire_at IS NOT NULL"
+    )
+
+    no_trigger_reminder_index = _index(
+        "reminder",
+        "uq_reminder_active_no_trigger_duplicate",
+    )
+    assert no_trigger_reminder_index.unique is True
+    assert tuple(column.name for column in no_trigger_reminder_index.columns) == (
+        "owner_account_id",
+        "content_hash",
+    )
+    assert _compiled_pg_where(no_trigger_reminder_index) == (
+        "reminder.lifecycle = 'active' AND reminder.next_fire_at IS NULL"
+    )
 
 
 @pytest.mark.parametrize(
@@ -477,8 +501,13 @@ def test_schema_module_has_no_legacy_or_mongo_imports():
 
 def test_alembic_env_uses_schema_metadata_and_offline_generation():
     source = ENV_PATH.read_text()
+    tree = ast.parse(source)
+    imported_metadata = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "coke.schema":
+            imported_metadata = any(alias.name == "metadata" for alias in node.names)
 
-    assert "from coke.schema import metadata" in source
+    assert imported_metadata is True
     assert "target_metadata = metadata" in source
     assert "def run_migrations_offline()" in source
     assert "literal_binds=True" in source
@@ -486,11 +515,29 @@ def test_alembic_env_uses_schema_metadata_and_offline_generation():
 
 def test_initial_revision_has_deterministic_identity_and_reverse_drop():
     source = REVISION_PATH.read_text()
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".")[0])
 
     assert 'revision = "20260529_0001"' in source
     assert "down_revision = None" in source
-    assert "metadata.create_all" in source
-    assert "metadata.drop_all" in source
+    assert "coke" not in imported_roots
+    assert ".".join(["metadata", "create_all"]) not in source
+    assert ".".join(["metadata", "drop_all"]) not in source
+    assert source.count("op.create_table(") == len(EXPECTED_TABLES)
+    assert source.count("op.create_index(") == 5
+    assert '"account",' in source
+    assert '"calendar_import_item",' in source
+    assert '"uq_channel_one_active_per_account",' in source
+    assert '"uq_reminder_active_timed_duplicate",' in source
+    assert '"uq_reminder_active_no_trigger_duplicate",' in source
+    assert 'op.drop_index("uq_reminder_active_no_trigger_duplicate"' in source
+    assert 'op.drop_index("uq_reminder_active_timed_duplicate"' in source
+    assert 'op.drop_table("account")' in source
 
 
 def test_offline_sql_contains_clean_tables_and_partial_unique_index():
@@ -509,6 +556,8 @@ def test_offline_sql_contains_clean_tables_and_partial_unique_index():
     assert result.returncode == 0, result.stderr
     assert "CREATE TABLE account" in result.stdout
     assert "uq_channel_one_active_per_account" in result.stdout
+    assert "uq_reminder_active_timed_duplicate" in result.stdout
+    assert "uq_reminder_active_no_trigger_duplicate" in result.stdout
     assert "WHERE lifecycle = 'active'" in result.stdout
 ```
 
@@ -1065,6 +1114,27 @@ calendar_import_item = Table(
 )
 
 Index(
+    "uq_reminder_active_timed_duplicate",
+    reminder.c.owner_account_id,
+    reminder.c.content_hash,
+    reminder.c.next_fire_at,
+    unique=True,
+    postgresql_where=(
+        (reminder.c.lifecycle == "active")
+        & reminder.c.next_fire_at.is_not(None)
+    ),
+)
+Index(
+    "uq_reminder_active_no_trigger_duplicate",
+    reminder.c.owner_account_id,
+    reminder.c.content_hash,
+    unique=True,
+    postgresql_where=(
+        (reminder.c.lifecycle == "active")
+        & reminder.c.next_fire_at.is_(None)
+    ),
+)
+Index(
     "uq_channel_one_active_per_account",
     channel.c.account_id,
     unique=True,
@@ -1252,8 +1322,8 @@ Create `migrations/versions/20260529_0001_clean_rebuild_schema.py` with exactly 
 from __future__ import annotations
 
 from alembic import op
-
-from coke.schema import metadata
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision = "20260529_0001"
@@ -1262,17 +1332,487 @@ branch_labels = None
 depends_on = None
 
 
+def _id_column() -> sa.Column:
+    return sa.Column("id", postgresql.UUID(as_uuid=False), primary_key=True)
+
+
+def _created_at() -> sa.Column:
+    return sa.Column("created_at", sa.DateTime(timezone=True), nullable=False)
+
+
+def _updated_at() -> sa.Column:
+    return sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False)
+
+
 def upgrade() -> None:
-    bind = op.get_bind()
-    metadata.create_all(bind=bind, checkfirst=False)
+    op.create_table(
+        "account",
+        _id_column(),
+        sa.Column("origin", sa.String(length=32), nullable=False),
+        sa.Column("default_timezone", sa.String(length=64), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.CheckConstraint("origin in ('web_first', 'messaging_first')", name="ck_account_account_origin"),
+        sa.CheckConstraint("lifecycle in ('active', 'disabled')", name="ck_account_account_lifecycle"),
+    )
+    op.create_table(
+        "agent_settings",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("assistant_name", sa.String(length=128), nullable=False),
+        sa.Column("user_address_name", sa.String(length=128), nullable=True),
+        sa.Column("persona", sa.Text(), nullable=True),
+        sa.Column("background", sa.Text(), nullable=True),
+        sa.Column("speaking_style", sa.Text(), nullable=True),
+        sa.Column("extra_rules", sa.Text(), nullable=True),
+        sa.Column("proactive_enabled", sa.Boolean(), nullable=False),
+        sa.Column("memory_enabled", sa.Boolean(), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("account_id", name="uq_agent_settings_account"),
+    )
+    op.create_table(
+        "user_profile",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("real_name", sa.String(length=160), nullable=True),
+        sa.Column("nickname", sa.String(length=160), nullable=True),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("relationship_description", sa.Text(), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("account_id", name="uq_user_profile_account"),
+    )
+    op.create_table(
+        "account_activation",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("first_inbound_received_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("activation_completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("first_guidance_sent_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("account_id", name="uq_account_activation_account"),
+    )
+    op.create_table(
+        "account_access",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("email_verification_state", sa.String(length=32), nullable=False),
+        sa.Column("subscription_state", sa.String(length=32), nullable=False),
+        sa.Column("suspension_state", sa.String(length=32), nullable=False),
+        sa.Column("access_allowed", sa.Boolean(), nullable=False),
+        sa.Column("denial_reason", sa.String(length=160), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("account_id", name="uq_account_access_account"),
+    )
+    op.create_table(
+        "credential",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("email", sa.String(length=320), nullable=False),
+        sa.Column("password_hash", sa.String(length=255), nullable=False),
+        sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("reset_required", sa.Boolean(), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("account_id", name="uq_credential_account"),
+        sa.UniqueConstraint("email", name="uq_credential_email"),
+    )
+    op.create_table(
+        "session",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("token_hash", sa.String(length=255), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("token_hash", name="uq_session_token_hash"),
+    )
+    op.create_table(
+        "channel_identity",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("provider_type", sa.String(length=64), nullable=False),
+        sa.Column("provider_subject", sa.String(length=255), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        sa.Column("is_account_anchor", sa.Boolean(), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("provider_type", "provider_subject", name="uq_channel_identity_provider_subject"),
+    )
+    op.create_table(
+        "auth_artifact",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=True),
+        sa.Column("target_account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=True),
+        sa.Column("type", sa.String(length=64), nullable=False),
+        sa.Column("purpose", sa.String(length=128), nullable=False),
+        sa.Column("delivery", sa.String(length=64), nullable=False),
+        sa.Column("token_hash", sa.String(length=255), nullable=False),
+        sa.Column("browser_session", sa.String(length=255), nullable=True),
+        sa.Column("continuation", postgresql.JSONB(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("consumed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("delivery_state", sa.String(length=64), nullable=False),
+        sa.Column("resend_count", sa.Integer(), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("token_hash", name="uq_auth_artifact_token_hash"),
+    )
+    op.create_table(
+        "channel",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("channel_identity_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("channel_identity.id"), nullable=False),
+        sa.Column("provider_type", sa.String(length=64), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        sa.Column("connection_state", sa.String(length=64), nullable=False),
+        sa.Column("removable", sa.Boolean(), nullable=False),
+        sa.Column("connected_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("removed_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+    )
+    op.create_table(
+        "delivery_route",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("channel_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("channel.id"), nullable=False),
+        sa.Column("provider_type", sa.String(length=64), nullable=False),
+        sa.Column("provider_address", sa.String(length=255), nullable=False),
+        sa.Column("route_key", sa.String(length=255), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("route_key", name="uq_delivery_route_route_key"),
+    )
+    op.create_table(
+        "conversation",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("latest_inbound_seq", sa.BigInteger(), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("account_id", name="uq_conversation_account"),
+    )
+    op.create_table(
+        "turn",
+        _id_column(),
+        sa.Column("conversation_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("conversation.id"), nullable=False),
+        sa.Column("trigger_id", sa.String(length=255), nullable=False),
+        sa.Column("trigger_type", sa.String(length=64), nullable=False),
+        sa.Column("mode", sa.String(length=32), nullable=False),
+        sa.Column("based_on_inbound_seq", sa.BigInteger(), nullable=True),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("trigger_id", name="uq_turn_trigger_id"),
+    )
+    op.create_table(
+        "message",
+        _id_column(),
+        sa.Column("conversation_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("conversation.id"), nullable=False),
+        sa.Column("turn_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("turn.id"), nullable=True),
+        sa.Column("direction", sa.String(length=32), nullable=False),
+        sa.Column("segment_index", sa.Integer(), nullable=True),
+        sa.Column("seq", sa.BigInteger(), nullable=True),
+        sa.Column("channel_identity_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("channel_identity.id"), nullable=True),
+        sa.Column("causal_inbound_event_id", sa.String(length=255), nullable=True),
+        sa.Column("text", sa.Text(), nullable=True),
+        sa.Column("payload", postgresql.JSONB(), nullable=False),
+        sa.Column("facts_hash", sa.String(length=128), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("turn_id", "segment_index", name="uq_message_turn_segment"),
+    )
+    op.create_table(
+        "inbound_media",
+        _id_column(),
+        sa.Column("message_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("message.id"), nullable=False),
+        sa.Column("media_type", sa.String(length=64), nullable=False),
+        sa.Column("storage_uri", sa.Text(), nullable=False),
+        sa.Column("processing_status", sa.String(length=64), nullable=False),
+        sa.Column("agent_reference", postgresql.JSONB(), nullable=False),
+        _created_at(),
+        _updated_at(),
+    )
+    op.create_table(
+        "output_disposition",
+        _id_column(),
+        sa.Column("turn_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("turn.id"), nullable=False),
+        sa.Column("disposition", sa.String(length=64), nullable=False),
+        sa.Column("reason_code", sa.String(length=160), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("turn_id", name="uq_output_disposition_turn"),
+    )
+    op.create_table(
+        "outbox",
+        _id_column(),
+        sa.Column("topic", sa.String(length=128), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column("payload", postgresql.JSONB(), nullable=False),
+        sa.Column("traceparent", sa.String(length=55), nullable=False),
+        sa.Column("status", sa.String(length=32), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("acked_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("retry_count", sa.Integer(), nullable=False),
+        sa.Column("last_error", sa.Text(), nullable=True),
+        sa.UniqueConstraint("idempotency_key", name="uq_outbox_idempotency_key"),
+    )
+    op.create_table(
+        "delivery_attempt",
+        _id_column(),
+        sa.Column("route_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("delivery_route.id"), nullable=False),
+        sa.Column("turn_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("turn.id"), nullable=True),
+        sa.Column("message_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("message.id"), nullable=True),
+        sa.Column("provider_type", sa.String(length=64), nullable=False),
+        sa.Column("provider_message_id", sa.String(length=255), nullable=True),
+        sa.Column("provider_idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column("status", sa.String(length=32), nullable=False),
+        sa.Column("error_code", sa.String(length=160), nullable=True),
+        sa.Column("attempted_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("provider_type", "provider_idempotency_key", name="uq_delivery_attempt_provider_idempotency"),
+    )
+    op.create_table(
+        "friend_link",
+        _id_column(),
+        sa.Column("owner_account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("token_hash", sa.String(length=255), nullable=False),
+        sa.Column("link_code_hash", sa.String(length=255), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        sa.Column("reset_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("disabled_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("token_hash", name="uq_friend_link_token_hash"),
+        sa.UniqueConstraint("link_code_hash", name="uq_friend_link_code_hash"),
+    )
+    op.create_table(
+        "friendship",
+        _id_column(),
+        sa.Column("account_low_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("account_high_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        sa.Column("established_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("removed_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+        sa.CheckConstraint("account_low_id <> account_high_id", name="ck_friendship_friendship_not_self"),
+    )
+    op.create_table(
+        "shared_reminder",
+        _id_column(),
+        sa.Column("creator_account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("participant_set_hash", sa.String(length=128), nullable=False),
+        sa.Column("title", sa.Text(), nullable=False),
+        sa.Column("title_hash", sa.String(length=128), nullable=False),
+        sa.Column("local_trigger_at", sa.DateTime(timezone=False), nullable=False),
+        sa.Column("captured_timezone", sa.String(length=64), nullable=False),
+        sa.Column("duration_minutes", sa.Integer(), nullable=False),
+        sa.Column("status", sa.String(length=32), nullable=False),
+        sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+    )
+    op.create_table(
+        "reminder",
+        _id_column(),
+        sa.Column("owner_account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("content", sa.Text(), nullable=False),
+        sa.Column("content_hash", sa.String(length=128), nullable=False),
+        sa.Column("kind", sa.String(length=64), nullable=False),
+        sa.Column("next_fire_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("recurrence_rule", postgresql.JSONB(), nullable=False),
+        sa.Column("captured_timezone", sa.String(length=64), nullable=False),
+        sa.Column("duration_minutes", sa.Integer(), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        sa.Column("hidden_from_calendar", sa.Boolean(), nullable=False),
+        sa.Column("shared_reminder_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("shared_reminder.id"), nullable=True),
+        _created_at(),
+        _updated_at(),
+    )
+    op.create_table(
+        "reminder_fire",
+        _id_column(),
+        sa.Column("reminder_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("reminder.id"), nullable=False),
+        sa.Column("occurrence_key", sa.String(length=255), nullable=False),
+        sa.Column("due_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("fire_state", sa.String(length=64), nullable=False),
+        sa.Column("delivery_result", sa.String(length=64), nullable=True),
+        sa.Column("handled_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("missed_catch_up", sa.Boolean(), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("reminder_id", "occurrence_key", name="uq_reminder_fire_occurrence"),
+    )
+    op.create_table(
+        "reminder_projection",
+        _id_column(),
+        sa.Column("shared_reminder_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("shared_reminder.id"), nullable=False),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("reminder_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("reminder.id"), nullable=False),
+        sa.Column("lifecycle", sa.String(length=32), nullable=False),
+        sa.Column("completion_status", sa.String(length=64), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("shared_reminder_id", "account_id", name="uq_reminder_projection_participant"),
+    )
+    op.create_table(
+        "notification_fact",
+        _id_column(),
+        sa.Column("type", sa.String(length=64), nullable=False),
+        sa.Column("actor_account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=True),
+        sa.Column("object_type", sa.String(length=64), nullable=False),
+        sa.Column("object_id", postgresql.UUID(as_uuid=False), nullable=False),
+        sa.Column("status", sa.String(length=64), nullable=False),
+        sa.Column("facts", postgresql.JSONB(), nullable=False),
+        sa.Column("facts_hash", sa.String(length=128), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column("outbox_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("outbox.id"), nullable=False),
+        _created_at(),
+        sa.UniqueConstraint("idempotency_key", name="uq_notification_fact_idempotency"),
+    )
+    op.create_table(
+        "notification_recipient",
+        _id_column(),
+        sa.Column("notification_fact_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("notification_fact.id"), nullable=False),
+        sa.Column("recipient_account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("turn_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("turn.id"), nullable=True),
+        sa.Column("delivery_state", sa.String(length=64), nullable=False),
+        sa.Column("error_facts", postgresql.JSONB(), nullable=False),
+        _created_at(),
+        _updated_at(),
+        sa.UniqueConstraint("notification_fact_id", "recipient_account_id", name="uq_notification_recipient_fact_account"),
+    )
+    op.create_table(
+        "calendar_import_run",
+        _id_column(),
+        sa.Column("account_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("account.id"), nullable=False),
+        sa.Column("provider_type", sa.String(length=64), nullable=False),
+        sa.Column("provider_account_id", sa.String(length=255), nullable=True),
+        sa.Column("auth_artifact_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("auth_artifact.id"), nullable=True),
+        sa.Column("status", sa.String(length=64), nullable=False),
+        sa.Column("imported_count", sa.Integer(), nullable=False),
+        sa.Column("skipped_count", sa.Integer(), nullable=False),
+        sa.Column("downgraded_count", sa.Integer(), nullable=False),
+        sa.Column("failed_count", sa.Integer(), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        _created_at(),
+        _updated_at(),
+    )
+    op.create_table(
+        "calendar_import_item",
+        _id_column(),
+        sa.Column("run_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("calendar_import_run.id"), nullable=False),
+        sa.Column("provider_calendar_id", sa.String(length=255), nullable=False),
+        sa.Column("source_event_id", sa.String(length=255), nullable=False),
+        sa.Column("recurrence_instance_key", sa.String(length=255), nullable=False),
+        sa.Column("status", sa.String(length=64), nullable=False),
+        sa.Column("reason", sa.Text(), nullable=True),
+        sa.Column("source_metadata", postgresql.JSONB(), nullable=False),
+        sa.Column("reminder_id", postgresql.UUID(as_uuid=False), sa.ForeignKey("reminder.id"), nullable=True),
+        _created_at(),
+        sa.UniqueConstraint(
+            "provider_calendar_id",
+            "source_event_id",
+            "recurrence_instance_key",
+            name="uq_calendar_import_item_source_occurrence",
+        ),
+    )
+    op.create_index(
+        "uq_channel_one_active_per_account",
+        "channel",
+        ["account_id"],
+        unique=True,
+        postgresql_where=sa.text("lifecycle = 'active'"),
+    )
+    op.create_index(
+        "uq_friendship_one_active_pair",
+        "friendship",
+        ["account_low_id", "account_high_id"],
+        unique=True,
+        postgresql_where=sa.text("lifecycle = 'active'"),
+    )
+    op.create_index(
+        "uq_shared_reminder_active_duplicate",
+        "shared_reminder",
+        [
+            "creator_account_id",
+            "participant_set_hash",
+            "title_hash",
+            "local_trigger_at",
+            "captured_timezone",
+            "duration_minutes",
+        ],
+        unique=True,
+        postgresql_where=sa.text("status = 'active'"),
+    )
+    op.create_index(
+        "uq_reminder_active_timed_duplicate",
+        "reminder",
+        ["owner_account_id", "content_hash", "next_fire_at"],
+        unique=True,
+        postgresql_where=sa.text("lifecycle = 'active' AND next_fire_at IS NOT NULL"),
+    )
+    op.create_index(
+        "uq_reminder_active_no_trigger_duplicate",
+        "reminder",
+        ["owner_account_id", "content_hash"],
+        unique=True,
+        postgresql_where=sa.text("lifecycle = 'active' AND next_fire_at IS NULL"),
+    )
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    metadata.drop_all(bind=bind, checkfirst=False)
+    op.drop_index("uq_reminder_active_no_trigger_duplicate", table_name="reminder")
+    op.drop_index("uq_reminder_active_timed_duplicate", table_name="reminder")
+    op.drop_index("uq_shared_reminder_active_duplicate", table_name="shared_reminder")
+    op.drop_index("uq_friendship_one_active_pair", table_name="friendship")
+    op.drop_index("uq_channel_one_active_per_account", table_name="channel")
+    op.drop_table("calendar_import_item")
+    op.drop_table("calendar_import_run")
+    op.drop_table("notification_recipient")
+    op.drop_table("notification_fact")
+    op.drop_table("reminder_projection")
+    op.drop_table("reminder_fire")
+    op.drop_table("reminder")
+    op.drop_table("shared_reminder")
+    op.drop_table("friendship")
+    op.drop_table("friend_link")
+    op.drop_table("delivery_attempt")
+    op.drop_table("outbox")
+    op.drop_table("output_disposition")
+    op.drop_table("inbound_media")
+    op.drop_table("message")
+    op.drop_table("turn")
+    op.drop_table("conversation")
+    op.drop_table("delivery_route")
+    op.drop_table("channel")
+    op.drop_table("auth_artifact")
+    op.drop_table("channel_identity")
+    op.drop_table("session")
+    op.drop_table("credential")
+    op.drop_table("account_access")
+    op.drop_table("account_activation")
+    op.drop_table("user_profile")
+    op.drop_table("agent_settings")
+    op.drop_table("account")
 ```
 
-This initial revision is for a fresh clean-rebuild database only. Future schema edits must add new revision files instead of changing this revision after it has been executed outside a disposable development database.
+This initial revision is for a fresh clean-rebuild database only. It must stay a frozen historical migration and must not import `coke/schema.py`. Future schema edits must add new revision files instead of changing this revision after it has been executed outside a disposable development database.
 
 - [ ] **Step 5: Run the full schema contract test file**
 
@@ -1291,10 +1831,10 @@ Run:
 ```bash
 DATABASE_URL="postgresql+psycopg://coke:pass@localhost:5432/coke" \
   $python_cmd -m alembic upgrade head --sql > /tmp/coke-clean-schema.sql
-rg -n "CREATE TABLE account|uq_channel_one_active_per_account|WHERE lifecycle = 'active'" /tmp/coke-clean-schema.sql
+rg -n "CREATE TABLE account|uq_channel_one_active_per_account|uq_reminder_active_timed_duplicate|uq_reminder_active_no_trigger_duplicate|WHERE lifecycle = 'active'" /tmp/coke-clean-schema.sql
 ```
 
-Expected: the `rg` command prints lines for `CREATE TABLE account`, the partial unique index name `uq_channel_one_active_per_account`, and `WHERE lifecycle = 'active'`.
+Expected: the `rg` command prints lines for `CREATE TABLE account`, the partial unique index name `uq_channel_one_active_per_account`, the personal-reminder duplicate index names `uq_reminder_active_timed_duplicate` and `uq_reminder_active_no_trigger_duplicate`, and `WHERE lifecycle = 'active'`.
 
 ## Task 4: Run Slice Verification And Commit
 
@@ -1355,11 +1895,11 @@ Before handing off the executed schema slice, verify each item explicitly:
 
 - [ ] The metadata table set is exactly the clean target table set from the parent plan and specs.
 - [ ] Legacy table names `inputmessages`, `outputmessages`, `scheduled_actions`, `friend_requests`, and `shared_reminder_requests` are absent.
-- [ ] The partial unique indexes for active channel, active friendship pair, and active shared-reminder duplicate are present and compile for the Postgres dialect.
+- [ ] The partial unique indexes for active channel, active friendship pair, active shared-reminder duplicate, active timed personal-reminder duplicate, and active no-trigger-time personal-reminder duplicate are present and compile for the Postgres dialect.
 - [ ] Unique constraints for `channel_identity`, `turn.trigger_id`, `outbox.idempotency_key`, `message(turn_id, segment_index)`, `reminder_fire(reminder_id, occurrence_key)`, and `calendar_import_item(provider_calendar_id, source_event_id, recurrence_instance_key)` are present.
 - [ ] Lifecycle, status, timezone, idempotency, and delivery acknowledgement columns named in the specs are present.
 - [ ] The `outbox` table has durable Postgres relay and worker acknowledgement state through `published_at`, `processed_at`, `acked_at`, `status`, `retry_count`, and `last_error`.
 - [ ] `migrations/env.py` imports `coke.schema.metadata` as `target_metadata` and can emit offline SQL without connecting to Postgres.
-- [ ] The initial revision has `revision = "20260529_0001"` and `down_revision = None`.
+- [ ] The initial revision has `revision = "20260529_0001"` and `down_revision = None`, uses explicit Alembic operations, and imports no application schema module.
 - [ ] `coke/schema.py` imports only SQLAlchemy modules and does not import legacy runtime modules or Mongo libraries.
 - [ ] Verification commands passed, and the commit contains no domain services, repositories, routes, workers, provider adapters, scheduler code, web code, or compatibility code.
