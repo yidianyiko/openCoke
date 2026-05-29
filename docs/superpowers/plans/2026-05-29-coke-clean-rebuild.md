@@ -20,6 +20,21 @@
 
 **Hard Execution Rule:** Task 1 is documentation-only and must be completed, verified, and committed before any source-code implementation task starts. The repository documentation must describe the rebuild target first, so implementation agents do not optimize around stale Gateway/Bridge/Mongo assumptions.
 
+**Plan Package Rule:** This file is the master rebuild sequence. Task 1 is executable directly from this plan because it is the documentation gate. Before executing any code task from Task 2 onward, first write or review a focused child plan in `docs/superpowers/plans/` for that bounded slice, using the same source specs and current `main`. The expected child plans are:
+
+- `2026-05-29-coke-clean-rebuild-backend-foundation.md`
+- `2026-05-29-coke-clean-rebuild-schema.md`
+- `2026-05-29-coke-clean-rebuild-identity-access.md`
+- `2026-05-29-coke-clean-rebuild-channel-reachability.md`
+- `2026-05-29-coke-clean-rebuild-conversation-runtime.md`
+- `2026-05-29-coke-clean-rebuild-turn-runtime.md`
+- `2026-05-29-coke-clean-rebuild-reminder-domain.md`
+- `2026-05-29-coke-clean-rebuild-social-scheduling.md`
+- `2026-05-29-coke-clean-rebuild-calendar-import.md`
+- `2026-05-29-coke-clean-rebuild-web.md`
+- `2026-05-29-coke-clean-rebuild-legacy-deletion.md`
+- `2026-05-29-coke-clean-rebuild-e2e-closeout.md`
+
 ## File Structure
 
 ### Documentation Gate
@@ -112,8 +127,6 @@ rg -q "clean-rebuild" docs/fitness/surfaces.yaml docs/fitness/coke-verification-
 for forbidden in \
   "model-output repair" \
   "second model call" \
-  "pending friend request" \
-  "pending shared reminder" \
   "MongoDB remains the source of truth" \
   "Gateway API owns" \
   "ClawScale Bridge :8090"; do
@@ -122,6 +135,11 @@ for forbidden in \
     exit 1
   fi
 done
+
+if rg -n "pending (friend request|shared reminder).*(current product|active requirement|supported|workflow)" docs/ARCHITECTURE.md docs/product-specs/FEATURE_TREE.md docs/design-docs/interface-contract.md; then
+  echo "Pending approval workflows may be mentioned only as deleted or out of scope, never as current rebuild behavior." >&2
+  exit 1
+fi
 ```
 
 - [ ] **Step 2: Run the guardrail and verify it fails on stale docs**
@@ -229,8 +247,8 @@ clean-rebuild-backend:
 clean-rebuild-web:
   description: Thin Next.js client over the Python API.
   commands:
-    - cd gateway && pnpm --filter @clawscale/web test
-    - cd gateway && pnpm --filter @clawscale/web build
+    - cd gateway && pnpm --filter @coke/web test
+    - cd gateway && pnpm --filter @coke/web build
 ```
 
 - [ ] **Step 7: Verify docs gate**
@@ -419,9 +437,9 @@ Define one declarative metadata module for the clean schema. Include unique cons
 
 ```python
 ("channel_identity.provider_type", "channel_identity.provider_subject")
-("channel.account_id", "channel.active")
-("friendship.account_low_id", "friendship.account_high_id", "friendship.lifecycle")
-("shared_reminder.creator_account_id", "shared_reminder.participant_set_hash", "shared_reminder.title_hash", "shared_reminder.local_trigger_at", "shared_reminder.captured_timezone", "shared_reminder.duration_minutes", "shared_reminder.status")
+Index("uq_channel_one_active_per_account", channel.c.account_id, unique=True, postgresql_where=channel.c.lifecycle == "active")
+Index("uq_friendship_one_active_pair", friendship.c.account_low_id, friendship.c.account_high_id, unique=True, postgresql_where=friendship.c.lifecycle == "active")
+Index("uq_shared_reminder_active_duplicate", shared_reminder.c.creator_account_id, shared_reminder.c.participant_set_hash, shared_reminder.c.title_hash, shared_reminder.c.local_trigger_at, shared_reminder.c.captured_timezone, shared_reminder.c.duration_minutes, unique=True, postgresql_where=shared_reminder.c.status == "active")
 ("turn.trigger_id",)
 ("outbox.idempotency_key",)
 ("message.turn_id", "message.segment_index")
@@ -830,7 +848,7 @@ Replace `@clawscale/api` assumptions with a single Python API base URL and typed
 
 - [ ] **Step 3: De-brand package naming**
 
-Rename user-visible and package-level ClawScale labels that describe Coke product ownership. Keep provider names only where they identify a provider adapter.
+Rename user-visible and package-level ClawScale labels that describe Coke product ownership. Rename the web package from `@clawscale/web` to `@coke/web` so verification commands and future workspace imports use Coke ownership language. Keep provider names only where they identify a provider adapter.
 
 - [ ] **Step 4: Verify and commit**
 
@@ -838,8 +856,8 @@ Run:
 
 ```bash
 cd gateway
-pnpm --filter @clawscale/web test
-pnpm --filter @clawscale/web build
+pnpm --filter @coke/web test
+pnpm --filter @coke/web build
 ```
 
 Expected: web tests and build pass.
@@ -937,8 +955,8 @@ Run:
 .venv/bin/python -m pytest tests/unit/coke -v
 .venv/bin/python -m pytest tests/e2e/coke -v
 .venv/bin/python -m pytest tests/evals/test_clean_turn_runtime.py -v
-cd gateway && pnpm --filter @clawscale/web test
-cd gateway && pnpm --filter @clawscale/web build
+cd gateway && pnpm --filter @coke/web test
+cd gateway && pnpm --filter @coke/web build
 zsh scripts/check
 bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh
 ```
