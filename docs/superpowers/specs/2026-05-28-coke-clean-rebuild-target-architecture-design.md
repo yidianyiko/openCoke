@@ -12,7 +12,13 @@ round 1: split ChannelReachability from ConversationRuntime, promoted
 CalendarImport to a named module, made the runtime-owned waiting text an explicit
 typed exception, separated turn disposition from output-class-specific delivery
 state, framed Coke's orchestration contract as primary with Agno as substrate,
-and added an explicit ReferenceResolver)
+and added an explicit ReferenceResolver. Then architect-review round 2: Focus
+extended to grouped subject-sets, batch reminder-command contract, reminders
+target the owner account with fire-time route resolution, per-recipient
+notification delivery rows, occurrence-grain calendar dedupe, richer auth_artifact
+with deferred claim-code binding + handoff continuation, outbox-as-source-of-truth
+ack semantics, durable conversation sequence for stale-reply safety, no_reply
+reserved for intentional no-reply only, and the full required web surface list)
 Scope: whole-runtime target architecture for a destructive rebuild
 Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
 authoritative product-requirements / user-journey constraint. This document is
@@ -167,18 +173,24 @@ user reaches an authenticated web session. Realizes requirements §5.1, §5.13,
 | `credential` | Web-first only: email + password hash (+ forgot/reset). Messaging-first accounts have no credential; their only web auth path is a one-time claim. |
 | `session` | Web session / token. |
 | `channel_identity` | A provider-side identity (e.g. a WhatsApp sender address) mapped to exactly one `account`. For messaging-first accounts this is the **account anchor**; it is created atomically with the account on first contact and is non-removable while it is the account's only identity. |
-| `auth_artifact` | **Unified** one-time authentication artifact: `type ∈ {login_url, claim_code, pairing_code}`, `target_account`, `expires_at`, `consumed_at`. Single-use, time-limited, bound to exactly one account, never reusable for another account. |
+| `auth_artifact` | **Unified** one-time authentication artifact: `type ∈ {login_url, claim_code, pairing_code}`, `purpose`, `expires_at`, `consumed_at`. The account binding differs by type: `login_url` and `pairing_code` are bound to the issuing account at issuance; `claim_code` is issued from an **unauthenticated browser** with **no account yet** — it carries a `browser_session` binding and its `target_account` is **resolved at redemption** (the sender's `channel_identity` determines the account). An optional `continuation` payload (e.g. `friend_link_id`, `calendar_import_run_id`) preserves handoff context across the claim. One-time, time-limited; once redeemed it authenticates/binds exactly one account and is never reusable for another. |
 
 Identity rules (from §5.13): auto-provisioning applies **only** to shared
 WhatsApp; a first-seen sender identity provisions a new messaging-first account, a
 known sender continues as its existing account. The system never merges or
 unlinks accounts and never guesses identity from display name / profile
 similarity. Claiming is bidirectional and runs entirely on `auth_artifact`:
-chat-initiated `login_url` (assistant issues a one-time URL in conversation) and
-web-initiated `claim_code` (web page shows a code; user sends it to the channel).
-During a web-first user's channel-connection flow, an inbound carrying a valid
-`pairing_code` binds that `channel_identity` to the issuing account instead of
-auto-provisioning.
+- **Chat-initiated `login_url`** — the assistant issues a one-time URL in
+  conversation (account known from the conversation); opening it authenticates the
+  web session as that account.
+- **Web-initiated `claim_code`** — an unauthenticated web page (e.g. a friend link
+  or calendar import) issues a code bound to the browser session, account unknown;
+  when a messaging user sends the code, the sender's `channel_identity` resolves
+  the account and the browser session authenticates as that account, landing back
+  in the `continuation` context.
+- **`pairing_code`** — during a web-first user's channel-connection flow, an
+  inbound carrying a valid pairing code binds that `channel_identity` to the
+  issuing account instead of auto-provisioning.
 
 ### 3.2 Channel Reachability
 
@@ -202,10 +214,10 @@ and the conversation parts of §5.9.
 
 | Table | Purpose / invariant |
 |---|---|
-| `conversation` | The ongoing agent conversation for an account; stable identifier for ordering and locks. |
-| `message` | Inbound + outbound messages. Inbound: normalized payload, sender `channel_identity`, `causal_inbound_event_id`. Outbound: rendered text, 1–3 segments, link to disposition + (optional) `notification_id` + `facts_hash`. |
+| `conversation` | The ongoing agent conversation for an account; stable identifier for locks and ordering. Carries a **durable monotonic `latest_inbound_seq`** — the ordering invariant that makes stale-reply safety concrete, not just lock-implied. |
+| `message` | Inbound + outbound messages. Inbound: normalized payload, sender `channel_identity`, `causal_inbound_event_id`, and a per-conversation `seq`. Outbound: rendered text, 1–3 segments, link to disposition + (optional) `notification_id` + `facts_hash`. |
 | `inbound_media` | Multimodal inbound (image/voice/etc.) preserved as **processable input** — reference/blob only. No understanding model, no media generation, no media reply (§10). |
-| `turn` + `output_disposition` | One row per turn: trigger type, mode, timing, and exactly one **turn disposition** (`replied | no_reply | pending_async_reply | failed`) + small reason code. The audit spine of the runtime. Turn disposition is the turn outcome; per-target *delivery* state is output-class-specific (§4). |
+| `turn` + `output_disposition` | One row per turn: trigger type, mode, timing, the `based_on_inbound_seq` it acted on, and exactly one **turn disposition** (`replied | no_reply | pending_async_reply | failed`) + small reason code. The audit spine of the runtime. Turn disposition is the turn outcome; per-target *delivery* state is output-class-specific (§4). |
 | `outbox` | Single shared transactional outbox; any producer appends in the same transaction as its domain write (§5). Listed here as the runtime's durable event ledger; it is shared infrastructure, not owned business state. |
 
 ### 3.4 Reminder
@@ -215,12 +227,21 @@ in §5.3.
 
 | Table | Purpose / invariant |
 |---|---|
-| `reminder` | `owner`, `content`, `kind ∈ {timed, no_trigger_time, recurring, proactive, shared_projection}`, `next_fire_at` (nullable for no-trigger-time), recurrence rule, **`captured_timezone`** (pinned at create/last-edit; recurrence windows expand in this tz, see §8), `duration` (default 15 min), lifecycle (`active | completed | deleted | undelivered`), route target. `proactive` reminders are hidden from the calendar and user-immutable. `shared_projection` reminders link to a `shared_reminder` (§3.5). |
-| `reminder_fire` | Fire/replay evidence: compare-and-set on fire state (atomic, idempotent, replay-safe), per-reminder delivery result (`delivered | undelivered`), and a **missed/catch-up marker** for triggers the system missed while unavailable. This is the reminder-class delivery state layered on top of the turn disposition (§4). |
+| `reminder` | `owner`, `content`, `kind ∈ {timed, no_trigger_time, recurring, proactive, shared_projection}`, `next_fire_at` (nullable for no-trigger-time), recurrence rule, **`captured_timezone`** (pinned at create/last-edit; recurrence windows expand in this tz, see §8), `duration` (default 15 min), lifecycle (`active | completed | deleted | undelivered`). The durable delivery target is the **owner account**, never a captured route: the usable `delivery_route` is resolved at fire/resend time so a relink to a new channel is honored (§5.3/§5.8). `proactive` reminders are hidden from the calendar and user-immutable. `shared_projection` reminders link to a `shared_reminder` (§3.5). |
+| `reminder_fire` | Fire/replay evidence: compare-and-set on fire state (atomic, idempotent, replay-safe), per-reminder delivery result (`delivered | undelivered`), and a **missed/catch-up marker** for triggers the system missed while unavailable. This is the reminder-class delivery state layered on top of the turn disposition (§4). The route actually used is snapshotted on `delivery_attempt` (§3.2), not on the reminder. |
 
 Duplicate prevention is a unique constraint, not a heuristic: same owner + same
 content + same trigger time (or same owner + same content + both no-trigger-time)
 is rejected. Duration, entry point, and phrasing are not part of the key.
+
+One inbound message may carry several reminder operations (§5.8 batch). The domain
+exposes a **batch command contract**: each item is resolved (ReferenceResolver,
+§4) and committed independently, with its own result state, so partial success is
+the normal case — an ambiguous or failed item isolates to itself and never blocks
+clearly-resolved items. The Interaction Agent receives itemized result facts
+(succeeded / needs-follow-up / failed) and renders one confirmation that reflects
+the true per-item outcome; it never claims a batch fully succeeded when some items
+did not.
 
 ### 3.5 Social Scheduling
 
@@ -232,7 +253,8 @@ Owns: relationship-based scheduling. Realizes §5.6, §5.7, §5.9.
 | `friendship` | Unique active relationship per unordered pair; established directly (no pending request). Self-friendship forbidden. Establishment requires both sides authenticated/claimed **and** holding a usable channel. |
 | `shared_reminder` | Group reminder: creator + participant set, title, trigger time, `captured_timezone`, duration, status (`active | cancelled`). Uniqueness key: creator + participant set + title + local trigger time + timezone + duration (order-insensitive). |
 | `reminder_projection` | Per-participant projection (a `kind=shared_projection` `reminder` row). Completion affects only that participant's projection; cancellation by any participant stops all projections. |
-| `notification_fact` | Immutable structured facts + `facts_hash` + idempotency key + lifecycle + outbox evidence. **No `payload.text`** — final chat prose is never stored here (§5). |
+| `notification_fact` | Immutable structured facts + `facts_hash` + idempotency key + outbox evidence. **No `payload.text`** — final chat prose is never stored here (§5). One fact can fan out to many recipients (friendship pair, shared-reminder participants). |
+| `notification_recipient` | Per-recipient delivery row keyed by `notification_fact` + recipient account + render turn + delivery state, plus user-safe error facts. A multi-recipient notification can be `delivered` to some and `undelivered`/`failed` to others; partial failure is recorded here, not collapsed into one fact lifecycle. This is the notification-class delivery state layered on the turn disposition (§4). |
 
 Availability queries read each friend's personal + shared reminders and return
 **privacy-safe busy/free only**, never reminder details. Receiver conflict and
@@ -245,8 +267,13 @@ A first-class supporting module over Reminder, not a placeholder — its Google
 authorization handoff and dedupe rules are product-specific and need their own
 contract. Realizes §5.10; retained, one-time import. `calendar_import_run` records
 the Google auth handle and result counts (imported / skipped / downgraded /
-failed); a per-source-event dedup key makes repeated imports skip silently without
-user confirmation. Imported events become owner-scoped Coke `reminder` rows
+failed). Dedupe is at **occurrence grain**, not per-source-event: a
+`calendar_import_item` keyed by (provider calendar id, source event id,
+recurrence-instance / original start) links each imported reminder, so a recurring
+event downgraded into several one-time future occurrences neither double-imports
+nor over-skips on repeat, and downgraded items are reported from those rows.
+Repeated imports skip already-present items silently without user confirmation.
+Imported events become owner-scoped Coke `reminder` rows
 (title+description → content, start → trigger, duration → duration with 15-min
 default, all-day → 00:00, recurring → recurring reminder, or downgraded to
 one-time future occurrences with an explained result). Historical events are not
@@ -267,8 +294,8 @@ product context (§11).
 | Channel, delivery route, delivery attempts | **Postgres** |
 | Conversation, message, inbound media, turn/disposition | **Postgres** |
 | Reminder runtime (reminders + fire/replay evidence) | **Postgres** |
-| Social Scheduling (links, friendships, shared reminders, projections, notification facts) | **Postgres** |
-| Calendar import runs | **Postgres** |
+| Social Scheduling (links, friendships, shared reminders, projections, notification facts + per-recipient rows) | **Postgres** |
+| Calendar import runs + per-occurrence import items | **Postgres** |
 | Agno session/history/memory/knowledge | **Postgres** + pgvector |
 | Single transactional outbox | **Postgres** |
 | Work-wake queue | **Redis Streams** |
@@ -319,23 +346,31 @@ The interactive-mode stack, in order:
   no-reply, the runtime records `no_reply` and **skips the expensive Interaction
   Agent entirely**. This keeps intentional no-reply cheap and separately
   evaluable, and keeps it distinguishable from empty-output failure.
-- **Focus** — resolve the single optional pointer to the current actionable
-  product object (e.g. the reminder just fired), supporting post-reminder replies
-  like "done" / "change it to tomorrow". No multi-candidate state, no pending
-  accept/reject.
-- **ReferenceResolver** — resolve a user reference to a concrete target before any
-  action. Deleting `multi_candidate` focus state (§15) does not delete the need to
-  disambiguate: duplicate friend names (§5.6), ambiguous shared-reminder
-  cancellation (§5.7), and multi-operation or ambiguous reminder matching (§5.8)
-  all require clarification. The rule is uniform: resolve a reference to exactly
-  one active target; on zero or multiple candidates, ask a clarifying follow-up and
-  **mutate nothing** until the user confirms. This is distinct from Focus (the
-  single current object) — ReferenceResolver handles N-candidate disambiguation
-  through conversation, not a stored pending-workflow surface.
-- **Freshness** — stale-reply safety: before acting or sending, confirm this is
-  still the latest intent in the conversation. Combined with the per-conversation
-  lock and causal ordering, older in-progress work never overwrites a newer
-  intent and stale/duplicate replies are suppressed.
+- **Focus** — resolve the actionable subject of the last rendered message. Because
+  reminder render turns merge same-time, undelivered, and nightly-summary
+  reminders into one message (§8), the subject is **a single object or an ordered
+  set**, backed by a durable `message_subject` recorded on the render turn (the
+  ordered reminder/fire ids it rendered). This is what lets "done" complete every
+  reminder in that grouped message and "all of these are done" complete the whole
+  summary set (§5.8). It is still not multi-candidate disambiguation (that is
+  ReferenceResolver) and carries no pending accept/reject.
+- **ReferenceResolver** — resolve each user reference to a concrete target before
+  acting on *that* reference. Deleting `multi_candidate` focus state (§15) does not
+  delete the need to disambiguate: duplicate friend names (§5.6), ambiguous
+  shared-reminder cancellation (§5.7), and ambiguous reminder matching (§5.8) all
+  require clarification. The rule is **per-reference**: resolve a reference to
+  exactly one active target; on zero or multiple candidates for that reference, ask
+  a clarifying follow-up and **mutate nothing for that reference** until confirmed.
+  Crucially, this is per-item, not per-turn — an ambiguous item never blocks other
+  clearly-resolved items in the same turn (§5.8 batch rule). Distinct from Focus
+  (the current subject) and from any stored pending-workflow surface.
+- **Freshness** — stale-reply safety with a concrete durable invariant, not just
+  lock intuition. Each inbound gets a per-conversation `seq`; the conversation
+  tracks `latest_inbound_seq`; a turn records the `based_on_inbound_seq` it acted
+  on (§3.3). Before an outbound is inserted/delivered, it compare-and-sets against
+  the current `latest_inbound_seq` — if a newer inbound has superseded this turn,
+  the stale reply is suppressed and the turn resolves to `no_reply`/superseded.
+  This prevents duplicate or stale replies after newer intent (§5.4).
 - **Memory** — short-term recent context (always available, even when the memory
   switch is off, because it is needed to complete the current turn) plus
   long-term memory via Agno memory storage/retrieval. A custom `MemoryManager`
@@ -378,10 +413,14 @@ semantic fields are prompt/eval failures or invalid decisions, not permanent
 runtime guard branches.
 
 **Output contract.** The agent must satisfy the current structured output
-contract on the **first** returned answer. Invalid, empty, or structurally
-blocked output becomes `no_reply` or `failed`; the runtime does not ask the model
-to rewrite, does not convert trusted facts into replacement prose, and does not
-send template fallback text.
+contract on the **first** returned answer. `no_reply` is reserved for **explicit
+intentional no-reply only** (the interpreter or agent deliberately deciding the
+message warrants no message). Empty output, malformed/invalid output, structurally
+blocked output, and timeout-after-budget are **not** `no_reply` — they record
+`failed` with a structured reason code, because §5.4 requires intentional no-reply
+to be distinguishable from empty-output exception, tool-fallback failure, and
+system failure. The runtime does not ask the model to rewrite, does not convert
+trusted facts into replacement prose, and does not send template fallback text.
 
 **The waiting text is the one runtime-owned typed message, and it is not
 optional.** When synchronous processing times out while the agent is still
@@ -435,6 +474,12 @@ dual-ownership at once.
 - **Work-wake:** the ingress tier writes the durable `message` row and an
   `outbox` row in one transaction; the relay publishes; workers consume via a
   consumer group.
+- **Outbox is the source of truth; Redis is only a wake signal.** An `outbox` row
+  is not retired when the relay publishes — it transitions to `processed` only on a
+  durable worker ack. The relay replays unacked rows idempotently (dedup by
+  outbox/event id). So losing the Redis Stream on restart triggers replay from the
+  outbox, never stranded work; "losing Redis is acceptable" means losing the
+  *signal*, not the durable rows behind it.
 - **Locks:** per-conversation Redis lock with ownership token; TTL derived from
   the runtime walltime budget; heartbeat extends it; lock-loss is instrumented.
   Per-conversation ordering is enforced by the lock, not by stream partitioning.
@@ -604,10 +649,14 @@ hop, no circuit breaker, no split ownership.
   reminders (never Google Calendar), in the user's global timezone.
 - **Notifications** are informational facts only (never approval/execution),
   covering friendship creation and shared-reminder creation/cancellation and their
-  error/partial-failure/undelivered/conflict cases. Facts carry who/what/object/
-  time/timezone/duration; errors map channel failures into product language and
-  never expose raw channel errors, internal codes, queue status, or delivery
-  attempts. Final visible text is the Interaction Agent rendering the facts (§5).
+  error/partial-failure/undelivered/conflict cases. One `notification_fact` fans
+  out to many recipients via `notification_recipient` rows (§3.5), so a multi-party
+  notification can land for some participants and fail/undeliver for others; the
+  per-recipient partial failure is real state, rendered to the initiator as a
+  user-safe error fact, not collapsed away. Facts carry who/what/object/time/
+  timezone/duration; errors map channel failures into product language and never
+  expose raw channel errors, internal codes, queue status, or delivery attempts.
+  Final visible text is the Interaction Agent rendering the facts (§5).
 
 ## 10. Multimodal Input Handling
 
@@ -663,12 +712,24 @@ output repair or claim policing); and the trusted-or-invalid detector contract.
 
 ## 13. Web
 
-The Next.js web app remains a thin client: it repoints to the Python API and
-de-brands its package scope. It **keeps** the account-access-status,
-email-verification, subscription/access-status, and web-claim surfaces (one-time
-`claim_code` entry, login-URL landing) required by §5.1 and §5.13, plus the
-public explanation / FAQ / demo / privacy / terms pages. The admin/customer
-surface split is shelved.
+The Next.js web app remains a thin client over the Python API; it repoints and
+de-brands its package scope. "Thin client" means the business logic moves to the
+Python domains, **not** that product pages are dropped. It retains/rebuilds every
+web surface the requirements name, all over the Python API:
+
+- registration / login / email-verification / account-access-status /
+  subscription-status and the web-claim surfaces — one-time `claim_code` entry,
+  login-URL landing (§5.1, §5.13);
+- channel management (§5.3);
+- reminder calendar page (§5.8);
+- friends page with friend link + QR (§5.6);
+- shared-reminder list with cancel (§5.7);
+- agent settings (§5.11);
+- calendar import (§5.10);
+- public explanation / FAQ / demo / privacy / terms pages (§5.1).
+
+Only auth hardening and the admin/customer surface split are shelved as
+follow-ups; no required product page is out of scope.
 
 Known auth gaps are a recommended follow-up, not part of this backend rebuild:
 tokens currently live in `localStorage` (XSS-exposed) and protected pages lack
@@ -783,8 +844,9 @@ deleted. Anything later wanted is designed fresh, not resurrected.
   photo album, Moments, voice ASR/TTS. (Inbound media is still preserved — §10.)
 - Order/usage metering and billing ledgers (the access gate itself is in scope —
   §6, §15).
-- Web changes beyond repointing, de-branding, and keeping the access/claim
-  surfaces (auth hardening, admin/customer split — §13).
+- Web changes beyond repointing the existing required product surfaces to the
+  Python API and de-branding (auth hardening, admin/customer split — §13). No
+  required product page is dropped.
 - Per-caller internal-auth identities / key rotation (§12).
 - Load and performance testing.
 - Current-server operational hardening (swap, disk alerting, systemd specifics).
@@ -818,9 +880,27 @@ deleted. Anything later wanted is designed fresh, not resurrected.
   disambiguation (mutate nothing until confirmed), replacing the deleted
   `multi_candidate` focus surface.
 - **Delivery model is two-layered**: turn disposition (turn outcome) is separate
-  from output-class-specific delivery state (reminder undelivered / proactive
-  discard / per-projection / per-recipient notification facts). The waiting text
-  is the sole runtime-owned typed-message exception to single-prose-producer.
+  from output-class-specific delivery state — `reminder_fire` (undelivered/catch-up),
+  proactive discard, per-projection shared delivery, and `notification_recipient`
+  per-recipient rows. The waiting text is the sole runtime-owned typed-message
+  exception to single-prose-producer. `no_reply` is reserved for intentional
+  no-reply only; empty/malformed/blocked/timeout-after-budget → `failed`.
+- **Reminders target the owner account, not a captured route**: the usable
+  `delivery_route` is resolved at fire/resend time so relink-to-new-channel is
+  honored; the route used is snapshotted on `delivery_attempt`.
+- **Grouped-message subject + batch commands**: Focus carries the ordered
+  subject-set of the last rendered (merged) message so "done" / "all done" act on
+  the whole set; multi-op reminder turns use a per-item batch contract where an
+  ambiguous/failed item isolates to itself.
+- **auth_artifact handles deferred binding**: `claim_code` is issued to a browser
+  session with no account and resolves the account at redemption; `login_url` /
+  `pairing_code` bind the issuing account; all carry an optional handoff
+  `continuation`.
+- **Durable ordering + outbox-as-truth**: per-conversation `seq` +
+  `latest_inbound_seq` make stale-reply suppression a compare-and-set invariant;
+  outbox rows are retired only on durable worker ack with idempotent replay, so
+  Redis loss never strands work.
+- **Occurrence-grain calendar dedupe** via `calendar_import_item`.
 - **Multimodal input** preserved as processable input; understanding/generation
   out of scope.
 - **Channels**: current product channels (personal WeChat, shared WhatsApp) are a
