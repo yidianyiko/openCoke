@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+from flask import Blueprint, jsonify, request
+
+from coke.domains.identity_access.models import IdentityAccessError
+
+
+def create_claim_blueprint(identity_service) -> Blueprint:
+    blueprint = Blueprint("claim", __name__, url_prefix="/api/claim")
+
+    @blueprint.errorhandler(IdentityAccessError)
+    def handle_identity_access_error(error: IdentityAccessError):
+        body = {"error": {"code": error.code}}
+        if error.fact is not None:
+            body["error"]["fact"] = error.fact
+        return jsonify(body), 400
+
+    @blueprint.post("/code")
+    def issue_claim_code():
+        payload = request.get_json(silent=True) or {}
+        result = identity_service.issue_web_claim_code(
+            browser_session=payload["browser_session"],
+            continuation=payload.get("continuation", {}),
+        )
+        return jsonify({"code": result.code, "artifact_id": result.artifact.id}), 201
+
+    @blueprint.get("/code/<code>/status")
+    def poll_claim_code(code: str):
+        status = identity_service.get_claim_code_status(
+            code=code,
+            browser_session=request.args["browser_session"],
+        )
+        if not status.found:
+            return (
+                jsonify(
+                    {
+                        "found": False,
+                        "consumed": False,
+                        "target_account_id": None,
+                        "delivery_state": None,
+                    }
+                ),
+                404,
+            )
+        return jsonify(
+            {
+                "found": True,
+                "consumed": status.consumed,
+                "target_account_id": status.target_account_id,
+                "delivery_state": status.delivery_state,
+            }
+        )
+
+    @blueprint.post("/code/redeem")
+    def redeem_claim_code():
+        payload = request.get_json(silent=True) or {}
+        redeemed = identity_service.redeem_claim_code_from_channel(
+            code=payload["code"],
+            provider_type=payload["provider_type"],
+            provider_subject=payload["provider_subject"],
+        )
+        return jsonify(
+            {
+                "account_id": redeemed.account_id,
+                "continuation": redeemed.continuation,
+            }
+        )
+
+    @blueprint.post("/code/complete")
+    def complete_claim_code():
+        payload = request.get_json(silent=True) or {}
+        redeemed = identity_service.complete_web_claim_from_browser(
+            code=payload["code"],
+            browser_session=payload["browser_session"],
+        )
+        return jsonify(
+            {
+                "account_id": redeemed.account_id,
+                "session_token": redeemed.session.token,
+                "continuation": redeemed.continuation,
+            }
+        )
+
+    @blueprint.post("/pairing-code")
+    def issue_pairing_code():
+        payload = request.get_json(silent=True) or {}
+        result = identity_service.issue_pairing_code(account_id=payload["account_id"])
+        return jsonify({"code": result.code, "artifact_id": result.artifact.id}), 201
+
+    @blueprint.post("/pairing-code/redeem")
+    def redeem_pairing_code():
+        payload = request.get_json(silent=True) or {}
+        resolved = identity_service.resolve_or_create_channel_identity(
+            provider_type=payload["provider_type"],
+            provider_subject=payload["provider_subject"],
+            pairing_code=payload["pairing_code"],
+        )
+        return jsonify(
+            {
+                "account_id": resolved.account.id,
+                "channel_identity_id": resolved.channel_identity.id,
+            }
+        )
+
+    return blueprint
