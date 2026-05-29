@@ -17,11 +17,13 @@ if config.config_file_name is not None:
 target_metadata = metadata
 
 
-def _database_url() -> str:
-    return os.environ.get(
-        "DATABASE_URL",
-        config.get_main_option("sqlalchemy.url"),
-    )
+def _database_url(*, require_env: bool = False) -> str:
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        return url
+    if require_env:
+        raise RuntimeError("DATABASE_URL is required for online migrations")
+    return config.get_main_option("sqlalchemy.url")
 
 
 def run_migrations_offline() -> None:
@@ -41,7 +43,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = _database_url()
+    configuration["sqlalchemy.url"] = _database_url(require_env=True)
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",

@@ -131,7 +131,7 @@ def _type_family(column_type) -> tuple:
     if isinstance(column_type, sa.Text):
         return ("text",)
     if isinstance(column_type, sa.String):
-        return ("string",)
+        return ("string", column_type.length)
     if isinstance(column_type, sa.BigInteger):
         return ("bigint",)
     if isinstance(column_type, sa.Integer):
@@ -243,6 +243,26 @@ class RecordingOp:
 
     def drop_table(self, name: str, **kwargs) -> None:
         self.dropped_tables.append(name)
+
+    def f(self, name: str) -> str:
+        return name
+
+
+def _offline_sql() -> str:
+    env = os.environ.copy()
+    env["DATABASE_URL"] = "postgresql+psycopg://coke:pass@localhost:5432/coke"
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head", "--sql"],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    return result.stdout
 
 
 def _load_revision_module():
@@ -596,6 +616,9 @@ def test_alembic_env_uses_schema_metadata_and_offline_generation():
     assert "target_metadata = metadata" in source
     assert "def run_migrations_offline()" in source
     assert "literal_binds=True" in source
+    assert "def _database_url(" in source
+    assert "require_env=True" in source
+    assert "DATABASE_URL is required for online migrations" in source
 
 
 def test_initial_revision_has_deterministic_identity_and_no_schema_import():
@@ -641,6 +664,7 @@ def test_initial_revision_downgrade_drops_recorded_objects_in_reverse_order():
     recorder = RecordingOp()
     revision.op = recorder
 
+    revision.upgrade()
     revision.downgrade()
 
     assert [name for name, _table_name in recorder.dropped_indexes] == [
@@ -654,22 +678,49 @@ def test_initial_revision_downgrade_drops_recorded_objects_in_reverse_order():
     assert recorder.dropped_tables[-1] == "account"
     assert set(recorder.dropped_tables) == EXPECTED_TABLES
 
+    drop_position = {
+        table_name: position
+        for position, table_name in enumerate(recorder.dropped_tables)
+    }
+    for child_table in recorder.metadata.tables.values():
+        for constraint in child_table.constraints:
+            if not isinstance(constraint, ForeignKeyConstraint):
+                continue
+            for element in constraint.elements:
+                parent_name = element.column.table.name
+                assert drop_position[child_table.name] < drop_position[parent_name], (
+                    f"{child_table.name} must be dropped before {parent_name}"
+                )
+
 
 def test_offline_sql_generation_smoke_contains_expected_objects():
-    env = os.environ.copy()
-    env["DATABASE_URL"] = "postgresql+psycopg://coke:pass@localhost:5432/coke"
-    result = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head", "--sql"],
-        cwd=ROOT,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    sql = _offline_sql()
 
-    assert result.returncode == 0, result.stderr
-    assert "CREATE TABLE account" in result.stdout
-    assert "uq_channel_one_active_per_account" in result.stdout
-    assert "uq_reminder_active_timed_duplicate" in result.stdout
-    assert "uq_reminder_active_no_trigger_duplicate" in result.stdout
+    assert "CREATE TABLE account" in sql
+    assert "uq_channel_one_active_per_account" in sql
+    assert "uq_reminder_active_timed_duplicate" in sql
+    assert "uq_reminder_active_no_trigger_duplicate" in sql
+
+
+def test_offline_sql_uses_exact_schema_constraint_names_once():
+    sql = _offline_sql()
+
+    assert "CONSTRAINT ck_account_account_origin " in sql
+    assert "CONSTRAINT ck_account_account_lifecycle " in sql
+    assert "CONSTRAINT ck_friendship_friendship_not_self " in sql
+    assert "ck_account_ck_" not in sql
+    assert "ck_friendship_ck_" not in sql
+    assert "CONSTRAINT fk_notification_recipient_fact " in sql
+    assert "CONSTRAINT pk_account PRIMARY KEY (id)" in sql
+    assert "CONSTRAINT uq_channel_identity_provider_subject UNIQUE" in sql
+
+
+def test_offline_sql_preserves_key_type_details():
+    sql = _offline_sql()
+
+    assert "origin VARCHAR(32) NOT NULL" in sql
+    assert "default_timezone VARCHAR(64) NOT NULL" in sql
+    assert "provider_subject VARCHAR(255) NOT NULL" in sql
+    assert "payload JSONB NOT NULL" in sql
+    assert "local_trigger_at TIMESTAMP WITHOUT TIME ZONE NOT NULL" in sql
+    assert "next_fire_at TIMESTAMP WITH TIME ZONE" in sql

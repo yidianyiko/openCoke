@@ -50,8 +50,8 @@ def upgrade() -> None:
         _created_at(),
         _updated_at(),
         _pk("account"),
-        sa.CheckConstraint("origin in ('web_first', 'messaging_first')", name="ck_account_account_origin"),
-        sa.CheckConstraint("lifecycle in ('active', 'disabled')", name="ck_account_account_lifecycle"),
+        sa.CheckConstraint("origin in ('web_first', 'messaging_first')", name=op.f("ck_account_account_origin")),
+        sa.CheckConstraint("lifecycle in ('active', 'disabled')", name=op.f("ck_account_account_lifecycle")),
     )
     op.create_table(
         "agent_settings",
@@ -350,7 +350,7 @@ def upgrade() -> None:
         _pk("friendship"),
         _fk("friendship", "account_low_id", "account"),
         _fk("friendship", "account_high_id", "account"),
-        sa.CheckConstraint("account_low_id <> account_high_id", name="ck_friendship_friendship_not_self"),
+        sa.CheckConstraint("account_low_id <> account_high_id", name=op.f("ck_friendship_friendship_not_self")),
     )
     op.create_table(
         "shared_reminder",
