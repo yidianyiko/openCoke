@@ -117,6 +117,7 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
         ".env",
         "__pycache__",
         "node_modules",
+        ".pnpm-store",
     ):
         assert f"--exclude={excluded}" in script
     assert (

@@ -59,6 +59,7 @@ RSYNC_EXCLUDES=(
   "--exclude=.env"
   "--exclude=__pycache__"
   "--exclude=node_modules"
+  "--exclude=.pnpm-store"
 )
 
 log() {
