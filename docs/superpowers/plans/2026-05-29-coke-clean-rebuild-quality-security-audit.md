@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 
 **Goal:** Fix the clean-rebuild plaintext-password and customer-route authorization bugs, then record prioritized security and quality audit findings.
 
@@ -75,9 +75,11 @@ Change auth routes and `web/lib/customer-auth.ts` to use `password`; keep respon
 
 Run the same focused pytest and web test commands. Expected: all selected tests pass.
 
-- [ ] **Step 8: Commit password fix**
+- [x] **Step 8: Commit password fix**
 
 Run: `git add requirements.txt coke/domains/identity_access/passwords.py coke/domains/identity_access/service.py coke/api/auth_routes.py web/lib/customer-auth.ts tests/unit/coke/identity_access/test_identity_access_service.py tests/unit/coke/identity_access/test_auth_routes.py web/lib/customer-auth.test.ts docs/superpowers/plans/2026-05-29-coke-clean-rebuild-quality-security-audit.md && git commit -m "fix: hash customer passwords server side"`
+
+Completed in combined security commit `f07724c3 fix: secure customer auth boundary`.
 
 ### Task 2: Customer Route Session Authorization
 
@@ -117,9 +119,11 @@ Update `create_app` to pass `identity_access_service` into customer route bluepr
 
 Run the same focused pytest command. Expected: all selected tests pass.
 
-- [ ] **Step 7: Commit route auth fix**
+- [x] **Step 7: Commit route auth fix**
 
 Run: `git add coke/api/auth_helpers.py coke/api/channel_routes.py coke/api/reminder_routes.py coke/api/friend_routes.py coke/api/shared_reminder_routes.py coke/api/calendar_import_routes.py coke/api/claim_routes.py coke/app.py tests/unit/coke/channel_reachability/test_channel_routes.py tests/unit/coke/reminder/test_reminder_routes.py tests/unit/coke/social_scheduling/test_social_scheduling_routes.py tests/unit/coke/calendar_import/test_calendar_import_routes.py tests/unit/coke/identity_access/test_auth_routes.py docs/superpowers/plans/2026-05-29-coke-clean-rebuild-quality-security-audit.md && git commit -m "fix: require sessions on customer routes"`
+
+Completed in combined security commit `f07724c3 fix: secure customer auth boundary`.
 
 ### Task 3: Audit Report And Verification
 
@@ -131,7 +135,7 @@ Run: `git add coke/api/auth_helpers.py coke/api/channel_routes.py coke/api/remin
 
 Search customer API routes for raw `account_id` ownership inputs, public claim/webhook exceptions, internal auth, secret/PII exposure, and broad exception handling.
 
-- [ ] **Step 2: Write audit issue report**
+- [x] **Step 2: Write audit issue report**
 
 Record P0/P1/P2 findings with file:line references, fixed status, remaining risk, and evidence commands.
 
@@ -140,16 +144,16 @@ Record P0/P1/P2 findings with file:line references, fixed status, remaining risk
 Run: `/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q`
 Expected: all unit tests pass.
 
-- [ ] **Step 4: Run diff-aware verification routing**
+- [x] **Step 4: Run diff-aware verification routing**
 
 Run: `zsh scripts/suggest-verification --base HEAD~1`
 Run: `zsh scripts/review-trigger --base HEAD~1`
 Expected: commands complete and any additional suggested local checks are run or documented as not run.
 
-- [ ] **Step 5: Mark plan complete after verification**
+- [x] **Step 5: Mark plan complete after verification**
 
 Update this plan's checkboxes and set `Plan Status` to `complete` only after the verification commands pass.
 
-- [ ] **Step 6: Commit audit report and plan closeout**
+- [x] **Step 6: Commit audit report and plan closeout**
 
 Run: `git add docs/issues/2026-05-31-quality-security-audit.md docs/superpowers/plans/2026-05-29-coke-clean-rebuild-quality-security-audit.md && git commit -m "docs: record quality security audit"`
