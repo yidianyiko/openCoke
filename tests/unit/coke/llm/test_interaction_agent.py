@@ -46,6 +46,15 @@ class FakeReminderTool:
         return ToolExecutionResult(ok=True, facts={"reminder_id": "reminder_1"})
 
 
+class FakeSocialSchedulingTool:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def execute(self, command, guard):
+        self.calls.append((command, guard))
+        return ToolExecutionResult(ok=True, facts={"friend_link_id": "link_1"})
+
+
 def test_invoke_maps_valid_agno_response_to_agent_result():
     fake_agent = FakeAgentInstance(
         content={"type": "reply", "segments": ["hello from model"]}
@@ -125,6 +134,26 @@ def test_agent_instructions_direct_state_changing_intents_to_tools():
     )
 
 
+def test_agent_instructions_name_real_social_scheduling_operations():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "operation=get_friend_link" in instructions
+    assert "owner_account_id from trusted_facts.account_id" in instructions
+    assert "establish_friendship_from_token" in instructions
+    assert "accept_friend_request" not in instructions
+    assert "create_friend_request" not in instructions
+
+
 def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
@@ -158,6 +187,28 @@ def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
             guard,
         )
     ]
+
+
+def test_social_scheduling_tool_doc_describes_friend_link_and_code_operations():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    tools = factory.agent_kwargs[0]["tools"]
+    assert [tool.__name__ for tool in tools] == ["social_scheduling_tool"]
+    doc = tools[0].__doc__ or ""
+    assert "get_friend_link" in doc
+    assert "reset_friend_link" in doc
+    assert "disable_friend_link" in doc
+    assert "establish_friendship_from_token" in doc
+    assert "trusted_facts.account_id" in doc
 
 
 def test_empty_reminder_tool_call_defaults_to_detecting_current_user_message():
@@ -273,9 +324,13 @@ def _request(
     text: str = "hello",
     default_timezone: str = "UTC",
     reminder_tool=None,
+    social_scheduling_tool=None,
     guard=None,
 ) -> AgentRequest:
-    tool_ports = AgentToolPorts(reminder_tool=reminder_tool)
+    tool_ports = AgentToolPorts(
+        reminder_tool=reminder_tool,
+        social_scheduling_tool=social_scheduling_tool,
+    )
     return AgentRequest(
         turn_id="turn_1",
         conversation_id="conversation_1",

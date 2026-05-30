@@ -44,6 +44,7 @@ from coke.domains.social_scheduling.repository import (
     PostgresSocialSchedulingRepository,
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
+from coke.domains.social_scheduling.models import SocialSchedulingError
 from coke.infra.postgres import create_engine, create_session_factory
 from coke.infra.redis import (
     RedisLockAdapter,
@@ -337,85 +338,146 @@ class SocialSchedulingToolAdapter:
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
-        if operation == "list_friends":
-            entries = self.social_scheduling_service.list_friends(
-                _required_str(command, "account_id")
-            )
-            return ToolExecutionResult(
-                ok=True,
-                facts={"friends": [asdict(entry) for entry in entries]},
-            )
+        try:
+            if operation == "list_friends":
+                entries = self.social_scheduling_service.list_friends(
+                    _required_str(command, "account_id")
+                )
+                return ToolExecutionResult(
+                    ok=True,
+                    facts={"friends": [asdict(entry) for entry in entries]},
+                )
 
-        _guard_state_change(guard)
-        if operation == "create_shared_reminder":
-            result = self.social_scheduling_service.create_shared_reminder(
-                creator_account_id=_required_str(
-                    command, "creator_account_id", default_key="account_id"
-                ),
-                receiver_account_ids=list(command.get("receiver_account_ids") or ()),
-                title=command.get("title"),
-                local_trigger_at=_optional_datetime(command.get("local_trigger_at")),
-                captured_timezone=str(command.get("captured_timezone") or "UTC"),
-                duration_minutes=int(command.get("duration_minutes") or 15),
-                context=dict(command.get("context") or {}),
-            )
-            return ToolExecutionResult(
-                ok=result.status in {"created", "duplicate"},
-                facts={
-                    "status": result.status,
-                    "shared_reminder_id": (
-                        result.shared_reminder.id if result.shared_reminder else None
+            if operation == "query_availability":
+                result = self.social_scheduling_service.query_availability(
+                    requester_account_id=_required_str(
+                        command, "requester_account_id", default_key="account_id"
                     ),
-                    "breakdown": result.breakdown,
-                    "follow_up_facts": result.follow_up_facts,
-                },
-                reason_code=(
-                    None if result.status in {"created", "duplicate"} else result.status
-                ),
-            )
+                    friend_account_ids=list(command.get("friend_account_ids") or ()),
+                    local_start=_required_datetime(command, "local_start"),
+                    local_end=_required_datetime(command, "local_end"),
+                    requester_timezone=str(command.get("requester_timezone") or "UTC"),
+                )
+                return ToolExecutionResult(
+                    ok=True,
+                    facts={"availability": _availability_facts(result)},
+                )
 
-        if operation == "cancel_shared_reminder":
-            result = self.social_scheduling_service.cancel_shared_reminder(
-                account_id=_required_str(command, "account_id"),
-                shared_reminder_id=_required_str(command, "shared_reminder_id"),
-            )
-            return ToolExecutionResult(
-                ok=True,
-                facts={
-                    "status": result.status,
-                    "shared_reminder_id": result.shared_reminder.id,
-                },
-            )
+            _guard_state_change(guard)
+            if operation == "get_friend_link":
+                link = self.social_scheduling_service.get_or_create_friend_link(
+                    owner_account_id=_required_str(
+                        command, "owner_account_id", default_key="account_id"
+                    )
+                )
+                return ToolExecutionResult(ok=True, facts=_friend_link_facts(link))
 
-        if operation == "establish_friendship_from_token":
-            result = self.social_scheduling_service.establish_friendship_from_token(
-                joiner_account_id=_required_str(
+            if operation == "reset_friend_link":
+                link = self.social_scheduling_service.reset_friend_link(
+                    owner_account_id=_required_str(
+                        command, "owner_account_id", default_key="account_id"
+                    )
+                )
+                return ToolExecutionResult(ok=True, facts=_friend_link_facts(link))
+
+            if operation == "disable_friend_link":
+                link = self.social_scheduling_service.disable_friend_link(
+                    owner_account_id=_required_str(
+                        command, "owner_account_id", default_key="account_id"
+                    )
+                )
+                return ToolExecutionResult(ok=True, facts=_friend_link_facts(link))
+
+            if operation == "create_shared_reminder":
+                result = self.social_scheduling_service.create_shared_reminder(
+                    creator_account_id=_required_str(
+                        command, "creator_account_id", default_key="account_id"
+                    ),
+                    receiver_account_ids=list(command.get("receiver_account_ids") or ()),
+                    title=command.get("title"),
+                    local_trigger_at=_optional_datetime(command.get("local_trigger_at")),
+                    captured_timezone=str(command.get("captured_timezone") or "UTC"),
+                    duration_minutes=int(command.get("duration_minutes") or 15),
+                    context=dict(command.get("context") or {}),
+                )
+                return ToolExecutionResult(
+                    ok=result.status in {"created", "duplicate"},
+                    facts={
+                        "status": result.status,
+                        "shared_reminder_id": (
+                            result.shared_reminder.id
+                            if result.shared_reminder
+                            else None
+                        ),
+                        "breakdown": result.breakdown,
+                        "follow_up_facts": result.follow_up_facts,
+                    },
+                    reason_code=(
+                        None
+                        if result.status in {"created", "duplicate"}
+                        else result.status
+                    ),
+                )
+
+            if operation == "cancel_shared_reminder":
+                result = self.social_scheduling_service.cancel_shared_reminder(
+                    account_id=_required_str(command, "account_id"),
+                    shared_reminder_id=_required_str(command, "shared_reminder_id"),
+                )
+                return ToolExecutionResult(
+                    ok=True,
+                    facts={
+                        "status": result.status,
+                        "shared_reminder_id": result.shared_reminder.id,
+                    },
+                )
+
+            if operation == "establish_friendship_from_token":
+                joiner_account_id = _required_str(
                     command, "joiner_account_id", default_key="account_id"
-                ),
-                public_token=_required_str(command, "public_token"),
-            )
-            return ToolExecutionResult(
-                ok=result.status in {"created", "already_active"},
-                facts={
-                    "status": result.status,
-                    "friendship_id": (
-                        result.friendship.id if result.friendship else None
+                )
+                if command.get("link_code"):
+                    result = (
+                        self.social_scheduling_service.establish_friendship_from_code(
+                            joiner_account_id=joiner_account_id,
+                            link_code=_required_str(command, "link_code"),
+                        )
+                    )
+                else:
+                    result = (
+                        self.social_scheduling_service.establish_friendship_from_token(
+                            joiner_account_id=joiner_account_id,
+                            public_token=_required_str(command, "public_token"),
+                        )
+                    )
+                return ToolExecutionResult(
+                    ok=result.status in {"created", "already_active"},
+                    facts={
+                        "status": result.status,
+                        "friendship_id": (
+                            result.friendship.id if result.friendship else None
+                        ),
+                        "continuation": result.continuation,
+                    },
+                    reason_code=(
+                        None
+                        if result.status in {"created", "already_active"}
+                        else result.status
                     ),
-                    "continuation": result.continuation,
-                },
-                reason_code=(
-                    None
-                    if result.status in {"created", "already_active"}
-                    else result.status
-                ),
-            )
+                )
 
-        if operation == "remove_friend":
-            friendship = self.social_scheduling_service.remove_friend(
-                account_id=_required_str(command, "account_id"),
-                friend_account_id=_required_str(command, "friend_account_id"),
+            if operation == "remove_friend":
+                friendship = self.social_scheduling_service.remove_friend(
+                    account_id=_required_str(command, "account_id"),
+                    friend_account_id=_required_str(command, "friend_account_id"),
+                )
+                return ToolExecutionResult(ok=True, facts=asdict(friendship))
+        except SocialSchedulingError as error:
+            return ToolExecutionResult(
+                ok=False,
+                facts=error.fact or {},
+                reason_code=error.code,
             )
-            return ToolExecutionResult(ok=True, facts=asdict(friendship))
 
         return ToolExecutionResult(
             ok=False, facts={}, reason_code="unsupported_social_scheduling_operation"
@@ -851,6 +913,29 @@ def _single_item_tool_result(item: Any) -> ToolExecutionResult:
         facts=_item_fact(item),
         reason_code=item.reason,
     )
+
+
+def _friend_link_facts(link: Any) -> dict[str, Any]:
+    return {
+        "friend_link_id": link.id,
+        "owner_account_id": link.owner_account_id,
+        "lifecycle": link.lifecycle,
+        "public_token": link.public_token,
+        "link_code": link.link_code,
+        "public_link_url": link.qr_payload,
+        "qr_payload": link.qr_payload,
+    }
+
+
+def _availability_facts(result: Any) -> list[dict[str, Any]]:
+    items = result if isinstance(result, list) else [result]
+    return [
+        {
+            "friend_account_id": item.friend_account_id,
+            "windows": [window.to_public_dict() for window in item.windows],
+        }
+        for item in items
+    ]
 
 
 def _first_reason(items: list[Any]) -> str | None:

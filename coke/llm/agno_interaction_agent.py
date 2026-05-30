@@ -146,6 +146,8 @@ class AgnoInteractionAgent:
             "Call tools for state-changing domain work instead of claiming the action happened.",
             "For reminder, scheduling, friendship, settings, or calendar-import requests, call the matching tool before replying.",
             "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
+            "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
+            "For adding a friend from an invite code or link token, call social_scheduling_tool with operation=establish_friendship_from_token, joiner_account_id from trusted_facts.account_id, and link_code or public_token from the User message.",
             "Do not answer as if the action happened until the tool result says it happened.",
             "If no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
@@ -194,6 +196,18 @@ def _tool_doc(name: str) -> str:
             "owner_account_id set to trusted_facts.account_id, raw_text set to "
             "the exact User message, captured_timezone set to "
             "trusted_facts.default_timezone, and entry_point='conversation'."
+        )
+    if name == "social_scheduling":
+        return (
+            "Execute Coke social scheduling commands. To give the current user "
+            "their friend link or invite code, call operation='get_friend_link' "
+            "with owner_account_id set to trusted_facts.account_id. "
+            "Supported friend-link maintenance operations are "
+            "'reset_friend_link' and 'disable_friend_link'. To add a friend "
+            "from an invite code or link token, call "
+            "operation='establish_friendship_from_token' with "
+            "joiner_account_id set to trusted_facts.account_id and link_code "
+            "or public_token set from the User message."
         )
     return f"Execute a Coke {name} domain command."
 

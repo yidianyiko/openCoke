@@ -10,7 +10,7 @@
 
 ---
 
-**Plan Status:** complete
+**Plan Status:** in_progress
 **Status Date:** 2026-05-30
 **Blocker:** Task 9 implementation and SocialScheduling tests pass, and
 `clean-rebuild-backend` passes as part of
@@ -183,3 +183,120 @@ Run:
 git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-social-scheduling.md coke/domains/social_scheduling coke/api/friend_routes.py coke/api/shared_reminder_routes.py coke/app.py tests/unit/coke/social_scheduling
 git commit -m "feat: implement clean social scheduling"
 ```
+
+### Task 7: Agent Tool Friend-Link Wiring And Live Resume
+
+**Files:**
+- Modify: `coke/composition.py`
+- Modify: `coke/llm/agno_interaction_agent.py`
+- Test: `tests/unit/coke/test_social_scheduling_tool_adapter.py`
+- Test: `tests/unit/coke/llm/test_interaction_agent.py`
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-social-scheduling.md`
+
+- [x] **Step 1: Write failing adapter tests**
+
+Add tests that instantiate `SocialSchedulingToolAdapter` with a fake
+SocialScheduling service. Assert operations `get_friend_link`,
+`reset_friend_link`, and `disable_friend_link` route to
+`get_or_create_friend_link`, `reset_friend_link`, and `disable_friend_link`.
+The result facts must include `friend_link_id`, `owner_account_id`,
+`lifecycle`, `public_token`, `link_code`, `public_link_url`, and `qr_payload`.
+Add a service error case that raises `SocialSchedulingError("owner_channel_required")`
+and assert the tool returns `ok=False` and
+`reason_code="owner_channel_required"` without exposing a raw exception.
+
+- [x] **Step 2: Write failing instruction/tool-doc tests**
+
+Extend `tests/unit/coke/llm/test_interaction_agent.py` so the agent instructions
+and generated `social_scheduling_tool` doc mention the real friend-link
+operations: `get_friend_link` for giving the current user their link/code,
+`reset_friend_link`, `disable_friend_link`, and
+`establish_friendship_from_token` for adding a friend from a code/token. The
+test must not mention operations that the adapter does not implement.
+
+- [x] **Step 3: Run red tests**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py -q
+```
+
+Expected: fail because `SocialSchedulingToolAdapter` still returns
+`unsupported_social_scheduling_operation` for friend-link operations and the
+agent instructions/tool doc do not describe them.
+
+- [x] **Step 4: Implement minimal adapter wiring**
+
+In `coke/composition.py`, add a helper that converts `FriendLinkView` into tool
+facts with the fields from Step 1. Wire operations:
+`get_friend_link -> service.get_or_create_friend_link(owner_account_id)`,
+`reset_friend_link -> service.reset_friend_link(owner_account_id)`, and
+`disable_friend_link -> service.disable_friend_link(owner_account_id)`.
+Catch `SocialSchedulingError` around social-scheduling operations and map it to
+`ToolExecutionResult(ok=False, facts=error.fact or {}, reason_code=error.code)`.
+Do not add legacy imports, fallback prose, keyword routing, or new schema.
+
+- [x] **Step 5: Implement concise agent guidance**
+
+In `coke/llm/agno_interaction_agent.py`, update `_instructions()` and
+`_tool_doc("social_scheduling")` so the model knows to call
+`social_scheduling_tool` with `operation="get_friend_link"` and
+`owner_account_id=trusted_facts.account_id` when the user asks for their invite
+link/code, and to call `establish_friendship_from_token` when the user provides
+a friend code/token. Keep the guidance factual and short.
+
+- [x] **Step 6: Run green unit tests**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py -q
+```
+
+Expected: all selected tests pass.
+
+- [x] **Step 7: Run full unit verification**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+```
+
+Expected: the full unit suite is green.
+
+- [x] **Step 8: Commit code fix**
+
+Run:
+
+```bash
+git add coke/composition.py coke/llm/agno_interaction_agent.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py docs/superpowers/plans/2026-05-29-coke-clean-rebuild-social-scheduling.md
+git commit -m "fix: expose social scheduling friend links to agent"
+```
+
+- [ ] **Step 9: Redeploy clean stack**
+
+Run:
+
+```bash
+REMOTE_HOST=gcp-coke REMOTE_ROOT=/home/whoami/coke-clean PROJECT_NAME=coke-clean COKE_CLEAN_API_PORT=8000 COKE_CLEAN_POSTGRES_PORT=55432 COKE_CLEAN_REDIS_PORT=56379 scripts/deploy-compose-to-gcp.sh
+```
+
+Then confirm the clean API health endpoint returns HTTP 200 and the old stack
+containers are still running.
+
+- [ ] **Step 10: Resume mocked live E2E**
+
+Against `http://127.0.0.1:8000/webhooks/whatsapp/evolution` on `gcp-coke`,
+send Evolution `messages.upsert` payloads for two mocked WhatsApp senders.
+After each phase, query the clean Postgres database (`coke-clean-postgres-1`,
+database `coke`, user `coke`, host port `127.0.0.1:55432`) and capture rows for:
+messaging-first account/channel/anchor/reply, personal reminder, friend link and
+reply code, second account plus active friendship, shared reminder projections
+and notification facts, and reminder fire plus outbound delivery attempt.
+
+- [ ] **Step 11: Mark this task and plan complete**
+
+Only after Steps 6, 7, 9, and 10 have passing evidence, set this Task 7
+checkboxes complete and set `Plan Status` to `complete`.
