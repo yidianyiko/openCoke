@@ -49,6 +49,22 @@ class FakeRedis:
         self.values.pop(name, None)
         return 1 if existed else 0
 
+    def acquire_lock(self, name: str, token: str, ttl_ms: int) -> bool:
+        return bool(self.set(name, token, nx=True, px=ttl_ms))
+
+    def get_token(self, name: str) -> str | None:
+        return self.get(name)
+
+    def extend_if_owned(self, name: str, token: str, ttl_ms: int) -> bool:
+        if self.get(name) != token:
+            return False
+        return bool(self.pexpire(name, ttl_ms))
+
+    def release_if_owned(self, name: str, token: str) -> bool:
+        if self.get(name) != token:
+            return False
+        return bool(self.delete(name))
+
 
 class FakeGatePort:
     def __init__(self) -> None:
