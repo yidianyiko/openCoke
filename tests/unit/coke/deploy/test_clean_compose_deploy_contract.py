@@ -8,6 +8,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[4]
 COMPOSE_CLEAN = ROOT / "docker-compose.clean.yml"
 DEPLOY_SCRIPT = ROOT / "scripts" / "deploy-compose-to-gcp.sh"
+DOCKERIGNORE = ROOT / ".dockerignore"
 
 
 def _clean_compose() -> dict:
@@ -104,6 +105,7 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
         "docker-compose.prod.yml",
         "docker-compose.clean.yml",
         "Dockerfile",
+        ".dockerignore",
         "requirements.txt",
         "alembic.ini",
         "deploy/",
@@ -135,3 +137,12 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
         "memo_runtime",
     ):
         assert legacy_term not in lowered
+
+
+def test_docker_build_context_excludes_clean_web_package_caches() -> None:
+    dockerignore = DOCKERIGNORE.read_text()
+    script = DEPLOY_SCRIPT.read_text()
+
+    assert '".dockerignore"' in script
+    assert "web/node_modules" in dockerignore
+    assert "web/.pnpm-store" in dockerignore

@@ -47,6 +47,7 @@ RSYNC_SOURCES=(
   "docker-compose.prod.yml"
   "docker-compose.clean.yml"
   "Dockerfile"
+  ".dockerignore"
   "requirements.txt"
   "alembic.ini"
   "deploy/"
