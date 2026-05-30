@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from flask import Blueprint, jsonify, request
 
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
     PRODUCT_CHANNEL_PROVIDER_TYPES,
 )
+from coke.infra.tracing import ensure_traceparent
 
 
-def create_provider_webhook_blueprint(reachability_service, providers) -> Blueprint:
+def create_provider_webhook_blueprint(
+    reachability_service,
+    providers,
+    *,
+    conversation_runtime_service=None,
+    commit_callback: Callable[[], None] | None = None,
+) -> Blueprint:
     blueprint = Blueprint("provider_webhooks", __name__)
 
     @blueprint.errorhandler(ChannelReachabilityError)
@@ -46,6 +55,17 @@ def create_provider_webhook_blueprint(reachability_service, providers) -> Bluepr
             )
         inbound_event = adapter.normalize_inbound(_json_payload())
         accepted = reachability_service.accept_provider_inbound(inbound_event)
+        if conversation_runtime_service is not None:
+            conversation_runtime_service.record_inbound(
+                account_id=accepted.account_id,
+                channel_identity_id=accepted.channel_identity_id,
+                causal_inbound_event_id=accepted.raw_event_id,
+                text=inbound_event.text,
+                payload=dict(inbound_event.payload or {}),
+                traceparent=_request_traceparent(),
+            )
+            if commit_callback is not None:
+                commit_callback()
         return (
             jsonify(
                 {
@@ -63,6 +83,20 @@ def create_provider_webhook_blueprint(reachability_service, providers) -> Bluepr
         )
 
     return blueprint
+
+
+def _request_traceparent() -> str:
+    try:
+        return ensure_traceparent(request.headers.get("traceparent"))
+    except ValueError as error:
+        raise ChannelReachabilityError(
+            "invalid_request",
+            fact={
+                "type": "invalid_request",
+                "location": "traceparent",
+                "reason": "invalid_traceparent",
+            },
+        ) from error
 
 
 def _json_payload() -> dict:

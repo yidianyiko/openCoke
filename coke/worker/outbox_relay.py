@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+import logging
+import time
 from typing import Any, Protocol
 
+from coke.composition import CokeRuntime, build_runtime_from_settings
+from coke.config import Settings
 from coke.domains.conversation_runtime.models import OutboxRecord
+
+LOGGER = logging.getLogger(__name__)
 
 
 class RedisStreamPort(Protocol):
@@ -61,3 +67,43 @@ class OutboxRelay:
 
     def ack_processed(self, event_id: str) -> OutboxRecord:
         return self.repository.mark_outbox_processed(event_id, self._now())
+
+
+def run_outbox_relay_loop(
+    settings: Settings | None = None,
+    *,
+    runtime: CokeRuntime | None = None,
+    iterations: int | None = None,
+    limit: int = 100,
+) -> None:
+    settings = settings or Settings.from_env()
+    runtime = runtime or build_runtime_from_settings(settings)
+    if runtime.work_stream is None or runtime.session is None:
+        raise RuntimeError("runtime is missing outbox relay stream or session")
+    runtime.work_stream.ensure_group()
+    relay = OutboxRelay(
+        repository=runtime.repositories.conversation_runtime,
+        redis_stream=runtime.work_stream,
+        stream_name=settings.work_stream_name,
+    )
+    handled = 0
+    while iterations is None or handled < iterations:
+        try:
+            published = relay.publish_unprocessed(limit=limit)
+            runtime.session.commit()
+            handled += 1
+            if not published:
+                time.sleep(settings.outbox_relay_poll_interval_s)
+        except Exception:
+            runtime.session.rollback()
+            LOGGER.exception("outbox relay iteration failed")
+            time.sleep(settings.outbox_relay_poll_interval_s)
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO)
+    run_outbox_relay_loop()
+
+
+if __name__ == "__main__":
+    main()

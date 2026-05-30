@@ -57,13 +57,51 @@ class FakeReachabilityService:
         )
 
 
-def make_client(service=None, adapters=None):
+class FakeConversationRuntimeService:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def record_inbound(
+        self,
+        *,
+        account_id,
+        channel_identity_id,
+        causal_inbound_event_id,
+        text,
+        payload,
+        traceparent,
+    ):
+        self.calls.append(
+            {
+                "account_id": account_id,
+                "channel_identity_id": channel_identity_id,
+                "causal_inbound_event_id": causal_inbound_event_id,
+                "text": text,
+                "payload": payload,
+                "traceparent": traceparent,
+            }
+        )
+
+
+def make_client(
+    service=None,
+    adapters=None,
+    conversation_runtime_service=None,
+    commit_callback=None,
+):
     service = service or FakeReachabilityService()
     adapters = (
         adapters if adapters is not None else {"whatsapp_evolution": FakeAdapter()}
     )
     app = Flask(__name__)
-    app.register_blueprint(create_provider_webhook_blueprint(service, adapters))
+    app.register_blueprint(
+        create_provider_webhook_blueprint(
+            service,
+            adapters,
+            conversation_runtime_service=conversation_runtime_service,
+            commit_callback=commit_callback,
+        )
+    )
     return app.test_client(), service, adapters
 
 
@@ -103,6 +141,54 @@ def test_provider_webhook_normalizes_and_returns_structured_identity_facts_only(
     assert service.calls[0][0] == "accept_provider_inbound"
     assert service.calls[0][1].raw_event_id == "wa_msg_1"
     assert adapters["whatsapp_evolution"].calls == [payload]
+
+
+def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():
+    conversation_runtime = FakeConversationRuntimeService()
+    commits = []
+    client, _service, _adapters = make_client(
+        conversation_runtime_service=conversation_runtime,
+        commit_callback=lambda: commits.append("committed"),
+    )
+    payload = {
+        "event": "messages.upsert",
+        "instance": "coke",
+        "data": {
+            "key": {
+                "remoteJid": "15555550123@s.whatsapp.net",
+                "fromMe": False,
+                "id": "wa_msg_1",
+            },
+            "pushName": "Alice",
+            "message": {"conversation": "hello"},
+            "messageTimestamp": 1_700_000_000,
+        },
+    }
+
+    response = client.post(
+        "/webhooks/whatsapp/evolution",
+        json=payload,
+        headers={
+            "traceparent": (
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+            )
+        },
+    )
+
+    assert response.status_code == 202
+    assert conversation_runtime.calls == [
+        {
+            "account_id": "acct_1",
+            "channel_identity_id": "ci_1",
+            "causal_inbound_event_id": "wa_msg_1",
+            "text": "hello",
+            "payload": payload,
+            "traceparent": (
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+            ),
+        }
+    ]
+    assert commits == ["committed"]
 
 
 def test_provider_webhook_rejects_unknown_provider_with_json_error():

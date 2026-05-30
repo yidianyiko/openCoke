@@ -5,37 +5,68 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from coke.config import ConfigurationError, Settings
 from coke.domains.calendar_import.google import GoogleCalendarClientPort
+from coke.domains.calendar_import.google import GoogleCalendarClientAdapter
 from coke.domains.calendar_import.models import CalendarSourceEvent
 from coke.domains.calendar_import.service import (
     CalendarImportService,
     InMemoryCalendarImportRepository,
+    PostgresCalendarImportRepository,
 )
 from coke.domains.channel_reachability.repository import (
     InMemoryChannelReachabilityRepository,
+    PostgresChannelReachabilityRepository,
 )
+from coke.domains.channel_reachability.models import ChannelReachabilityError
 from coke.domains.channel_reachability.service import ChannelReachabilityService
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
+    PostgresConversationRuntimeRepository,
 )
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.identity_access.models import IdentityAccessError
-from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
+from coke.domains.identity_access.repository import (
+    InMemoryIdentityAccessRepository,
+    PostgresIdentityAccessRepository,
+)
 from coke.domains.identity_access.service import IdentityAccessService
-from coke.domains.reminder.models import ReminderBatchItem
-from coke.domains.reminder.repository import InMemoryReminderRepository
+from coke.domains.reminder.models import DetectedReminderFields, ReminderBatchItem
+from coke.domains.reminder.repository import (
+    InMemoryReminderRepository,
+    PostgresReminderRepository,
+)
 from coke.domains.reminder.service import ReminderService
 from coke.domains.social_scheduling.availability import BusyInterval
 from coke.domains.social_scheduling.repository import (
     InMemorySocialSchedulingRepository,
+    PostgresSocialSchedulingRepository,
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
+from coke.infra.postgres import create_engine, create_session_factory
+from coke.infra.redis import (
+    RedisLockAdapter,
+    RedisReplyPubSub,
+    RedisWorkStream,
+    create_redis_client,
+)
+from coke.llm.agno_interaction_agent import AgnoInteractionAgent
+from coke.llm.config import SiliconFlowLLMConfig
+from coke.llm.reminder_detector import SiliconFlowReminderDetector
+from coke.llm.semantic_interpreter import SiliconFlowSemanticInterpreter
+from coke.providers.base import provider_registry
+from coke.providers.linq import LinqAdapter
+from coke.providers.wechat_ecloud import WeChatECloudAdapter
+from coke.providers.wechat_personal import WeChatPersonalAdapter
+from coke.providers.whatsapp_evolution import WhatsAppEvolutionAdapter
 from coke.turn.agent import AgentToolPorts, ToolExecutionResult
+from coke.turn.agent import AgentRequest, AgentResult
 from coke.turn.locks import ConversationLockManager, RedisLockPort
 from coke.turn.memory import MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
-from coke.turn.runner import OutboundDeliveryPort, TurnRunner
+from coke.turn.runner import DeliveryRequest, OutboundDeliveryPort, TurnRunner
+from coke.turn.semantic_interpreter import SemanticDecision
 from coke.turn.semantic_interpreter import SemanticInterpreter
 
 
@@ -71,6 +102,13 @@ class CokeRuntime:
     pre_llm_gate: PreLLMGateService
     lock_manager: ConversationLockManager
     turn_runner: TurnRunner
+    provider_adapters: Mapping[str, Any] | None = None
+    engine: Any | None = None
+    session_factory: Any | None = None
+    session: Any | None = None
+    redis_client: Any | None = None
+    work_stream: Any | None = None
+    reply_pubsub: Any | None = None
 
 
 class EmptyGoogleCalendarClient(GoogleCalendarClientPort):
@@ -84,6 +122,60 @@ class EmptyGoogleCalendarClient(GoogleCalendarClientPort):
 
     def revoke_authorization(self, auth_handle: str) -> None:
         return None
+
+
+class FakeSemanticInterpreter:
+    def interpret(self, request) -> SemanticDecision:
+        return SemanticDecision(
+            reply_necessity="reply_needed",
+            intent_family="chit_chat",
+            language_hint=None,
+        )
+
+
+class FakeInteractionAgent:
+    def invoke(self, request: AgentRequest) -> AgentResult:
+        return AgentResult.completed(
+            {
+                "type": "reply",
+                "segments": ["COKE_LLM_FAKE synthetic reply"],
+            }
+        )
+
+    def complete_async(self, task_id: str) -> AgentResult:
+        return AgentResult.completed(
+            {
+                "type": "reply",
+                "segments": ["COKE_LLM_FAKE synthetic async reply"],
+            }
+        )
+
+
+class FakeReminderDetector:
+    def extract(self, text: str, captured_timezone: str, now: datetime):
+        return DetectedReminderFields(
+            content=text or None,
+            trigger_time=None,
+            recurrence_rule={},
+            duration_minutes=None,
+            kind=None,
+        )
+
+
+class ChannelReachabilityOutboundDelivery:
+    def __init__(self, channel_reachability: ChannelReachabilityService) -> None:
+        self.channel_reachability = channel_reachability
+
+    def deliver(self, request: DeliveryRequest) -> None:
+        try:
+            self.channel_reachability.send_text(
+                account_id=request.account_id,
+                text=request.visible_text,
+                idempotency_key=request.idempotency_key,
+                turn_id=request.turn_id,
+            )
+        except ChannelReachabilityError:
+            raise
 
 
 class IdentityReachabilityAdapter:
@@ -429,6 +521,8 @@ def compose_coke_runtime(
     interaction_agent: Any,
     redis_client: RedisLockPort,
     outbound_delivery: OutboundDeliveryPort,
+    reminder_detector: Any | None = None,
+    reminder_delivery: Any | None = None,
     memory_port: MemoryPort | None = None,
     google_calendar_client: GoogleCalendarClientPort | None = None,
     provider_adapters: Mapping[str, Any] | None = None,
@@ -471,6 +565,8 @@ def compose_coke_runtime(
     )
     reminder_service = ReminderService(
         repository=repositories.reminder,
+        detector=reminder_detector,
+        delivery=reminder_delivery,
         now=now,
         id_factory=id_factory,
     )
@@ -533,6 +629,148 @@ def compose_coke_runtime(
         pre_llm_gate=pre_llm_gate,
         lock_manager=lock_manager,
         turn_runner=turn_runner,
+        provider_adapters=provider_adapters or {},
+    )
+
+
+def build_runtime_from_settings(
+    settings: Settings,
+    *,
+    redis_client: Any | None = None,
+    now: Callable[[], datetime] | None = None,
+    id_factory: Callable[[str], str] | None = None,
+) -> CokeRuntime:
+    now = now or (lambda: datetime.now(UTC))
+    engine = create_engine(settings)
+    session_factory = create_session_factory(engine)
+    session = session_factory()
+    redis_client = redis_client or create_redis_client(settings)
+    redis_lock = RedisLockAdapter(redis_client)
+    work_stream = RedisWorkStream(
+        redis_client,
+        stream_name=settings.work_stream_name,
+        group_name=settings.work_group_name,
+    )
+    reply_pubsub = RedisReplyPubSub(
+        redis_client,
+        channel_prefix=settings.reply_channel_prefix,
+    )
+    provider_adapters = _provider_adapters_from_settings(settings, now=now)
+    repositories = CokeRepositories(
+        identity_access=PostgresIdentityAccessRepository(session),
+        channel_reachability=PostgresChannelReachabilityRepository(session),
+        conversation_runtime=PostgresConversationRuntimeRepository(session),
+        reminder=PostgresReminderRepository(session),
+        social_scheduling=PostgresSocialSchedulingRepository(session),
+        calendar_import=PostgresCalendarImportRepository(session),
+    )
+    semantic_interpreter, interaction_agent, reminder_detector = _llm_from_settings(
+        settings
+    )
+    google_calendar_client = GoogleCalendarClientAdapter(
+        calendar_id=settings.google_calendar_id,
+        now=now,
+    )
+    runtime = compose_coke_runtime(
+        semantic_interpreter=semantic_interpreter,
+        interaction_agent=interaction_agent,
+        redis_client=redis_lock,
+        outbound_delivery=_DeferredOutboundDelivery(),
+        reminder_detector=reminder_detector,
+        memory_port=None,
+        google_calendar_client=google_calendar_client,
+        provider_adapters=provider_adapters,
+        repositories=repositories,
+        now=now,
+        id_factory=id_factory,
+        lock_ttl_ms=settings.lock_ttl_ms,
+    )
+    object.__setattr__(
+        runtime.turn_runner,
+        "outbound_delivery",
+        ChannelReachabilityOutboundDelivery(runtime.channel_reachability_service),
+    )
+    return CokeRuntime(
+        repositories=runtime.repositories,
+        identity_access_service=runtime.identity_access_service,
+        channel_reachability_service=runtime.channel_reachability_service,
+        conversation_runtime_service=runtime.conversation_runtime_service,
+        reminder_service=runtime.reminder_service,
+        social_scheduling_service=runtime.social_scheduling_service,
+        calendar_import_service=runtime.calendar_import_service,
+        adapters=runtime.adapters,
+        tool_ports=runtime.tool_ports,
+        pre_llm_gate=runtime.pre_llm_gate,
+        lock_manager=runtime.lock_manager,
+        turn_runner=runtime.turn_runner,
+        provider_adapters=provider_adapters,
+        engine=engine,
+        session_factory=session_factory,
+        session=session,
+        redis_client=redis_client,
+        work_stream=work_stream,
+        reply_pubsub=reply_pubsub,
+    )
+
+
+class _DeferredOutboundDelivery:
+    def deliver(self, request: DeliveryRequest) -> None:
+        raise RuntimeError("outbound delivery was not bound")
+
+
+def _provider_adapters_from_settings(
+    settings: Settings,
+    *,
+    now: Callable[[], datetime],
+) -> Mapping[str, Any]:
+    return provider_registry(
+        [
+            WhatsAppEvolutionAdapter(
+                base_url=settings.evolution_base_url,
+                api_key=settings.evolution_api_key,
+                instance=settings.evolution_instance,
+                now=now,
+            ),
+            WeChatPersonalAdapter(
+                endpoint_url=settings.wechat_personal_endpoint_url,
+                api_key=settings.wechat_personal_api_key,
+                now=now,
+            ),
+            WeChatECloudAdapter(
+                endpoint_url=settings.wechat_ecloud_endpoint_url,
+                token=settings.wechat_ecloud_token,
+                app_id=settings.wechat_ecloud_app_id,
+                now=now,
+            ),
+            LinqAdapter(
+                endpoint_url=settings.linq_endpoint_url,
+                api_key=settings.linq_api_key,
+                now=now,
+            ),
+        ]
+    )
+
+
+def _llm_from_settings(settings: Settings):
+    if settings.llm_fake:
+        return FakeSemanticInterpreter(), FakeInteractionAgent(), FakeReminderDetector()
+    if not settings.siliconflow_api_key:
+        raise ConfigurationError("SiliconFlow_API_KEY is required for LLM composition")
+    llm_config = SiliconFlowLLMConfig(
+        api_key=settings.siliconflow_api_key,
+        base_url=settings.siliconflow_base_url,
+        interaction_model=settings.interaction_model,
+        interpreter_model=settings.interpreter_model,
+        detector_model=settings.detector_model,
+        agno_database_url=settings.agno_database_url,
+        agno_create_schema=settings.agno_create_schema,
+    )
+    return (
+        SiliconFlowSemanticInterpreter.from_model(
+            llm_config.create_interpreter_model()
+        ),
+        AgnoInteractionAgent.from_config(llm_config),
+        SiliconFlowReminderDetector.from_model(llm_config.create_detector_model()),
     )
 
 
