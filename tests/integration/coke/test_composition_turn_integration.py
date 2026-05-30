@@ -16,25 +16,32 @@ TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
 class FakeRedis:
-    def __init__(self) -> None:
-        self.values: dict[str, str] = {}
+    """In-memory RedisLockPort for composition integration tests.
 
-    def set(self, name, value, nx=False, px=None):
-        if nx and name in self.values:
+    Lock internals are covered by the RR2 lock suite against fakeredis; here we
+    only need a conforming port so the Turn pipeline can take/release the lock.
+    """
+
+    def __init__(self) -> None:
+        self.tokens: dict[str, str] = {}
+
+    def acquire_lock(self, name, token, ttl_ms):
+        if name in self.tokens:
             return False
-        self.values[name] = value
+        self.tokens[name] = token
         return True
 
-    def get(self, name):
-        return self.values.get(name)
+    def get_token(self, name):
+        return self.tokens.get(name)
 
-    def pexpire(self, name, ttl_ms):
-        return name in self.values
+    def extend_if_owned(self, name, token, ttl_ms):
+        return self.tokens.get(name) == token
 
-    def delete(self, name):
-        existed = name in self.values
-        self.values.pop(name, None)
-        return 1 if existed else 0
+    def release_if_owned(self, name, token):
+        if self.tokens.get(name) == token:
+            del self.tokens[name]
+            return True
+        return False
 
 
 class FakeSemanticInterpreter:
