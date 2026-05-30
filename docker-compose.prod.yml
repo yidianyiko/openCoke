@@ -69,7 +69,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${COKE_API_PORT:-8000}:8000"
 
   coke-worker:
     build:
@@ -153,7 +153,7 @@ services:
       coke-api:
         condition: service_healthy
     ports:
-      - "127.0.0.1:4040:4040"
+      - "127.0.0.1:${COKE_WEB_PORT:-4042}:4040"
 
 volumes:
   redis_data:

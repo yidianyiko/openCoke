@@ -1,0 +1,44 @@
+services:
+  redis:
+    ports:
+      - "127.0.0.1:${COKE_CLEAN_REDIS_PORT:-56379}:6379"
+
+  postgres:
+    ports:
+      - "127.0.0.1:${COKE_CLEAN_POSTGRES_PORT:-55432}:5432"
+
+  coke-migrate:
+    environment: &clean_runtime_environment
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://coke:coke@postgres:5432/coke
+      REDIS_URL: redis://redis:6379/0
+      AGNO_TELEMETRY: "false"
+      COKE_AGNO_CREATE_SCHEMA: "1"
+
+  coke-api:
+    environment: *clean_runtime_environment
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${COKE_CLEAN_API_PORT:-8000}:8000"
+
+  coke-worker:
+    environment: *clean_runtime_environment
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  coke-scheduler:
+    environment: *clean_runtime_environment
+
+  coke-outbox-relay:
+    environment: *clean_runtime_environment
+
+  coke-web:
+    ports:
+      - "127.0.0.1:${COKE_CLEAN_WEB_PORT:-4042}:4040"
+
+volumes:
+  postgres_data:
+    name: coke_clean_postgres_data
+  redis_data:
+    name: coke_clean_redis_data
