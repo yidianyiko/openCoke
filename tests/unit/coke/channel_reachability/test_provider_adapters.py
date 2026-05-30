@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import httpx
 import pytest
 
 from coke.domains.channel_reachability.models import (
@@ -16,22 +17,60 @@ from coke.providers.wechat_ecloud import WeChatECloudAdapter
 from coke.providers.wechat_personal import WeChatPersonalAdapter
 from coke.providers.whatsapp_evolution import WhatsAppEvolutionAdapter
 
-
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
+EVOLUTION_TS = datetime.fromtimestamp(1_700_000_000, UTC)
+
+
+def evolution_payload(
+    message: dict,
+    *,
+    remote_jid: str = "15555550123@s.whatsapp.net",
+    from_me: bool = False,
+    message_id: str = "EVT1",
+) -> dict:
+    return {
+        "event": "messages.upsert",
+        "instance": "coke",
+        "data": {
+            "key": {
+                "remoteJid": remote_jid,
+                "fromMe": from_me,
+                "id": message_id,
+            },
+            "pushName": "Alice",
+            "message": message,
+            "messageTimestamp": 1_700_000_000,
+        },
+    }
+
+
+def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
+    return DeliveryRoute(
+        id="route_1",
+        account_id="acct_1",
+        channel_id="channel_1",
+        provider_type=provider_type,
+        provider_address=address,
+        route_key=f"{provider_type}:{address}",
+        lifecycle="active",
+        created_at=NOW,
+        updated_at=NOW,
+    )
 
 
 @pytest.mark.parametrize(
     ("adapter", "payload", "provider_subject", "text", "raw_event_id", "pairing_code"),
     [
         (
-            WhatsAppEvolutionAdapter(now=lambda: NOW),
+            WhatsAppEvolutionAdapter(),
             {
-                "message_id": "wa_msg_1",
-                "sender": "whatsapp:+15555550123",
-                "text": "pair code ABC123",
+                **evolution_payload(
+                    {"conversation": "pair code ABC123"},
+                    message_id="wa_msg_1",
+                ),
                 "pairing_code": "ABC123",
             },
-            "whatsapp:+15555550123",
+            "15555550123",
             "pair code ABC123",
             "wa_msg_1",
             "ABC123",
@@ -90,8 +129,66 @@ def test_provider_adapters_normalize_inbound_payloads(
     assert inbound.text == text
     assert inbound.raw_event_id == raw_event_id
     assert inbound.pairing_code == pairing_code
-    assert inbound.received_at == NOW
+    assert inbound.received_at in {NOW, EVOLUTION_TS}
     assert inbound.payload is not payload
+
+
+def test_whatsapp_evolution_normalizes_extended_text_message():
+    adapter = WhatsAppEvolutionAdapter()
+
+    inbound = adapter.normalize_inbound(
+        evolution_payload(
+            {"extendedTextMessage": {"text": "extended hi"}},
+            remote_jid="15555550123@g.us",
+            message_id="EVT_EXT",
+        )
+    )
+
+    assert inbound.provider_subject == "15555550123"
+    assert inbound.text == "extended hi"
+    assert inbound.raw_event_id == "EVT_EXT"
+    assert inbound.received_at == EVOLUTION_TS
+
+
+def test_whatsapp_evolution_normalizes_media_payload_as_blank_text():
+    adapter = WhatsAppEvolutionAdapter()
+
+    inbound = adapter.normalize_inbound(
+        evolution_payload(
+            {
+                "imageMessage": {
+                    "mimetype": "image/jpeg",
+                    "url": "https://provider.example/image",
+                }
+            },
+            message_id="EVT_IMAGE",
+        )
+    )
+
+    assert inbound.provider_subject == "15555550123"
+    assert inbound.text == ""
+    assert inbound.raw_event_id == "EVT_IMAGE"
+    assert (
+        inbound.payload["data"]["message"]["imageMessage"]["mimetype"] == "image/jpeg"
+    )
+
+
+def test_whatsapp_evolution_rejects_from_me_echo():
+    adapter = WhatsAppEvolutionAdapter()
+
+    with pytest.raises(
+        ChannelReachabilityError, match="provider_outbound_echo"
+    ) as exc_info:
+        adapter.normalize_inbound(
+            evolution_payload({"conversation": "echo"}, from_me=True)
+        )
+
+    assert exc_info.value.code == "provider_outbound_echo"
+    assert exc_info.value.fact == {
+        "type": "provider_outbound_echo",
+        "provider_type": "whatsapp_evolution",
+        "raw_event_id": "EVT1",
+    }
 
 
 @pytest.mark.parametrize(
@@ -99,11 +196,7 @@ def test_provider_adapters_normalize_inbound_payloads(
     [
         (
             WhatsAppEvolutionAdapter(now=lambda: NOW),
-            {
-                "message_id": "wa_msg_blank",
-                "sender": "whatsapp:+15555550123",
-                "text": "",
-            },
+            evolution_payload({"conversation": ""}, message_id="wa_msg_blank"),
         ),
         (
             WeChatPersonalAdapter(now=lambda: NOW),
@@ -140,9 +233,7 @@ def test_provider_adapters_normalize_explicit_blank_text(adapter, payload):
 def test_normalized_inbound_payload_is_recursively_immutable_copy():
     adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
     payload = {
-        "message_id": "wa_msg_1",
-        "sender": "whatsapp:+15555550123",
-        "text": "hello",
+        **evolution_payload({"conversation": "hello"}, message_id="wa_msg_1"),
         "metadata": {
             "headers": {"x-provider": "evolution"},
             "attachments": [{"id": "att_1", "labels": ["receipt", "image"]}],
@@ -155,7 +246,7 @@ def test_normalized_inbound_payload_is_recursively_immutable_copy():
     payload["metadata"]["attachments"][0]["labels"].append("mutated")
 
     assert inbound.text == "hello"
-    assert inbound.payload["text"] == "hello"
+    assert inbound.payload["data"]["message"]["conversation"] == "hello"
     assert inbound.payload["metadata"]["headers"]["x-provider"] == "evolution"
     assert inbound.payload["metadata"]["attachments"][0]["labels"] == (
         "receipt",
@@ -174,12 +265,12 @@ def test_normalized_inbound_payload_is_recursively_immutable_copy():
 def test_provider_adapters_reject_non_json_payload_evidence_values():
     adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
 
-    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
         adapter.normalize_inbound(
             {
-                "message_id": "wa_msg_1",
-                "sender": "whatsapp:+15555550123",
-                "text": "hello",
+                **evolution_payload({"conversation": "hello"}, message_id="wa_msg_1"),
                 "metadata": {"raw_bytes": b"not-json"},
             }
         )
@@ -195,12 +286,12 @@ def test_provider_adapters_reject_non_json_payload_evidence_values():
 def test_provider_adapters_reject_tuple_payload_evidence_values():
     adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
 
-    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
         adapter.normalize_inbound(
             {
-                "message_id": "wa_msg_1",
-                "sender": "whatsapp:+15555550123",
-                "text": "hello",
+                **evolution_payload({"conversation": "hello"}, message_id="wa_msg_1"),
                 "metadata": {"attachments": ("att_1",)},
             }
         )
@@ -218,16 +309,25 @@ def test_provider_adapters_reject_tuple_payload_evidence_values():
     [
         (
             WhatsAppEvolutionAdapter(now=lambda: NOW),
-            {"sender": "whatsapp:+15555550123"},
-            "message_id",
+            {
+                "event": "messages.upsert",
+                "data": {
+                    "key": {"remoteJid": "15555550123@s.whatsapp.net", "fromMe": False}
+                },
+            },
+            "data.key.id",
         ),
         (WeChatPersonalAdapter(now=lambda: NOW), {"message_id": "wx_msg_1"}, "wxid"),
         (WeChatECloudAdapter(now=lambda: NOW), {"msg_id": "gewe_msg_1"}, "sender_id"),
         (LinqAdapter(now=lambda: NOW), {"id": "sms_msg_1"}, "from"),
     ],
 )
-def test_provider_adapters_reject_missing_required_fields(adapter, payload, missing_field):
-    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+def test_provider_adapters_reject_missing_required_fields(
+    adapter, payload, missing_field
+):
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
         adapter.normalize_inbound(payload)
 
     assert exc_info.value.fact == {
@@ -243,8 +343,10 @@ def test_provider_adapters_reject_missing_required_fields(adapter, payload, miss
     [
         (
             WhatsAppEvolutionAdapter(now=lambda: NOW),
-            {"message_id": "wa_msg_1", "sender": "", "text": "hello"},
-            "sender",
+            evolution_payload(
+                {"conversation": "hello"}, remote_jid="", message_id="wa_msg_1"
+            ),
+            "data.key.remoteJid",
         ),
         (
             WeChatPersonalAdapter(now=lambda: NOW),
@@ -264,7 +366,9 @@ def test_provider_adapters_reject_missing_required_fields(adapter, payload, miss
     ],
 )
 def test_provider_adapters_reject_malformed_required_fields(adapter, payload, field):
-    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
         adapter.normalize_inbound(payload)
 
     assert exc_info.value.fact == {
@@ -280,13 +384,13 @@ def test_provider_adapters_reject_malformed_required_fields(adapter, payload, fi
     [
         (
             WhatsAppEvolutionAdapter(now=lambda: NOW),
-            {"message_id": True, "sender": "whatsapp:+15555550123", "text": "hello"},
-            "message_id",
+            evolution_payload({"conversation": "hello"}, message_id=True),
+            "data.key.id",
         ),
         (
             WhatsAppEvolutionAdapter(now=lambda: NOW),
-            {"message_id": "wa_msg_1", "sender": False, "text": "hello"},
-            "sender",
+            evolution_payload({"conversation": "hello"}, remote_jid=False),
+            "data.key.remoteJid",
         ),
         (
             WeChatPersonalAdapter(now=lambda: NOW),
@@ -306,7 +410,9 @@ def test_provider_adapters_reject_malformed_required_fields(adapter, payload, fi
     ],
 )
 def test_provider_adapters_reject_boolean_required_fields(adapter, payload, field):
-    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
         adapter.normalize_inbound(payload)
 
     assert exc_info.value.fact == {
@@ -323,9 +429,7 @@ def test_provider_adapters_reject_boolean_required_fields(adapter, payload, fiel
         (
             WhatsAppEvolutionAdapter(now=lambda: NOW),
             {
-                "message_id": "wa_msg_1",
-                "sender": "whatsapp:+15555550123",
-                "text": "hello",
+                **evolution_payload({"conversation": "hello"}, message_id="wa_msg_1"),
                 "pairing_code": ["ABC123"],
             },
         ),
@@ -359,7 +463,9 @@ def test_provider_adapters_reject_boolean_required_fields(adapter, payload, fiel
     ],
 )
 def test_provider_adapters_reject_malformed_pairing_code(adapter, payload):
-    with pytest.raises(ChannelReachabilityError, match="invalid_provider_payload") as exc_info:
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
         adapter.normalize_inbound(payload)
 
     assert exc_info.value.fact == {
@@ -398,27 +504,165 @@ def test_registry_contains_all_retained_provider_adapters():
     }
 
 
-def test_fake_send_text_returns_provider_attempt_result():
-    adapter = WhatsAppEvolutionAdapter(now=lambda: NOW)
-    route = DeliveryRoute(
-        id="route_1",
-        account_id="acct_1",
-        channel_id="channel_1",
-        provider_type="whatsapp_evolution",
-        provider_address="whatsapp:+15555550123",
-        route_key="whatsapp_evolution:whatsapp:+15555550123",
-        lifecycle="active",
-        created_at=NOW,
-        updated_at=NOW,
-    )
+def test_whatsapp_evolution_send_text_posts_real_send_text_request():
+    requests = []
 
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(201, json={"key": {"id": "EV_SEND_1"}})
+
+    adapter = WhatsAppEvolutionAdapter(
+        base_url="https://evolution.example",
+        api_key="secret-key",
+        instance="coke",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        now=lambda: NOW,
+    )
     result = adapter.send_text(
-        route=route,
+        route=delivery_route("whatsapp_evolution", "15555550123"),
         text="hello",
         idempotency_key="send_1",
     )
 
+    assert requests[0].method == "POST"
+    assert str(requests[0].url) == "https://evolution.example/message/sendText/coke"
+    assert requests[0].headers["apikey"] == "secret-key"
+    assert requests[0].headers["Idempotency-Key"] == "send_1"
+    assert requests[0].read() == b'{"number":"15555550123","text":"hello"}'
     assert result.status == "sent"
-    assert result.provider_message_id == "whatsapp_evolution:send_1"
+    assert result.provider_message_id == "EV_SEND_1"
     assert result.error_code is None
     assert result.delivered_at is None
+
+
+@pytest.mark.parametrize("status_code", [400, 500])
+def test_whatsapp_evolution_send_text_maps_non_2xx_to_failed(status_code):
+    adapter = WhatsAppEvolutionAdapter(
+        base_url="https://evolution.example",
+        api_key="secret-key",
+        instance="coke",
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(status_code))
+        ),
+        now=lambda: NOW,
+    )
+
+    result = adapter.send_text(
+        route=delivery_route("whatsapp_evolution", "15555550123"),
+        text="hello",
+        idempotency_key="send_1",
+    )
+
+    assert result.status == "failed"
+    assert result.provider_message_id is None
+    assert result.error_code == f"provider_http_{status_code}"
+    assert result.delivered_at is None
+
+
+def test_whatsapp_evolution_send_text_maps_timeout_to_failed():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("timeout", request=request)
+
+    adapter = WhatsAppEvolutionAdapter(
+        base_url="https://evolution.example",
+        api_key="secret-key",
+        instance="coke",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        now=lambda: NOW,
+    )
+
+    result = adapter.send_text(
+        route=delivery_route("whatsapp_evolution", "15555550123"),
+        text="hello",
+        idempotency_key="send_1",
+    )
+
+    assert result.status == "failed"
+    assert result.provider_message_id is None
+    assert result.error_code == "provider_network_error"
+    assert result.delivered_at is None
+
+
+@pytest.mark.parametrize(
+    (
+        "adapter_class",
+        "adapter_kwargs",
+        "route",
+        "provider_response",
+        "expected_url",
+        "expected_json",
+        "expected_message_id",
+    ),
+    [
+        (
+            WeChatPersonalAdapter,
+            {
+                "endpoint_url": "https://clawscale.example/messages/send",
+                "api_key": "wx-secret",
+            },
+            delivery_route("wechat_personal", "wxid_alice"),
+            {"message_id": "WX_SEND"},
+            "https://clawscale.example/messages/send",
+            {"to": "wxid_alice", "text": "hello"},
+            "WX_SEND",
+        ),
+        (
+            WeChatECloudAdapter,
+            {
+                "endpoint_url": "https://gewe.example/message/postText",
+                "token": "gewe-token",
+                "app_id": "app-1",
+            },
+            delivery_route("wechat_ecloud", "gewe_alice"),
+            {"msgId": "GEWE_SEND"},
+            "https://gewe.example/message/postText",
+            {"appId": "app-1", "toWxid": "gewe_alice", "content": "hello"},
+            "GEWE_SEND",
+        ),
+        (
+            LinqAdapter,
+            {"endpoint_url": "https://linq.example/sms/send", "api_key": "sms-secret"},
+            delivery_route("linq", "+15555550123"),
+            {"id": "SMS_SEND"},
+            "https://linq.example/sms/send",
+            {"to": "+15555550123", "text": "hello"},
+            "SMS_SEND",
+        ),
+    ],
+)
+def test_secondary_provider_send_text_posts_real_http_request(
+    adapter_class,
+    adapter_kwargs,
+    route,
+    provider_response,
+    expected_url,
+    expected_json,
+    expected_message_id,
+):
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=provider_response)
+
+    adapter = adapter_class(
+        **adapter_kwargs,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    result = adapter.send_text(route=route, text="hello", idempotency_key="send_1")
+
+    assert requests[0].method == "POST"
+    assert str(requests[0].url) == expected_url
+    assert requests[0].headers["Idempotency-Key"] == "send_1"
+    assert (
+        requests[0].read()
+        == httpx.Request(
+            "POST",
+            expected_url,
+            json=expected_json,
+        ).read()
+    )
+    assert result.status == "sent"
+    assert result.provider_message_id == expected_message_id
+    assert result.error_code is None

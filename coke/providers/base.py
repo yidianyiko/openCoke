@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
 from math import isfinite
 from types import MappingProxyType
 from typing import Protocol
+
+import httpx
 
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
@@ -17,19 +20,19 @@ from coke.domains.channel_reachability.models import (
 class ProviderAdapter(Protocol):
     provider_type: str
 
-    def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound:
-        ...
+    def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound: ...
 
     def send_text(
         self,
         route: DeliveryRoute,
         text: str,
         idempotency_key: str,
-    ) -> DeliveryAttemptResult:
-        ...
+    ) -> DeliveryAttemptResult: ...
 
 
-def provider_registry(adapters: Iterable[ProviderAdapter]) -> dict[str, ProviderAdapter]:
+def provider_registry(
+    adapters: Iterable[ProviderAdapter],
+) -> dict[str, ProviderAdapter]:
     registry: dict[str, ProviderAdapter] = {}
     for adapter in adapters:
         if adapter.provider_type in registry:
@@ -87,6 +90,63 @@ def required_string_field(
             },
         )
     return value
+
+
+def required_bool_field(
+    provider_type: str,
+    payload: Mapping[str, object],
+    field: str,
+) -> bool:
+    if field not in payload:
+        raise invalid_provider_payload(provider_type, field, "missing_required_field")
+    value = payload[field]
+    if not isinstance(value, bool):
+        raise invalid_provider_payload(provider_type, field, "invalid_required_field")
+    return value
+
+
+def required_number_field(
+    provider_type: str,
+    payload: Mapping[str, object],
+    field: str,
+) -> int | float:
+    if field not in payload:
+        raise invalid_provider_payload(provider_type, field, "missing_required_field")
+    value = payload[field]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise invalid_provider_payload(provider_type, field, "invalid_required_field")
+    if isinstance(value, float) and not isfinite(value):
+        raise invalid_provider_payload(provider_type, field, "invalid_required_field")
+    return value
+
+
+def required_mapping_field(
+    provider_type: str,
+    payload: Mapping[str, object],
+    field: str,
+) -> Mapping[str, object]:
+    if field not in payload:
+        raise invalid_provider_payload(provider_type, field, "missing_required_field")
+    value = payload[field]
+    if not isinstance(value, Mapping):
+        raise invalid_provider_payload(provider_type, field, "invalid_required_field")
+    return value
+
+
+def invalid_provider_payload(
+    provider_type: str,
+    field: str,
+    reason: str,
+) -> ChannelReachabilityError:
+    return ChannelReachabilityError(
+        "invalid_provider_payload",
+        fact={
+            "type": "invalid_provider_payload",
+            "provider_type": provider_type,
+            "field": field,
+            "reason": reason,
+        },
+    )
 
 
 def _string_value(value: object, allow_blank: bool) -> str | None:
@@ -150,3 +210,93 @@ def freeze_json(
             "reason": "non_json_payload_value",
         },
     )
+
+
+def configured_http_client(
+    http_client: httpx.Client | None,
+    timeout: float,
+) -> httpx.Client:
+    return http_client or httpx.Client(timeout=timeout)
+
+
+def missing_provider_config() -> DeliveryAttemptResult:
+    return DeliveryAttemptResult(
+        status="failed",
+        provider_message_id=None,
+        error_code="provider_not_configured",
+        delivered_at=None,
+    )
+
+
+def post_json_send(
+    *,
+    provider_type: str,
+    client: httpx.Client,
+    url: str,
+    headers: Mapping[str, str],
+    body: Mapping[str, object],
+) -> DeliveryAttemptResult:
+    try:
+        response = client.post(url, headers=dict(headers), json=dict(body))
+    except httpx.HTTPError:
+        return DeliveryAttemptResult(
+            status="failed",
+            provider_message_id=None,
+            error_code="provider_network_error",
+            delivered_at=None,
+        )
+    if not 200 <= response.status_code < 300:
+        return DeliveryAttemptResult(
+            status="failed",
+            provider_message_id=None,
+            error_code=f"provider_http_{response.status_code}",
+            delivered_at=None,
+        )
+    return DeliveryAttemptResult(
+        status="sent",
+        provider_message_id=extract_provider_message_id(response),
+        error_code=None,
+        delivered_at=None,
+    )
+
+
+def extract_provider_message_id(response: httpx.Response) -> str | None:
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    value = _first_string_at_paths(
+        payload,
+        (
+            ("key", "id"),
+            ("message", "key", "id"),
+            ("data", "key", "id"),
+            ("id",),
+            ("messageId",),
+            ("message_id",),
+            ("msgId",),
+            ("msg_id",),
+        ),
+    )
+    return value
+
+
+def _first_string_at_paths(
+    payload: object, paths: Iterable[tuple[str, ...]]
+) -> str | None:
+    for path in paths:
+        value: object = payload
+        for part in path:
+            if not isinstance(value, Mapping) or part not in value:
+                value = None
+                break
+            value = value[part]
+        if value is not None:
+            text = _string_value(value, allow_blank=False)
+            if text is not None:
+                return text
+    return None
+
+
+def epoch_seconds_to_utc(value: int | float) -> datetime:
+    return datetime.fromtimestamp(value, UTC)

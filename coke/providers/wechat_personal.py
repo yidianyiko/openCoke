@@ -3,18 +3,38 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 
+import httpx
+
 from coke.domains.channel_reachability.models import (
     DeliveryAttemptResult,
     DeliveryRoute,
     NormalizedInbound,
 )
-from coke.providers.base import freeze_json, optional_string_field, required_string_field
+from coke.providers.base import (
+    configured_http_client,
+    freeze_json,
+    missing_provider_config,
+    optional_string_field,
+    post_json_send,
+    required_string_field,
+)
 
 
 class WeChatPersonalAdapter:
     provider_type = "wechat_personal"
 
-    def __init__(self, now: Callable[[], datetime] | None = None) -> None:
+    def __init__(
+        self,
+        endpoint_url: str | None = None,
+        api_key: str | None = None,
+        *,
+        timeout: float = 10.0,
+        http_client: httpx.Client | None = None,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
+        self.endpoint_url = endpoint_url
+        self.api_key = api_key
+        self._client = configured_http_client(http_client, timeout)
         self._now = now or (lambda: datetime.now(UTC))
 
     def normalize_inbound(self, payload: Mapping[str, object]) -> NormalizedInbound:
@@ -25,9 +45,13 @@ class WeChatPersonalAdapter:
                 self.provider_type, payload, "text", allow_blank=True
             )
             or "",
-            raw_event_id=required_string_field(self.provider_type, payload, "message_id"),
+            raw_event_id=required_string_field(
+                self.provider_type, payload, "message_id"
+            ),
             received_at=self._now(),
-            pairing_code=optional_string_field(self.provider_type, payload, "pairing_code"),
+            pairing_code=optional_string_field(
+                self.provider_type, payload, "pairing_code"
+            ),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 
@@ -37,9 +61,16 @@ class WeChatPersonalAdapter:
         text: str,
         idempotency_key: str,
     ) -> DeliveryAttemptResult:
-        return DeliveryAttemptResult(
-            status="sent",
-            provider_message_id=f"{self.provider_type}:{idempotency_key}",
-            error_code=None,
-            delivered_at=None,
+        if not self.endpoint_url:
+            return missing_provider_config()
+        headers = {"Idempotency-Key": idempotency_key}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+            headers["X-API-Key"] = self.api_key
+        return post_json_send(
+            provider_type=self.provider_type,
+            client=self._client,
+            url=self.endpoint_url,
+            headers=headers,
+            body={"to": route.provider_address, "text": text},
         )
