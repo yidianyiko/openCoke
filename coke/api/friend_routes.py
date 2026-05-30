@@ -2,43 +2,42 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
+from coke.api.auth_helpers import require_customer_account_id
 from coke.domains.social_scheduling.models import SocialSchedulingError
 
 
-def create_friend_blueprint(social_scheduling_service) -> Blueprint:
+def create_friend_blueprint(social_scheduling_service, identity_service) -> Blueprint:
     blueprint = Blueprint("friends", __name__, url_prefix="/api/friends")
 
     @blueprint.errorhandler(SocialSchedulingError)
     def handle_social_scheduling_error(error: SocialSchedulingError):
-        return jsonify(_error_body(error.code, error.fact)), 400
+        return jsonify(_error_body(error.code, error.fact)), _status_code(error.code)
 
     @blueprint.get("/link")
     def get_friend_link():
         link = social_scheduling_service.get_or_create_friend_link(
-            owner_account_id=_query_str_field("owner_account_id")
+            owner_account_id=_customer_account_id(identity_service)
         )
         return jsonify(_friend_link_body(link))
 
     @blueprint.post("/link/reset")
     def reset_friend_link():
-        payload = _json_payload()
         link = social_scheduling_service.reset_friend_link(
-            owner_account_id=_body_str_field(payload, "owner_account_id")
+            owner_account_id=_customer_account_id(identity_service)
         )
         return jsonify(_friend_link_body(link))
 
     @blueprint.post("/link/disable")
     def disable_friend_link():
-        payload = _json_payload()
         link = social_scheduling_service.disable_friend_link(
-            owner_account_id=_body_str_field(payload, "owner_account_id")
+            owner_account_id=_customer_account_id(identity_service)
         )
         return jsonify(_friend_link_body(link))
 
     @blueprint.post("/join")
     def join_friend_link():
+        joiner_account_id = _customer_account_id(identity_service)
         payload = _json_payload()
-        joiner_account_id = _body_str_field(payload, "joiner_account_id")
         public_token = payload.get("public_token")
         link_code = payload.get("link_code")
         if (
@@ -71,9 +70,10 @@ def create_friend_blueprint(social_scheduling_service) -> Blueprint:
 
     @blueprint.post("/complete-deferred")
     def complete_deferred():
+        joiner_account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         result = social_scheduling_service.complete_deferred_friend_link(
-            joiner_account_id=_body_str_field(payload, "joiner_account_id"),
+            joiner_account_id=joiner_account_id,
             friend_link_id=_body_str_field(payload, "friend_link_id"),
         )
         return jsonify(_friendship_result_body(result))
@@ -81,7 +81,7 @@ def create_friend_blueprint(social_scheduling_service) -> Blueprint:
     @blueprint.get("")
     def list_friends():
         friends = social_scheduling_service.list_friends(
-            account_id=_query_str_field("account_id")
+            account_id=_customer_account_id(identity_service)
         )
         return jsonify(
             {
@@ -97,9 +97,8 @@ def create_friend_blueprint(social_scheduling_service) -> Blueprint:
 
     @blueprint.post("/<friend_account_id>/remove")
     def remove_friend(friend_account_id: str):
-        payload = _json_payload()
         friendship = social_scheduling_service.remove_friend(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=_customer_account_id(identity_service),
             friend_account_id=_path_str_field(friend_account_id, "friend_account_id"),
         )
         return jsonify(
@@ -107,6 +106,10 @@ def create_friend_blueprint(social_scheduling_service) -> Blueprint:
         )
 
     return blueprint
+
+
+def _customer_account_id(identity_service) -> str:
+    return require_customer_account_id(identity_service, SocialSchedulingError)
 
 
 def _friend_link_body(link) -> dict:
@@ -217,3 +220,7 @@ def _error_body(code: str, fact: dict | None = None) -> dict:
     if fact is not None:
         body["error"]["fact"] = fact
     return body
+
+
+def _status_code(code: str) -> int:
+    return 401 if code == "unauthorized" else 400

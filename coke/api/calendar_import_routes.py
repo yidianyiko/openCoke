@@ -4,10 +4,14 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from coke.api.auth_helpers import require_customer_account_id
 from coke.domains.calendar_import.models import CalendarImportError
 
 
-def create_calendar_import_blueprint(calendar_import_service) -> Blueprint:
+def create_calendar_import_blueprint(
+    calendar_import_service,
+    identity_service,
+) -> Blueprint:
     blueprint = Blueprint(
         "calendar_import",
         __name__,
@@ -16,13 +20,14 @@ def create_calendar_import_blueprint(calendar_import_service) -> Blueprint:
 
     @blueprint.errorhandler(CalendarImportError)
     def handle_calendar_import_error(error: CalendarImportError):
-        return jsonify(_error_body(error.code, error.fact)), 400
+        return jsonify(_error_body(error.code, error.fact)), _status_code(error.code)
 
     @blueprint.post("/google/import")
     def import_google():
+        account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         summary = calendar_import_service.import_google_calendar(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=account_id,
             auth_handle=_body_str_field(payload, "auth_handle"),
             provider_account_id=_optional_str_field(payload, "provider_account_id"),
             visible_start=_parse_datetime(_body_str_field(payload, "visible_start")),
@@ -34,23 +39,29 @@ def create_calendar_import_blueprint(calendar_import_service) -> Blueprint:
 
     @blueprint.post("/google/stop")
     def stop_google():
+        account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         state = calendar_import_service.stop_authorization(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=account_id,
             auth_handle=_body_str_field(payload, "auth_handle"),
         )
         return jsonify({"authorization": _authorization_body(state)})
 
     @blueprint.post("/google/revoke")
     def revoke_google():
+        account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         state = calendar_import_service.revoke_authorization(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=account_id,
             auth_handle=_body_str_field(payload, "auth_handle"),
         )
         return jsonify({"authorization": _authorization_body(state)})
 
     return blueprint
+
+
+def _customer_account_id(identity_service) -> str:
+    return require_customer_account_id(identity_service, CalendarImportError)
 
 
 def _summary_body(summary) -> dict:
@@ -165,3 +176,7 @@ def _parse_datetime(value: str) -> datetime:
 
 def _error_body(code: str, fact: dict | None) -> dict:
     return {"error": {"code": code, "fact": fact or {}}}
+
+
+def _status_code(code: str) -> int:
+    return 401 if code == "unauthorized" else 400

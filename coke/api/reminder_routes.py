@@ -4,21 +4,23 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from coke.api.auth_helpers import require_customer_account_id
 from coke.domains.reminder.models import ReminderBatchItem, ReminderError
 
 
-def create_reminder_blueprint(reminder_service) -> Blueprint:
+def create_reminder_blueprint(reminder_service, identity_service) -> Blueprint:
     blueprint = Blueprint("reminders", __name__, url_prefix="/api/reminders")
 
     @blueprint.errorhandler(ReminderError)
     def handle_reminder_error(error: ReminderError):
-        return jsonify(_error_body(error.code, error.fact)), 400
+        return jsonify(_error_body(error.code, error.fact)), _status_code(error.code)
 
     @blueprint.post("/batch")
     def batch():
+        owner_account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         result = reminder_service.execute_batch(
-            owner_account_id=_body_str_field(payload, "owner_account_id"),
+            owner_account_id=owner_account_id,
             items=[_batch_item(item) for item in _body_list_field(payload, "items")],
         )
         return jsonify(
@@ -31,7 +33,7 @@ def create_reminder_blueprint(reminder_service) -> Blueprint:
     @blueprint.get("/calendar")
     def calendar():
         result = reminder_service.calendar_entries(
-            owner_account_id=_query_str_field("owner_account_id"),
+            owner_account_id=_customer_account_id(identity_service),
             visible_start=_parse_datetime(_query_str_field("visible_start")),
             visible_end=_parse_datetime(_query_str_field("visible_end")),
             display_timezone=_query_str_field("display_timezone"),
@@ -45,9 +47,10 @@ def create_reminder_blueprint(reminder_service) -> Blueprint:
 
     @blueprint.post("/<reminder_id>/schedule-unscheduled")
     def schedule_unscheduled(reminder_id: str):
+        owner_account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         result = reminder_service.schedule_unscheduled(
-            owner_account_id=_body_str_field(payload, "owner_account_id"),
+            owner_account_id=owner_account_id,
             reminder_id=_path_str_field(reminder_id, "reminder_id"),
             trigger_time=_parse_datetime(_body_str_field(payload, "trigger_time")),
             captured_timezone=_body_str_field(payload, "captured_timezone"),
@@ -56,33 +59,34 @@ def create_reminder_blueprint(reminder_service) -> Blueprint:
 
     @blueprint.post("/<reminder_id>/clear-trigger-time")
     def clear_trigger_time(reminder_id: str):
-        payload = _json_payload()
         result = reminder_service.clear_trigger_time(
-            owner_account_id=_body_str_field(payload, "owner_account_id"),
+            owner_account_id=_customer_account_id(identity_service),
             reminder_id=_path_str_field(reminder_id, "reminder_id"),
         )
         return jsonify(_item_result_body(result))
 
     @blueprint.post("/<reminder_id>/complete")
     def complete(reminder_id: str):
-        payload = _json_payload()
         result = reminder_service.complete_reminder(
-            owner_account_id=_body_str_field(payload, "owner_account_id"),
+            owner_account_id=_customer_account_id(identity_service),
             reminder_id=_path_str_field(reminder_id, "reminder_id"),
         )
         return jsonify(_item_result_body(result))
 
     @blueprint.post("/<reminder_id>/delete")
     def delete(reminder_id: str):
-        payload = _json_payload()
         result = reminder_service.delete_reminder(
-            owner_account_id=_body_str_field(payload, "owner_account_id"),
+            owner_account_id=_customer_account_id(identity_service),
             reminder_id=_path_str_field(reminder_id, "reminder_id"),
             user_initiated=True,
         )
         return jsonify(_item_result_body(result))
 
     return blueprint
+
+
+def _customer_account_id(identity_service) -> str:
+    return require_customer_account_id(identity_service, ReminderError)
 
 
 def _batch_item(payload: dict) -> ReminderBatchItem:
@@ -263,3 +267,7 @@ def _error_body(code: str, fact: dict | None = None) -> dict:
     if fact is not None:
         body["error"]["fact"] = fact
     return body
+
+
+def _status_code(code: str) -> int:
+    return 401 if code == "unauthorized" else 400

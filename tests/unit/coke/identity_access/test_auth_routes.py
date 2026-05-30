@@ -21,13 +21,13 @@ class FakeService:
         self.account = FakeObject(id="acct_1", origin="web_first")
         self.session = FakeObject(id="sess_1", account_id="acct_1", token="session_token")
 
-    def register_web_account(self, email, password_hash, default_timezone="UTC"):
+    def register_web_account(self, email, password, default_timezone="UTC"):
         self.calls.append(
             (
                 "register_web_account",
                 {
                     "email": email,
-                    "password_hash": password_hash,
+                    "password": password,
                     "default_timezone": default_timezone,
                 },
             )
@@ -39,8 +39,8 @@ class FakeService:
             email_verification=FakeObject(id="artifact_1"),
         )
 
-    def login(self, email, password_hash):
-        self.calls.append(("login", {"email": email, "password_hash": password_hash}))
+    def login(self, email, password):
+        self.calls.append(("login", {"email": email, "password": password}))
         return FakeObject(id="login_result", account=self.account, session=self.session)
 
     def verify_email(self, token):
@@ -51,13 +51,13 @@ class FakeService:
         self.calls.append(("issue_password_reset", {"email": email}))
         return FakeObject(code="reset_token", artifact=FakeObject(id="artifact_2"))
 
-    def reset_password(self, token, password_hash):
+    def reset_password(self, token, password):
         self.calls.append(
             (
                 "reset_password",
                 {
                     "token": token,
-                    "password_hash": password_hash,
+                    "password": password,
                 },
             )
         )
@@ -161,7 +161,7 @@ class FakeService:
 
 
 class ErrorService(FakeService):
-    def login(self, email, password_hash):
+    def login(self, email, password):
         raise IdentityAccessError("invalid_credentials")
 
     def redeem_claim_code_from_channel(self, code, provider_type, provider_subject):
@@ -234,7 +234,7 @@ def test_create_app_registers_auth_and_claim_routes_with_identity_service():
 
     auth_response = client.post(
         "/api/auth/login",
-        json={"email": "a@example.com", "password_hash": "hash_1"},
+        json={"email": "a@example.com", "password": "hash_1"},
     )
     claim_response = client.post(
         "/api/claim/code",
@@ -246,7 +246,7 @@ def test_create_app_registers_auth_and_claim_routes_with_identity_service():
     assert claim_response.status_code == 201
     assert claim_response.get_json() == {"code": "claim_code", "artifact_id": "artifact_3"}
     assert service.calls == [
-        ("login", {"email": "a@example.com", "password_hash": "hash_1"}),
+        ("login", {"email": "a@example.com", "password": "hash_1"}),
         (
             "issue_web_claim_code",
             {
@@ -264,7 +264,7 @@ def test_register_route_calls_service_and_returns_json():
         "/api/auth/register",
         json={
             "email": "a@example.com",
-            "password_hash": "hash_1",
+            "password": "hash_1",
             "default_timezone": "Asia/Tokyo",
         },
     )
@@ -279,7 +279,7 @@ def test_register_route_calls_service_and_returns_json():
         "register_web_account",
         {
             "email": "a@example.com",
-            "password_hash": "hash_1",
+            "password": "hash_1",
             "default_timezone": "Asia/Tokyo",
         },
     )
@@ -290,7 +290,7 @@ def test_login_and_current_user_routes_call_service():
 
     login_response = client.post(
         "/api/auth/login",
-        json={"email": "a@example.com", "password_hash": "hash_1"},
+        json={"email": "a@example.com", "password": "hash_1"},
     )
     current_response = client.get(
         "/api/auth/current-user",
@@ -307,7 +307,10 @@ def test_login_and_current_user_routes_call_service():
 def test_access_status_route_calls_service():
     client, service = make_client()
 
-    response = client.get("/api/auth/access-status?account_id=acct_1")
+    response = client.get(
+        "/api/auth/access-status",
+        headers={"Authorization": "Bearer session_token"},
+    )
 
     assert response.status_code == 200
     assert response.get_json() == {
@@ -315,7 +318,28 @@ def test_access_status_route_calls_service():
         "access_allowed": True,
         "denial_reason": None,
     }
-    assert service.calls[-1] == ("get_access_status", {"account_id": "acct_1"})
+    assert service.calls[-2:] == [
+        ("current_user", {"session_token": "session_token"}),
+        ("get_access_status", {"account_id": "acct_1"}),
+    ]
+
+
+def test_access_status_route_rejects_missing_session_before_service_call():
+    client, service = make_client()
+
+    response = client.get("/api/auth/access-status")
+
+    assert response.status_code == 401
+    assert response.get_json() == {
+        "error": {
+            "code": "unauthorized",
+            "fact": {
+                "type": "unauthorized",
+                "reason": "missing_bearer_token",
+            },
+        }
+    }
+    assert service.calls == []
 
 
 def test_verification_and_password_reset_routes_call_service():
@@ -325,7 +349,7 @@ def test_verification_and_password_reset_routes_call_service():
     request_response = client.post("/api/auth/password-reset/request", json={"email": "a@example.com"})
     complete_response = client.post(
         "/api/auth/password-reset/complete",
-        json={"token": "reset_token", "password_hash": "hash_2"},
+        json={"token": "reset_token", "password": "hash_2"},
     )
 
     assert verify_response.status_code == 200
@@ -334,7 +358,7 @@ def test_verification_and_password_reset_routes_call_service():
     assert service.calls[-3:] == [
         ("verify_email", {"token": "verify_token"}),
         ("issue_password_reset", {"email": "a@example.com"}),
-        ("reset_password", {"token": "reset_token", "password_hash": "hash_2"}),
+        ("reset_password", {"token": "reset_token", "password": "hash_2"}),
     ]
 
 
@@ -436,7 +460,7 @@ def test_auth_route_errors_are_json_facts():
 
     response = client.post(
         "/api/auth/login",
-        json={"email": "a@example.com", "password_hash": "wrong"},
+        json={"email": "a@example.com", "password": "wrong"},
     )
 
     assert response.status_code == 400
@@ -474,7 +498,7 @@ def test_auth_route_missing_required_json_field_returns_invalid_request_fact():
             "fact": {
                 "type": "invalid_request",
                 "location": "body",
-                "field": "password_hash",
+                "field": "password",
                 "reason": "required_field_missing",
             },
         }
@@ -560,7 +584,11 @@ def test_claim_poll_route_missing_browser_session_query_returns_invalid_request_
 def test_pairing_code_issue_route_returns_json_error_when_service_rejects_origin():
     client, _service = make_client(ErrorService())
 
-    response = client.post("/api/claim/pairing-code", json={"account_id": "acct_msg"})
+    response = client.post(
+        "/api/claim/pairing-code",
+        json={"account_id": "spoofed_account"},
+        headers={"Authorization": "Bearer session_token"},
+    )
 
     assert response.status_code == 400
     assert response.get_json() == {
@@ -571,7 +599,11 @@ def test_pairing_code_issue_route_returns_json_error_when_service_rejects_origin
 def test_pairing_code_issue_route_returns_access_denied_fact():
     client, _service = make_client(AccessDeniedService())
 
-    response = client.post("/api/claim/pairing-code", json={"account_id": "acct_1"})
+    response = client.post(
+        "/api/claim/pairing-code",
+        json={"account_id": "spoofed_account"},
+        headers={"Authorization": "Bearer session_token"},
+    )
 
     assert response.status_code == 400
     assert response.get_json() == {
@@ -640,7 +672,11 @@ def test_pairing_code_redeem_route_returns_write_conflict_json_fact():
 def test_pairing_code_issue_and_redeem_routes_call_service():
     client, service = make_client()
 
-    issue_response = client.post("/api/claim/pairing-code", json={"account_id": "acct_1"})
+    issue_response = client.post(
+        "/api/claim/pairing-code",
+        json={"account_id": "spoofed_account"},
+        headers={"Authorization": "Bearer session_token"},
+    )
     redeem_response = client.post(
         "/api/claim/pairing-code/redeem",
         json={
@@ -654,6 +690,10 @@ def test_pairing_code_issue_and_redeem_routes_call_service():
     assert issue_response.get_json() == {"code": "pairing_code", "artifact_id": "artifact_4"}
     assert redeem_response.status_code == 200
     assert redeem_response.get_json() == {"account_id": "acct_1", "channel_identity_id": "ci_1"}
+    assert service.calls[:2] == [
+        ("current_user", {"session_token": "session_token"}),
+        ("issue_pairing_code", {"account_id": "acct_1"}),
+    ]
     assert service.calls[-1] == (
         "resolve_or_create_channel_identity",
         {

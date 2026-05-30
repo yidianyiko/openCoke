@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
+from coke.api.auth_helpers import require_customer_account
 from coke.domains.identity_access.models import IdentityAccessError
 
 
@@ -13,14 +14,14 @@ def create_auth_blueprint(identity_service) -> Blueprint:
         body = {"error": {"code": error.code}}
         if error.fact is not None:
             body["error"]["fact"] = error.fact
-        return jsonify(body), 400
+        return jsonify(body), _status_code(error.code)
 
     @blueprint.post("/register")
     def register():
         payload = _json_payload()
         result = identity_service.register_web_account(
             email=_body_field(payload, "email"),
-            password_hash=_body_field(payload, "password_hash"),
+            password=_body_field(payload, "password"),
             default_timezone=payload.get("default_timezone", "UTC"),
         )
         return (
@@ -39,7 +40,7 @@ def create_auth_blueprint(identity_service) -> Blueprint:
         payload = _json_payload()
         result = identity_service.login(
             email=_body_field(payload, "email"),
-            password_hash=_body_field(payload, "password_hash"),
+            password=_body_field(payload, "password"),
         )
         return jsonify({"account_id": result.account.id, "session_token": result.session.token})
 
@@ -60,20 +61,19 @@ def create_auth_blueprint(identity_service) -> Blueprint:
         payload = _json_payload()
         credential = identity_service.reset_password(
             token=_body_field(payload, "token"),
-            password_hash=_body_field(payload, "password_hash"),
+            password=_body_field(payload, "password"),
         )
         return jsonify({"account_id": credential.account_id, "email": credential.email})
 
     @blueprint.get("/current-user")
     def current_user():
-        session_token = _bearer_token()
-        account = identity_service.current_user(session_token=session_token)
+        account = require_customer_account(identity_service, IdentityAccessError)
         return jsonify({"account_id": account.id, "origin": account.origin})
 
     @blueprint.get("/access-status")
     def access_status():
-        account_id = _query_field("account_id")
-        access = identity_service.get_access_status(account_id=account_id)
+        account = require_customer_account(identity_service, IdentityAccessError)
+        access = identity_service.get_access_status(account_id=account.id)
         return jsonify(
             {
                 "account_id": access.account_id,
@@ -98,14 +98,6 @@ def create_auth_blueprint(identity_service) -> Blueprint:
         )
 
     return blueprint
-
-
-def _bearer_token() -> str:
-    header = request.headers.get("Authorization", "")
-    prefix = "Bearer "
-    if not header.startswith(prefix):
-        return ""
-    return header[len(prefix) :]
 
 
 def _json_payload() -> dict:
@@ -149,3 +141,7 @@ def _query_field(field: str) -> str:
             },
         )
     return value
+
+
+def _status_code(code: str) -> int:
+    return 401 if code == "unauthorized" else 400

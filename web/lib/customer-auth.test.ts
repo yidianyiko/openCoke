@@ -147,7 +147,7 @@ describe('customer auth storage', () => {
     });
     expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith('/api/auth/login', {
       email: 'alice@example.com',
-      password_hash: 'secret',
+      password: 'secret',
     });
   });
 
@@ -175,7 +175,7 @@ describe('customer auth storage', () => {
     });
     expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith('/api/auth/register', {
       email: 'alice@example.com',
-      password_hash: 'secret',
+      password: 'secret',
       default_timezone: expect.any(String),
     });
   });
@@ -217,9 +217,6 @@ describe('customer auth storage', () => {
       },
     });
     expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(1, '/api/auth/current-user');
-    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(
-      2,
-      '/api/auth/access-status?account_id=acct_1',
-    );
+    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(2, '/api/auth/access-status');
   });
 });
