@@ -357,8 +357,10 @@ Expected: the notification/outbox contract test passes.
 **Files:**
 - Modify: `coke/composition.py`
 - Modify: `coke/domains/social_scheduling/service.py`
+- Modify: `coke/app.py`
 - Modify: `coke/llm/agno_interaction_agent.py`
 - Test: `tests/unit/coke/test_social_scheduling_tool_adapter.py`
+- Test: `tests/unit/coke/test_backend_foundation.py`
 - Test: `tests/unit/coke/llm/test_interaction_agent.py`
 - Test: `tests/integration/coke/test_social_scheduling_notification_outbox_contract.py`
 
@@ -423,6 +425,14 @@ COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/pos
 ```
 
 Expected: all focused tests pass.
+
+- [x] **Step 7: Commit API route mutations from the composed runtime**
+
+The live setup exposed that non-webhook API routes could return success while
+leaving the composed Postgres session uncommitted. Add a request lifecycle test
+and app-level session commit/rollback hook so friend-link, friendship,
+shared-reminder, and reminder route mutations are durable across clean API
+workers.
 
 ### Task 10: Bug C - Picklable Scheduler Jobs
 

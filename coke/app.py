@@ -39,6 +39,7 @@ def create_app(
             "provider_adapters",
             None,
         )
+        _register_session_lifecycle(app, getattr(composed_runtime, "session", None))
 
     if identity_access_service is not None:
         from coke.api.auth_routes import create_auth_blueprint
@@ -98,3 +99,21 @@ def create_app(
         return jsonify({"ok": True})
 
     return app
+
+
+def _register_session_lifecycle(app: Flask, session) -> None:
+    if session is None:
+        return
+
+    @app.after_request
+    def commit_or_rollback(response):
+        if response.status_code < 400:
+            session.commit()
+        else:
+            session.rollback()
+        return response
+
+    @app.teardown_request
+    def rollback_on_exception(error):
+        if error is not None:
+            session.rollback()

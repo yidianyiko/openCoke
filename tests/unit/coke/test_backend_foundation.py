@@ -172,6 +172,51 @@ def test_create_app_does_not_start_network_services(monkeypatch):
     assert app.test_client().get("/healthz").status_code == 200
 
 
+def test_create_app_commits_composed_session_after_success_and_rolls_back_errors():
+    from types import SimpleNamespace
+
+    from coke.app import create_app
+    from coke.config import Settings
+
+    class FakeSession:
+        def __init__(self):
+            self.commits = 0
+            self.rollbacks = 0
+
+        def commit(self):
+            self.commits += 1
+
+        def rollback(self):
+            self.rollbacks += 1
+
+    session = FakeSession()
+    runtime = SimpleNamespace(
+        identity_access_service=None,
+        channel_reachability_service=None,
+        reminder_service=None,
+        social_scheduling_service=None,
+        calendar_import_service=None,
+        provider_adapters=None,
+        conversation_runtime_service=None,
+        session=session,
+    )
+    settings = Settings(database_url=POSTGRES_URL, redis_url=REDIS_URL, app_env="test")
+    app = create_app(settings, composed_runtime=runtime)
+
+    @app.get("/bad-request")
+    def bad_request():
+        return {"error": "bad"}, 400
+
+    client = app.test_client()
+    assert client.get("/healthz").status_code == 200
+    assert session.commits == 1
+    assert session.rollbacks == 0
+
+    assert client.get("/bad-request").status_code == 400
+    assert session.commits == 1
+    assert session.rollbacks == 1
+
+
 def test_postgres_factories_are_lazy(monkeypatch):
     from coke.config import Settings
     from coke.infra import postgres
