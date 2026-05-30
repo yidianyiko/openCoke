@@ -284,23 +284,27 @@ class TurnRunner:
         context: Any,
         semantic_decision: SemanticDecision | None,
     ) -> TurnRunResult:
-        agent_result = self.interaction_agent.invoke(
-            AgentRequest(
-                turn_id=context.freshness_guard.turn_id,
-                conversation_id=trigger.conversation_id,
-                account_id=trigger.account_id,
-                mode=trigger.mode,
-                trigger_type=trigger.trigger_type,
-                payload=trigger.payload,
-                trusted_facts=context.trusted_facts,
-                tool_profile=context.tool_profile,
-                freshness_guard=context.freshness_guard,
-                context=context,
-            )
+        agent_request = AgentRequest(
+            turn_id=context.freshness_guard.turn_id,
+            conversation_id=trigger.conversation_id,
+            account_id=trigger.account_id,
+            mode=trigger.mode,
+            trigger_type=trigger.trigger_type,
+            payload=trigger.payload,
+            trusted_facts=context.trusted_facts,
+            tool_profile=context.tool_profile,
+            freshness_guard=context.freshness_guard,
+            context=context,
         )
+        agent_result = self.interaction_agent.invoke(agent_request)
         if agent_result.timed_out:
             return self._record_pending_async(trigger, context, agent_result)
         validated = self.output_protocol.validate_first_answer(agent_result.output)
+        if not validated.valid and agent_result.blank_output:
+            agent_result = self.interaction_agent.invoke(agent_request)
+            if agent_result.timed_out:
+                return self._record_pending_async(trigger, context, agent_result)
+            validated = self.output_protocol.validate_first_answer(agent_result.output)
         return self._record_validated_output(
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,

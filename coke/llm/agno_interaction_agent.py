@@ -113,9 +113,7 @@ class AgnoInteractionAgent:
             task_id = self.task_id_factory()
             self._async_requests[task_id] = request
             return AgentResult.timeout(task_id)
-        return AgentResult.completed(
-            _mapping_or_none(getattr(run_output, "content", None))
-        )
+        return _agent_result_from_content(getattr(run_output, "content", None))
 
     def _memory_manager(self, long_term_enabled: bool):
         if self.db is None:
@@ -167,6 +165,7 @@ class AgnoInteractionAgent:
             "For shared-reminder creation, call social_scheduling_tool with operation=create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, title, local_trigger_at, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes, and context.",
             "Do not answer as if the action happened until the tool result says it happened.",
             "For any state-changing tool result from reminder, social_scheduling, settings, or calendar-import, report success only when ok=true; when ok=false, reason_code is present, or status starts with needs_, must not claim the action succeeded and should ask the required follow-up or report the failure honestly.",
+            'After any tool call, you MUST emit a final user-facing protocol object: {"type":"reply","segments":["..."]} confirming the real tool result in the user\'s language, or {"type":"no_reply","reason":"intentional_no_reply"} only when no user-visible message is truly warranted; never end with empty assistant content, reasoning-only content, or only tool calls.',
             "If no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
         ]
@@ -362,6 +361,14 @@ def _mapping_or_none(content: Any) -> Mapping[str, Any] | None:
         if isinstance(parsed, Mapping):
             return parsed
     return None
+
+
+def _agent_result_from_content(content: Any) -> AgentResult:
+    if content is None:
+        return AgentResult.completed(None, blank_output=True)
+    if isinstance(content, str) and not content.strip():
+        return AgentResult.completed(None, blank_output=True)
+    return AgentResult.completed(_mapping_or_none(content))
 
 
 def _agent_input(request: AgentRequest) -> str:

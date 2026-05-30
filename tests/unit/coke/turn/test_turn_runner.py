@@ -126,6 +126,7 @@ class FakeAgent:
         self.next_result = AgentResult.completed(
             {"type": "reply", "segments": ["hello"]}
         )
+        self.queued_results = []
         self.next_async_result = AgentResult.completed(
             {"type": "reply", "segments": ["async done"]}
         )
@@ -145,6 +146,8 @@ class FakeAgent:
             request.tool_profile.reminder_tool.execute(
                 {"operation": "create"}, request.freshness_guard
             )
+        if self.queued_results:
+            return self.queued_results.pop(0)
         return self.next_result
 
     def complete_async(self, task_id: str):
@@ -245,6 +248,51 @@ def test_malformed_agent_output_fails_closed_without_rewrite(harness):
     assert result.reason_code == "invalid_output_protocol"
     assert result.visible_text is None
     assert harness["runner"].output_protocol.rewrite_invocations == 0
+    assert harness["delivery"].deliveries == []
+
+
+def test_blank_agent_output_retries_same_turn_once_then_uses_valid_retry(harness):
+    harness["agent"].queued_results = [
+        AgentResult(output=None, blank_output=True),
+        AgentResult.completed(
+            {"type": "reply", "segments": ["好友已经添加好了。"]}
+        ),
+    ]
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "好友已经添加好了。"
+    assert harness["agent"].invocations == 2
+    assert len(harness["delivery"].deliveries) == 1
+    assert harness["delivery"].deliveries[-1].visible_text == "好友已经添加好了。"
+
+
+def test_blank_agent_output_retry_still_blank_fails_closed(harness):
+    harness["agent"].queued_results = [
+        AgentResult(output=None, blank_output=True),
+        AgentResult(output=None, blank_output=True),
+    ]
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "failed"
+    assert result.reason_code == "invalid_output_protocol"
+    assert harness["agent"].invocations == 2
+    assert harness["delivery"].deliveries == []
+
+
+def test_nonblank_malformed_agent_output_does_not_retry(harness):
+    harness["agent"].queued_results = [
+        AgentResult.completed(None),
+        AgentResult.completed({"type": "reply", "segments": ["would be bad"]}),
+    ]
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "failed"
+    assert result.reason_code == "invalid_output_protocol"
+    assert harness["agent"].invocations == 1
     assert harness["delivery"].deliveries == []
 
 

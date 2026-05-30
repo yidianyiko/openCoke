@@ -173,6 +173,19 @@ def test_agent_instructions_gate_success_claims_on_tool_ok_true():
     assert "must not claim the action succeeded" in instructions
 
 
+def test_instructions_require_final_protocol_reply_after_tool_work():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True, social_scheduling_tool=FakeSocialSchedulingTool()))
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "After any tool call" in instructions
+    assert '{"type":"reply","segments":["..."]}' in instructions
+    assert "never end with empty assistant content" in instructions
+
+
 def test_agent_instructions_name_real_social_scheduling_operations():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
