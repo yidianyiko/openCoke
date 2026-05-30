@@ -178,6 +178,8 @@ def create_app(
     webhook = webhook_client or httpx.Client()
     poll_lock = threading.Lock()
     poll_thread: threading.Thread | None = None
+    login_poll_lock = threading.Lock()
+    login_poll_threads: dict[str, threading.Thread] = {}
 
     def start_poll_loop() -> bool:
         nonlocal poll_thread
@@ -190,6 +192,27 @@ def create_app(
                 daemon=True,
             )
             poll_thread.start()
+            return True
+
+    def start_login_poll_loop(session_id: str) -> bool:
+        with login_poll_lock:
+            existing = login_poll_threads.get(session_id)
+            if existing and existing.is_alive():
+                return False
+            session = _session_by_id(connector_state.snapshot(), session_id)
+            if not session or session.get("status") in {
+                "connected",
+                "expired",
+                "login_error",
+            }:
+                return False
+            thread = threading.Thread(
+                target=_run_login_status_loop,
+                args=(config, connector_state, client, session_id, start_poll_loop),
+                daemon=True,
+            )
+            login_poll_threads[session_id] = thread
+            thread.start()
             return True
 
     @app.get("/healthz")
@@ -249,16 +272,10 @@ def create_app(
         session = _session_by_id(connector_state.snapshot(), session_id)
         if not session or session.get("account_id") != account_id:
             return jsonify({"error": "session_not_found"}), 404
-        if session.get("status") not in {"connected", "expired", "login_error"}:
-            session = _poll_login_status_once(
-                config=config,
-                state=connector_state,
-                ilink_client=client,
-                session_id=session_id,
-                session=session,
-            )
-            if session.get("status") == "connected":
-                start_poll_loop()
+        if session.get("status") == "connected":
+            start_poll_loop()
+        elif session.get("status") not in {"expired", "login_error"}:
+            start_login_poll_loop(session_id)
         return jsonify(_session_public_view(session_id, session))
 
     @app.post("/login/start")
@@ -291,6 +308,7 @@ def create_app(
                 "context_tokens": {},
             },
         )
+        start_login_poll_loop(session_id)
         return jsonify(_session_public_view(session_id, session)), 202
 
     @app.post("/poll/once")
@@ -530,6 +548,41 @@ def _run_poll_loop(
             )
         except Exception as exc:  # pragma: no cover - operational state capture
             state.update({"last_poll_error": repr(exc)})
+        time.sleep(config.poll_interval_seconds)
+
+
+def _run_login_status_loop(
+    config: ConnectorConfig,
+    state: ConnectorState,
+    ilink_client: IlinkClient,
+    session_id: str,
+    on_connected,
+) -> None:
+    while True:
+        session = _session_by_id(state.snapshot(), session_id)
+        if not session:
+            return
+        if session.get("status") == "connected":
+            on_connected()
+            return
+        if session.get("status") in {"expired", "login_error"}:
+            return
+        try:
+            session = _poll_login_status_once(
+                config=config,
+                state=state,
+                ilink_client=ilink_client,
+                session_id=session_id,
+                session=session,
+            )
+        except Exception as exc:  # pragma: no cover - operational state capture
+            state.update_session(session_id, {"last_login_poll_error": repr(exc)})
+            session = _session_by_id(state.snapshot(), session_id) or {}
+        if session.get("status") == "connected":
+            on_connected()
+            return
+        if session.get("status") in {"expired", "login_error"}:
+            return
         time.sleep(config.poll_interval_seconds)
 
 

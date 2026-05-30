@@ -87,11 +87,21 @@ class WeChatPersonalAdapter:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
             headers["X-API-Key"] = self.api_key
-        response = self._client.get(
-            f"{self._connector_base_url()}/login/status",
-            headers=headers,
-            params={"account_id": account_id, "session_id": session_id},
-        )
+        try:
+            response = self._client.get(
+                f"{self._connector_base_url()}/login/status",
+                headers=headers,
+                params={"account_id": account_id, "session_id": session_id},
+                timeout=5.0,
+            )
+        except (httpx.TimeoutException, httpx.NetworkError):
+            return {
+                "account_id": account_id,
+                "session_id": session_id,
+                "status": "waiting_for_scan",
+                "connector_status": "timeout",
+                "retryable": True,
+            }
         response.raise_for_status()
         body = response.json()
         return body if isinstance(body, dict) else {}

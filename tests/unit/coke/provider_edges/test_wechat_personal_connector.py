@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from provider_edges.wechat_personal_connector.app import (
     ConnectorState,
     create_app,
     poll_once,
+    _poll_login_status_once,
 )
 
 
@@ -168,23 +170,85 @@ def test_login_status_confirmation_persists_account_bot_token_and_cursor(tmp_pat
         headers={"Authorization": "Bearer connector-key"},
     ).get_json()
 
-    response = client.get(
-        f"/login/status?account_id=acct_1&session_id={started['session_id']}",
-        headers={"Authorization": "Bearer connector-key"},
+    session = _poll_login_status_once(
+        config=ConnectorConfig(api_key="connector-key"),
+        state=state,
+        ilink_client=ilink,
+        session_id=started["session_id"],
+        session=state.snapshot()["sessions"][started["session_id"]],
     )
 
-    assert response.status_code == 200
-    assert response.get_json() | {"login_status": response.get_json()["login_status"]} == {
-        **response.get_json(),
+    assert session | {"login_status": session["login_status"]} == {
+        **session,
         "status": "connected",
         "account_id": "acct_1",
-        "session_id": started["session_id"],
-        "qrcode_id": "qr-1",
         "ilink_user_id": "user-qr-1@im.wechat",
     }
     snapshot = state.snapshot()["sessions"][started["session_id"]]
     assert snapshot["token"] == "bot-token-qr-1"
     assert snapshot["cursor"] == ""
+
+
+def test_login_status_returns_cached_waiting_state_without_inline_ilink_poll(tmp_path):
+    state = ConnectorState(tmp_path / "state.json")
+    state.update_session(
+        "session-1",
+        {
+            "account_id": "acct_1",
+            "status": "waiting_for_scan",
+            "qrcode": "qr-1",
+            "qrcode_image": "https://weixin.qq.com/x/1",
+            "qrcode_image_data_url": "data:image/png;base64,qr",
+        },
+    )
+    ilink = FakeIlinkClient()
+    app = create_app(
+        ConnectorConfig(api_key="connector-key"),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().get(
+        "/login/status?account_id=acct_1&session_id=session-1",
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "waiting_for_scan"
+    assert response.get_json()["qrcode_id"] == "qr-1"
+    assert ilink.status_calls == []
+
+
+def test_login_start_background_poll_confirms_session(tmp_path):
+    state = ConnectorState(tmp_path / "state.json")
+    ilink = FakeIlinkClient()
+    app = create_app(
+        ConnectorConfig(api_key="connector-key", poll_interval_seconds=0.01),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    started = app.test_client().post(
+        "/login/start",
+        json={"account_id": "acct_1"},
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert started.status_code == 202
+    session_id = started.get_json()["session_id"]
+    deadline = time.monotonic() + 1.0
+    session = state.snapshot()["sessions"][session_id]
+    while session.get("status") != "connected" and time.monotonic() < deadline:
+        time.sleep(0.01)
+        session = state.snapshot()["sessions"][session_id]
+
+    assert session["status"] == "connected"
+    assert session["ilink_user_id"] == "user-qr-1@im.wechat"
+    assert ilink.status_calls == [
+        {"ilink_base_url": "https://ilinkai.weixin.qq.com", "qrcode": "qr-1"}
+    ]
 
 
 def test_send_endpoint_maps_clean_contract_to_account_ilink_sendmessage(state):

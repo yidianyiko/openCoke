@@ -744,3 +744,29 @@ def test_wechat_personal_login_uses_connector_root_when_send_endpoint_configured
     assert requests[0].method == "POST"
     assert str(requests[0].url) == "https://connector.example/login/start"
     assert requests[0].headers["Authorization"] == "Bearer wx-secret"
+
+
+def test_wechat_personal_login_status_timeout_returns_pending_status():
+    request = httpx.Request(
+        "GET",
+        "https://connector.example/login/status?account_id=acct_1&session_id=session_1",
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow connector", request=request)
+
+    adapter = WeChatPersonalAdapter(
+        endpoint_url="https://connector.example/send",
+        api_key="wx-secret",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    status = adapter.poll_login_status(account_id="acct_1", session_id="session_1")
+
+    assert status == {
+        "account_id": "acct_1",
+        "session_id": "session_1",
+        "status": "waiting_for_scan",
+        "connector_status": "timeout",
+        "retryable": True,
+    }
