@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime
+from collections.abc import Mapping
 from typing import Protocol
 
+import sqlalchemy as sa
+from sqlalchemy.orm import Session
+
+from coke import schema
+from coke.domains._pg import db_id, insert_row, json_value, many, one_or_none, update_row
 from coke.domains.reminder.models import Reminder, ReminderFire
 
 
@@ -159,3 +165,216 @@ class InMemoryReminderRepository:
                     lifecycle="deleted",
                     updated_at=discarded_at,
                 )
+
+
+class PostgresReminderRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add_reminder(self, reminder: Reminder) -> None:
+        insert_row(
+            self.session,
+            schema.reminder,
+            _reminder_values(reminder),
+            {
+                "pk_reminder": "duplicate_reminder_id",
+                "uq_reminder_active_timed_duplicate": "duplicate_reminder",
+                "uq_reminder_active_no_trigger_duplicate": "duplicate_reminder",
+            },
+            default_error="duplicate_reminder",
+        )
+
+    def save_reminder(self, reminder: Reminder) -> None:
+        if self.get_reminder(reminder.id) is None:
+            raise ValueError("reminder_not_found")
+        if (
+            update_row(
+                self.session,
+                schema.reminder,
+                _reminder_values(reminder),
+                {
+                    "uq_reminder_active_timed_duplicate": "duplicate_reminder",
+                    "uq_reminder_active_no_trigger_duplicate": "duplicate_reminder",
+                },
+                default_error="duplicate_reminder",
+            )
+            == 0
+        ):
+            raise ValueError("reminder_not_found")
+
+    def get_reminder(self, reminder_id: str) -> Reminder | None:
+        row = one_or_none(self.session, schema.reminder, schema.reminder.c.id == reminder_id)
+        return _reminder(row) if row else None
+
+    def list_active_reminders(self, owner_account_id: str) -> list[Reminder]:
+        return [
+            _reminder(row)
+            for row in many(
+                self.session,
+                schema.reminder,
+                schema.reminder.c.owner_account_id == owner_account_id,
+                schema.reminder.c.lifecycle == "active",
+                order_by=(schema.reminder.c.created_at, schema.reminder.c.id),
+            )
+        ]
+
+    def list_due_reminders(self, due_at: datetime) -> list[Reminder]:
+        return [
+            _reminder(row)
+            for row in many(
+                self.session,
+                schema.reminder,
+                schema.reminder.c.lifecycle == "active",
+                schema.reminder.c.next_fire_at.is_not(None),
+                schema.reminder.c.next_fire_at <= due_at,
+                order_by=(
+                    schema.reminder.c.owner_account_id,
+                    schema.reminder.c.next_fire_at,
+                    schema.reminder.c.id,
+                ),
+            )
+        ]
+
+    def add_fire(self, fire: ReminderFire) -> None:
+        insert_row(
+            self.session,
+            schema.reminder_fire,
+            _fire_values(fire),
+            {
+                "pk_reminder_fire": "duplicate_fire_id",
+                "uq_reminder_fire_occurrence": "duplicate_fire_occurrence",
+            },
+            default_error="duplicate_fire_occurrence",
+        )
+
+    def save_fire(self, fire: ReminderFire) -> None:
+        existing = self.get_fire(fire.id)
+        if existing is None:
+            raise ValueError("fire_not_found")
+        if (
+            update_row(
+                self.session,
+                schema.reminder_fire,
+                _fire_values(fire),
+                {"uq_reminder_fire_occurrence": "duplicate_fire_occurrence"},
+                default_error="duplicate_fire_occurrence",
+            )
+            == 0
+        ):
+            raise ValueError("fire_not_found")
+
+    def get_fire(self, fire_id: str) -> ReminderFire | None:
+        row = one_or_none(
+            self.session, schema.reminder_fire, schema.reminder_fire.c.id == fire_id
+        )
+        return _fire(row) if row else None
+
+    def get_fire_by_occurrence(
+        self,
+        reminder_id: str,
+        occurrence_key: str,
+    ) -> ReminderFire | None:
+        row = one_or_none(
+            self.session,
+            schema.reminder_fire,
+            schema.reminder_fire.c.reminder_id == reminder_id,
+            schema.reminder_fire.c.occurrence_key == occurrence_key,
+        )
+        return _fire(row) if row else None
+
+    def list_fires_for_owner(self, owner_account_id: str) -> list[ReminderFire]:
+        statement = (
+            sa.select(schema.reminder_fire)
+            .join(
+                schema.reminder,
+                schema.reminder_fire.c.reminder_id == schema.reminder.c.id,
+            )
+            .where(schema.reminder.c.owner_account_id == owner_account_id)
+            .order_by(schema.reminder_fire.c.due_at, schema.reminder_fire.c.id)
+        )
+        return [_fire(dict(row)) for row in self.session.execute(statement).mappings()]
+
+    def discard_future_proactive(
+        self, owner_account_id: str, discarded_at: datetime
+    ) -> None:
+        self.session.execute(
+            schema.reminder.update()
+            .where(
+                schema.reminder.c.owner_account_id == owner_account_id,
+                schema.reminder.c.kind == "proactive",
+                schema.reminder.c.lifecycle == "active",
+                schema.reminder.c.next_fire_at.is_not(None),
+                schema.reminder.c.next_fire_at > discarded_at,
+            )
+            .values(lifecycle="deleted", updated_at=discarded_at)
+        )
+
+
+def _reminder_values(reminder: Reminder) -> dict:
+    return {
+        "id": reminder.id,
+        "owner_account_id": reminder.owner_account_id,
+        "content": reminder.content,
+        "content_hash": reminder.content_hash,
+        "kind": reminder.kind,
+        "next_fire_at": reminder.next_fire_at,
+        "recurrence_rule": json_value(reminder.recurrence_rule),
+        "captured_timezone": reminder.captured_timezone,
+        "duration_minutes": reminder.duration_minutes,
+        "lifecycle": reminder.lifecycle,
+        "hidden_from_calendar": reminder.hidden_from_calendar,
+        "shared_reminder_id": reminder.shared_reminder_id,
+        "created_at": reminder.created_at,
+        "updated_at": reminder.updated_at,
+    }
+
+
+def _reminder(row: Mapping) -> Reminder:
+    return Reminder(
+        db_id(row["id"]),
+        db_id(row["owner_account_id"]),
+        row["content"],
+        row["content_hash"],
+        row["kind"],
+        row["next_fire_at"],
+        dict(row["recurrence_rule"]),
+        row["captured_timezone"],
+        row["duration_minutes"],
+        row["lifecycle"],
+        row["hidden_from_calendar"],
+        db_id(row["shared_reminder_id"]) if row["shared_reminder_id"] is not None else None,
+        row["created_at"],
+        row["updated_at"],
+    )
+
+
+def _fire_values(fire: ReminderFire) -> dict:
+    return {
+        "id": fire.id,
+        "reminder_id": fire.reminder_id,
+        "occurrence_key": fire.occurrence_key,
+        "due_at": fire.due_at,
+        "fire_state": fire.fire_state,
+        "delivery_result": fire.delivery_result,
+        "handled_at": fire.handled_at,
+        "completed_at": fire.completed_at,
+        "missed_catch_up": fire.missed_catch_up,
+        "created_at": fire.created_at,
+        "updated_at": fire.updated_at,
+    }
+
+
+def _fire(row: Mapping) -> ReminderFire:
+    return ReminderFire(
+        db_id(row["id"]),
+        db_id(row["reminder_id"]),
+        row["occurrence_key"],
+        row["due_at"],
+        row["fire_state"],
+        row["delivery_result"],
+        row["handled_at"],
+        row["completed_at"],
+        row["missed_catch_up"],
+        row["created_at"],
+        row["updated_at"],
+    )
