@@ -3,10 +3,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, date, datetime, time
+from collections.abc import Mapping
 from typing import Protocol
-from uuid import uuid4
+from uuid import uuid4, uuid5, NAMESPACE_URL
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from sqlalchemy.orm import Session
+
+from coke import schema
+from coke.domains._pg import db_id, insert_row, json_value, many, one_or_none, update_row
 from coke.domains.calendar_import.google import GoogleCalendarClientPort
 from coke.domains.calendar_import.models import (
     CalendarAuthorizationState,
@@ -110,6 +115,148 @@ class InMemoryCalendarImportRepository:
         self, account_id: str, auth_handle: str
     ) -> CalendarAuthorizationState | None:
         return self.authorization_states.get((account_id, auth_handle))
+
+
+class PostgresCalendarImportRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add_run(self, run: CalendarImportRun) -> None:
+        insert_row(
+            self.session,
+            schema.calendar_import_run,
+            _run_values(run),
+            {"pk_calendar_import_run": "duplicate_calendar_import_run_id"},
+            default_error="duplicate_calendar_import_run_id",
+        )
+
+    def save_run(self, run: CalendarImportRun) -> None:
+        if (
+            update_row(
+                self.session,
+                schema.calendar_import_run,
+                _run_values(run),
+                {},
+                default_error="duplicate_calendar_import_run_id",
+            )
+            == 0
+        ):
+            raise ValueError("calendar_import_run_not_found")
+
+    def get_run(self, run_id: str) -> CalendarImportRun | None:
+        row = one_or_none(
+            self.session,
+            schema.calendar_import_run,
+            schema.calendar_import_run.c.id == run_id,
+        )
+        return _run(row) if row else None
+
+    def add_item(self, item: CalendarImportItem) -> None:
+        insert_row(
+            self.session,
+            schema.calendar_import_item,
+            _item_values(item),
+            {
+                "pk_calendar_import_item": "duplicate_calendar_import_item_id",
+                "uq_calendar_import_item_source_occurrence": "duplicate_calendar_import_source_occurrence",
+            },
+            default_error="duplicate_calendar_import_source_occurrence",
+        )
+
+    def get_item_by_source_occurrence(
+        self,
+        provider_calendar_id: str,
+        source_event_id: str,
+        recurrence_instance_key: str,
+    ) -> CalendarImportItem | None:
+        row = one_or_none(
+            self.session,
+            schema.calendar_import_item,
+            schema.calendar_import_item.c.provider_calendar_id == provider_calendar_id,
+            schema.calendar_import_item.c.source_event_id == source_event_id,
+            schema.calendar_import_item.c.recurrence_instance_key
+            == recurrence_instance_key,
+        )
+        return _item(row) if row else None
+
+    def list_items_for_run(self, run_id: str) -> list[CalendarImportItem]:
+        return [
+            _item(row)
+            for row in many(
+                self.session,
+                schema.calendar_import_item,
+                schema.calendar_import_item.c.run_id == run_id,
+                order_by=(schema.calendar_import_item.c.created_at, schema.calendar_import_item.c.id),
+            )
+        ]
+
+    def save_authorization_state(self, state: CalendarAuthorizationState) -> None:
+        artifact_id = uuid5(
+            NAMESPACE_URL, f"calendar_authorization:{state.account_id}:{state.auth_handle}"
+        ).hex
+        values = {
+            "id": artifact_id,
+            "account_id": state.account_id,
+            "target_account_id": None,
+            "type": "calendar_authorization",
+            "purpose": "google_calendar",
+            "delivery": "oauth",
+            "token_hash": state.auth_handle,
+            "browser_session": None,
+            "continuation": {"account_id": state.account_id},
+            "expires_at": state.updated_at,
+            "consumed_at": None,
+            "delivery_state": state.state,
+            "resend_count": 0,
+            "created_at": state.updated_at,
+            "updated_at": state.updated_at,
+        }
+        existing = one_or_none(
+            self.session,
+            schema.auth_artifact,
+            schema.auth_artifact.c.type == "calendar_authorization",
+            schema.auth_artifact.c.purpose == "google_calendar",
+            schema.auth_artifact.c.account_id == state.account_id,
+            schema.auth_artifact.c.token_hash == state.auth_handle,
+        )
+        if existing is None:
+            insert_row(
+                self.session,
+                schema.auth_artifact,
+                values,
+                {"uq_auth_artifact_token_hash": "duplicate_calendar_authorization"},
+                default_error="duplicate_calendar_authorization",
+            )
+        else:
+            values["id"] = existing["id"]
+            values["created_at"] = existing["created_at"]
+            update_row(
+                self.session,
+                schema.auth_artifact,
+                values,
+                {"uq_auth_artifact_token_hash": "duplicate_calendar_authorization"},
+                default_error="duplicate_calendar_authorization",
+            )
+
+    def get_authorization_state(
+        self, account_id: str, auth_handle: str
+    ) -> CalendarAuthorizationState | None:
+        row = one_or_none(
+            self.session,
+            schema.auth_artifact,
+            schema.auth_artifact.c.type == "calendar_authorization",
+            schema.auth_artifact.c.purpose == "google_calendar",
+            schema.auth_artifact.c.account_id == account_id,
+            schema.auth_artifact.c.token_hash == auth_handle,
+        )
+        if row is None:
+            return None
+        return CalendarAuthorizationState(
+            account_id=db_id(row["account_id"]),
+            auth_handle=row["token_hash"],
+            state=row["delivery_state"],
+            updated_at=row["updated_at"],
+        )
 
 
 class CalendarImportService:
@@ -470,3 +617,71 @@ def _source_occurrence_key(
     recurrence_instance_key: str,
 ) -> tuple[str, str, str]:
     return (provider_calendar_id, source_event_id, recurrence_instance_key)
+
+
+def _run_values(run: CalendarImportRun) -> dict:
+    return {
+        "id": run.id,
+        "account_id": run.account_id,
+        "provider_type": run.provider_type,
+        "provider_account_id": run.provider_account_id,
+        "auth_artifact_id": run.auth_artifact_id,
+        "status": run.status,
+        "imported_count": run.imported_count,
+        "skipped_count": run.skipped_count,
+        "downgraded_count": run.downgraded_count,
+        "failed_count": run.failed_count,
+        "started_at": run.started_at,
+        "completed_at": run.completed_at,
+        "created_at": run.created_at,
+        "updated_at": run.updated_at,
+    }
+
+
+def _run(row: Mapping) -> CalendarImportRun:
+    return CalendarImportRun(
+        db_id(row["id"]),
+        db_id(row["account_id"]),
+        row["provider_type"],
+        row["provider_account_id"],
+        db_id(row["auth_artifact_id"]) if row["auth_artifact_id"] is not None else None,
+        row["status"],
+        row["imported_count"],
+        row["skipped_count"],
+        row["downgraded_count"],
+        row["failed_count"],
+        row["started_at"],
+        row["completed_at"],
+        row["created_at"],
+        row["updated_at"],
+    )
+
+
+def _item_values(item: CalendarImportItem) -> dict:
+    return {
+        "id": item.id,
+        "run_id": item.run_id,
+        "provider_calendar_id": item.provider_calendar_id,
+        "source_event_id": item.source_event_id,
+        "recurrence_instance_key": item.recurrence_instance_key,
+        "status": item.status,
+        "reason": item.reason,
+        "source_metadata": json_value(item.source_metadata),
+        "reminder_id": item.reminder_id,
+        "created_at": item.created_at,
+    }
+
+
+def _item(row: Mapping) -> CalendarImportItem:
+    return CalendarImportItem(
+        db_id(row["id"]),
+        db_id(row["run_id"]),
+        row["provider_calendar_id"],
+        row["source_event_id"],
+        row["recurrence_instance_key"],
+        row["status"],
+        row["reason"],
+        dict(row["source_metadata"]),
+        db_id(row["reminder_id"]) if row["reminder_id"] is not None else None,
+        row["created_at"],
+    )
