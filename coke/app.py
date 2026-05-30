@@ -9,6 +9,7 @@ def create_app(
     settings: Settings,
     identity_access_service=None,
     channel_reachability_service=None,
+    reminder_service=None,
     provider_adapters=None,
 ) -> Flask:
     app = Flask(__name__)
@@ -35,6 +36,11 @@ def create_app(
                     provider_adapters,
                 )
             )
+
+    if reminder_service is not None:
+        from coke.api.reminder_routes import create_reminder_blueprint
+
+        app.register_blueprint(create_reminder_blueprint(reminder_service))
 
     @app.get("/healthz")
     def healthz():
