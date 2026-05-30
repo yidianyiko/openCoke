@@ -37,6 +37,7 @@ class DeliveryRequest:
     visible_text: str
     idempotency_key: str
     segments: tuple[str, ...] = ()
+    context_token: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +60,7 @@ class _AsyncState:
     conversation_id: str
     account_id: str
     based_on_inbound_seq: int | None
+    context_token: str | None
 
 
 class TurnRunner:
@@ -184,7 +186,7 @@ class TurnRunner:
             mode=TurnMode.INTERACTIVE,
             conversation_id=state.conversation_id,
             account_id=state.account_id,
-            payload={},
+            payload={"context_token": state.context_token} if state.context_token else {},
         )
         if result.timed_out:
             disposition = self.conversation_runtime.mark_failed(
@@ -346,6 +348,7 @@ class TurnRunner:
                 visible_text=WAITING_TEXT,
                 idempotency_key=f"{trigger.trigger_id}:waiting",
                 segments=(WAITING_TEXT,),
+                context_token=_context_token_from_trigger(trigger),
             )
         )
         self._async_states[agent_result.task_id] = _AsyncState(
@@ -356,6 +359,7 @@ class TurnRunner:
             conversation_id=trigger.conversation_id,
             account_id=trigger.account_id,
             based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
+            context_token=_context_token_from_trigger(trigger),
         )
         return self._result_from_disposition(
             turn_id=context.freshness_guard.turn_id,
@@ -416,6 +420,7 @@ class TurnRunner:
                 visible_text=visible_text,
                 idempotency_key=f"{trigger.trigger_id}:reply",
                 segments=validated.segments,
+                context_token=_context_token_from_trigger(trigger),
             )
         )
         return self._result_from_disposition(
@@ -483,3 +488,15 @@ def _protocol_retry_request(
             },
         },
     )
+
+
+def _context_token_from_trigger(trigger: TurnTrigger) -> str | None:
+    direct = trigger.payload.get("context_token")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    nested = trigger.payload.get("payload")
+    if isinstance(nested, dict):
+        token = nested.get("context_token")
+        if isinstance(token, str) and token.strip():
+            return token.strip()
+    return None

@@ -239,6 +239,29 @@ def test_intentional_no_reply_skips_interaction_agent(harness):
     assert disposition.disposition == "no_reply"
 
 
+def test_inbound_reply_delivery_carries_trigger_context_token(harness):
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={
+            "text": "hello",
+            "payload": {
+                "provider": "wechat_personal",
+                "context_token": "ctx-message-1",
+            },
+        },
+    )
+
+    result = harness["runner"].run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert harness["delivery"].deliveries[-1].context_token == "ctx-message-1"
+
+
 def test_malformed_agent_output_fails_closed_without_rewrite(harness):
     harness["agent"].next_result = AgentResult.completed({"invalid": "shape"})
 

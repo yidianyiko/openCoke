@@ -194,7 +194,7 @@ def test_wechat_personal_outbound_uses_context_token():
     ]
 
 
-def test_outbound_delivery_reads_latest_inbound_context_token_for_wechat_personal():
+def test_outbound_delivery_uses_request_context_token_before_latest_fallback():
     conversation = type(
         "ConversationContext",
         (),
@@ -216,6 +216,7 @@ def test_outbound_delivery_reads_latest_inbound_context_token_for_wechat_persona
             message_type="reply",
             visible_text="hello back",
             idempotency_key="idem-reply-1",
+            context_token="ctx-trigger",
         )
     )
 
@@ -224,5 +225,33 @@ def test_outbound_delivery_reads_latest_inbound_context_token_for_wechat_persona
         "to": "wxid_alice",
         "text": "hello back",
         "idempotency_key": "idem-reply-1",
-        "context_token": "ctx-latest",
+        "context_token": "ctx-trigger",
     }
+
+
+def test_outbound_delivery_uses_latest_context_token_for_render_without_trigger_token():
+    conversation = type(
+        "ConversationContext",
+        (),
+        {"latest_context_token": lambda self, conversation_id: "ctx-latest"},
+    )()
+    _identity, reachability, adapter, account_id = make_services()
+    pending = reachability.start_wechat_personal_connection(account_id)
+    reachability.poll_wechat_personal_login(account_id, pending.session_id)
+    delivery = ChannelReachabilityOutboundDelivery(
+        reachability,
+        conversation_runtime=conversation,
+    )
+
+    delivery.deliver(
+        DeliveryRequest(
+            account_id=account_id,
+            conversation_id="conversation_1",
+            turn_id="turn_1",
+            message_type="notification",
+            visible_text="nightly summary",
+            idempotency_key="idem-render-1",
+        )
+    )
+
+    assert adapter.send_calls[-1]["context_token"] == "ctx-latest"

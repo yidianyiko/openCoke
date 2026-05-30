@@ -31,6 +31,7 @@ class FakeIlinkClient:
         self.updates_by_token = {}
         self.fail_tokens = {}
         self.send_response = None
+        self.send_responses = []
 
     def get_qr(self, *, ilink_base_url: str):
         self.qr_calls.append({"ilink_base_url": ilink_base_url})
@@ -67,6 +68,8 @@ class FakeIlinkClient:
                 "text": text,
             }
         )
+        if self.send_responses:
+            return self.send_responses.pop(0)
         if self.send_response is not None:
             return self.send_response
         return {"message_id": "client-id-1", "provider_response": "ok"}
@@ -358,6 +361,46 @@ def test_send_endpoint_maps_ilink_business_failure_to_clear_error(state):
         "error": "ilink_send_failed",
         "ilink": {"ret": -2, "errmsg": "invalid context_token"},
     }
+
+
+def test_send_endpoint_retries_transient_ret_minus_two_and_logs_body(state, caplog):
+    ilink = FakeIlinkClient()
+    ilink.send_responses = [
+        {
+            "message_id": "client-id-1",
+            "provider_response": {"ret": -2, "errmsg": "invalid context_token"},
+        },
+        {
+            "message_id": "client-id-2",
+            "provider_response": {"ret": 0},
+        },
+    ]
+    app = create_app(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().post(
+        "/send",
+        json={
+            "account_id": "acct_1",
+            "to": "wxid_alice",
+            "context_token": "ctx-1",
+            "text": "hello",
+        },
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json() == {"message_id": "client-id-2", "status": "sent"}
+    assert len(ilink.sent) == 2
+    assert "ilink sendmessage failed" in caplog.text
+    assert '"ret": -2' in caplog.text
 
 
 def test_send_endpoint_requires_configured_api_key(state):

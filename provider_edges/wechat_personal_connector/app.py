@@ -253,35 +253,39 @@ def create_app(
         token = str(session.get("token") or "").strip()
         if not base_url or not token:
             return jsonify({"error": "wechat_not_connected"}), 409
-        try:
-            result = client.send_text(
-                base_url=base_url,
-                token=token,
-                to_user_id=to_user_id,
-                context_token=context_token,
-                text=text,
-            )
-        except IlinkAPIError as error:
-            return (
-                jsonify(
-                    {
-                        "error": "ilink_send_failed",
-                        "ilink": error.response,
-                    }
-                ),
-                502,
-            )
-        provider_failure = _ilink_failure_from_body(result.get("provider_response"))
-        if provider_failure is not None:
-            return (
-                jsonify(
-                    {
-                        "error": "ilink_send_failed",
-                        "ilink": provider_failure,
-                    }
-                ),
-                502,
-            )
+        max_attempts = 2
+        provider_failure: dict[str, Any] | None = None
+        result: dict[str, Any] | None = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                result = client.send_text(
+                    base_url=base_url,
+                    token=token,
+                    to_user_id=to_user_id,
+                    context_token=context_token,
+                    text=text,
+                )
+                provider_failure = _ilink_failure_from_body(
+                    result.get("provider_response")
+                )
+            except IlinkAPIError as error:
+                provider_failure = error.response
+                result = None
+            if provider_failure is None:
+                break
+            _log_ilink_send_failure(app, provider_failure, attempt=attempt)
+            if attempt == max_attempts or not _is_ret_minus_two(provider_failure):
+                return (
+                    jsonify(
+                        {
+                            "error": "ilink_send_failed",
+                            "ilink": provider_failure,
+                        }
+                    ),
+                    502,
+                )
+        if result is None:
+            return jsonify({"error": "ilink_send_failed", "ilink": {}}), 502
         return (
             jsonify(
                 {
@@ -515,6 +519,20 @@ def _ilink_failure_from_body(body: Any) -> dict[str, Any] | None:
     if _nonzero_number(ret) or _nonzero_number(errcode):
         return dict(body)
     return None
+
+
+def _log_ilink_send_failure(
+    app: Flask, failure: dict[str, Any], *, attempt: int
+) -> None:
+    app.logger.warning(
+        "ilink sendmessage failed attempt=%s body=%s",
+        attempt,
+        json.dumps(failure, ensure_ascii=False, sort_keys=True),
+    )
+
+
+def _is_ret_minus_two(failure: dict[str, Any]) -> bool:
+    return failure.get("ret") == -2 or failure.get("errcode") == -2
 
 
 def _nonzero_number(value: Any) -> bool:

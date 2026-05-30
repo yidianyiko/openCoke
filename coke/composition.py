@@ -176,8 +176,8 @@ class ChannelReachabilityOutboundDelivery:
 
     def deliver(self, request: DeliveryRequest) -> None:
         try:
-            context_token = None
-            if self.conversation_runtime is not None:
+            context_token = request.context_token
+            if context_token is None and self.conversation_runtime is not None:
                 context_token = self.conversation_runtime.latest_context_token(
                     request.conversation_id
                 )

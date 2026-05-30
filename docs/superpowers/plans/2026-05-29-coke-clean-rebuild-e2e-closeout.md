@@ -739,20 +739,20 @@ the plan/final report rather than under `artifacts/evidence/**`.
 - Test if clean delivery changes: `tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py`
 - Test if turn request context changes: `tests/unit/coke/turn/test_turn_runner.py`
 
-- [ ] **Step 1: Capture the real iLink `ret=-2` response body**
+- [x] **Step 1: Capture the real iLink `ret=-2` response body**
 
 Inspect connector logs and, if needed, add connector-side logging of the full
 iLink `sendmessage` failure response. Evidence must include the actual response
 body, not only `ilink_send_failed_ret_-2`.
 
-- [ ] **Step 2: Confirm protocol root cause before fixing**
+- [x] **Step 2: Confirm protocol root cause before fixing**
 
 Use the raw iLink protocol documents and live evidence to classify the failure:
 stale/wrong `context_token`, single-use/short-lived token behavior, unsupported
 unsolicited sends, session expiry, or rate limiting. Do not implement product
 logic changes until this classification is recorded.
 
-- [ ] **Step 3: Write failing tests for the confirmed delivery hardening**
+- [x] **Step 3: Write failing tests for the confirmed delivery hardening**
 
 At minimum cover connector logging/response preservation for iLink business
 failures. If the clean app is using the wrong context token, add a failing test
@@ -768,7 +768,7 @@ Run:
 
 Expected before implementation: the new tests fail for the observed root cause.
 
-- [ ] **Step 4: Implement the smallest delivery fix**
+- [x] **Step 4: Implement the smallest delivery fix**
 
 Preserve clean architecture boundaries: connector logs and maps iLink failures,
 ChannelReachability records real sent/failed attempts, and ConversationRuntime
@@ -787,6 +787,33 @@ git diff --check
 Then redeploy connector and clean backend without disturbing Postgres state or
 the two live WeChat sessions. Verify `/healthz` for API and connector and that
 `connected_session_count=2`.
+
+2026-05-31 Step 0 reconcile result: the killed run's partial context-token
+wiring was completed and kept scoped. Interactive inbound replies now carry the
+triggering inbound iLink `context_token`; render turns without a trigger token
+still fall back to the latest inbound token. The connector `/send` endpoint now
+logs the iLink `sendmessage` failure body and retries bounded `ret=-2` failures
+once before returning a real 502 if the retry also fails. Local RED/GREEN
+evidence:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/provider_edges/test_wechat_personal_connector.py::test_send_endpoint_retries_transient_ret_minus_two_and_logs_body -v
+```
+
+failed with `assert 502 == 202` before the connector fix and passed after the
+fix. Related local verification passed:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/provider_edges/test_wechat_personal_connector.py -q
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py -q
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py -q
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+/data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q
+```
+
+The full unit suite reported `429 passed in 10.30s`. The integration suite
+reported `9 passed, 33 skipped in 3.82s`; the skipped repository contract cases
+require `COKE_TEST_DATABASE_URL`.
 
 - [ ] **Step 6: Resume the remaining A-I live sweep product-logic first**
 
