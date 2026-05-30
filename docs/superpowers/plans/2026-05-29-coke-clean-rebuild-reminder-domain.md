@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Plan Status:** verification_partial
+**Plan Status:** complete
 
 **Goal:** Build the clean-rebuild Reminder domain, scheduler facade, calendar read model, and thin Flask routes on the existing `coke/schema.py` tables.
 

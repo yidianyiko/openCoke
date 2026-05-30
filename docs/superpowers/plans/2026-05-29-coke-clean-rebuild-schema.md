@@ -10,7 +10,7 @@
 
 ---
 
-**Plan Status:** draft
+**Plan Status:** complete
 **Status Date:** 2026-05-29
 **Parent Plan:** `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md`, Task 3: Clean Postgres Schema And Migration Contract
 **Source Specs:**

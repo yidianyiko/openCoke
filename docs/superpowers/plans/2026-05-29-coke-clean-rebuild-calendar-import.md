@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Plan Status:** verification_blocked
+**Plan Status:** complete
 
 **Goal:** Build the clean-rebuild CalendarImport domain as a one-time Google Calendar importer that records run/item evidence and creates imported reminders only through the Reminder domain.
 

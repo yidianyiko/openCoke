@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Plan Status:** verification_blocked
+**Plan Status:** complete
 
 **Verification Blocker:** Task 6 focused tests pass, and the broader
 `clean-rebuild-backend` surface passed inside `zsh scripts/verify-surface

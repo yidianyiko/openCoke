@@ -10,9 +10,13 @@
 
 ---
 
-**Plan Status:** draft
-**Status Date:** 2026-05-29
+**Plan Status:** implementation-complete (deploy/runtime-readiness pending)
+**Status Date:** 2026-05-30
 **Freshness Check:** Verify against current `main`, `docs/ARCHITECTURE.md`, the requirements matrix, the target architecture spec, and touched code before execution.
+
+**Completion evidence (2026-05-30):** All 13 tasks implemented and merged to `main`. Six bounded-context domains (IdentityAccess, ChannelReachability, ConversationRuntime, Reminder, SocialScheduling, CalendarImport), the Turn orchestration, and an integration composition root are in `coke/`. All legacy surfaces deleted with zero leftover (old Python runtime, both submodules, Mongo/pymongo, ClawScale bridge, TypeScript Gateway API; web extracted to `web/` as `@coke/web`). Verification: `tests/unit/coke` + `tests/integration/coke` = 318 passed; `zsh scripts/check` green; no-legacy-import guard passing.
+
+**NOT yet done (out of original plan scope — runtime-readiness):** The system is unit/integration-verified with in-memory repositories and fake LLM/Redis/provider/Agno adapters. It is NOT yet a deployable running service: no Postgres-backed repository implementations wired, no live provider/Redis/Agno adapters, migrations not applied to a live DB, and no per-service Docker entrypoints (`docker-compose.prod.yml` worker/scheduler/outbox commands are structural placeholders). Production deploy to `gcp-coke` and real-account end-to-end testing require this runtime-readiness layer first; the existing `coke-agent-smoke` skill and `scripts/deploy-compose-to-gcp.sh` target the now-deleted legacy stack and must be rebuilt for the clean architecture.
 
 **Source Specs:**
 - `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
