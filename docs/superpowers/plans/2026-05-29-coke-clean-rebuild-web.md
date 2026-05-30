@@ -1,6 +1,6 @@
 # Coke Clean Rebuild: Web + Personal WeChat Pairing
 
-Plan Status: in_progress
+Plan Status: complete
 
 ## Goal
 
@@ -66,13 +66,13 @@ flows.
       - `zsh scripts/suggest-verification --base HEAD~1`;
       - `zsh scripts/review-trigger --base HEAD~1`;
       - `/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q`.
-- [ ] Commit verified local code/docs/test changes.
-- [ ] Deploy non-disruptively to `gcp-coke` while preserving `.env`,
+- [x] Commit verified local code/docs/test changes.
+- [x] Deploy non-disruptively to `gcp-coke` while preserving `.env`,
       connector, and Evolution services.
-- [ ] Provision verified active test accounts for:
+- [x] Provision verified active test accounts for:
       - `olivers`;
       - `lizihao`.
-- [ ] Verify live behavior:
+- [x] Verify live behavior:
       - `/healthz` returns 200;
       - `http://127.0.0.1:4042/auth/login` returns 200 on the host;
       - `https://coke.keep4oforever.com/auth/login` returns 200 through nginx;
@@ -83,7 +83,7 @@ flows.
       - follow-up message creates the expected conversation/turn/reminder
         evidence, or record the exact blocker if the runtime cannot complete
         reminder creation.
-- [ ] Update this plan with completed checkboxes and set Plan Status to
+- [x] Update this plan with completed checkboxes and set Plan Status to
       `complete` only after verification passes.
 
 ## Verification Commands
