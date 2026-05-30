@@ -1,16 +1,4 @@
 services:
-  mongo:
-    image: mongo:7.0
-    restart: unless-stopped
-    command: ["--bind_ip_all"]
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7.2-alpine
     restart: unless-stopped
@@ -27,18 +15,18 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: clawscale
-      POSTGRES_PASSWORD: clawscale
-      POSTGRES_DB: clawscale
+      POSTGRES_USER: coke
+      POSTGRES_PASSWORD: coke
+      POSTGRES_DB: coke
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clawscale -d clawscale"]
+      test: ["CMD-SHELL", "pg_isready -U coke -d coke"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-  coke-agent:
+  coke-api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -46,126 +34,122 @@ services:
     env_file:
       - .env
     environment:
-      env: aliyun
-      AGNO_TELEMETRY: "false"
-      AGENT_WORKERS: ${AGENT_WORKERS:-10}
-    command: ["python", "agent/runner/agent_runner.py"]
-    volumes:
-      - ./deploy/config/coke.config.json:/app/conf/config.json:ro
-      - coke_data:/app/data
-      - coke_temp:/app/agent/temp
-    depends_on:
-      mongo:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      coke-bootstrap:
-        condition: service_completed_successfully
-
-  coke-bootstrap:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: "no"
-    env_file:
-      - .env
-    environment:
-      env: aliyun
-      AGNO_TELEMETRY: "false"
-    command: ["python", "-m", "agent.role.bootstrap"]
-    volumes:
-      - ./deploy/config/coke.config.json:/app/conf/config.json:ro
-      - coke_data:/app/data
-      - coke_temp:/app/agent/temp
-    depends_on:
-      mongo:
-        condition: service_healthy
-
-  coke-bridge:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      env: aliyun
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://coke:coke@postgres:5432/coke
+      REDIS_URL: redis://redis:6379/0
       AGNO_TELEMETRY: "false"
     command:
       [
-        "gunicorn",
-        "--bind",
-        "0.0.0.0:8090",
-        "--workers",
-        "1",
-        "--threads",
-        "8",
-        "--timeout",
-        "120",
-        "connector.clawscale_bridge.wsgi:app",
+        "python",
+        "-c",
+        "from coke.app import create_app; from coke.config import Settings; create_app(Settings.from_env()).run(host='0.0.0.0', port=8000)",
       ]
-    volumes:
-      - ./deploy/config/coke.config.json:/app/conf/config.json:ro
-      - coke_data:/app/data
-      - coke_temp:/app/agent/temp
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
-      gateway:
+      redis:
         condition: service_healthy
-      coke-bootstrap:
-        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/bridge/healthz"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
       interval: 15s
       timeout: 5s
       retries: 10
     ports:
-      - "127.0.0.1:8090:8090"
+      - "127.0.0.1:8000:8000"
 
-  gateway:
+  coke-worker:
     build:
-      context: ./gateway
+      context: .
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://coke.keep4oforever.com}
-        NEXT_PUBLIC_COKE_API_URL: ${NEXT_PUBLIC_COKE_API_URL:-https://coke.keep4oforever.com}
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://clawscale:clawscale@postgres:5432/clawscale
-      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
-      CUSTOMER_JWT_SECRET: ${CUSTOMER_JWT_SECRET}
-      HOST: 0.0.0.0
-      PORT: 4041
-      CORS_ORIGIN: ${CORS_ORIGIN:-https://coke.keep4oforever.com}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://coke.keep4oforever.com}
-      NEXT_PUBLIC_COKE_API_URL: ${NEXT_PUBLIC_COKE_API_URL:-https://coke.keep4oforever.com}
-      COKE_BRIDGE_INBOUND_URL: http://coke-bridge:8090/bridge/inbound
-      COKE_BRIDGE_API_KEY: ${COKE_BRIDGE_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://coke:coke@postgres:5432/coke
+      REDIS_URL: redis://redis:6379/0
+      AGNO_TELEMETRY: "false"
+    command:
+      [
+        "python",
+        "-c",
+        "from coke.worker.stream_consumer import StreamConsumer; import time; print('coke-worker entrypoint requires integration wiring'); time.sleep(3600)",
+      ]
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:4041/health').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
+      redis:
+        condition: service_healthy
+
+  coke-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://coke:coke@postgres:5432/coke
+      REDIS_URL: redis://redis:6379/0
+      AGNO_TELEMETRY: "false"
+    command:
+      [
+        "python",
+        "-c",
+        "from coke.domains.reminder.scheduler import ReminderScheduler; import time; print('coke-scheduler entrypoint requires integration wiring'); time.sleep(3600)",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  coke-outbox-relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://coke:coke@postgres:5432/coke
+      REDIS_URL: redis://redis:6379/0
+      AGNO_TELEMETRY: "false"
+    command:
+      [
+        "python",
+        "-c",
+        "from coke.worker.outbox_relay import OutboxRelay; import time; print('coke-outbox-relay entrypoint requires integration wiring'); time.sleep(3600)",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  coke-web:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://coke.keep4oforever.com}
+      NEXT_PUBLIC_COKE_WEB_URL: ${NEXT_PUBLIC_COKE_WEB_URL:-https://coke.keep4oforever.com}
+    command:
+      [
+        "sh",
+        "-lc",
+        "corepack enable && pnpm install --frozen-lockfile=false && pnpm build && pnpm start",
+      ]
+    volumes:
+      - ./web:/app
+    depends_on:
+      coke-api:
+        condition: service_healthy
     ports:
       - "127.0.0.1:4040:4040"
-      - "127.0.0.1:4041:4041"
 
 volumes:
-  mongo_data:
   redis_data:
   postgres_data:
-  coke_data:
-  coke_temp:

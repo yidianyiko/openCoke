@@ -1,6 +1,6 @@
 # coke
 
-`coke` is a ClawScale-backed supervision runtime. This repository also carries
+`coke` is a clean-rebuild supervision runtime. This repository also carries
 its own repo-OS layer so agents can plan, verify, and hand off work from
 repository state instead of chat memory.
 
@@ -25,7 +25,7 @@ Then add the smallest task-specific slice:
   HEAD~1`; open `docs/fitness/README.md`,
   `docs/fitness/coke-verification-matrix.md`, or
   `docs/fitness/surfaces.yaml` only if the suggested command needs review.
-- Deployment, bridge operations, or rollout: `docs/deploy.md` and/or
+- Deployment, provider-adapter operations, or rollout: `docs/deploy.md` and/or
   `docs/clawscale_bridge.md`.
 - Task-specific execution context in `docs/superpowers/specs/` (design)
   and `docs/superpowers/plans/` (execution) only when the task names that
@@ -38,8 +38,7 @@ Then add the smallest task-specific slice:
 
 ## Repository Map
 
-- Runtime code: `agent/`, `connector/clawscale_bridge/`, `gateway/`, `dao/`,
-  `entity/`, `util/`, `framework/`.
+- Runtime code: `coke/`, `migrations/`, and `web/`.
 - Repo-OS map: `docs/design-docs/index.md`; collaboration contract:
   `docs/design-docs/human-ai-working-contract.md`; Coke work surfaces:
   `docs/design-docs/coke-working-contract.md`; ADRs: `docs/adr/`.
@@ -148,7 +147,7 @@ Then add the smallest task-specific slice:
   workflow rules change.
 - Run the relevant runtime tests for the surfaces you touched.
 - Use `docs/fitness/coke-verification-matrix.md` to choose the right command
-  set for worker, bridge, gateway, deploy, and repo-OS changes.
+  set for backend, web, deploy, and repo-OS changes.
 - Follow `docs/deploy.md` for deployment-specific smoke checks.
 - Follow `docs/release-guide.md` and `docs/RELEASE_CHECKLIST.md` for release
   or production rollout closeout.
@@ -156,12 +155,12 @@ Then add the smallest task-specific slice:
 ## Common Commands
 
 - Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
-- Local runtime: `./start.sh` or `bash agent/runner/agent_start.sh --force-clean`
-- Unit tests: `.venv/bin/python -m pytest tests/unit/ -v`
-- E2E tests: `.venv/bin/python -m pytest tests/e2e/ -v`
+- Backend unit tests: `.venv/bin/python -m pytest tests/unit/coke -v`
+- Web tests: `cd web && pnpm test`
+- Web build: `cd web && pnpm build`
 - Format: `black . && isort .`
 - Repo-OS check: `zsh scripts/check`
 - Surface verification: `zsh scripts/verify-surface <surface>`
 - Verification suggestion: `zsh scripts/suggest-verification --base HEAD~1`
 - Risk trigger report: `zsh scripts/review-trigger --base HEAD~1`
-- Production deploy: `./scripts/deploy-compose-to-gcp.sh --restart`
+- Production deploy: follow `docs/deploy.md` and run the deploy surface checks.

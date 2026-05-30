@@ -1,6 +1,0 @@
-[submodule "gateway"]
-	path = gateway
-	url = https://github.com/yidianyiko/ClawScale.git
-[submodule "memo-runtime"]
-	path = memo-runtime
-	url = /data/projects/coke-memo-runtime

@@ -41,23 +41,18 @@ The standalone ClawScale bridge is superseded. ClawScale remains only as the
 - Design specs and execution plans: `docs/superpowers/specs/` and
   `docs/superpowers/plans/`.
 
-Legacy/current-checkout pointers that still help agents locate the surface they
-are replacing or deleting:
+Clean implementation pointers:
 
-- Worker runtime entry: `agent/runner/agent_runner.py`.
-- Superseded bridge ingress: `connector/clawscale_bridge/app.py`.
-- Superseded bridge egress: `connector/clawscale_bridge/output_dispatcher.py`.
-- Superseded TypeScript API package: `gateway/packages/api`.
-- Thin web package to repoint/de-brand: `gateway/packages/web`.
-- Existing deploy regression script: `scripts/test-deploy-compose-to-gcp.sh`.
+- Python API and service composition: `coke/app.py` and `coke/api/`.
+- Domain runtime modules: `coke/domains/`.
+- Database schema and migrations: `coke/schema.py` and `migrations/`.
+- Thin web client: `web/`.
 
 ## Implementation Rules
 
 - Keep product behavior in Python domain modules, not in route handlers or
   provider adapters.
-- Treat TypeScript Gateway API and standalone bridge ownership as superseded
-  unless the task is explicitly deleting, migrating, or documenting that legacy
-  surface.
+- Treat TypeScript Gateway API and standalone bridge ownership as superseded.
 - Keep all durable state in Postgres and all coordination in Redis.
 - Do not add Mongo-backed runtime state.
 - Keep The Turn as the only normal chat/channel-visible product prose producer.

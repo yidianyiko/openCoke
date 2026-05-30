@@ -55,10 +55,11 @@ runtime behavior:
   avoid claiming success without command evidence.
 
 Use [`coke-verification-matrix.md`](./coke-verification-matrix.md) when you
-need the repository-specific command mapping for worker, bridge, gateway, or
-deploy changes. For docs-only repo-OS edits, prefer the `repo-os-docs` surface;
+need the repository-specific command mapping for backend, web, deployment, or
+repo-OS changes. For docs-only repo-OS edits, prefer the `repo-os-docs` surface;
 it keeps verification to structure/routing checks. Use the heavier `repo-os`
-surface for guardrail scripts, `surfaces.yaml`, or verification tooling.
+surface for guardrail scripts, ownership registry changes, `surfaces.yaml`, or
+verification tooling.
 
 Use [`../design-docs/test-evidence-contract.md`](../design-docs/test-evidence-contract.md)
 when deciding whether a test is valid evidence, should be rewritten, or should
@@ -72,10 +73,9 @@ matrix without replacing the existing command runner.
 
 ## Ownership Registry
 
-`docs/fitness/ownership-registry.yaml` maps route and contract files to the
-ownership systems defined in
-`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`.
-It complements planning surfaces; it does not replace `surfaces.yaml`.
+`docs/fitness/ownership-registry.yaml` maps Python route and contract files to
+clean-rebuild ownership systems. It complements planning surfaces; it does not
+replace `surfaces.yaml`.
 
 Use these helpers from the repository root:
 
@@ -86,7 +86,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 - `suggest-verification` maps changed files to Coke surfaces and prints the
   matching `scripts/verify-surface` dry-run command set.
-- `review-trigger` reports risk triggers such as bridge/gateway cross-boundary
+- `review-trigger` reports risk triggers such as backend/web cross-boundary
   changes, deployment changes, oversized diffs, or non-trivial changes without
   generated evidence. It is non-blocking, exits 0, and never requires human
   review.

@@ -37,48 +37,17 @@ surface_commands() {
       print "$pytest_cmd tests/unit/coke -v"
       ;;
     clean-rebuild-web)
-      print "cd gateway && pnpm --filter @coke/web test"
-      print "cd gateway && pnpm --filter @coke/web build"
+      print "cd web && pnpm test"
+      print "cd web && pnpm build"
       ;;
     repo-os-docs)
       print "zsh scripts/check"
       ;;
     repo-os)
-      print "$pytest_cmd tests/unit/test_repo_os_structure.py -v"
-      print "$pytest_cmd tests/unit/test_guardrail_scripts.py -v"
+      print "$pytest_cmd tests/unit/coke/test_clean_rebuild_no_legacy_imports.py -v"
       print "zsh scripts/check"
       ;;
-    worker-runtime)
-      print "$pytest_cmd tests/unit/runner/ -v"
-      print "$pytest_cmd tests/unit/agent/ -v"
-      print "$pytest_cmd tests/unit/test_clawscale_only_topology.py -v"
-      ;;
-    product-reminder)
-      print "$pytest_cmd tests/unit/reminder/ tests/unit/agent/test_reminder_intent_capability.py tests/unit/agent/test_reminder_command_executor.py tests/unit/runner/test_reminder_event_handler.py tests/unit/runner/test_reminder_scheduler.py -v"
-      ;;
-    product-memo)
-      print "$pytest_cmd tests/unit/agent/test_memo_capability_adapter.py -v"
-      print "$pytest_cmd memo-runtime/tests -v"
-      ;;
-    product-calendar-import)
-      print "$pytest_cmd tests/unit/agent/test_calendar_import_handoff_tool.py tests/unit/connector/clawscale_bridge/test_google_calendar_import_service.py -v"
-      print "pnpm --dir gateway/packages/api test calendar-import"
-      ;;
-    product-timezone)
-      print "$pytest_cmd tests/unit/agent/test_timezone_port.py tests/unit/agent/test_timezone_service.py tests/unit/test_timezone_tools.py tests/unit/test_user_dao_timezone.py -v"
-      ;;
-    bridge)
-      print "$pytest_cmd tests/unit/connector/clawscale_bridge/ -v"
-      print "$pytest_cmd tests/unit/agent/test_message_util_clawscale_routing.py -v"
-      ;;
-    gateway-api)
-      print "pnpm --dir gateway/packages/api test"
-      ;;
-    gateway-web)
-      print "pnpm --dir gateway/packages/web test"
-      ;;
     deploy)
-      print "bash scripts/test-deploy-compose-to-gcp.sh"
       print "zsh scripts/check"
       ;;
     *)

@@ -36,21 +36,17 @@ typeset -a required_files=(
   "docs/fitness/coke-verification-matrix.md"
   "docs/fitness/surfaces.yaml"
   "docs/fitness/ownership-registry.yaml"
-  "agent/reminder/OWNERS.md"
-  "memo-runtime/OWNERS.md"
-  "connector/clawscale_bridge/OWNERS.md"
-  "agent/agno_agent/OWNERS.md"
-  "gateway/packages/api/src/channel/OWNERS.md"
-  "gateway/packages/web/OWNERS.md"
+  "web/OWNERS.md"
   "scripts/check"
   "scripts/verify-surface"
   "scripts/suggest-verification"
   "scripts/review-trigger"
   "scripts/guardrails.py"
-  "agent/runner/agent_runner.py"
-  "connector/clawscale_bridge/app.py"
-  "connector/clawscale_bridge/output_dispatcher.py"
-  "scripts/test-deploy-compose-to-gcp.sh"
+  "scripts/e2e/clean-rebuild-canonical-doc-sync.sh"
+  "coke/app.py"
+  "coke/schema.py"
+  "migrations/env.py"
+  "docker-compose.prod.yml"
 )
 
 missing=0
@@ -126,13 +122,6 @@ if ! "$python_cmd" scripts/guardrails.py check-import-boundaries; then
 fi
 
 if ! "$python_cmd" scripts/guardrails.py check-ownership-registry; then
-  missing=1
-fi
-
-if git ls-tree HEAD gateway | rg -q '[[:space:]]gateway$'; then
-  print "OK  gateway (gitlink)"
-else
-  print "MISS gateway (gitlink)"
   missing=1
 fi
 
