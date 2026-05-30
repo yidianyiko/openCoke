@@ -78,6 +78,14 @@ def test_clean_api_and_worker_can_reach_host_evolution_instance() -> None:
     ]
 
 
+def test_clean_web_is_optional_for_stage1_default_deploy() -> None:
+    services = _clean_compose()["services"]
+    script = DEPLOY_SCRIPT.read_text()
+
+    assert services["coke-web"]["profiles"] == ["web"]
+    assert '--profile web rm -sf coke-web' in script
+
+
 def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> None:
     script = DEPLOY_SCRIPT.read_text()
 

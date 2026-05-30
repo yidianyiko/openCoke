@@ -175,6 +175,7 @@ export COKE_API_PORT="$COKE_CLEAN_API_PORT"
 export COKE_WEB_PORT="$COKE_CLEAN_WEB_PORT"
 
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --build
+docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml --profile web rm -sf coke-web >/dev/null 2>&1 || true
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic upgrade head
 
 for _ in $(seq 1 30); do

@@ -4,7 +4,7 @@
 
 **Goal:** Make the clean Coke stack deployable to `gcp-coke` as a non-disruptive Stage-1 compose project under `/home/whoami/coke-clean`.
 
-**Architecture:** The deploy path creates a separate clean compose project named `coke-clean` with fresh Postgres and Redis containers, localhost-only free host ports, and no dependency on the deleted Gateway submodule. The old `/home/whoami/coke` production stack remains untouched; the only remote action is creating/updating `/home/whoami/coke-clean`, writing a clean `.env`, starting `docker compose -p coke-clean`, running Alembic, and smoking the clean API/webhook path.
+**Architecture:** The deploy path creates a separate clean compose project named `coke-clean` with fresh Postgres and Redis containers, localhost-only free host ports, and no dependency on the deleted Gateway submodule. The old `/home/whoami/coke` production stack remains untouched; the only remote action is creating/updating `/home/whoami/coke-clean`, writing a clean `.env`, starting `docker compose -p coke-clean`, running Alembic, and smoking the clean API/webhook path. Stage-1 skips `coke-web` by default behind an opt-in `web` profile.
 
 **Tech Stack:** Bash, rsync, Docker Compose, Flask/Gunicorn, Alembic, Postgres 17, Redis 7, pytest, PyYAML.
 
@@ -20,7 +20,7 @@
 ## File Structure
 
 - Create `scripts/deploy-compose-to-gcp.sh`: clean-stack deploy command with `--dry-run`, rsync allowlist, clean env generation from the old stack `.env`, compose startup, one-shot Alembic, and `/healthz` check.
-- Create `docker-compose.clean.yml`: non-disruptive compose override with localhost-only free ports, distinct clean volume names, host-gateway access for Evolution, and clean runtime environment.
+- Create `docker-compose.clean.yml`: non-disruptive compose override with localhost-only free ports, distinct clean volume names, host-gateway access for Evolution, clean runtime environment, and optional `web` profile for `coke-web`.
 - Create `tests/unit/coke/deploy/test_clean_compose_deploy_contract.py`: contract tests for the clean override and deploy script so legacy Gateway/submodule behavior cannot re-enter this path.
 - Modify `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-runtime-readiness-rr7.md`: mark checklist progress and set `Plan Status: complete` only after verification passes.
 
