@@ -10,6 +10,7 @@ def create_app(
     identity_access_service=None,
     channel_reachability_service=None,
     reminder_service=None,
+    calendar_import_service=None,
     provider_adapters=None,
 ) -> Flask:
     app = Flask(__name__)
@@ -41,6 +42,13 @@ def create_app(
         from coke.api.reminder_routes import create_reminder_blueprint
 
         app.register_blueprint(create_reminder_blueprint(reminder_service))
+
+    if calendar_import_service is not None:
+        from coke.api.calendar_import_routes import create_calendar_import_blueprint
+
+        app.register_blueprint(
+            create_calendar_import_blueprint(calendar_import_service)
+        )
 
     @app.get("/healthz")
     def healthz():
