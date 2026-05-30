@@ -81,7 +81,7 @@ class AgnoInteractionAgent:
         )
         try:
             run_output = agent.run(
-                self._input_payload(request),
+                json.dumps(self._input_payload(request), default=str),
                 user_id=request.account_id,
                 session_id=request.conversation_id,
                 metadata={
