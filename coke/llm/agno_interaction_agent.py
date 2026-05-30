@@ -148,6 +148,7 @@ class AgnoInteractionAgent:
             "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
             "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
             "For adding a friend from an invite code or link token, call social_scheduling_tool with operation=establish_friendship_from_token, joiner_account_id from trusted_facts.account_id, and link_code or public_token from the User message.",
+            "For shared-reminder creation, call social_scheduling_tool with operation=create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, title, local_trigger_at, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes, and context.",
             "Do not answer as if the action happened until the tool result says it happened.",
             "For any state-changing tool result from reminder, social_scheduling, settings, or calendar-import, report success only when ok=true; when ok=false, reason_code is present, or status starts with needs_, must not claim the action succeeded and should ask the required follow-up or report the failure honestly.",
             "If no user-visible message is warranted, return the explicit no_reply JSON.",
@@ -208,7 +209,12 @@ def _tool_doc(name: str) -> str:
             "from an invite code or link token, call "
             "operation='establish_friendship_from_token' with "
             "joiner_account_id set to trusted_facts.account_id and link_code "
-            "or public_token set from the User message."
+            "or public_token set from the User message. To create a shared "
+            "reminder, call operation='create_shared_reminder' with "
+            "creator_account_id set to trusted_facts.account_id, "
+            "receiver_account_ids set to active friend account IDs, title, "
+            "local_trigger_at, captured_timezone, duration_minutes, and "
+            "context."
         )
     return f"Execute a Coke {name} domain command."
 

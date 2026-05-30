@@ -225,6 +225,25 @@ def test_social_scheduling_tool_doc_describes_friend_link_and_code_operations():
     assert "trusted_facts.account_id" in doc
 
 
+def test_social_scheduling_tool_doc_describes_shared_reminder_creation():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    doc = factory.agent_kwargs[0]["tools"][0].__doc__ or ""
+    assert "create_shared_reminder" in doc
+    assert "receiver_account_ids" in doc
+    assert "local_trigger_at" in doc
+    assert "context" in doc
+
+
 def test_empty_reminder_tool_call_defaults_to_detecting_current_user_message():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
