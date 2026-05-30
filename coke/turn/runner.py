@@ -20,12 +20,21 @@ from coke.turn.semantic_interpreter import (
     SemanticInterpreterRequest,
 )
 
-
 WAITING_TEXT = "Still working on it."
 
 
 class OutboundDeliveryPort(Protocol):
-    def deliver(self, request: DeliveryRequest) -> None: ...
+    def deliver(self, request: DeliveryRequest) -> Any: ...
+
+
+class DeliveryLifecyclePort(Protocol):
+    def record_delivery(
+        self,
+        *,
+        trigger: TurnTrigger,
+        request: DeliveryRequest,
+        outcome: "DeliveryOutcome",
+    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +47,13 @@ class DeliveryRequest:
     idempotency_key: str
     segments: tuple[str, ...] = ()
     context_token: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryOutcome:
+    status: str
+    error_code: str | None = None
+    attempt: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +95,7 @@ class TurnRunner:
         context_assembler: ContextAssembler | None = None,
         focus_resolver: FocusResolver | None = None,
         reference_resolver: ReferenceResolver | None = None,
+        delivery_lifecycle: DeliveryLifecyclePort | None = None,
     ) -> None:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
@@ -88,6 +105,7 @@ class TurnRunner:
         self.interaction_agent = interaction_agent
         self.output_protocol = output_protocol
         self.outbound_delivery = outbound_delivery
+        self.delivery_lifecycle = delivery_lifecycle
         self.tool_ports = tool_ports or AgentToolPorts()
         self.context_assembler = context_assembler or ContextAssembler()
         self.focus_resolver = focus_resolver or FocusResolver()
@@ -105,6 +123,9 @@ class TurnRunner:
             trigger_type=trigger.trigger_type,
             mode=TurnMode.INTERACTIVE.value,
         )
+        replay_result = self._replayed_result(start.replayed, start.turn.id, trigger)
+        if replay_result is not None:
+            return replay_result
         lock = self.lock_manager.acquire(trigger.conversation_id)
         if lock is None:
             disposition = self.conversation_runtime.mark_failed(
@@ -163,7 +184,9 @@ class TurnRunner:
             )
             return self._invoke_agent_and_record(trigger, context, semantic_decision)
         except ConversationRuntimeError as error:
-            return self._conversation_runtime_error_result(start.turn.id, trigger, error)
+            return self._conversation_runtime_error_result(
+                start.turn.id, trigger, error
+            )
         finally:
             lock.release()
 
@@ -186,7 +209,9 @@ class TurnRunner:
             mode=TurnMode.INTERACTIVE,
             conversation_id=state.conversation_id,
             account_id=state.account_id,
-            payload={"context_token": state.context_token} if state.context_token else {},
+            payload=(
+                {"context_token": state.context_token} if state.context_token else {}
+            ),
         )
         if result.timed_out:
             disposition = self.conversation_runtime.mark_failed(
@@ -247,6 +272,9 @@ class TurnRunner:
             trigger_type=trigger.trigger_type,
             mode=TurnMode.RENDER.value,
         )
+        replay_result = self._replayed_result(start.replayed, start.turn.id, trigger)
+        if replay_result is not None:
+            return replay_result
         lock = self.lock_manager.acquire(trigger.conversation_id)
         if lock is None:
             disposition = self.conversation_runtime.mark_failed(
@@ -274,9 +302,13 @@ class TurnRunner:
                 freshness_guard=freshness_guard,
                 tool_profile=ToolProfile.render(constrained=constrained),
             )
-            return self._invoke_agent_and_record(trigger, context, semantic_decision=None)
+            return self._invoke_agent_and_record(
+                trigger, context, semantic_decision=None
+            )
         except ConversationRuntimeError as error:
-            return self._conversation_runtime_error_result(start.turn.id, trigger, error)
+            return self._conversation_runtime_error_result(
+                start.turn.id, trigger, error
+            )
         finally:
             lock.release()
 
@@ -411,24 +443,111 @@ class TurnRunner:
         )
         self.conversation_runtime.guard_state_change(turn_id, based_on_inbound_seq)
         visible_text = "\n".join(validated.segments)
-        self.outbound_delivery.deliver(
-            DeliveryRequest(
-                account_id=trigger.account_id,
-                conversation_id=trigger.conversation_id,
-                turn_id=turn_id,
-                message_type="reply",
-                visible_text=visible_text,
-                idempotency_key=f"{trigger.trigger_id}:reply",
-                segments=validated.segments,
-                context_token=_context_token_from_trigger(trigger),
-            )
-        )
+        for request in self._reply_delivery_requests(
+            trigger=trigger,
+            turn_id=turn_id,
+            visible_text=visible_text,
+            segments=validated.segments,
+        ):
+            outcome = self._deliver(request)
+            self._record_delivery_lifecycle(trigger, request, outcome)
         return self._result_from_disposition(
             turn_id=turn_id,
             trigger=trigger,
             disposition=disposition.disposition,
             reason_code=disposition.reason_code,
             visible_text=visible_text,
+        )
+
+    def _replayed_result(
+        self,
+        replayed: bool,
+        turn_id: str,
+        trigger: TurnTrigger,
+    ) -> TurnRunResult | None:
+        if not replayed:
+            return None
+        try:
+            disposition = self.conversation_runtime.get_disposition(turn_id)
+        except ConversationRuntimeError:
+            return None
+        visible_text = None
+        async_task_id = None
+        if disposition.disposition == "replied":
+            messages = self.conversation_runtime.outbound_messages_for_turn(turn_id)
+            visible_text = "\n".join(
+                message.text or ""
+                for message in sorted(
+                    messages,
+                    key=lambda message: (message.segment_index or 0, message.id),
+                )
+            )
+        elif disposition.disposition == "pending_async_reply":
+            async_task_id = None
+        return self._result_from_disposition(
+            turn_id=turn_id,
+            trigger=trigger,
+            disposition=disposition.disposition,
+            reason_code=disposition.reason_code,
+            visible_text=visible_text,
+            async_task_id=async_task_id,
+        )
+
+    def _reply_delivery_requests(
+        self,
+        *,
+        trigger: TurnTrigger,
+        turn_id: str,
+        visible_text: str,
+        segments: tuple[str, ...],
+    ) -> list[DeliveryRequest]:
+        recipients = _recipient_account_ids(trigger)
+        multiple = len(recipients) > 1
+        requests: list[DeliveryRequest] = []
+        for account_id in recipients:
+            idempotency_key = f"{turn_id}:reply"
+            if multiple or account_id != trigger.account_id:
+                idempotency_key = f"{idempotency_key}:{account_id}"
+            requests.append(
+                DeliveryRequest(
+                    account_id=account_id,
+                    conversation_id=trigger.conversation_id,
+                    turn_id=turn_id,
+                    message_type="reply",
+                    visible_text=visible_text,
+                    idempotency_key=idempotency_key,
+                    segments=segments,
+                    context_token=_context_token_from_trigger(trigger),
+                )
+            )
+        return requests
+
+    def _deliver(self, request: DeliveryRequest) -> DeliveryOutcome:
+        try:
+            raw_outcome = self.outbound_delivery.deliver(request)
+        except Exception as error:
+            return DeliveryOutcome(
+                status="failed",
+                error_code=str(getattr(error, "code", None) or type(error).__name__),
+            )
+        return DeliveryOutcome(
+            status=str(getattr(raw_outcome, "status", "delivered")),
+            error_code=getattr(raw_outcome, "error_code", None),
+            attempt=raw_outcome,
+        )
+
+    def _record_delivery_lifecycle(
+        self,
+        trigger: TurnTrigger,
+        request: DeliveryRequest,
+        outcome: DeliveryOutcome,
+    ) -> None:
+        if self.delivery_lifecycle is None:
+            return
+        self.delivery_lifecycle.record_delivery(
+            trigger=trigger,
+            request=request,
+            outcome=outcome,
         )
 
     def _conversation_runtime_error_result(
@@ -488,6 +607,20 @@ def _protocol_retry_request(
             },
         },
     )
+
+
+def _recipient_account_ids(trigger: TurnTrigger) -> list[str]:
+    if trigger.trigger_type == "NotificationTurn":
+        raw_recipients = trigger.payload.get("recipient_account_ids")
+        if isinstance(raw_recipients, list | tuple):
+            recipients = [
+                account_id
+                for account_id in raw_recipients
+                if isinstance(account_id, str) and account_id
+            ]
+            if recipients:
+                return list(dict.fromkeys(recipients))
+    return [trigger.account_id]
 
 
 def _context_token_from_trigger(trigger: TurnTrigger) -> str | None:

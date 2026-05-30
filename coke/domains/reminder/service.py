@@ -21,11 +21,15 @@ from coke.domains.reminder.models import (
     ReminderFireGroup,
     ReminderItemResult,
     ReminderKind,
+    ReminderOutboxEvent,
     TimeValidationState,
     UndeliveredResendTurn,
 )
 from coke.domains.reminder.recurrence import next_occurrence_after
 from coke.domains.reminder.repository import ReminderRepository
+from coke.infra.tracing import generate_traceparent
+
+CommitGuard = Callable[[], None] | None
 
 
 class ReminderService:
@@ -47,11 +51,12 @@ class ReminderService:
         self,
         owner_account_id: str,
         items: list[ReminderBatchItem],
+        commit_guard: CommitGuard = None,
     ) -> ReminderBatchResult:
         results: list[ReminderItemResult] = []
         for item in items:
             try:
-                results.append(self._execute_item(owner_account_id, item))
+                results.append(self._execute_item(owner_account_id, item, commit_guard))
             except ReminderError as error:
                 results.append(
                     ReminderItemResult(
@@ -72,6 +77,7 @@ class ReminderService:
         reminder_id: str,
         trigger_time: datetime,
         captured_timezone: str,
+        commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
         reminder = self._require_owned_reminder(owner_account_id, reminder_id)
         if reminder.kind != "no_trigger_time" or reminder.next_fire_at is not None:
@@ -95,7 +101,11 @@ class ReminderService:
             captured_timezone=captured_timezone,
             updated_at=self._now(),
         )
-        self.repository.save_reminder(updated)
+        self._save_reminder_with_outbox(
+            updated,
+            "schedule_unscheduled",
+            commit_guard=commit_guard,
+        )
         return ReminderItemResult(
             state="succeeded",
             reminder_id=updated.id,
@@ -109,6 +119,7 @@ class ReminderService:
         reminder_id: str,
         trigger_time: datetime,
         captured_timezone: str,
+        commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
         reminder = self._require_owned_reminder(owner_account_id, reminder_id)
         if reminder.kind == "no_trigger_time" or reminder.next_fire_at is None:
@@ -117,6 +128,7 @@ class ReminderService:
                 reminder_id=reminder_id,
                 trigger_time=trigger_time,
                 captured_timezone=captured_timezone,
+                commit_guard=commit_guard,
             )
         if reminder.kind == "proactive":
             raise ReminderError("proactive_user_immutable")
@@ -138,7 +150,11 @@ class ReminderService:
             captured_timezone=captured_timezone,
             updated_at=self._now(),
         )
-        self.repository.save_reminder(updated)
+        self._save_reminder_with_outbox(
+            updated,
+            "reschedule",
+            commit_guard=commit_guard,
+        )
         return ReminderItemResult(
             state="succeeded",
             reminder_id=updated.id,
@@ -150,6 +166,7 @@ class ReminderService:
         self,
         owner_account_id: str,
         reminder_id: str,
+        commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
         reminder = self._require_owned_reminder(owner_account_id, reminder_id)
         if reminder.kind == "recurring":
@@ -171,7 +188,11 @@ class ReminderService:
             recurrence_rule={},
             updated_at=self._now(),
         )
-        self.repository.save_reminder(updated)
+        self._save_reminder_with_outbox(
+            updated,
+            "clear_trigger_time",
+            commit_guard=commit_guard,
+        )
         return ReminderItemResult(
             state="succeeded",
             reminder_id=updated.id,
@@ -182,6 +203,7 @@ class ReminderService:
         self,
         owner_account_id: str,
         reminder_id: str,
+        commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
         reminder = self._require_owned_reminder(owner_account_id, reminder_id)
         if reminder.kind == "proactive":
@@ -189,7 +211,11 @@ class ReminderService:
         if reminder.kind == "recurring":
             raise ReminderError("recurring_completion_requires_occurrence")
         updated = replace(reminder, lifecycle="completed", updated_at=self._now())
-        self.repository.save_reminder(updated)
+        self._save_reminder_with_outbox(
+            updated,
+            "complete",
+            commit_guard=commit_guard,
+        )
         return ReminderItemResult(state="succeeded", reminder_id=reminder.id)
 
     def delete_reminder(
@@ -197,12 +223,17 @@ class ReminderService:
         owner_account_id: str,
         reminder_id: str,
         user_initiated: bool = True,
+        commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
         reminder = self._require_owned_reminder(owner_account_id, reminder_id)
         if user_initiated and reminder.kind == "proactive":
             raise ReminderError("proactive_user_immutable")
         updated = replace(reminder, lifecycle="deleted", updated_at=self._now())
-        self.repository.save_reminder(updated)
+        self._save_reminder_with_outbox(
+            updated,
+            "delete",
+            commit_guard=commit_guard,
+        )
         return ReminderItemResult(state="succeeded", reminder_id=reminder.id)
 
     def claim_due_fire(
@@ -280,6 +311,47 @@ class ReminderService:
         )
         self.repository.save_fire(updated)
         return updated
+
+    def record_fire_delivery(
+        self,
+        fire_ids: list[str],
+        *,
+        delivered: bool,
+    ) -> list[ReminderFire]:
+        updated_fires: list[ReminderFire] = []
+        for fire_id in fire_ids:
+            fire = self._require_fire(fire_id)
+            reminder = self._require_reminder(fire.reminder_id)
+            if reminder.kind == "proactive":
+                updated_fires.append(
+                    self.record_proactive_delivery(fire_id, delivered=delivered)
+                )
+                continue
+            updated = replace(
+                fire,
+                delivery_result="delivered" if delivered else "undelivered",
+                updated_at=self._now(),
+            )
+            self.repository.save_fire(updated)
+            updated_fires.append(updated)
+        return updated_fires
+
+    def record_proactive_delivery(
+        self,
+        fire_id: str,
+        *,
+        delivered: bool,
+    ) -> ReminderFire:
+        fire = self._require_fire(fire_id)
+        if delivered:
+            updated = replace(
+                fire,
+                delivery_result="delivered",
+                updated_at=self._now(),
+            )
+            self.repository.save_fire(updated)
+            return updated
+        return self.discard_proactive_fire(fire_id)
 
     def complete_fire(self, fire_id: str, completed_at: datetime) -> ReminderFire:
         fire = self._require_fire(fire_id)
@@ -376,12 +448,13 @@ class ReminderService:
         self,
         owner_account_id: str,
         item: ReminderBatchItem,
+        commit_guard: CommitGuard,
     ) -> ReminderItemResult:
         if item.operation == "detect_and_create":
             item = self._detect_item(item)
         if item.operation != "create":
             raise ReminderError("unsupported_reminder_operation")
-        return self._create(owner_account_id, item)
+        return self._create(owner_account_id, item, commit_guard)
 
     def _detect_item(self, item: ReminderBatchItem) -> ReminderBatchItem:
         if self.detector is None or item.raw_text is None:
@@ -406,6 +479,8 @@ class ReminderService:
             kind=fields.kind,
             entry_point=item.entry_point,
             time_state=item.time_state,
+            turn_id=item.turn_id,
+            item_index=item.item_index,
         )
 
     def _detected_trigger_time(
@@ -426,6 +501,7 @@ class ReminderService:
         self,
         owner_account_id: str,
         item: ReminderBatchItem,
+        commit_guard: CommitGuard,
     ) -> ReminderItemResult:
         if not item.content:
             return ReminderItemResult(state="needs-follow-up", reason="needs_content")
@@ -458,8 +534,24 @@ class ReminderService:
             created_at=now,
             updated_at=now,
         )
+        outbox = self._outbox_event("create", reminder, item=item)
+        existing_event = self.repository.get_outbox_by_idempotency_key(
+            outbox.idempotency_key
+        )
+        if existing_event is not None:
+            reminder_id = existing_event.payload.get("reminder_id")
+            return ReminderItemResult(
+                state="succeeded",
+                reminder_id=reminder_id if isinstance(reminder_id, str) else None,
+                time_state=time_state,
+                fact=dict(existing_event.payload),
+            )
         try:
-            self.repository.add_reminder(reminder)
+            self.repository.add_reminder_with_outbox(
+                reminder,
+                outbox,
+                before_write=commit_guard,
+            )
         except ValueError as error:
             if str(error) == "duplicate_reminder":
                 return ReminderItemResult(
@@ -504,12 +596,14 @@ class ReminderService:
                 due_at,
                 reminder.captured_timezone,
             )
-            self.repository.save_reminder(
-                replace(reminder, next_fire_at=next_fire, updated_at=self._now())
+            self._save_reminder_with_outbox(
+                replace(reminder, next_fire_at=next_fire, updated_at=self._now()),
+                "advance_occurrence",
             )
         elif reminder.kind != "proactive":
-            self.repository.save_reminder(
-                replace(reminder, lifecycle="completed", updated_at=self._now())
+            self._save_reminder_with_outbox(
+                replace(reminder, lifecycle="completed", updated_at=self._now()),
+                "complete_after_fire",
             )
 
     def _require_owned_reminder(
@@ -536,6 +630,66 @@ class ReminderService:
         if fire is None:
             raise ReminderError("reminder_fire_not_found")
         return fire
+
+    def _save_reminder_with_outbox(
+        self,
+        reminder: Reminder,
+        operation: str,
+        *,
+        commit_guard: CommitGuard = None,
+    ) -> None:
+        outbox = self._outbox_event(operation, reminder)
+        self.repository.save_reminder_with_outbox(
+            reminder,
+            outbox,
+            before_write=commit_guard,
+        )
+
+    def _outbox_event(
+        self,
+        operation: str,
+        reminder: Reminder,
+        *,
+        item: ReminderBatchItem | None = None,
+    ) -> ReminderOutboxEvent:
+        now = self._now()
+        outbox_id = self._id_factory("outbox")
+        if item is not None and item.turn_id and item.item_index is not None:
+            idempotency_key = f"reminder:{operation}:{item.turn_id}:{item.item_index}"
+        elif operation == "create":
+            idempotency_key = f"reminder:create:{reminder.id}"
+        else:
+            idempotency_key = f"reminder:{operation}:{reminder.id}:{outbox_id}"
+        next_fire_at = (
+            reminder.next_fire_at.isoformat()
+            if reminder.next_fire_at is not None
+            else None
+        )
+        return ReminderOutboxEvent(
+            id=outbox_id,
+            topic="reminder.lifecycle",
+            idempotency_key=idempotency_key,
+            payload={
+                "type": "reminder_lifecycle",
+                "operation": operation,
+                "reminder_id": reminder.id,
+                "owner_account_id": reminder.owner_account_id,
+                "turn_id": item.turn_id if item is not None else None,
+                "item_index": item.item_index if item is not None else None,
+                "kind": reminder.kind,
+                "lifecycle": reminder.lifecycle,
+                "next_fire_at": next_fire_at,
+                "shared_reminder_id": reminder.shared_reminder_id,
+            },
+            traceparent=generate_traceparent(),
+            status="pending",
+            created_at=now,
+            published_at=None,
+            processed_at=None,
+            acked_at=None,
+            retry_count=0,
+            last_error=None,
+        )
 
 
 def _content_hash(content: str) -> str:

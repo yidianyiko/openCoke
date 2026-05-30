@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -69,9 +70,13 @@ class FakeMemory:
 class RecordingOutbound:
     def __init__(self) -> None:
         self.requests = []
+        self.outcomes = []
 
-    def deliver(self, request) -> None:
+    def deliver(self, request):
         self.requests.append(request)
+        if self.outcomes:
+            return self.outcomes.pop(0)
+        return SimpleNamespace(status="delivered", error_code=None)
 
 
 class FakeGoogleCalendarClient(GoogleCalendarClientPort):
@@ -275,6 +280,101 @@ def test_reminder_fire_render_turn_produces_prose_without_business_mutation(comp
         len(runtime.repositories.reminder.list_active_reminders(identity.account.id))
         == reminder_count_before
     )
+
+
+def test_reminder_fire_render_failure_marks_fire_undelivered(composed):
+    runtime, _semantic, agent, outbound, identity = composed
+    inbound = _record_inbound(runtime, identity, "provider-message-6", "seed")
+    create = runtime.reminder_service.execute_batch(
+        owner_account_id=identity.account.id,
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+            )
+        ],
+    )
+    fire = runtime.reminder_service.claim_due_fire(
+        reminder_id=create.items[0].reminder_id,
+        due_at=NOW + timedelta(hours=2),
+    )
+    agent.output = {"type": "reply", "segments": ["rent is due"]}
+    outbound.outcomes = [SimpleNamespace(status="failed", error_code="provider_failed")]
+
+    result = runtime.turn_runner.run_render_turn(
+        TurnTrigger(
+            trigger_id=f"reminder_fire:{identity.account.id}:{fire.due_at.isoformat()}",
+            trigger_type="ReminderFireTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=inbound.conversation.id,
+            account_id=identity.account.id,
+            payload={"fire_ids": [fire.id]},
+        )
+    )
+
+    assert result.disposition == "replied"
+    assert (
+        runtime.repositories.reminder.get_fire(fire.id).delivery_result == "undelivered"
+    )
+
+
+def test_notification_render_writes_per_recipient_delivery_state(composed):
+    runtime, _semantic, agent, outbound, identity = composed
+    inbound = _record_inbound(runtime, identity, "provider-message-7", "seed")
+    friend_identity = (
+        runtime.identity_access_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="sender-2",
+        )
+    )
+    runtime.identity_access_service.observe_usable_channel(friend_identity.account.id)
+    link = runtime.social_scheduling_service.get_or_create_friend_link(
+        identity.account.id
+    )
+    runtime.social_scheduling_service.establish_friendship_from_token(
+        friend_identity.account.id,
+        link.public_token,
+    )
+    fact = runtime.repositories.social_scheduling.list_notification_facts()[0]
+    agent.output = {"type": "reply", "segments": ["friendship created"]}
+    outbound.outcomes = [
+        SimpleNamespace(status="delivered", error_code=None),
+        SimpleNamespace(status="failed", error_code="provider_failed"),
+    ]
+
+    result = runtime.turn_runner.run_render_turn(
+        TurnTrigger(
+            trigger_id=f"notification:{fact.id}",
+            trigger_type="NotificationTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=inbound.conversation.id,
+            account_id=identity.account.id,
+            payload={
+                "notification_fact_id": fact.id,
+                "recipient_account_ids": [
+                    identity.account.id,
+                    friend_identity.account.id,
+                ],
+                "facts": fact.facts,
+            },
+        )
+    )
+
+    recipients = {
+        recipient.recipient_account_id: recipient
+        for recipient in runtime.repositories.social_scheduling.list_notification_recipients(
+            fact.id
+        )
+    }
+    assert result.disposition == "replied"
+    assert recipients[identity.account.id].delivery_state == "delivered"
+    assert recipients[friend_identity.account.id].delivery_state == "failed"
+    assert {request.account_id for request in outbound.requests[-2:]} == {
+        identity.account.id,
+        friend_identity.account.id,
+    }
 
 
 def test_create_app_accepts_composed_runtime(composed):

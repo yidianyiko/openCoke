@@ -28,7 +28,11 @@ class FakeSocialSchedulingService:
         self.error: SocialSchedulingError | None = None
         self.shared_reminder_error: Exception | None = None
 
-    def get_or_create_friend_link(self, owner_account_id: str) -> FriendLinkView:
+    def get_or_create_friend_link(
+        self,
+        owner_account_id: str,
+        commit_guard=None,
+    ) -> FriendLinkView:
         self.calls.append(
             ("get_or_create_friend_link", {"owner_account_id": owner_account_id})
         )
@@ -36,11 +40,17 @@ class FakeSocialSchedulingService:
             raise self.error
         return _friend_link_view(owner_account_id, "active")
 
-    def reset_friend_link(self, owner_account_id: str) -> FriendLinkView:
+    def reset_friend_link(
+        self, owner_account_id: str, commit_guard=None
+    ) -> FriendLinkView:
         self.calls.append(("reset_friend_link", {"owner_account_id": owner_account_id}))
         return _friend_link_view(owner_account_id, "active", token="reset_token")
 
-    def disable_friend_link(self, owner_account_id: str) -> FriendLinkView:
+    def disable_friend_link(
+        self,
+        owner_account_id: str,
+        commit_guard=None,
+    ) -> FriendLinkView:
         self.calls.append(
             ("disable_friend_link", {"owner_account_id": owner_account_id})
         )
@@ -65,7 +75,12 @@ class FakeSocialSchedulingService:
             ],
         )
 
-    def establish_friendship_from_code(self, joiner_account_id: str, link_code: str):
+    def establish_friendship_from_code(
+        self,
+        joiner_account_id: str,
+        link_code: str,
+        commit_guard=None,
+    ):
         self.calls.append(
             (
                 "establish_friendship_from_code",
@@ -78,6 +93,7 @@ class FakeSocialSchedulingService:
         return FakeFriendshipResult()
 
     def create_shared_reminder(self, **kwargs):
+        kwargs.pop("commit_guard", None)
         self.calls.append(("create_shared_reminder", kwargs))
         if self.shared_reminder_error is not None:
             raise self.shared_reminder_error

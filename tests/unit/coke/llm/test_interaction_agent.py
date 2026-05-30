@@ -78,6 +78,7 @@ class FakeSharedReminderService:
         self.calls = []
 
     def create_shared_reminder(self, **kwargs):
+        kwargs.pop("commit_guard", None)
         self.calls.append(kwargs)
         return type(
             "SharedReminderResult",

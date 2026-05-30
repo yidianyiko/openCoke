@@ -193,9 +193,7 @@ class ConversationRuntimeService:
             )
         disposition = self._new_disposition(turn.id, "replied", reason_code)
         self.repository.save_disposition(disposition)
-        self.repository.save_turn(
-            replace(turn, completed_at=now, updated_at=now)
-        )
+        self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
         return disposition
 
     def commit_no_reply(
@@ -215,9 +213,7 @@ class ConversationRuntimeService:
         now = self._now()
         disposition = self._new_disposition(turn.id, "no_reply", reason_code)
         self.repository.save_disposition(disposition)
-        self.repository.save_turn(
-            replace(turn, completed_at=now, updated_at=now)
-        )
+        self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
         return disposition
 
     def mark_pending_async_reply(
@@ -245,9 +241,7 @@ class ConversationRuntimeService:
         now = self._now()
         disposition = self._new_disposition(turn.id, "failed", reason_code)
         self.repository.save_disposition(disposition)
-        self.repository.save_turn(
-            replace(turn, completed_at=now, updated_at=now)
-        )
+        self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
         return disposition
 
     def guard_state_change(
@@ -264,6 +258,10 @@ class ConversationRuntimeService:
             raise ConversationRuntimeError("disposition_not_found")
         return disposition
 
+    def outbound_messages_for_turn(self, turn_id: str) -> list[Message]:
+        self._require_turn(turn_id)
+        return self.repository.outbound_messages_for_turn(turn_id)
+
     def latest_context_token(self, conversation_id: str) -> str | None:
         self._require_conversation(conversation_id)
         return self.repository.latest_inbound_context_token(conversation_id)
@@ -271,7 +269,7 @@ class ConversationRuntimeService:
     def _ensure_fresh(self, turn: Turn, based_on_inbound_seq: int | None) -> None:
         if turn.based_on_inbound_seq != based_on_inbound_seq:
             raise ConversationRuntimeError("based_on_inbound_seq_mismatch")
-        conversation = self._require_conversation(turn.conversation_id)
+        conversation = self._lock_conversation(turn.conversation_id)
         if (
             based_on_inbound_seq is not None
             and conversation.latest_inbound_seq != based_on_inbound_seq
@@ -290,9 +288,7 @@ class ConversationRuntimeService:
         now = self._now()
         disposition = self._new_disposition(turn.id, "superseded", reason_code)
         self.repository.save_disposition(disposition)
-        self.repository.save_turn(
-            replace(turn, completed_at=now, updated_at=now)
-        )
+        self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
         return disposition
 
     def _ensure_turn_can_transition(
@@ -329,6 +325,12 @@ class ConversationRuntimeService:
 
     def _require_conversation(self, conversation_id: str) -> Conversation:
         conversation = self.repository.get_conversation(conversation_id)
+        if conversation is None:
+            raise ConversationRuntimeError("conversation_not_found")
+        return conversation
+
+    def _lock_conversation(self, conversation_id: str) -> Conversation:
+        conversation = self.repository.lock_conversation(conversation_id)
         if conversation is None:
             raise ConversationRuntimeError("conversation_not_found")
         return conversation

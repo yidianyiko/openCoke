@@ -37,6 +37,8 @@ from coke.domains.social_scheduling.repository import (
     unordered_pair,
 )
 
+CommitGuard = Callable[[], None] | None
+
 
 class SocialSchedulingService:
     def __init__(
@@ -62,7 +64,11 @@ class SocialSchedulingService:
             id_factory=self._new_id,
         )
 
-    def get_or_create_friend_link(self, owner_account_id: str) -> FriendLinkView:
+    def get_or_create_friend_link(
+        self,
+        owner_account_id: str,
+        commit_guard: CommitGuard = None,
+    ) -> FriendLinkView:
         self._require_usable_channel(owner_account_id, "owner_channel_required")
         existing = self.repository.get_friend_link_by_owner(owner_account_id)
         if existing is not None:
@@ -84,14 +90,19 @@ class SocialSchedulingService:
             created_at=now,
             updated_at=now,
         )
+        _run_commit_guard(commit_guard)
         self.repository.add_friend_link(link, token, code)
         return self._link_view(link, include_public=True)
 
-    def reset_friend_link(self, owner_account_id: str) -> FriendLinkView:
+    def reset_friend_link(
+        self,
+        owner_account_id: str,
+        commit_guard: CommitGuard = None,
+    ) -> FriendLinkView:
         self._require_usable_channel(owner_account_id, "owner_channel_required")
         existing = self.repository.get_friend_link_by_owner(owner_account_id)
         if existing is None:
-            return self.get_or_create_friend_link(owner_account_id)
+            return self.get_or_create_friend_link(owner_account_id, commit_guard)
         token = self._new_token("friend_link")
         code = self._new_token("friend_code")
         updated = replace(
@@ -103,10 +114,15 @@ class SocialSchedulingService:
             disabled_at=None,
             updated_at=self._now(),
         )
+        _run_commit_guard(commit_guard)
         self.repository.save_friend_link(updated, token, code)
         return self._link_view(updated, include_public=True)
 
-    def disable_friend_link(self, owner_account_id: str) -> FriendLinkView:
+    def disable_friend_link(
+        self,
+        owner_account_id: str,
+        commit_guard: CommitGuard = None,
+    ) -> FriendLinkView:
         existing = self.repository.get_friend_link_by_owner(owner_account_id)
         if existing is None:
             raise SocialSchedulingError("friend_link_not_found")
@@ -116,33 +132,54 @@ class SocialSchedulingService:
             disabled_at=self._now(),
             updated_at=self._now(),
         )
+        _run_commit_guard(commit_guard)
         self.repository.save_friend_link(updated, None, None)
         return self._link_view(updated, include_public=False)
 
     def establish_friendship_from_token(
-        self, joiner_account_id: str, public_token: str
+        self,
+        joiner_account_id: str,
+        public_token: str,
+        *,
+        commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
         link = self.repository.get_friend_link_by_token_hash(_hash_token(public_token))
         if link is None:
             raise SocialSchedulingError("friend_link_not_found")
-        return self._establish_from_link(joiner_account_id, link)
+        return self._establish_from_link(
+            joiner_account_id, link, commit_guard=commit_guard
+        )
 
     def establish_friendship_from_code(
-        self, joiner_account_id: str, link_code: str
+        self,
+        joiner_account_id: str,
+        link_code: str,
+        *,
+        commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
         link = self.repository.get_friend_link_by_code_hash(_hash_token(link_code))
         if link is None:
             raise SocialSchedulingError("friend_link_not_found")
-        return self._establish_from_link(joiner_account_id, link)
+        return self._establish_from_link(
+            joiner_account_id, link, commit_guard=commit_guard
+        )
 
     def complete_deferred_friend_link(
-        self, joiner_account_id: str, friend_link_id: str
+        self,
+        joiner_account_id: str,
+        friend_link_id: str,
+        commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
         link = self.repository.get_friend_link(friend_link_id)
         if link is None:
             raise SocialSchedulingError("friend_link_not_found")
         self._require_usable_channel(joiner_account_id, "joiner_channel_required")
-        return self._establish_from_link(joiner_account_id, link, allow_defer=False)
+        return self._establish_from_link(
+            joiner_account_id,
+            link,
+            allow_defer=False,
+            commit_guard=commit_guard,
+        )
 
     def list_friends(self, account_id: str) -> list[FriendListEntry]:
         return [
@@ -153,7 +190,12 @@ class SocialSchedulingService:
             for friendship in self.repository.list_active_friendships(account_id)
         ]
 
-    def remove_friend(self, account_id: str, friend_account_id: str) -> Friendship:
+    def remove_friend(
+        self,
+        account_id: str,
+        friend_account_id: str,
+        commit_guard: CommitGuard = None,
+    ) -> Friendship:
         friendship = self.repository.get_active_friendship(
             account_id, friend_account_id
         )
@@ -168,6 +210,7 @@ class SocialSchedulingService:
             removed_at=self._now(),
             updated_at=self._now(),
         )
+        _run_commit_guard(commit_guard)
         self.repository.save_friendship(updated)
         return updated
 
@@ -181,6 +224,7 @@ class SocialSchedulingService:
         captured_timezone: str,
         duration_minutes: int,
         context: dict | None,
+        commit_guard: CommitGuard = None,
     ) -> SharedReminderCreateResult:
         local_trigger_at = _as_local_wall_clock(local_trigger_at)
         missing = _first_missing_field(
@@ -263,6 +307,7 @@ class SocialSchedulingService:
             )
 
         with self.repository.atomic():
+            _run_commit_guard(commit_guard)
             now = self._now()
             reminder = SharedReminder(
                 id=self._new_id("shared_reminder"),
@@ -316,7 +361,10 @@ class SocialSchedulingService:
         return reminder
 
     def cancel_shared_reminder(
-        self, account_id: str, shared_reminder_id: str
+        self,
+        account_id: str,
+        shared_reminder_id: str,
+        commit_guard: CommitGuard = None,
     ) -> SharedReminderCancellationResult:
         reminder = self.view_shared_reminder(account_id, shared_reminder_id)
         projections = self.repository.list_projections(shared_reminder_id)
@@ -333,26 +381,28 @@ class SocialSchedulingService:
             cancelled_at=self._now(),
             updated_at=self._now(),
         )
-        self.repository.save_shared_reminder(updated_reminder)
         updated_projections: list[ReminderProjection] = []
-        for projection in projections:
-            updated = replace(
-                projection,
-                lifecycle="cancelled",
-                updated_at=self._now(),
+        with self.repository.atomic():
+            _run_commit_guard(commit_guard)
+            self.repository.save_shared_reminder(updated_reminder)
+            for projection in projections:
+                updated = replace(
+                    projection,
+                    lifecycle="cancelled",
+                    updated_at=self._now(),
+                )
+                self.repository.save_projection(updated)
+                updated_projections.append(updated)
+            notification = self._create_shared_reminder_notification(
+                updated_reminder,
+                "cancelled",
+                actor_account_id=account_id,
+                recipients=[
+                    participant
+                    for participant in updated_reminder.participant_account_ids
+                    if participant != account_id
+                ],
             )
-            self.repository.save_projection(updated)
-            updated_projections.append(updated)
-        notification = self._create_shared_reminder_notification(
-            updated_reminder,
-            "cancelled",
-            actor_account_id=account_id,
-            recipients=[
-                participant
-                for participant in updated_reminder.participant_account_ids
-                if participant != account_id
-            ],
-        )
         return SharedReminderCancellationResult(
             status="cancelled",
             shared_reminder=updated_reminder,
@@ -361,7 +411,10 @@ class SocialSchedulingService:
         )
 
     def complete_own_projection(
-        self, account_id: str, shared_reminder_id: str
+        self,
+        account_id: str,
+        shared_reminder_id: str,
+        commit_guard: CommitGuard = None,
     ) -> ReminderProjection:
         self.view_shared_reminder(account_id, shared_reminder_id)
         projection = self.repository.get_projection(shared_reminder_id, account_id)
@@ -372,6 +425,7 @@ class SocialSchedulingService:
             completion_status="completed",
             updated_at=self._now(),
         )
+        _run_commit_guard(commit_guard)
         self.repository.save_projection(updated)
         return updated
 
@@ -438,6 +492,7 @@ class SocialSchedulingService:
         joiner_account_id: str,
         link: FriendLink,
         allow_defer: bool = True,
+        commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
         if link.lifecycle != "active":
             raise SocialSchedulingError("friend_link_disabled")
@@ -469,6 +524,7 @@ class SocialSchedulingService:
             updated_at=self._now(),
         )
         with self.repository.atomic():
+            _run_commit_guard(commit_guard)
             self.repository.add_friendship(friendship)
             self._create_friendship_notification(
                 friendship, actor_account_id=joiner_account_id
@@ -606,6 +662,11 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
             result.append(value)
             seen.add(value)
     return result
+
+
+def _run_commit_guard(commit_guard: CommitGuard) -> None:
+    if commit_guard is not None:
+        commit_guard()
 
 
 def _first_missing_field(

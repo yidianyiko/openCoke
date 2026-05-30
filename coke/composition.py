@@ -184,14 +184,14 @@ class ChannelReachabilityOutboundDelivery:
         self.channel_reachability = channel_reachability
         self.conversation_runtime = conversation_runtime
 
-    def deliver(self, request: DeliveryRequest) -> None:
+    def deliver(self, request: DeliveryRequest):
         try:
             context_token = request.context_token
             if context_token is None and self.conversation_runtime is not None:
                 context_token = self.conversation_runtime.latest_context_token(
                     request.conversation_id
                 )
-            self.channel_reachability.send_text(
+            return self.channel_reachability.send_text(
                 account_id=request.account_id,
                 text=request.visible_text,
                 idempotency_key=request.idempotency_key,
@@ -200,6 +200,49 @@ class ChannelReachabilityOutboundDelivery:
             )
         except ChannelReachabilityError:
             raise
+
+
+class OutputLifecycleDeliveryCallbacks:
+    def __init__(
+        self,
+        *,
+        reminder_service: ReminderService,
+        social_scheduling_service: SocialSchedulingService,
+    ) -> None:
+        self.reminder_service = reminder_service
+        self.social_scheduling_service = social_scheduling_service
+
+    def record_delivery(self, *, trigger, request, outcome) -> None:
+        delivered = outcome.status in {"sent", "delivered"}
+        if trigger.trigger_type == "ReminderFireTurn":
+            fire_ids = _string_list(trigger.payload.get("fire_ids"))
+            if fire_ids:
+                self.reminder_service.record_fire_delivery(
+                    fire_ids,
+                    delivered=delivered,
+                )
+            return
+        if trigger.trigger_type == "ProactiveFireTurn":
+            fire_id = trigger.payload.get("fire_id")
+            if isinstance(fire_id, str) and fire_id:
+                self.reminder_service.record_proactive_delivery(
+                    fire_id,
+                    delivered=delivered,
+                )
+            return
+        if trigger.trigger_type == "NotificationTurn":
+            fact_id = trigger.payload.get("notification_fact_id")
+            if not isinstance(fact_id, str) or not fact_id:
+                return
+            self.social_scheduling_service.record_notification_delivery(
+                notification_fact_id=fact_id,
+                recipient_account_id=request.account_id,
+                delivery_state="delivered" if delivered else "failed",
+                error_facts=(
+                    {} if delivered else {"type": "recipient_channel_unavailable"}
+                ),
+                turn_id=request.turn_id,
+            )
 
 
 class IdentityReachabilityAdapter:
@@ -306,7 +349,14 @@ class ReminderToolAdapter:
         if operation in {"create", "detect_and_create"}:
             result = self.reminder_service.execute_batch(
                 owner_account_id=owner,
-                items=[_reminder_batch_item(command)],
+                items=[
+                    _reminder_batch_item(
+                        command,
+                        turn_id=_guard_turn_id(guard),
+                        item_index=1,
+                    )
+                ],
+                commit_guard=_guard_commit_guard(guard),
             )
             return ToolExecutionResult(
                 ok=all(item.state == "succeeded" for item in result.items),
@@ -327,7 +377,15 @@ class ReminderToolAdapter:
                 )
             result = self.reminder_service.execute_batch(
                 owner_account_id=owner,
-                items=[_reminder_batch_item(item) for item in items],
+                items=[
+                    _reminder_batch_item(
+                        item,
+                        turn_id=_guard_turn_id(guard),
+                        item_index=index,
+                    )
+                    for index, item in enumerate(items, start=1)
+                ],
+                commit_guard=_guard_commit_guard(guard),
             )
             return ToolExecutionResult(
                 ok=all(item.state == "succeeded" for item in result.items),
@@ -344,6 +402,7 @@ class ReminderToolAdapter:
                 reminder_id=_required_str(command, "reminder_id"),
                 trigger_time=_required_datetime(command, "trigger_time"),
                 captured_timezone=str(command.get("captured_timezone") or "UTC"),
+                commit_guard=_guard_commit_guard(guard),
             )
             return _single_item_tool_result(result)
 
@@ -353,6 +412,7 @@ class ReminderToolAdapter:
                 reminder_id=_required_str(command, "reminder_id"),
                 trigger_time=_required_datetime(command, "trigger_time"),
                 captured_timezone=str(command.get("captured_timezone") or "UTC"),
+                commit_guard=_guard_commit_guard(guard),
             )
             return _single_item_tool_result(result)
 
@@ -360,6 +420,7 @@ class ReminderToolAdapter:
             result = self.reminder_service.clear_trigger_time(
                 owner_account_id=owner,
                 reminder_id=_required_str(command, "reminder_id"),
+                commit_guard=_guard_commit_guard(guard),
             )
             return _single_item_tool_result(result)
 
@@ -367,6 +428,7 @@ class ReminderToolAdapter:
             result = self.reminder_service.complete_reminder(
                 owner_account_id=owner,
                 reminder_id=_required_str(command, "reminder_id"),
+                commit_guard=_guard_commit_guard(guard),
             )
             return _single_item_tool_result(result)
 
@@ -374,6 +436,7 @@ class ReminderToolAdapter:
             result = self.reminder_service.delete_reminder(
                 owner_account_id=owner,
                 reminder_id=_required_str(command, "reminder_id"),
+                commit_guard=_guard_commit_guard(guard),
             )
             return _single_item_tool_result(result)
 
@@ -418,7 +481,8 @@ class SocialSchedulingToolAdapter:
                 link = self.social_scheduling_service.get_or_create_friend_link(
                     owner_account_id=_required_str(
                         command, "owner_account_id", default_key="account_id"
-                    )
+                    ),
+                    commit_guard=_guard_commit_guard(guard),
                 )
                 return ToolExecutionResult(ok=True, facts=_friend_link_facts(link))
 
@@ -426,7 +490,8 @@ class SocialSchedulingToolAdapter:
                 link = self.social_scheduling_service.reset_friend_link(
                     owner_account_id=_required_str(
                         command, "owner_account_id", default_key="account_id"
-                    )
+                    ),
+                    commit_guard=_guard_commit_guard(guard),
                 )
                 return ToolExecutionResult(ok=True, facts=_friend_link_facts(link))
 
@@ -434,7 +499,8 @@ class SocialSchedulingToolAdapter:
                 link = self.social_scheduling_service.disable_friend_link(
                     owner_account_id=_required_str(
                         command, "owner_account_id", default_key="account_id"
-                    )
+                    ),
+                    commit_guard=_guard_commit_guard(guard),
                 )
                 return ToolExecutionResult(ok=True, facts=_friend_link_facts(link))
 
@@ -455,6 +521,7 @@ class SocialSchedulingToolAdapter:
                     captured_timezone=str(command.get("captured_timezone") or "UTC"),
                     duration_minutes=int(command.get("duration_minutes") or 15),
                     context=_optional_context(command.get("context")),
+                    commit_guard=_guard_commit_guard(guard),
                 )
                 return ToolExecutionResult(
                     ok=result.status in {"created", "duplicate"},
@@ -479,6 +546,7 @@ class SocialSchedulingToolAdapter:
                 result = self.social_scheduling_service.cancel_shared_reminder(
                     account_id=_required_str(command, "account_id"),
                     shared_reminder_id=_required_str(command, "shared_reminder_id"),
+                    commit_guard=_guard_commit_guard(guard),
                 )
                 return ToolExecutionResult(
                     ok=True,
@@ -497,6 +565,7 @@ class SocialSchedulingToolAdapter:
                         self.social_scheduling_service.establish_friendship_from_code(
                             joiner_account_id=joiner_account_id,
                             link_code=_required_str(command, "link_code"),
+                            commit_guard=_guard_commit_guard(guard),
                         )
                     )
                 else:
@@ -504,6 +573,7 @@ class SocialSchedulingToolAdapter:
                         self.social_scheduling_service.establish_friendship_from_token(
                             joiner_account_id=joiner_account_id,
                             public_token=_required_str(command, "public_token"),
+                            commit_guard=_guard_commit_guard(guard),
                         )
                     )
                 return ToolExecutionResult(
@@ -526,6 +596,7 @@ class SocialSchedulingToolAdapter:
                 friendship = self.social_scheduling_service.remove_friend(
                     account_id=_required_str(command, "account_id"),
                     friend_account_id=_required_str(command, "friend_account_id"),
+                    commit_guard=_guard_commit_guard(guard),
                 )
                 return ToolExecutionResult(ok=True, facts=asdict(friendship))
         except SocialSchedulingError as error:
@@ -833,6 +904,10 @@ def compose_coke_runtime(
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=outbound_delivery,
         tool_ports=tool_ports,
+        delivery_lifecycle=OutputLifecycleDeliveryCallbacks(
+            reminder_service=reminder_service,
+            social_scheduling_service=social_scheduling_service,
+        ),
     )
     return CokeRuntime(
         repositories=repositories,
@@ -938,7 +1013,7 @@ def build_runtime_from_settings(
 
 
 class _DeferredOutboundDelivery:
-    def deliver(self, request: DeliveryRequest) -> None:
+    def deliver(self, request: DeliveryRequest):
         raise RuntimeError("outbound delivery was not bound")
 
 
@@ -1012,6 +1087,15 @@ def _local_wall_clock(value: datetime, timezone: str) -> datetime:
 
 def _guard_state_change(guard: Any) -> None:
     guard.guard_state_change()
+
+
+def _guard_commit_guard(guard: Any):
+    return guard.guard_state_change
+
+
+def _guard_turn_id(guard: Any) -> str | None:
+    value = getattr(guard, "turn_id", None)
+    return value if isinstance(value, str) else None
 
 
 def _required_str(
@@ -1092,7 +1176,12 @@ def _optional_context(value: Any) -> dict | None:
     raise ValueError("context_invalid")
 
 
-def _reminder_batch_item(command: Mapping[str, Any]) -> ReminderBatchItem:
+def _reminder_batch_item(
+    command: Mapping[str, Any],
+    *,
+    turn_id: str | None = None,
+    item_index: int | None = None,
+) -> ReminderBatchItem:
     return ReminderBatchItem(
         operation=_required_str(command, "operation"),
         content=command.get("content"),
@@ -1107,6 +1196,8 @@ def _reminder_batch_item(command: Mapping[str, Any]) -> ReminderBatchItem:
         time_state=command.get("time_state"),
         incomplete_date=bool(command.get("incomplete_date", False)),
         shared_reminder_id=command.get("shared_reminder_id"),
+        turn_id=turn_id,
+        item_index=item_index,
     )
 
 
@@ -1210,3 +1301,11 @@ def _first_reason(items: list[Any]) -> str | None:
         if item.reason is not None:
             return item.reason
     return None
+
+
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, list | tuple):
+        return [item for item in value if isinstance(item, str) and item]
+    if isinstance(value, str) and value:
+        return [value]
+    return []

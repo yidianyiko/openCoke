@@ -10,7 +10,14 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from coke import schema
-from coke.domains._pg import db_id, insert_row, json_value, many, one_or_none, update_row
+from coke.domains._pg import (
+    db_id,
+    insert_row,
+    json_value,
+    many,
+    one_or_none,
+    update_row,
+)
 from coke.domains.conversation_runtime.models import (
     Conversation,
     ConversationRuntimeError,
@@ -24,6 +31,8 @@ from coke.domains.conversation_runtime.models import (
 
 class ConversationRuntimeRepository(Protocol):
     def get_conversation(self, conversation_id: str) -> Conversation | None: ...
+
+    def lock_conversation(self, conversation_id: str) -> Conversation | None: ...
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None: ...
 
@@ -61,11 +70,13 @@ class ConversationRuntimeRepository(Protocol):
 
     def list_unprocessed_outbox(self, limit: int = 100) -> list[OutboxRecord]: ...
 
-    def mark_outbox_published(self, event_id: str, published_at: datetime) -> OutboxRecord:
-        ...
+    def mark_outbox_published(
+        self, event_id: str, published_at: datetime
+    ) -> OutboxRecord: ...
 
-    def mark_outbox_processed(self, event_id: str, processed_at: datetime) -> OutboxRecord:
-        ...
+    def mark_outbox_processed(
+        self, event_id: str, processed_at: datetime
+    ) -> OutboxRecord: ...
 
 
 class InMemoryConversationRuntimeRepository:
@@ -90,6 +101,9 @@ class InMemoryConversationRuntimeRepository:
 
     def get_conversation(self, conversation_id: str) -> Conversation | None:
         return self.conversations_by_id.get(conversation_id)
+
+    def lock_conversation(self, conversation_id: str) -> Conversation | None:
+        return self.get_conversation(conversation_id)
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None:
         return self.conversations_by_account.get(account_id)
@@ -277,9 +291,20 @@ class PostgresConversationRuntimeRepository:
 
     def get_conversation(self, conversation_id: str) -> Conversation | None:
         row = one_or_none(
-            self.session, schema.conversation, schema.conversation.c.id == conversation_id
+            self.session,
+            schema.conversation,
+            schema.conversation.c.id == conversation_id,
         )
         return _conversation(row) if row else None
+
+    def lock_conversation(self, conversation_id: str) -> Conversation | None:
+        statement = (
+            sa.select(schema.conversation)
+            .where(schema.conversation.c.id == conversation_id)
+            .with_for_update()
+        )
+        row = self.session.execute(statement).mappings().one_or_none()
+        return _conversation(dict(row)) if row else None
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None:
         row = one_or_none(
@@ -337,12 +362,16 @@ class PostgresConversationRuntimeRepository:
             ).rowcount
             if not rowcount:
                 raise ConversationRuntimeError("conversation_not_found")
-            self.session.execute(schema.message.insert().values(**_message_values(message)))
+            self.session.execute(
+                schema.message.insert().values(**_message_values(message))
+            )
             for item in media:
                 self.session.execute(
                     schema.inbound_media.insert().values(**_media_values(item))
                 )
-            self.session.execute(schema.outbox.insert().values(**_outbox_values(outbox)))
+            self.session.execute(
+                schema.outbox.insert().values(**_outbox_values(outbox))
+            )
 
         from coke.domains._pg import write_with_integrity
 
@@ -486,11 +515,16 @@ class PostgresConversationRuntimeRepository:
     def list_unprocessed_outbox(self, limit: int = 100) -> list[OutboxRecord]:
         statement = (
             sa.select(schema.outbox)
-            .where(schema.outbox.c.processed_at.is_(None), schema.outbox.c.acked_at.is_(None))
+            .where(
+                schema.outbox.c.processed_at.is_(None),
+                schema.outbox.c.acked_at.is_(None),
+            )
             .order_by(schema.outbox.c.created_at, schema.outbox.c.id)
             .limit(limit)
         )
-        return [_outbox(dict(row)) for row in self.session.execute(statement).mappings()]
+        return [
+            _outbox(dict(row)) for row in self.session.execute(statement).mappings()
+        ]
 
     def mark_outbox_published(
         self, event_id: str, published_at: datetime
@@ -576,7 +610,11 @@ def _message(row: Mapping) -> Message:
         row["direction"],
         row["segment_index"],
         row["seq"],
-        db_id(row["channel_identity_id"]) if row["channel_identity_id"] is not None else None,
+        (
+            db_id(row["channel_identity_id"])
+            if row["channel_identity_id"] is not None
+            else None
+        ),
         row["causal_inbound_event_id"],
         row["text"],
         dict(row["payload"]),
