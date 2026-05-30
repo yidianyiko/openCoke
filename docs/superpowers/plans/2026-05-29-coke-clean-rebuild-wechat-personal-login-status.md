@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 
 **Goal:** Make personal-WeChat login-status polling return promptly and never turn transient connector slowness into a customer API 500.
 
@@ -220,7 +220,7 @@ Observed: `suggest-verification` suggested clean-rebuild backend, web, and repo-
 
 ## Task 5: Deploy And Live Smoke
 
-- [ ] **Step 1: Commit the verified code and plan**
+- [x] **Step 1: Commit the verified code and plan**
 
 Run:
 
@@ -229,11 +229,11 @@ git add provider_edges/wechat_personal_connector/app.py tests/unit/coke/provider
 git commit -m "fix: keep personal wechat login status nonblocking"
 ```
 
-- [ ] **Step 2: Redeploy the connector and Coke API if needed**
+- [x] **Step 2: Redeploy the connector and Coke API if needed**
 
-Preserve `/home/whoami/coke-clean/.env`, keep `evolution-*` and web up, rebuild/recreate only the connector and clean API if provider code changed.
+Preserved `/home/whoami/coke-clean/.env`; rebuilt/recreated only `wechat-personal-connector` and `coke-api`; `coke-api` health returned `{"ok":true}`. Evolution, web, Postgres, Redis, worker, scheduler, and outbox services were not recreated by this deployment command.
 
-- [ ] **Step 3: Prove live status polling is prompt**
+- [x] **Step 3: Prove live status polling is prompt**
 
 For olivers (`ae02ff016fcd4d39a189e51c8c8a31e6`) and lizihao (`635d3bdc1b024a08acf49940b91a9de5`), reset personal-WeChat channel/session state, start two new connects, then call:
 
@@ -241,8 +241,30 @@ For olivers (`ae02ff016fcd4d39a189e51c8c8a31e6`) and lizihao (`635d3bdc1b024a08a
 GET /api/channels/wechat-personal/login-status?account_id=<id>&session_id=<sid>
 ```
 
-several times for both sessions. Record HTTP code, elapsed time, and JSON body. Expected: HTTP 200 quickly with `connection_state=connecting` and `connector_status=waiting_for_scan` until a real iLink confirmation occurs.
+several times for both sessions. Observed fresh connect sessions:
 
-- [ ] **Step 4: Mark plan complete**
+```text
+olivers connect: HTTP 200, 1.014s, session_id=128fe36316244e6c98dfdbeaf3d8f5b8, connector_status=waiting_for_scan
+lizihao connect: HTTP 200, 0.741s, session_id=b236c2461c3e4569b52957b9e4e3c3b8, connector_status=waiting_for_scan
+```
 
-After tests and live smoke pass, set `Plan Status: complete` and commit the plan update if needed.
+Observed repeated API login-status polls:
+
+```text
+olivers: HTTP 200 in 0.020s, 0.017s, 0.014s, 0.015s; connection_state=connecting; connector_status=waiting_for_scan
+lizihao: HTTP 200 in 0.015s, 0.019s, 0.013s, 0.014s; connection_state=connecting; connector_status=waiting_for_scan
+```
+
+Observed connector-local checks after `POST /poll/start`:
+
+```text
+/healthz: HTTP 200 in 0.004s, 0.005s, 0.004s
+/login/status olivers: HTTP 200 in 0.004s, 0.004s, 0.004s
+/login/status lizihao: HTTP 200 in 0.004s, 0.006s, 0.003s
+```
+
+No account was scanned during smoke, so there were no real connected iLink `getupdates` long-poll sessions to exercise. The deployed connector had `connected_session_count=0`; the proven concurrent path is background QR status polling plus the connector poll loop with no connected sessions.
+
+- [x] **Step 4: Mark plan complete**
+
+After smoke, removed the two fresh connector sessions and verified both accounts return `connection_state=not_connected` via `/api/channels/status`.
