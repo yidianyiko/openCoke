@@ -18,11 +18,13 @@ from coke.domains.reminder.models import ReminderFireGroup
 from coke.domains.reminder.scheduler import ReminderScheduler
 from coke.infra.tracing import generate_traceparent
 
-
 LOGGER = logging.getLogger(__name__)
+_SCHEDULER_RUNTIME: CokeRuntime | None = None
 
 
-def scan_and_enqueue_due_turns(runtime: CokeRuntime, now: datetime | None = None) -> int:
+def scan_and_enqueue_due_turns(
+    runtime: CokeRuntime, now: datetime | None = None
+) -> int:
     now = now or datetime.now(UTC)
     count = 0
     for group in _due_fire_groups(runtime, now):
@@ -61,8 +63,10 @@ def run_scheduler(
     runtime: CokeRuntime | None = None,
     run_forever: bool = True,
 ) -> BlockingScheduler:
+    global _SCHEDULER_RUNTIME
     settings = settings or Settings.from_env()
     runtime = runtime or build_runtime_from_settings(settings)
+    _SCHEDULER_RUNTIME = runtime
     scheduler = BlockingScheduler(
         timezone="UTC",
         jobstores={
@@ -70,7 +74,7 @@ def run_scheduler(
         },
     )
     scheduler.add_job(
-        lambda: _scan_with_rollback(runtime),
+        scheduler_scan_job,
         "interval",
         seconds=settings.scheduler_interval_s,
         id="coke-runtime-readiness-scan",
@@ -81,6 +85,12 @@ def run_scheduler(
     if run_forever:
         scheduler.start()
     return scheduler
+
+
+def scheduler_scan_job() -> None:
+    if _SCHEDULER_RUNTIME is None:
+        raise RuntimeError("scheduler_runtime_not_configured")
+    _scan_with_rollback(_SCHEDULER_RUNTIME)
 
 
 def _scan_with_rollback(runtime: CokeRuntime) -> None:
@@ -159,9 +169,9 @@ def _due_fire_groups(runtime: CokeRuntime, now: datetime) -> list[ReminderFireGr
             due_at=reminder.next_fire_at,
             missed_catch_up=reminder.next_fire_at < now,
         )
-        grouped.setdefault((reminder.owner_account_id, reminder.next_fire_at), []).append(
-            fire.id
-        )
+        grouped.setdefault(
+            (reminder.owner_account_id, reminder.next_fire_at), []
+        ).append(fire.id)
     return [
         ReminderFireGroup(
             owner_account_id=owner,

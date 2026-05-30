@@ -149,6 +149,7 @@ class AgnoInteractionAgent:
             "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
             "For adding a friend from an invite code or link token, call social_scheduling_tool with operation=establish_friendship_from_token, joiner_account_id from trusted_facts.account_id, and link_code or public_token from the User message.",
             "Do not answer as if the action happened until the tool result says it happened.",
+            "For any state-changing tool result from reminder, social_scheduling, settings, or calendar-import, report success only when ok=true; when ok=false, reason_code is present, or status starts with needs_, must not claim the action succeeded and should ask the required follow-up or report the failure honestly.",
             "If no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
         ]

@@ -1,15 +1,25 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from contextlib import nullcontext
+from datetime import UTC, datetime, timedelta
 from collections.abc import Mapping
 from typing import Protocol
 from uuid import uuid5, NAMESPACE_URL
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from coke import schema
-from coke.domains._pg import db_id, insert_row, json_value, many, one_or_none, update_row, write_with_integrity
+from coke.domains._pg import (
+    db_id,
+    insert_row,
+    json_value,
+    many,
+    one_or_none,
+    update_row,
+    write_with_integrity,
+)
 from coke.domains.social_scheduling.availability import BusyInterval
 from coke.domains.social_scheduling.models import (
     FriendLink,
@@ -19,9 +29,12 @@ from coke.domains.social_scheduling.models import (
     ReminderProjection,
     SharedReminder,
 )
+from coke.infra.tracing import generate_traceparent
 
 
 class SocialSchedulingRepository(Protocol):
+    def atomic(self): ...
+
     def add_friend_link(
         self, link: FriendLink, public_token: str, link_code: str
     ) -> None: ...
@@ -132,6 +145,9 @@ class InMemorySocialSchedulingRepository:
         self.notification_recipients_by_fact_account: dict[tuple[str, str], str] = {}
         self.generated_ids: list[str] = []
         self.generated_tokens: list[str] = []
+
+    def atomic(self):
+        return nullcontext()
 
     def add_friend_link(
         self, link: FriendLink, public_token: str, link_code: str
@@ -407,11 +423,16 @@ class PostgresSocialSchedulingRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def atomic(self):
+        return self.session.begin_nested()
+
     def add_friend_link(
         self, link: FriendLink, public_token: str, link_code: str
     ) -> None:
         def _write() -> None:
-            self.session.execute(schema.friend_link.insert().values(**_link_values(link)))
+            self.session.execute(
+                schema.friend_link.insert().values(**_link_values(link))
+            )
             self._upsert_link_artifact(link, "friend_link_public_token", public_token)
             self._upsert_link_artifact(link, "friend_link_code", link_code)
 
@@ -440,7 +461,9 @@ class PostgresSocialSchedulingRepository:
                 .values(**_link_values(link))
             )
             if public_token is not None:
-                self._upsert_link_artifact(link, "friend_link_public_token", public_token)
+                self._upsert_link_artifact(
+                    link, "friend_link_public_token", public_token
+                )
             if link_code is not None:
                 self._upsert_link_artifact(link, "friend_link_code", link_code)
 
@@ -504,9 +527,16 @@ class PostgresSocialSchedulingRepository:
         )
 
     def save_friendship(self, friendship: Friendship) -> None:
-        if self.get_active_friendship(friendship.account_low_id, friendship.account_high_id) is None and one_or_none(
-            self.session, schema.friendship, schema.friendship.c.id == friendship.id
-        ) is None:
+        if (
+            self.get_active_friendship(
+                friendship.account_low_id, friendship.account_high_id
+            )
+            is None
+            and one_or_none(
+                self.session, schema.friendship, schema.friendship.c.id == friendship.id
+            )
+            is None
+        ):
             raise ValueError("friendship_not_found")
         update_row(
             self.session,
@@ -622,21 +652,51 @@ class PostgresSocialSchedulingRepository:
         ]
 
     def add_projection(self, projection: ReminderProjection) -> None:
-        insert_row(
+        def _write() -> None:
+            if (
+                one_or_none(
+                    self.session,
+                    schema.reminder,
+                    schema.reminder.c.id == projection.reminder_id,
+                )
+                is None
+            ):
+                shared = self.get_shared_reminder(projection.shared_reminder_id)
+                if shared is None:
+                    raise ValueError("shared_reminder_not_found")
+                self.session.execute(
+                    schema.reminder.insert().values(
+                        **_projection_reminder_values(projection, shared)
+                    )
+                )
+            self.session.execute(
+                schema.reminder_projection.insert().values(
+                    **_projection_values(projection)
+                )
+            )
+
+        write_with_integrity(
             self.session,
-            schema.reminder_projection,
-            _projection_values(projection),
+            _write,
             {
+                "pk_reminder": "duplicate_projection_reminder_id",
                 "pk_reminder_projection": "duplicate_projection_id",
                 "uq_reminder_projection_participant": "duplicate_projection_participant",
+                "fk_reminder_projection_reminder_id_reminder": "projection_reminder_missing",
+                "fk_reminder_projection_shared_reminder_id_shared_reminder": "shared_reminder_not_found",
             },
-            default_error="duplicate_projection_participant",
+            default_error="projection_write_failed",
         )
 
     def save_projection(self, projection: ReminderProjection) -> None:
-        if one_or_none(
-            self.session, schema.reminder_projection, schema.reminder_projection.c.id == projection.id
-        ) is None:
+        if (
+            one_or_none(
+                self.session,
+                schema.reminder_projection,
+                schema.reminder_projection.c.id == projection.id,
+            )
+            is None
+        ):
             raise ValueError("projection_not_found")
         update_row(
             self.session,
@@ -653,7 +713,10 @@ class PostgresSocialSchedulingRepository:
                 self.session,
                 schema.reminder_projection,
                 schema.reminder_projection.c.shared_reminder_id == shared_reminder_id,
-                order_by=(schema.reminder_projection.c.created_at, schema.reminder_projection.c.id),
+                order_by=(
+                    schema.reminder_projection.c.created_at,
+                    schema.reminder_projection.c.id,
+                ),
             )
         ]
 
@@ -696,15 +759,31 @@ class PostgresSocialSchedulingRepository:
         return intervals
 
     def add_notification_fact(self, fact: NotificationFact) -> None:
-        insert_row(
+        def _write() -> None:
+            if (
+                one_or_none(
+                    self.session, schema.outbox, schema.outbox.c.id == fact.outbox_id
+                )
+                is None
+            ):
+                self.session.execute(
+                    schema.outbox.insert().values(**_notification_outbox_values(fact))
+                )
+            self.session.execute(
+                schema.notification_fact.insert().values(**_fact_values(fact))
+            )
+
+        write_with_integrity(
             self.session,
-            schema.notification_fact,
-            _fact_values(fact),
+            _write,
             {
+                "pk_outbox": "duplicate_notification_outbox_id",
+                "uq_outbox_idempotency_key": "duplicate_notification_fact_idempotency",
                 "pk_notification_fact": "duplicate_notification_fact_id",
                 "uq_notification_fact_idempotency": "duplicate_notification_fact_idempotency",
+                "fk_notification_fact_outbox_id_outbox": "notification_outbox_missing",
             },
-            default_error="duplicate_notification_fact_idempotency",
+            default_error="notification_fact_write_failed",
         )
 
     def add_notification_recipient(self, recipient: NotificationRecipient) -> None:
@@ -720,11 +799,14 @@ class PostgresSocialSchedulingRepository:
         )
 
     def save_notification_recipient(self, recipient: NotificationRecipient) -> None:
-        if one_or_none(
-            self.session,
-            schema.notification_recipient,
-            schema.notification_recipient.c.id == recipient.id,
-        ) is None:
+        if (
+            one_or_none(
+                self.session,
+                schema.notification_recipient,
+                schema.notification_recipient.c.id == recipient.id,
+            )
+            is None
+        ):
             raise ValueError("notification_recipient_not_found")
         update_row(
             self.session,
@@ -742,8 +824,10 @@ class PostgresSocialSchedulingRepository:
         row = one_or_none(
             self.session,
             schema.notification_recipient,
-            schema.notification_recipient.c.notification_fact_id == notification_fact_id,
-            schema.notification_recipient.c.recipient_account_id == recipient_account_id,
+            schema.notification_recipient.c.notification_fact_id
+            == notification_fact_id,
+            schema.notification_recipient.c.recipient_account_id
+            == recipient_account_id,
         )
         return _recipient(row) if row else None
 
@@ -753,7 +837,10 @@ class PostgresSocialSchedulingRepository:
             for row in many(
                 self.session,
                 schema.notification_fact,
-                order_by=(schema.notification_fact.c.created_at, schema.notification_fact.c.id),
+                order_by=(
+                    schema.notification_fact.c.created_at,
+                    schema.notification_fact.c.id,
+                ),
             )
         ]
 
@@ -765,8 +852,12 @@ class PostgresSocialSchedulingRepository:
             for row in many(
                 self.session,
                 schema.notification_recipient,
-                schema.notification_recipient.c.notification_fact_id == notification_fact_id,
-                order_by=(schema.notification_recipient.c.created_at, schema.notification_recipient.c.id),
+                schema.notification_recipient.c.notification_fact_id
+                == notification_fact_id,
+                order_by=(
+                    schema.notification_recipient.c.created_at,
+                    schema.notification_recipient.c.id,
+                ),
             )
         ]
 
@@ -814,7 +905,9 @@ class PostgresSocialSchedulingRepository:
                 .values(**values)
             )
 
-    def _link_artifact_token(self, friend_link_id: str, artifact_type: str) -> str | None:
+    def _link_artifact_token(
+        self, friend_link_id: str, artifact_type: str
+    ) -> str | None:
         row = one_or_none(
             self.session,
             schema.auth_artifact,
@@ -939,6 +1032,31 @@ def _projection(row: Mapping) -> ReminderProjection:
     )
 
 
+def _projection_reminder_values(
+    projection: ReminderProjection,
+    shared: SharedReminder,
+) -> dict:
+    next_fire_at = shared.local_trigger_at.replace(
+        tzinfo=ZoneInfo(shared.captured_timezone)
+    ).astimezone(UTC)
+    return {
+        "id": projection.reminder_id,
+        "owner_account_id": projection.account_id,
+        "content": shared.title,
+        "content_hash": shared.title_hash,
+        "kind": "shared_projection",
+        "next_fire_at": next_fire_at,
+        "recurrence_rule": {},
+        "captured_timezone": shared.captured_timezone,
+        "duration_minutes": shared.duration_minutes,
+        "lifecycle": "active",
+        "hidden_from_calendar": False,
+        "shared_reminder_id": shared.id,
+        "created_at": projection.created_at,
+        "updated_at": projection.updated_at,
+    }
+
+
 def _fact_values(fact: NotificationFact) -> dict:
     return {
         "id": fact.id,
@@ -969,6 +1087,41 @@ def _fact(row: Mapping) -> NotificationFact:
         db_id(row["outbox_id"]),
         row["created_at"],
     )
+
+
+def _notification_outbox_values(fact: NotificationFact) -> dict:
+    recipients = _notification_recipients_from_fact(fact)
+    return {
+        "id": fact.outbox_id,
+        "topic": "turn.notification",
+        "idempotency_key": f"notification:{fact.idempotency_key}",
+        "payload": {
+            "trigger_id": f"notification:{fact.id}",
+            "notification_fact_id": fact.id,
+            "account_id": recipients[0] if recipients else fact.actor_account_id,
+            "recipient_account_ids": recipients,
+            "object_type": fact.object_type,
+            "object_id": fact.object_id,
+            "facts_hash": fact.facts_hash,
+        },
+        "traceparent": generate_traceparent(),
+        "status": "pending",
+        "created_at": fact.created_at,
+        "published_at": None,
+        "processed_at": None,
+        "acked_at": None,
+        "retry_count": 0,
+        "last_error": None,
+    }
+
+
+def _notification_recipients_from_fact(fact: NotificationFact) -> list[str]:
+    participants = fact.facts.get("participants")
+    if isinstance(participants, list):
+        return sorted(str(participant) for participant in participants)
+    if fact.actor_account_id is not None:
+        return [fact.actor_account_id]
+    return []
 
 
 def _recipient_values(recipient: NotificationRecipient) -> dict:

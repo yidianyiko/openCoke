@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Any
 
 from coke.composition import SocialSchedulingToolAdapter
-from coke.domains.social_scheduling.availability import AvailabilityWindow, FriendAvailability
+from coke.domains.social_scheduling.availability import (
+    AvailabilityWindow,
+    FriendAvailability,
+)
 from coke.domains.social_scheduling.models import FriendLinkView, SocialSchedulingError
 
 
@@ -21,6 +25,7 @@ class FakeSocialSchedulingService:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.error: SocialSchedulingError | None = None
+        self.shared_reminder_error: Exception | None = None
 
     def get_or_create_friend_link(self, owner_account_id: str) -> FriendLinkView:
         self.calls.append(
@@ -71,6 +76,17 @@ class FakeSocialSchedulingService:
         )
         return FakeFriendshipResult()
 
+    def create_shared_reminder(self, **kwargs):
+        self.calls.append(("create_shared_reminder", kwargs))
+        if self.shared_reminder_error is not None:
+            raise self.shared_reminder_error
+        return SimpleNamespace(
+            status="created",
+            shared_reminder=SimpleNamespace(id="shared_1"),
+            breakdown={},
+            follow_up_facts={},
+        )
+
 
 def test_social_scheduling_tool_routes_friend_link_operations_to_service():
     service = FakeSocialSchedulingService()
@@ -99,7 +115,10 @@ def test_social_scheduling_tool_routes_friend_link_operations_to_service():
     }
     assert reset_result.ok is True
     assert reset_result.facts["public_token"] == "reset_token"
-    assert reset_result.facts["public_link_url"] == "https://coke.example/friends/reset_token"
+    assert (
+        reset_result.facts["public_link_url"]
+        == "https://coke.example/friends/reset_token"
+    )
     assert disable_result.ok is True
     assert disable_result.facts["lifecycle"] == "disabled"
     assert disable_result.facts["public_token"] is None
@@ -205,6 +224,44 @@ def test_establish_friendship_operation_accepts_visible_invite_code():
         )
     ]
     assert guard.calls == 1
+
+
+def test_create_shared_reminder_repository_failure_returns_clear_non_success_result():
+    service = FakeSocialSchedulingService()
+    service.shared_reminder_error = ValueError("notification_fact_write_failed")
+    adapter = SocialSchedulingToolAdapter(service)
+
+    result = adapter.execute(
+        {
+            "operation": "create_shared_reminder",
+            "creator_account_id": "creator_1",
+            "receiver_account_ids": ["friend_1"],
+            "title": "Team sync",
+            "local_trigger_at": "2026-06-01T09:00:00",
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": 30,
+            "context": {"source": "unit"},
+        },
+        FakeGuard(),
+    )
+
+    assert result.ok is False
+    assert result.reason_code == "notification_fact_write_failed"
+    assert result.facts == {"type": "notification_fact_write_failed"}
+    assert service.calls == [
+        (
+            "create_shared_reminder",
+            {
+                "creator_account_id": "creator_1",
+                "receiver_account_ids": ["friend_1"],
+                "title": "Team sync",
+                "local_trigger_at": datetime.fromisoformat("2026-06-01T09:00:00"),
+                "captured_timezone": "Asia/Tokyo",
+                "duration_minutes": 30,
+                "context": {"source": "unit"},
+            },
+        )
+    ]
 
 
 class FakeFriendship:

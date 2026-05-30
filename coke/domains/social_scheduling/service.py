@@ -261,38 +261,41 @@ class SocialSchedulingService:
                 },
             )
 
-        now = self._now()
-        reminder = SharedReminder(
-            id=self._new_id("shared_reminder"),
-            creator_account_id=creator_account_id,
-            participant_account_ids=tuple(participants),
-            participant_set_hash=participant_set_hash,
-            title=title.strip(),
-            title_hash=title_hash,
-            local_trigger_at=local_trigger_at,
-            captured_timezone=captured_timezone,
-            duration_minutes=duration_minutes,
-            status="active",
-            cancelled_at=None,
-            created_at=now,
-            updated_at=now,
-        )
-        self.repository.add_shared_reminder(reminder)
-        projections: list[ReminderProjection] = []
-        for account_id in participants:
-            projection = ReminderProjection(
-                id=self._new_id("reminder_projection"),
-                shared_reminder_id=reminder.id,
-                account_id=account_id,
-                reminder_id=self._new_id("reminder"),
-                lifecycle="active",
-                completion_status="pending",
-                created_at=self._now(),
-                updated_at=self._now(),
+        with self.repository.atomic():
+            now = self._now()
+            reminder = SharedReminder(
+                id=self._new_id("shared_reminder"),
+                creator_account_id=creator_account_id,
+                participant_account_ids=tuple(participants),
+                participant_set_hash=participant_set_hash,
+                title=title.strip(),
+                title_hash=title_hash,
+                local_trigger_at=local_trigger_at,
+                captured_timezone=captured_timezone,
+                duration_minutes=duration_minutes,
+                status="active",
+                cancelled_at=None,
+                created_at=now,
+                updated_at=now,
             )
-            self.repository.add_projection(projection)
-            projections.append(projection)
-        notification = self._create_shared_reminder_notification(reminder, "created")
+            self.repository.add_shared_reminder(reminder)
+            projections: list[ReminderProjection] = []
+            for account_id in participants:
+                projection = ReminderProjection(
+                    id=self._new_id("reminder_projection"),
+                    shared_reminder_id=reminder.id,
+                    account_id=account_id,
+                    reminder_id=self._new_id("reminder"),
+                    lifecycle="active",
+                    completion_status="pending",
+                    created_at=self._now(),
+                    updated_at=self._now(),
+                )
+                self.repository.add_projection(projection)
+                projections.append(projection)
+            notification = self._create_shared_reminder_notification(
+                reminder, "created"
+            )
         return SharedReminderCreateResult(
             status="created",
             shared_reminder=reminder,
@@ -462,10 +465,11 @@ class SocialSchedulingService:
             created_at=self._now(),
             updated_at=self._now(),
         )
-        self.repository.add_friendship(friendship)
-        self._create_friendship_notification(
-            friendship, actor_account_id=joiner_account_id
-        )
+        with self.repository.atomic():
+            self.repository.add_friendship(friendship)
+            self._create_friendship_notification(
+                friendship, actor_account_id=joiner_account_id
+            )
         return FriendshipResult(status="created", friendship=friendship)
 
     def _create_friendship_notification(

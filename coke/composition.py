@@ -393,9 +393,13 @@ class SocialSchedulingToolAdapter:
                     creator_account_id=_required_str(
                         command, "creator_account_id", default_key="account_id"
                     ),
-                    receiver_account_ids=list(command.get("receiver_account_ids") or ()),
+                    receiver_account_ids=list(
+                        command.get("receiver_account_ids") or ()
+                    ),
                     title=command.get("title"),
-                    local_trigger_at=_optional_datetime(command.get("local_trigger_at")),
+                    local_trigger_at=_optional_datetime(
+                        command.get("local_trigger_at")
+                    ),
                     captured_timezone=str(command.get("captured_timezone") or "UTC"),
                     duration_minutes=int(command.get("duration_minutes") or 15),
                     context=dict(command.get("context") or {}),
@@ -477,6 +481,13 @@ class SocialSchedulingToolAdapter:
                 ok=False,
                 facts=error.fact or {},
                 reason_code=error.code,
+            )
+        except ValueError as error:
+            reason_code = str(error) or "social_scheduling_write_failed"
+            return ToolExecutionResult(
+                ok=False,
+                facts={"type": reason_code},
+                reason_code=reason_code,
             )
 
         return ToolExecutionResult(

@@ -12,12 +12,9 @@
 
 **Plan Status:** in_progress
 **Status Date:** 2026-05-30
-**Blocker:** Task 9 implementation and SocialScheduling tests pass, and
-`clean-rebuild-backend` passes as part of
-`zsh scripts/verify-surface clean-rebuild-backend repo-os-docs`; however
-`repo-os-docs` fails on pre-existing ownership-registry/missing-file entries
-outside the Task 9 allowed edit scope. Do not mark this plan complete until that
-repo-OS ownership gap is resolved by the owning slice.
+**Blocker:** None currently. This live-readiness follow-up remains in progress
+until Bug A/B/C regression tests, full unit tests, Postgres integration tests,
+redeploy, and mocked Phase 4-6 live resume have fresh evidence.
 **Freshness Check:** Read `AGENTS.md`, `docs/design-docs/index.md`, `docs/design-docs/human-ai-working-contract.md`, master plan Task 9 and architecture-watch sections, requirements §§5.6/5.7/5.9, target architecture §§3.5/4/8/9/14/15, `coke/schema.py`, existing `identity_access`, `channel_reachability`, `coke/api/*_routes.py`, and `coke/app.py`.
 
 **Files:**
@@ -300,3 +297,248 @@ and notification facts, and reminder fire plus outbound delivery attempt.
 
 Only after Steps 6, 7, 9, and 10 have passing evidence, set this Task 7
 checkboxes complete and set `Plan Status` to `complete`.
+
+### Task 8: Bug A - Postgres Notification Fact And Outbox Atomicity
+
+**Files:**
+- Modify: `coke/domains/social_scheduling/repository.py`
+- Test: `tests/integration/coke/repositories/test_social_scheduling_repository_contract.py`
+- Test: `tests/integration/coke/test_social_scheduling_notification_outbox_contract.py`
+
+- [x] **Step 1: Trace the current Postgres write order**
+
+Read `PostgresSocialSchedulingRepository.add_notification_fact`,
+`SocialSchedulingService.establish_friendship_from_*`, and
+`SocialSchedulingService.create_shared_reminder`. Confirm whether
+`notification_fact.outbox_id` can reference a missing `outbox.id`, and whether
+Postgres integrity errors are being mapped to
+`duplicate_notification_fact_idempotency` when the actual constraint is
+`fk_notification_fact_outbox_id_outbox`.
+
+- [x] **Step 2: Write the failing Postgres integration test**
+
+Add a Postgres-gated test that uses
+`COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql`
+and real `PostgresSocialSchedulingRepository`. It must create account/channel
+fixtures, establish friendship, create a shared reminder, then assert each
+`notification_fact` row has a matching `outbox` row and the row ids reference
+each other.
+
+Run:
+
+```bash
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke/test_social_scheduling_notification_outbox_contract.py -q
+```
+
+Expected red result: failure showing the missing outbox row, FK error, or
+incorrect duplicate error mapping.
+
+- [x] **Step 3: Implement atomic outbox-first notification writes**
+
+Change the Postgres repository method that persists notification facts so it
+inserts the `outbox` row in the same SQLAlchemy transaction before inserting
+`notification_fact`, using the fact's stable outbox id and idempotency key. If a
+unique idempotency conflict occurs, return/map only the matching unique
+constraint as duplicate; do not collapse FK/integrity failures into duplicate
+idempotency.
+
+- [x] **Step 4: Run the focused green integration test**
+
+Run:
+
+```bash
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke/test_social_scheduling_notification_outbox_contract.py -q
+```
+
+Expected: the notification/outbox contract test passes.
+
+### Task 9: Bug B - Shared Reminder Persistence And Honest Tool Results
+
+**Files:**
+- Modify: `coke/composition.py`
+- Modify: `coke/domains/social_scheduling/service.py`
+- Modify: `coke/llm/agno_interaction_agent.py`
+- Test: `tests/unit/coke/test_social_scheduling_tool_adapter.py`
+- Test: `tests/unit/coke/llm/test_interaction_agent.py`
+- Test: `tests/integration/coke/test_social_scheduling_notification_outbox_contract.py`
+
+- [x] **Step 1: Trace the create_shared_reminder tool path**
+
+Read `SocialSchedulingToolAdapter.execute`,
+`SocialSchedulingService.create_shared_reminder`, and the repository calls it
+uses. Confirm whether success is reported when no shared reminder, projection,
+or notification fact was persisted, and identify where exceptions are swallowed
+or returned as ambiguous results.
+
+- [x] **Step 2: Write failing persistence and tool-result tests**
+
+Extend the Postgres integration test so shared-reminder creation asserts one
+`shared_reminder` with `status='active'`, one `reminder_projection` per
+participant, and at least one `notification_fact` with
+`object_type='shared_reminder'`.
+
+Extend the tool adapter unit test so a repository/service failure returns
+`ok=False` with a concrete `reason_code`, and does not expose a raw exception or
+claim success.
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py -q
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke/test_social_scheduling_notification_outbox_contract.py -q
+```
+
+Expected red result: the current path either fails to persist rows or reports
+success for a failed operation.
+
+- [x] **Step 3: Implement real persistence and explicit failure mapping**
+
+Make `create_shared_reminder` persist the shared reminder, participant
+projections, and shared-reminder notification fact as one successful domain
+operation. If the domain or repository cannot persist, return a
+`ToolExecutionResult(ok=False, reason_code=<specific code>)` from the adapter
+instead of success. Keep no template prose or fallback success path.
+
+- [x] **Step 4: Strengthen agent success-reporting instructions**
+
+In `coke/llm/agno_interaction_agent.py`, state that state-changing tools
+(`reminder`, `social_scheduling`, `settings`, `calendar`) may be reported as
+successful only when the returned tool result has `ok=true`. If a result has
+`ok=false`, `needs_*`, or a follow-up reason, the reply must honestly report the
+failure/follow-up and must not claim the action happened.
+
+- [x] **Step 5: Add the agent-contract unit test**
+
+Extend `tests/unit/coke/llm/test_interaction_agent.py` to assert instructions
+contain the `ok=true` success gate and that failed/needs-follow-up tool-result
+guidance excludes success-claiming wording.
+
+- [x] **Step 6: Run focused green tests**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py -q
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke/test_social_scheduling_notification_outbox_contract.py -q
+```
+
+Expected: all focused tests pass.
+
+### Task 10: Bug C - Picklable Scheduler Jobs
+
+**Files:**
+- Modify: `coke/scheduler/__main__.py`
+- Test: `tests/unit/coke/test_scheduler_entrypoint.py`
+
+- [x] **Step 1: Trace scheduler job registration**
+
+Read `coke/scheduler/__main__.py` and identify every callable passed to
+APScheduler `add_job`. Confirm lambdas, closures, or local functions are not
+serializable with a Postgres jobstore.
+
+- [x] **Step 2: Write failing picklability test**
+
+Add a unit test that builds scheduler jobs without starting the long-running
+loop and asserts every scheduled callable is importable/picklable, not a lambda
+or closure.
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_scheduler_entrypoint.py -q
+```
+
+Expected red result: the current lambda/closure callable fails the picklability
+assertion.
+
+- [x] **Step 3: Replace lambdas with module-level callables**
+
+Move the scheduled job function(s) to module level and pass importable callable
+references to APScheduler. Keep runtime behavior unchanged.
+
+- [x] **Step 4: Verify local scheduler startup**
+
+Run:
+
+```bash
+DATABASE_URL=postgresql+psycopg://ydyk@/coke_local?host=/var/run/postgresql REDIS_URL=redis://localhost:16379/0 COKE_LLM_FAKE=1 timeout 20s /data/projects/coke/.venv/bin/python -m coke.scheduler
+```
+
+Expected: no serialization crash during job registration; timeout is acceptable
+only after startup stays alive.
+
+### Task 11: Full Verification, Commit, Deploy, And Live Resume
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-social-scheduling.md`
+
+- [x] **Step 1: Run required unit verification**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+```
+
+Expected: full unit suite passes.
+
+- [x] **Step 2: Run required Postgres integration verification**
+
+Run:
+
+```bash
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q
+```
+
+Expected: full integration suite passes.
+
+- [ ] **Step 3: Commit coherent fix**
+
+Run:
+
+```bash
+git add coke/domains/social_scheduling/repository.py coke/domains/social_scheduling/service.py coke/composition.py coke/llm/agno_interaction_agent.py coke/scheduler/__main__.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/test_scheduler_entrypoint.py tests/integration/coke/test_social_scheduling_notification_outbox_contract.py docs/superpowers/plans/2026-05-29-coke-clean-rebuild-social-scheduling.md
+git commit -m "fix: harden live social scheduling persistence"
+```
+
+- [ ] **Step 4: Redeploy coke-clean**
+
+Run:
+
+```bash
+REMOTE_HOST=gcp-coke REMOTE_ROOT=/home/whoami/coke-clean PROJECT_NAME=coke-clean COKE_CLEAN_API_PORT=8000 COKE_CLEAN_POSTGRES_PORT=55432 COKE_CLEAN_REDIS_PORT=56379 scripts/deploy-compose-to-gcp.sh
+```
+
+Then verify:
+
+```bash
+ssh gcp-coke 'curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/healthz'
+ssh gcp-coke 'cd /home/whoami/coke-clean && docker compose -p coke-clean ps'
+```
+
+Expected: healthz returns `200`; `coke-clean-coke-scheduler-1` is `Up` and not
+restarting; the old stack containers are still running.
+
+- [ ] **Step 5: Resume mocked Phase 4-6 live test**
+
+On `gcp-coke`, send mocked Evolution messages to
+`http://127.0.0.1:8000/webhooks/whatsapp/evolution` for fresh olivers and
+李梓豪 subjects. Re-run quick setup for provisioning and friendship. Query clean
+Postgres through `coke-clean-postgres-1` / host port `127.0.0.1:55432` and
+capture rows proving:
+
+- Phase 4: friendship `notification_fact` exists and references an existing
+  `outbox` row.
+- Phase 5: shared reminder is `active`, each participant has one projection,
+  `notification_fact(object_type='shared_reminder')` exists, and the agent reply
+  matches persisted reality. A forced failure case must produce an honest
+  non-success reply.
+- Phase 6: setting `next_fire_at` to the recent past lets the scheduler create a
+  `reminder_fire` row and render-turn outbound message. Evolution mock delivery
+  may fail; database rows are the verdict.
+
+- [ ] **Step 6: Close the plan**
+
+Only after Steps 1-5 have evidence, update `Plan Status` to `complete`, set
+`Status Date` to the completion date, check off the remaining boxes, and commit
+the plan closeout if it changed after the fix commit.

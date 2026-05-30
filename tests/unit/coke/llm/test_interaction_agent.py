@@ -134,6 +134,20 @@ def test_agent_instructions_direct_state_changing_intents_to_tools():
     )
 
 
+def test_agent_instructions_gate_success_claims_on_tool_ok_true():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=FakeReminderTool()))
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "ok=true" in instructions
+    assert "ok=false" in instructions
+    assert "needs_" in instructions
+    assert "must not claim the action succeeded" in instructions
+
+
 def test_agent_instructions_name_real_social_scheduling_operations():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
