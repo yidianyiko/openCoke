@@ -13,10 +13,27 @@ def create_app(
     social_scheduling_service=None,
     calendar_import_service=None,
     provider_adapters=None,
+    composed_runtime=None,
 ) -> Flask:
     app = Flask(__name__)
     app.config["COKE_SETTINGS"] = settings
     app.config["APP_ENV"] = settings.app_env
+    if composed_runtime is not None:
+        app.config["COKE_RUNTIME"] = composed_runtime
+        identity_access_service = (
+            identity_access_service or composed_runtime.identity_access_service
+        )
+        channel_reachability_service = (
+            channel_reachability_service
+            or composed_runtime.channel_reachability_service
+        )
+        reminder_service = reminder_service or composed_runtime.reminder_service
+        social_scheduling_service = (
+            social_scheduling_service or composed_runtime.social_scheduling_service
+        )
+        calendar_import_service = (
+            calendar_import_service or composed_runtime.calendar_import_service
+        )
 
     if identity_access_service is not None:
         from coke.api.auth_routes import create_auth_blueprint
