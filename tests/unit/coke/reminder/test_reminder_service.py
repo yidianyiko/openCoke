@@ -217,6 +217,56 @@ def test_batch_items_commit_independently_and_detector_output_is_trusted_or_inva
     ]
 
 
+def test_detected_local_wall_clock_times_are_persisted_as_account_timezone_instants(
+    repository,
+):
+    detector = FakeDetector(
+        [
+            DetectedReminderFields(
+                content="run",
+                trigger_time=datetime(2026, 5, 31, 9, 0),
+                recurrence_rule={},
+                duration_minutes=None,
+            ),
+            DetectedReminderFields(
+                content="run",
+                trigger_time=datetime(2026, 5, 31, 9, 0),
+                recurrence_rule={},
+                duration_minutes=None,
+            ),
+        ]
+    )
+    service = ReminderService(
+        repository=repository,
+        detector=detector,
+        now=lambda: datetime(2026, 5, 30, 10, 10, tzinfo=UTC),
+        id_factory=sequence_factory("tz"),
+    )
+
+    for owner, timezone in [
+        ("tokyo", "Asia/Tokyo"),
+        ("new_york", "America/New_York"),
+    ]:
+        result = service.execute_batch(
+            owner_account_id=owner,
+            items=[
+                ReminderBatchItem(
+                    operation="detect_and_create",
+                    raw_text="remind me tomorrow at 9",
+                    captured_timezone=timezone,
+                )
+            ],
+        )
+        assert result.items[0].state == "succeeded"
+
+    tokyo = repository.list_active_reminders("tokyo")[0]
+    new_york = repository.list_active_reminders("new_york")[0]
+    assert tokyo.next_fire_at == datetime(2026, 5, 31, 0, 0, tzinfo=UTC)
+    assert new_york.next_fire_at == datetime(2026, 5, 31, 13, 0, tzinfo=UTC)
+    assert tokyo.captured_timezone == "Asia/Tokyo"
+    assert new_york.captured_timezone == "America/New_York"
+
+
 def test_detector_invalid_shape_fails_item_without_tool_exception(repository):
     class InvalidDetector:
         def extract(self, text, captured_timezone, now):

@@ -37,6 +37,9 @@ class SiliconFlowReminderDetector:
             system=(
                 "Extract precise reminder fields for Coke. Return only trusted JSON. "
                 "Use {} for one-time or non-recurring reminders; recurrence_rule must never be null. "
+                "Interpret reminder dates and times in captured_timezone. "
+                "Preserve explicit hour and minute from the user's request; for example, "
+                "tomorrow 9 AM must return tomorrow at 09:00 in captured_timezone, not midnight. "
                 "Do not repair output with regex, normalize guessed durations, or "
                 "rewrite past/incomplete times."
             ),
@@ -47,7 +50,7 @@ class SiliconFlowReminderDetector:
                 "allowed_kind": sorted(REMINDER_KINDS),
                 "schema": {
                     "content": "string|null",
-                    "trigger_time": "ISO-8601 datetime|null",
+                    "trigger_time": "full ISO-8601 local wall-clock datetime in captured_timezone, including explicit hour/minute",
                     "recurrence_rule": "object; use {} for non-recurring reminders; never null",
                     "duration_minutes": "integer|null",
                     "kind": "timed|no_trigger_time|recurring|proactive|shared_projection|null",

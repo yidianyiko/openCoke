@@ -356,7 +356,7 @@ class ReminderService:
         return ReminderBatchItem(
             operation="create",
             content=fields.content,
-            trigger_time=fields.trigger_time,
+            trigger_time=self._detected_trigger_time(fields, item.captured_timezone),
             captured_timezone=item.captured_timezone,
             recurrence_rule=dict(fields.recurrence_rule),
             duration_minutes=fields.duration_minutes,
@@ -364,6 +364,20 @@ class ReminderService:
             entry_point=item.entry_point,
             time_state=item.time_state,
         )
+
+    def _detected_trigger_time(
+        self,
+        fields: DetectedReminderFields,
+        captured_timezone: str,
+    ) -> datetime | None:
+        if fields.trigger_time is None:
+            return None
+        try:
+            zone = ZoneInfo(captured_timezone)
+        except ZoneInfoNotFoundError as error:
+            raise ReminderError("invalid_detector_output") from error
+        local_trigger = fields.trigger_time.replace(tzinfo=zone)
+        return local_trigger.astimezone(UTC)
 
     def _create(
         self,

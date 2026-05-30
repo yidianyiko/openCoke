@@ -61,6 +61,30 @@ def test_extract_prompt_requires_empty_recurrence_object_for_non_recurring_items
     )
 
 
+def test_extract_prompt_requires_full_local_wall_clock_time_in_captured_timezone():
+    client = FakeJSONClient(
+        {
+            "content": "跑步",
+            "trigger_time": "2026-05-31T09:00:00+09:00",
+            "recurrence_rule": {},
+            "duration_minutes": None,
+            "kind": "timed",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    detector.extract(
+        "提醒我明天早上9点跑步",
+        "Asia/Tokyo",
+        datetime(2026, 5, 30, 10, 10, tzinfo=UTC),
+    )
+
+    assert "Preserve explicit hour and minute" in client.calls[0]["system"]
+    assert client.calls[0]["user"]["schema"]["trigger_time"] == (
+        "full ISO-8601 local wall-clock datetime in captured_timezone, including explicit hour/minute"
+    )
+
+
 def test_extract_rejects_invalid_output_without_regex_recovery():
     client = FakeJSONClient(
         {
