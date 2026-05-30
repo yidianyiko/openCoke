@@ -151,9 +151,19 @@ rewrite_evolution_base() {
 }
 
 siliconflow_api_key="$(read_env SiliconFlow_API_KEY)"
-evolution_base="$(rewrite_evolution_base "$(read_env WHATSAPP_EVOLUTION_API_BASE)")"
-evolution_api_key="$(read_env WHATSAPP_EVOLUTION_API_KEY)"
-evolution_instance="$(read_env WHATSAPP_EVOLUTION_INSTANCE)"
+evolution_base="$(read_env COKE_PROVIDER_EVOLUTION_BASE_URL)"
+if [[ -z "$evolution_base" ]]; then
+  evolution_base="$(read_env WHATSAPP_EVOLUTION_API_BASE)"
+fi
+evolution_base="$(rewrite_evolution_base "$evolution_base")"
+evolution_api_key="$(read_env COKE_PROVIDER_EVOLUTION_API_KEY)"
+if [[ -z "$evolution_api_key" ]]; then
+  evolution_api_key="$(read_env WHATSAPP_EVOLUTION_API_KEY)"
+fi
+evolution_instance="$(read_env COKE_PROVIDER_EVOLUTION_INSTANCE)"
+if [[ -z "$evolution_instance" ]]; then
+  evolution_instance="$(read_env WHATSAPP_EVOLUTION_INSTANCE)"
+fi
 if [[ -z "$evolution_instance" ]]; then
   evolution_instance="coke"
 fi
@@ -165,10 +175,10 @@ wechat_personal_api_key="$(read_env COKE_PROVIDER_WECHAT_PERSONAL_API_KEY)"
 
 missing=()
 [[ -n "$siliconflow_api_key" ]] || missing+=("SiliconFlow_API_KEY")
-[[ -n "$evolution_base" ]] || missing+=("WHATSAPP_EVOLUTION_API_BASE")
-[[ -n "$evolution_api_key" ]] || missing+=("WHATSAPP_EVOLUTION_API_KEY")
+[[ -n "$evolution_base" ]] || missing+=("COKE_PROVIDER_EVOLUTION_BASE_URL")
+[[ -n "$evolution_api_key" ]] || missing+=("COKE_PROVIDER_EVOLUTION_API_KEY")
 if (( ${#missing[@]} > 0 )); then
-  printf 'Missing required old env keys: %s\n' "${missing[*]}" >&2
+  printf 'Missing required clean env keys: %s\n' "${missing[*]}" >&2
   exit 1
 fi
 
