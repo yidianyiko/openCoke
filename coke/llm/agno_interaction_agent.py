@@ -1,0 +1,223 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+import json
+from typing import Any, Mapping
+from uuid import uuid4
+
+from agno.agent import Agent
+from agno.db.postgres import PostgresDb
+from agno.memory.manager import MemoryManager as AgnoMemoryManager
+
+from coke.llm.config import SiliconFlowLLMConfig
+from coke.turn.agent import AgentRequest, AgentResult, StateChangingToolPort
+
+AgentFactory = Callable[..., Any]
+TaskIdFactory = Callable[[], str]
+
+
+class CokeAgnoMemoryManager(AgnoMemoryManager):
+    def __init__(self, *, model, db, long_term_enabled: bool) -> None:
+        super().__init__(
+            model=model,
+            db=db,
+            add_memories=long_term_enabled,
+            update_memories=long_term_enabled,
+        )
+        self.long_term_enabled = long_term_enabled
+
+
+class AgnoInteractionAgent:
+    def __init__(
+        self,
+        *,
+        model,
+        config: SiliconFlowLLMConfig | None = None,
+        agent_factory: AgentFactory = Agent,
+        db: Any | None = None,
+        memory_manager_factory: Callable[..., Any] = CokeAgnoMemoryManager,
+        task_id_factory: TaskIdFactory | None = None,
+    ) -> None:
+        self.model = model
+        self.config = config
+        self.agent_factory = agent_factory
+        self.db = db if db is not None else self._build_db(config)
+        self.memory_manager_factory = memory_manager_factory
+        self.task_id_factory = task_id_factory or (lambda: f"agno_task_{uuid4().hex}")
+        self._async_requests: dict[str, AgentRequest] = {}
+
+    @classmethod
+    def from_config(cls, config: SiliconFlowLLMConfig) -> AgnoInteractionAgent:
+        return cls(model=config.create_interaction_model(), config=config)
+
+    def invoke(self, request: AgentRequest) -> AgentResult:
+        return self._run_request(request, store_timeout=True)
+
+    def complete_async(self, task_id: str) -> AgentResult:
+        request = self._async_requests.pop(task_id, None)
+        if request is None:
+            raise ValueError("async_task_not_found")
+        return self._run_request(request, store_timeout=False)
+
+    def _run_request(
+        self, request: AgentRequest, *, store_timeout: bool
+    ) -> AgentResult:
+        long_term_enabled = bool(request.trusted_facts.get("memory_enabled", True))
+        agent = self.agent_factory(
+            model=self.model,
+            db=self.db,
+            memory_manager=self._memory_manager(long_term_enabled),
+            enable_agentic_memory=False,
+            update_memory_on_run=False,
+            enable_user_memories=long_term_enabled,
+            add_memories_to_context=long_term_enabled,
+            add_history_to_context=True,
+            add_session_state_to_context=False,
+            tools=self._tools(request),
+            system_message=self._system_message(request),
+            instructions=self._instructions(),
+            use_json_mode=True,
+            parse_response=False,
+        )
+        try:
+            run_output = agent.run(
+                self._input_payload(request),
+                user_id=request.account_id,
+                session_id=request.conversation_id,
+                metadata={
+                    "turn_id": request.turn_id,
+                    "trigger_type": request.trigger_type,
+                    "mode": str(request.mode),
+                },
+                add_session_state_to_context=False,
+            )
+        except TimeoutError:
+            if not store_timeout:
+                return AgentResult.timeout(self.task_id_factory())
+            task_id = self.task_id_factory()
+            self._async_requests[task_id] = request
+            return AgentResult.timeout(task_id)
+        return AgentResult.completed(
+            _mapping_or_none(getattr(run_output, "content", None))
+        )
+
+    def _memory_manager(self, long_term_enabled: bool):
+        if self.db is None:
+            return None
+        return self.memory_manager_factory(
+            model=self.model,
+            db=self.db,
+            long_term_enabled=long_term_enabled,
+        )
+
+    def _tools(self, request: AgentRequest) -> list[Callable]:
+        tools: list[Callable] = []
+        for name in request.tool_profile.tool_names:
+            port = getattr(request.tool_profile, f"{name}_tool")
+            if port is not None:
+                tools.append(_tool_callable(name, port, request.freshness_guard))
+        return tools
+
+    def _system_message(self, request: AgentRequest) -> str:
+        assistant_name = request.trusted_facts.get("assistant_name") or "Coke"
+        persona = request.trusted_facts.get("persona") or ""
+        speaking_style = request.trusted_facts.get("speaking_style") or ""
+        extra_rules = request.trusted_facts.get("extra_rules") or ""
+        return "\n".join(
+            part
+            for part in (
+                f"You are {assistant_name}, the single Coke Interaction Agent.",
+                str(persona),
+                str(speaking_style),
+                str(extra_rules),
+                "Use only trusted_facts and tool results for product claims.",
+                "Return only JSON matching the Coke output protocol: "
+                '{"type":"reply","segments":["text"]} or '
+                '{"type":"no_reply","reason":"intentional_no_reply"}.',
+                "Do not emit fallback prose, parser repair text, or template summaries.",
+            )
+            if part
+        )
+
+    def _instructions(self) -> list[str]:
+        return [
+            "You own user-visible prose for replies, reminders, notifications, and render turns.",
+            "Call tools for state-changing domain work instead of claiming the action happened.",
+            "If no user-visible message is warranted, return the explicit no_reply JSON.",
+            "Text output is limited to one to three non-empty segments.",
+        ]
+
+    def _input_payload(self, request: AgentRequest) -> dict[str, Any]:
+        return {
+            "turn_id": request.turn_id,
+            "mode": str(request.mode),
+            "trigger_type": request.trigger_type,
+            "payload": request.payload,
+            "trusted_facts": request.trusted_facts,
+            "context": _jsonable_context(request.context),
+            "tool_profile": {
+                "intent_tools_enabled": request.tool_profile.intent_tools_enabled,
+                "tool_names": list(request.tool_profile.tool_names),
+                "constrained": request.tool_profile.constrained,
+            },
+        }
+
+    def _build_db(self, config: SiliconFlowLLMConfig | None):
+        if config is None or config.agno_database_url is None:
+            return None
+        return PostgresDb(
+            db_url=config.agno_database_url,
+            create_schema=config.agno_create_schema,
+        )
+
+
+def _tool_callable(
+    name: str,
+    port: StateChangingToolPort,
+    guard: Any,
+) -> Callable[..., dict]:
+    def tool(command: dict | None = None, **kwargs) -> dict:
+        command_payload = _command_payload(command, kwargs)
+        result = port.execute(command_payload, guard)
+        return {
+            "ok": result.ok,
+            "facts": dict(result.facts),
+            "reason_code": result.reason_code,
+        }
+
+    tool.__name__ = f"{name}_tool"
+    tool.__doc__ = f"Execute a Coke {name} domain command."
+    return tool
+
+
+def _command_payload(command: Any, kwargs: Mapping[str, Any]) -> Mapping[str, Any]:
+    if isinstance(command, Mapping) and not kwargs:
+        return dict(command)
+    if command is None:
+        return dict(kwargs)
+    return {"command": command, **dict(kwargs)}
+
+
+def _mapping_or_none(content: Any) -> Mapping[str, Any] | None:
+    if isinstance(content, Mapping):
+        return content
+    if isinstance(content, str):
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, Mapping):
+            return parsed
+    return None
+
+
+def _jsonable_context(context: Any) -> Any:
+    if isinstance(context, Mapping):
+        return dict(context)
+    if hasattr(context, "__dict__"):
+        return {
+            key: value
+            for key, value in vars(context).items()
+            if not key.startswith("_")
+        }
+    return str(context)
