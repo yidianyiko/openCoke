@@ -12,6 +12,14 @@ services:
       - wechat_personal_state:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - coke_clean
 
 volumes:
   wechat_personal_state:
+
+networks:
+  coke_clean:
+    external: true
+    name: "${WECHAT_CONNECTOR_COKE_NETWORK:-coke-clean_default}"

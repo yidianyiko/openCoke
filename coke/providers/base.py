@@ -249,7 +249,7 @@ def post_json_send(
         return DeliveryAttemptResult(
             status="failed",
             provider_message_id=None,
-            error_code=f"provider_http_{response.status_code}",
+            error_code=extract_provider_error_code(response),
             delivered_at=None,
         )
     return DeliveryAttemptResult(
@@ -279,6 +279,41 @@ def extract_provider_message_id(response: httpx.Response) -> str | None:
         ),
     )
     return value
+
+
+def extract_provider_error_code(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return f"provider_http_{response.status_code}"
+    if not isinstance(payload, Mapping):
+        return f"provider_http_{response.status_code}"
+    error = _string_value(payload.get("error"), allow_blank=False)
+    if error is None:
+        return f"provider_http_{response.status_code}"
+    ilink = payload.get("ilink")
+    if isinstance(ilink, Mapping):
+        ret = ilink.get("ret")
+        errcode = ilink.get("errcode")
+        if _error_number(ret):
+            return _error_code(f"{error}_ret_{ret}")
+        if _error_number(errcode):
+            return _error_code(f"{error}_errcode_{errcode}")
+    return _error_code(error)
+
+
+def _error_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float)) and not isinstance(value, bool) and value != 0
+    )
+
+
+def _error_code(value: str) -> str:
+    sanitized = "".join(
+        character if character.isalnum() or character in {"_", "-"} else "_"
+        for character in value.strip()
+    )
+    return sanitized[:160] or "provider_error"
 
 
 def _first_string_at_paths(

@@ -719,6 +719,34 @@ def test_secondary_provider_send_text_posts_real_http_request(
     assert result.error_code is None
 
 
+def test_wechat_personal_send_text_maps_connector_ilink_failure_to_clear_code():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            502,
+            json={
+                "error": "ilink_send_failed",
+                "ilink": {"ret": -2, "errmsg": "invalid context_token"},
+            },
+        )
+
+    adapter = WeChatPersonalAdapter(
+        endpoint_url="https://connector.example/send",
+        api_key="wx-secret",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    result = adapter.send_text(
+        route=delivery_route("wechat_personal", "wxid_alice"),
+        text="hello",
+        idempotency_key="send_1",
+        context_token="ctx-bad",
+    )
+
+    assert result.status == "failed"
+    assert result.provider_message_id is None
+    assert result.error_code == "ilink_send_failed_ret_-2"
+
+
 def test_wechat_personal_login_uses_connector_root_when_send_endpoint_configured():
     requests = []
 

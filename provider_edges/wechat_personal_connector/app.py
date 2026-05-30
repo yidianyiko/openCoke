@@ -15,7 +15,6 @@ from typing import Any
 import httpx
 from flask import Flask, jsonify, request
 
-
 DEFAULT_ILINK_BASE_URL = "https://ilinkai.weixin.qq.com"
 DEFAULT_STATE_PATH = "/data/wechat_personal_state.json"
 
@@ -127,8 +126,8 @@ class IlinkClient:
             json=body,
             timeout=30.0,
         )
-        response.raise_for_status()
-        return {"message_id": client_id, "provider_response": response.text}
+        provider_response = _validated_ilink_response(response)
+        return {"message_id": client_id, "provider_response": provider_response}
 
     def get_updates(self, *, base_url: str, token: str, cursor: str) -> dict[str, Any]:
         response = self._client.post(
@@ -140,8 +139,15 @@ class IlinkClient:
             },
             timeout=40.0,
         )
-        response.raise_for_status()
-        return response.json()
+        body = _validated_ilink_response(response)
+        return body if isinstance(body, dict) else {}
+
+
+class IlinkAPIError(RuntimeError):
+    def __init__(self, *, operation: str, response: dict[str, Any]) -> None:
+        self.operation = operation
+        self.response = response
+        super().__init__(f"{operation}:{response}")
 
 
 def _ilink_bot_headers(token: str) -> dict[str, str]:
@@ -219,10 +225,13 @@ def create_app(
     def healthz():
         snapshot = connector_state.snapshot()
         connected_sessions = _connected_sessions(snapshot)
+        status = (
+            "connected" if connected_sessions else snapshot.get("status", "not_started")
+        )
         return jsonify(
             {
                 "ok": True,
-                "status": snapshot.get("status", "not_started"),
+                "status": status,
                 "connected": bool(connected_sessions),
                 "connected_session_count": len(connected_sessions),
             }
@@ -244,13 +253,35 @@ def create_app(
         token = str(session.get("token") or "").strip()
         if not base_url or not token:
             return jsonify({"error": "wechat_not_connected"}), 409
-        result = client.send_text(
-            base_url=base_url,
-            token=token,
-            to_user_id=to_user_id,
-            context_token=context_token,
-            text=text,
-        )
+        try:
+            result = client.send_text(
+                base_url=base_url,
+                token=token,
+                to_user_id=to_user_id,
+                context_token=context_token,
+                text=text,
+            )
+        except IlinkAPIError as error:
+            return (
+                jsonify(
+                    {
+                        "error": "ilink_send_failed",
+                        "ilink": error.response,
+                    }
+                ),
+                502,
+            )
+        provider_failure = _ilink_failure_from_body(result.get("provider_response"))
+        if provider_failure is not None:
+            return (
+                jsonify(
+                    {
+                        "error": "ilink_send_failed",
+                        "ilink": provider_failure,
+                    }
+                ),
+                502,
+            )
         return (
             jsonify(
                 {
@@ -350,34 +381,75 @@ def poll_once(
     snapshot = state.snapshot()
     delivered = 0
     for session_id, session in _connected_sessions(snapshot).items():
-        base_url = str(session.get("base_url") or "").strip()
-        token = str(session.get("token") or "").strip()
-        if not base_url or not token:
+        if _retry_backoff_active(session):
             continue
-        updates = ilink_client.get_updates(
-            base_url=base_url,
-            token=token,
-            cursor=str(session.get("cursor") or ""),
-        )
-        next_cursor = updates.get("get_updates_buf")
-        context_tokens = dict(session.get("context_tokens") or {})
-        for message in updates.get("msgs") or []:
-            payload = _clean_webhook_payload(message, session_id, session)
-            if not payload:
-                continue
-            context_tokens[payload["wxid"]] = payload["context_token"]
-            response = webhook_client.post(
-                config.webhook_url,
-                json=payload,
-                headers=_webhook_headers(config),
-                timeout=10.0,
+        try:
+            delivered += _poll_session_once(
+                config,
+                state=state,
+                ilink_client=ilink_client,
+                webhook_client=webhook_client,
+                session_id=session_id,
+                session=session,
             )
-            response.raise_for_status()
-            delivered += 1
-        updates_to_save: dict[str, Any] = {"context_tokens": context_tokens}
-        if next_cursor is not None:
-            updates_to_save["cursor"] = next_cursor
-        state.update_session(session_id, updates_to_save)
+        except Exception as exc:
+            updates: dict[str, Any] = _poll_error_updates(session, exc)
+            if _is_session_expired_error(exc):
+                updates.update(
+                    {
+                        "status": "expired",
+                        "token": "",
+                        "cursor": "",
+                        "context_tokens": {},
+                    }
+                )
+            state.update_session(session_id, updates)
+    return delivered
+
+
+def _poll_session_once(
+    config: ConnectorConfig,
+    *,
+    state: ConnectorState,
+    ilink_client: IlinkClient,
+    webhook_client: httpx.Client,
+    session_id: str,
+    session: dict[str, Any],
+) -> int:
+    base_url = str(session.get("base_url") or "").strip()
+    token = str(session.get("token") or "").strip()
+    if not base_url or not token:
+        return 0
+    updates = ilink_client.get_updates(
+        base_url=base_url,
+        token=token,
+        cursor=str(session.get("cursor") or ""),
+    )
+    next_cursor = updates.get("get_updates_buf")
+    context_tokens = dict(session.get("context_tokens") or {})
+    delivered = 0
+    for message in updates.get("msgs") or []:
+        payload = _clean_webhook_payload(message, session_id, session)
+        if not payload:
+            continue
+        context_tokens[payload["wxid"]] = payload["context_token"]
+        response = webhook_client.post(
+            config.webhook_url,
+            json=payload,
+            headers=_webhook_headers(config),
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        delivered += 1
+    updates_to_save: dict[str, Any] = {"context_tokens": context_tokens}
+    if next_cursor is not None:
+        updates_to_save["cursor"] = next_cursor
+    if session.get("last_poll_error"):
+        updates_to_save["last_poll_error"] = ""
+    if session.get("poll_error_count"):
+        updates_to_save["poll_error_count"] = 0
+        updates_to_save["next_poll_after"] = 0
+    state.update_session(session_id, updates_to_save)
     return delivered
 
 
@@ -418,6 +490,74 @@ def _extract_text(message: dict[str, Any]) -> str | None:
             if text:
                 return text
     return ""
+
+
+def _validated_ilink_response(response: httpx.Response) -> dict[str, Any]:
+    try:
+        body = response.json()
+    except ValueError:
+        body = {"raw_body": response.text}
+    if not response.is_success:
+        failure = body if isinstance(body, dict) else {"raw_body": str(body)}
+        failure.setdefault("http_status", response.status_code)
+        raise IlinkAPIError(operation="http", response=failure)
+    failure = _ilink_failure_from_body(body)
+    if failure is not None:
+        raise IlinkAPIError(operation="business", response=failure)
+    return body if isinstance(body, dict) else {}
+
+
+def _ilink_failure_from_body(body: Any) -> dict[str, Any] | None:
+    if not isinstance(body, dict):
+        return None
+    ret = body.get("ret")
+    errcode = body.get("errcode")
+    if _nonzero_number(ret) or _nonzero_number(errcode):
+        return dict(body)
+    return None
+
+
+def _nonzero_number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and value != 0
+
+
+def _is_session_expired_error(error: BaseException) -> bool:
+    if not isinstance(error, IlinkAPIError):
+        return False
+    response = error.response
+    return response.get("ret") == -14 or response.get("errcode") == -14
+
+
+def _retry_backoff_active(session: dict[str, Any]) -> bool:
+    try:
+        next_poll_after = float(session.get("next_poll_after") or 0)
+    except (TypeError, ValueError):
+        return False
+    return next_poll_after > time.time()
+
+
+def _poll_error_updates(
+    session: dict[str, Any], error: BaseException
+) -> dict[str, Any]:
+    count = _poll_error_count(session) + 1
+    return {
+        "last_poll_error": repr(error),
+        "poll_error_count": count,
+        "next_poll_after": time.time() + _poll_retry_delay_seconds(count),
+    }
+
+
+def _poll_error_count(session: dict[str, Any]) -> int:
+    try:
+        value = int(session.get("poll_error_count") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(value, 0)
+
+
+def _poll_retry_delay_seconds(error_count: int) -> float:
+    exponent = min(max(error_count - 1, 0), 5)
+    return min(60.0, 2.0**exponent)
 
 
 def _authorized(config: ConnectorConfig) -> bool:

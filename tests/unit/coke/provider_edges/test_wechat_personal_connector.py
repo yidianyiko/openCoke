@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 
 from provider_edges.wechat_personal_connector.app import (
     ConnectorConfig,
@@ -14,13 +15,22 @@ from provider_edges.wechat_personal_connector.app import (
     _poll_login_status_once,
 )
 
+ROOT = Path(__file__).resolve().parents[4]
+CONNECTOR_COMPOSE = (
+    ROOT / "provider_edges" / "wechat_personal_connector" / "docker-compose.yml"
+)
+
 
 class FakeIlinkClient:
     def __init__(self, updates=None) -> None:
         self.sent = []
         self.qr_calls = []
         self.status_calls = []
+        self.update_calls = []
         self.updates = updates or {"msgs": [], "get_updates_buf": ""}
+        self.updates_by_token = {}
+        self.fail_tokens = {}
+        self.send_response = None
 
     def get_qr(self, *, ilink_base_url: str):
         self.qr_calls.append({"ilink_base_url": ilink_base_url})
@@ -57,9 +67,18 @@ class FakeIlinkClient:
                 "text": text,
             }
         )
+        if self.send_response is not None:
+            return self.send_response
         return {"message_id": "client-id-1", "provider_response": "ok"}
 
     def get_updates(self, *, base_url: str, token: str, cursor: str):
+        self.update_calls.append(
+            {"base_url": base_url, "token": token, "cursor": cursor}
+        )
+        if token in self.fail_tokens:
+            raise self.fail_tokens[token]
+        if self.updates_by_token:
+            return self.updates_by_token[token]
         assert base_url == "https://bot.example"
         assert token == "bot-token"
         assert cursor == "cursor-0"
@@ -220,6 +239,23 @@ def test_login_status_returns_cached_waiting_state_without_inline_ilink_poll(tmp
     assert ilink.status_calls == []
 
 
+def test_healthz_reports_connected_status_from_persisted_sessions(state):
+    state.update({"status": "expired"})
+    app = create_app(
+        ConnectorConfig(api_key="connector-key"),
+        state=state,
+        ilink_client=FakeIlinkClient(),
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().get("/healthz")
+
+    assert response.status_code == 200
+    assert response.get_json()["connected"] is True
+    assert response.get_json()["connected_session_count"] == 1
+    assert response.get_json()["status"] == "connected"
+
+
 def test_login_start_background_poll_confirms_session(tmp_path):
     state = ConnectorState(tmp_path / "state.json")
     ilink = FakeIlinkClient()
@@ -281,13 +317,47 @@ def test_send_endpoint_maps_clean_contract_to_account_ilink_sendmessage(state):
     assert response.get_json() == {"message_id": "client-id-1", "status": "sent"}
     assert ilink.sent == [
         {
-                "base_url": "https://bot.example",
-                "token": "bot-token",
-                "to_user_id": "wxid_alice",
-                "context_token": "ctx-1",
-                "text": "hello",
-            }
-        ]
+            "base_url": "https://bot.example",
+            "token": "bot-token",
+            "to_user_id": "wxid_alice",
+            "context_token": "ctx-1",
+            "text": "hello",
+        }
+    ]
+
+
+def test_send_endpoint_maps_ilink_business_failure_to_clear_error(state):
+    ilink = FakeIlinkClient()
+    ilink.send_response = {
+        "message_id": "client-id-1",
+        "provider_response": {"ret": -2, "errmsg": "invalid context_token"},
+    }
+    app = create_app(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().post(
+        "/send",
+        json={
+            "account_id": "acct_1",
+            "to": "wxid_alice",
+            "context_token": "ctx-bad",
+            "text": "hello",
+        },
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert response.status_code == 502
+    assert response.get_json() == {
+        "error": "ilink_send_failed",
+        "ilink": {"ret": -2, "errmsg": "invalid context_token"},
+    }
 
 
 def test_send_endpoint_requires_configured_api_key(state):
@@ -303,7 +373,12 @@ def test_send_endpoint_requires_configured_api_key(state):
 
     response = app.test_client().post(
         "/send",
-        json={"account_id": "acct_1", "to": "wxid_alice", "context_token": "ctx-1", "text": "hello"},
+        json={
+            "account_id": "acct_1",
+            "to": "wxid_alice",
+            "context_token": "ctx-1",
+            "text": "hello",
+        },
     )
 
     assert response.status_code == 401
@@ -361,6 +436,101 @@ def test_poll_once_posts_account_bound_payload_and_context_token(state):
     assert session["context_tokens"] == {"wxid_alice": "ctx-1"}
 
 
+def test_poll_once_records_session_error_and_continues_other_sessions(tmp_path):
+    state = ConnectorState(tmp_path / "state.json")
+    state.update(
+        {
+            "sessions": {
+                "session-bad": {
+                    "account_id": "acct_bad",
+                    "status": "connected",
+                    "base_url": "https://bot.example",
+                    "token": "bad-token",
+                    "cursor": "cursor-bad",
+                    "ilink_user_id": "wxid_bad",
+                    "context_tokens": {},
+                },
+                "session-good": {
+                    "account_id": "acct_good",
+                    "status": "connected",
+                    "base_url": "https://bot.example",
+                    "token": "good-token",
+                    "cursor": "cursor-good",
+                    "ilink_user_id": "wxid_good",
+                    "context_tokens": {},
+                },
+            }
+        }
+    )
+    ilink = FakeIlinkClient()
+    ilink.fail_tokens = {"bad-token": RuntimeError("temporary network")}
+    ilink.updates_by_token = {
+        "good-token": {
+            "get_updates_buf": "cursor-good-next",
+            "msgs": [
+                {
+                    "from_user_id": "wxid_good",
+                    "context_token": "ctx-good",
+                    "item_list": [{"type": 1, "text_item": {"text": "hello"}}],
+                }
+            ],
+        }
+    }
+    webhook = FakeWebhookClient()
+
+    delivered = poll_once(
+        ConnectorConfig(webhook_url="http://coke-api/webhooks/wechat/personal"),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=webhook,
+    )
+
+    snapshot = state.snapshot()["sessions"]
+    assert delivered == 1
+    assert "temporary network" in snapshot["session-bad"]["last_poll_error"]
+    assert "last_poll_error" not in snapshot["session-good"]
+    assert snapshot["session-good"]["cursor"] == "cursor-good-next"
+    assert snapshot["session-good"]["context_tokens"] == {"wxid_good": "ctx-good"}
+    assert webhook.posts[0]["json"]["account_id"] == "acct_good"
+
+
+def test_poll_once_sets_retry_backoff_for_retryable_session_error(state):
+    ilink = FakeIlinkClient()
+    ilink.fail_tokens = {"bot-token": RuntimeError("temporary network")}
+    before = time.time()
+
+    delivered = poll_once(
+        ConnectorConfig(webhook_url="http://coke-api/webhooks/wechat/personal"),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    session = state.snapshot()["sessions"]["session-1"]
+    assert delivered == 0
+    assert session["poll_error_count"] == 1
+    assert session["next_poll_after"] > before
+    assert "temporary network" in session["last_poll_error"]
+
+
+def test_poll_once_skips_session_until_retry_backoff_elapses(state):
+    state.update_session(
+        "session-1",
+        {"poll_error_count": 1, "next_poll_after": time.time() + 60},
+    )
+    ilink = FakeIlinkClient()
+
+    delivered = poll_once(
+        ConnectorConfig(webhook_url="http://coke-api/webhooks/wechat/personal"),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    assert delivered == 0
+    assert ilink.update_calls == []
+
+
 def test_poll_once_does_not_mark_normal_text_as_pairing_code(state):
     ilink = FakeIlinkClient(
         updates={
@@ -390,4 +560,15 @@ def test_poll_once_does_not_mark_normal_text_as_pairing_code(state):
         "wxid": "wxid_alice",
         "text": "hello",
         "context_token": "ctx-2",
+    }
+
+
+def test_connector_compose_joins_clean_runtime_network_for_webhooks():
+    compose = yaml.safe_load(CONNECTOR_COMPOSE.read_text())
+    service = compose["services"]["wechat-personal-connector"]
+
+    assert service["networks"] == ["default", "coke_clean"]
+    assert compose["networks"]["coke_clean"] == {
+        "external": True,
+        "name": "${WECHAT_CONNECTOR_COKE_NETWORK:-coke-clean_default}",
     }
