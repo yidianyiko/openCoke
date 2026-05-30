@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Mapping, Protocol
+
+from coke.turn.context import ToolProfile, TurnMode
+
+
+@dataclass(frozen=True, slots=True)
+class ToolExecutionResult:
+    ok: bool
+    facts: Mapping[str, Any]
+    reason_code: str | None = None
+
+
+class StateChangingToolPort(Protocol):
+    def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class AgentToolPorts:
+    reminder_tool: StateChangingToolPort | None = None
+    social_scheduling_tool: StateChangingToolPort | None = None
+    calendar_import_tool: StateChangingToolPort | None = None
+    identity_access_tool: StateChangingToolPort | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AgentRequest:
+    turn_id: str
+    conversation_id: str
+    account_id: str
+    mode: TurnMode
+    trigger_type: str
+    payload: Mapping[str, Any]
+    trusted_facts: Mapping[str, Any]
+    tool_profile: ToolProfile
+    freshness_guard: Any
+    context: Any
+
+
+@dataclass(frozen=True, slots=True)
+class AgentResult:
+    output: Mapping[str, Any] | None = None
+    timed_out: bool = False
+    task_id: str | None = None
+
+    @classmethod
+    def completed(cls, output: Mapping[str, Any] | None) -> AgentResult:
+        return cls(output=output)
+
+    @classmethod
+    def timeout(cls, task_id: str) -> AgentResult:
+        return cls(timed_out=True, task_id=task_id)
+
+
+class InteractionAgent(Protocol):
+    def invoke(self, request: AgentRequest) -> AgentResult: ...
+
+    def complete_async(self, task_id: str) -> AgentResult: ...

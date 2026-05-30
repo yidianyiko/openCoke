@@ -1,0 +1,463 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
+from coke.domains.conversation_runtime.service import ConversationRuntimeService
+from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
+from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
+from coke.turn.focus import FocusResolver
+from coke.turn.freshness import FreshnessGuard
+from coke.turn.locks import ConversationLockManager
+from coke.turn.memory import MemoryManager, MemoryPort
+from coke.turn.output_protocol import OutputProtocolValidator, ValidatedOutput
+from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
+from coke.turn.reference_resolver import ReferenceResolver
+from coke.turn.semantic_interpreter import (
+    SemanticDecision,
+    SemanticInterpreter,
+    SemanticInterpreterRequest,
+)
+
+
+WAITING_TEXT = "Still working on it."
+
+
+class OutboundDeliveryPort(Protocol):
+    def deliver(self, request: DeliveryRequest) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryRequest:
+    account_id: str
+    conversation_id: str
+    turn_id: str
+    message_type: str
+    visible_text: str
+    idempotency_key: str
+    segments: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TurnRunResult:
+    turn_id: str
+    trigger_id: str
+    trigger_type: str
+    disposition: str
+    reason_code: str | None
+    visible_text: str | None = None
+    async_task_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _AsyncState:
+    task_id: str
+    turn_id: str
+    trigger_id: str
+    trigger_type: str
+    conversation_id: str
+    account_id: str
+    based_on_inbound_seq: int | None
+
+
+class TurnRunner:
+    def __init__(
+        self,
+        *,
+        conversation_runtime: ConversationRuntimeService,
+        lock_manager: ConversationLockManager,
+        pre_llm_gate: PreLLMGateService,
+        semantic_interpreter: SemanticInterpreter,
+        memory_port: MemoryPort | None,
+        interaction_agent: InteractionAgent,
+        output_protocol: OutputProtocolValidator,
+        outbound_delivery: OutboundDeliveryPort,
+        tool_ports: AgentToolPorts | None = None,
+        context_assembler: ContextAssembler | None = None,
+        focus_resolver: FocusResolver | None = None,
+        reference_resolver: ReferenceResolver | None = None,
+    ) -> None:
+        self.conversation_runtime = conversation_runtime
+        self.lock_manager = lock_manager
+        self.pre_llm_gate = pre_llm_gate
+        self.semantic_interpreter = semantic_interpreter
+        self.memory_manager = MemoryManager(memory_port)
+        self.interaction_agent = interaction_agent
+        self.output_protocol = output_protocol
+        self.outbound_delivery = outbound_delivery
+        self.tool_ports = tool_ports or AgentToolPorts()
+        self.context_assembler = context_assembler or ContextAssembler()
+        self.focus_resolver = focus_resolver or FocusResolver()
+        self.reference_resolver = reference_resolver or ReferenceResolver()
+        self._async_states: dict[str, _AsyncState] = {}
+
+    def run_inbound_turn(self, trigger: TurnTrigger) -> TurnRunResult:
+        gate = self.pre_llm_gate.evaluate(trigger)
+        if not gate.permitted:
+            return self._run_access_denied_turn(trigger, gate)
+
+        start = self.conversation_runtime.start_turn(
+            conversation_id=trigger.conversation_id,
+            trigger_id=trigger.trigger_id,
+            trigger_type=trigger.trigger_type,
+            mode=TurnMode.INTERACTIVE.value,
+        )
+        lock = self.lock_manager.acquire(trigger.conversation_id)
+        if lock is None:
+            disposition = self.conversation_runtime.mark_failed(
+                start.turn.id, "conversation_lock_unavailable"
+            )
+            return self._result_from_disposition(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+
+        try:
+            freshness_guard = FreshnessGuard(
+                conversation_runtime=self.conversation_runtime,
+                turn_id=start.turn.id,
+                based_on_inbound_seq=start.turn.based_on_inbound_seq,
+            )
+            semantic_decision = self.semantic_interpreter.interpret(
+                SemanticInterpreterRequest(
+                    account_id=trigger.account_id,
+                    conversation_id=trigger.conversation_id,
+                    payload=dict(trigger.payload),
+                    trusted_facts=gate.trust_facts,
+                )
+            )
+            if semantic_decision.reply_necessity == "intentional_no_reply":
+                disposition = self.conversation_runtime.commit_no_reply(
+                    turn_id=start.turn.id,
+                    based_on_inbound_seq=start.turn.based_on_inbound_seq,
+                    reason_code="intentional_no_reply",
+                )
+                return self._result_from_disposition(
+                    turn_id=start.turn.id,
+                    trigger=trigger,
+                    disposition=disposition.disposition,
+                    reason_code=disposition.reason_code,
+                )
+
+            context = self.context_assembler.build(
+                trigger=trigger,
+                trusted_facts=gate.trust_facts,
+                semantic_decision=semantic_decision,
+                focus_subject=self.focus_resolver.resolve(trigger.conversation_id),
+                reference_resolution=self.reference_resolver.resolve_all([]),
+                memory_context=self.memory_manager.load(
+                    account_id=trigger.account_id,
+                    conversation_id=trigger.conversation_id,
+                    long_term_enabled=bool(
+                        gate.trust_facts.get("memory_enabled", True)
+                    ),
+                ),
+                freshness_guard=freshness_guard,
+                tool_profile=ToolProfile.interactive(self.tool_ports),
+                onboarding_guidance_required=gate.activation_guidance_required,
+            )
+            return self._invoke_agent_and_record(trigger, context, semantic_decision)
+        except ConversationRuntimeError as error:
+            return self._conversation_runtime_error_result(start.turn.id, trigger, error)
+        finally:
+            lock.release()
+
+    def run_render_turn(self, trigger: TurnTrigger) -> TurnRunResult:
+        gate = GateDecision.allowed(trust_facts={"account_id": trigger.account_id})
+        return self._run_render_with_gate(
+            trigger=trigger,
+            gate=gate,
+            constrained=False,
+        )
+
+    def complete_async_reply(self, task_id: str | None) -> TurnRunResult:
+        if task_id is None or task_id not in self._async_states:
+            raise ValueError("async_task_not_found")
+        state = self._async_states.pop(task_id)
+        result = self.interaction_agent.complete_async(task_id)
+        trigger = TurnTrigger(
+            trigger_id=state.trigger_id,
+            trigger_type=state.trigger_type,
+            mode=TurnMode.INTERACTIVE,
+            conversation_id=state.conversation_id,
+            account_id=state.account_id,
+            payload={},
+        )
+        if result.timed_out:
+            disposition = self.conversation_runtime.mark_failed(
+                state.turn_id, "async_timeout_after_budget"
+            )
+            return self._result_from_disposition(
+                turn_id=state.turn_id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+        validated = self.output_protocol.validate_first_answer(result.output)
+        return self._record_validated_output(
+            turn_id=state.turn_id,
+            trigger=trigger,
+            based_on_inbound_seq=state.based_on_inbound_seq,
+            validated=validated,
+        )
+
+    def _run_access_denied_turn(
+        self, trigger: TurnTrigger, gate: GateDecision
+    ) -> TurnRunResult:
+        render_trigger = TurnTrigger(
+            trigger_id=f"{trigger.trigger_id}:access_denied",
+            trigger_type="AccessDeniedTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=trigger.conversation_id,
+            account_id=trigger.account_id,
+            channel_identity_id=trigger.channel_identity_id,
+            payload={
+                "access_denied": True,
+                "denial_reason": gate.denial_reason,
+                "facts": gate.access_facts,
+            },
+        )
+        return self._run_render_with_gate(
+            trigger=render_trigger,
+            gate=GateDecision.allowed(
+                trust_facts={
+                    "account_id": trigger.account_id,
+                    "denial_reason": gate.denial_reason,
+                    **gate.access_facts,
+                }
+            ),
+            constrained=True,
+        )
+
+    def _run_render_with_gate(
+        self,
+        *,
+        trigger: TurnTrigger,
+        gate: GateDecision,
+        constrained: bool,
+    ) -> TurnRunResult:
+        start = self.conversation_runtime.start_turn(
+            conversation_id=trigger.conversation_id,
+            trigger_id=trigger.trigger_id,
+            trigger_type=trigger.trigger_type,
+            mode=TurnMode.RENDER.value,
+        )
+        lock = self.lock_manager.acquire(trigger.conversation_id)
+        if lock is None:
+            disposition = self.conversation_runtime.mark_failed(
+                start.turn.id, "conversation_lock_unavailable"
+            )
+            return self._result_from_disposition(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+        try:
+            freshness_guard = FreshnessGuard(
+                conversation_runtime=self.conversation_runtime,
+                turn_id=start.turn.id,
+                based_on_inbound_seq=start.turn.based_on_inbound_seq,
+            )
+            context = self.context_assembler.build(
+                trigger=trigger,
+                trusted_facts=gate.trust_facts,
+                semantic_decision=None,
+                focus_subject=None,
+                reference_resolution=None,
+                memory_context=None,
+                freshness_guard=freshness_guard,
+                tool_profile=ToolProfile.render(constrained=constrained),
+            )
+            return self._invoke_agent_and_record(trigger, context, semantic_decision=None)
+        except ConversationRuntimeError as error:
+            return self._conversation_runtime_error_result(start.turn.id, trigger, error)
+        finally:
+            lock.release()
+
+    def _invoke_agent_and_record(
+        self,
+        trigger: TurnTrigger,
+        context: Any,
+        semantic_decision: SemanticDecision | None,
+    ) -> TurnRunResult:
+        agent_result = self.interaction_agent.invoke(
+            AgentRequest(
+                turn_id=context.freshness_guard.turn_id,
+                conversation_id=trigger.conversation_id,
+                account_id=trigger.account_id,
+                mode=trigger.mode,
+                trigger_type=trigger.trigger_type,
+                payload=trigger.payload,
+                trusted_facts=context.trusted_facts,
+                tool_profile=context.tool_profile,
+                freshness_guard=context.freshness_guard,
+                context=context,
+            )
+        )
+        if agent_result.timed_out:
+            return self._record_pending_async(trigger, context, agent_result)
+        validated = self.output_protocol.validate_first_answer(agent_result.output)
+        return self._record_validated_output(
+            turn_id=context.freshness_guard.turn_id,
+            trigger=trigger,
+            based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
+            validated=validated,
+        )
+
+    def _record_pending_async(
+        self,
+        trigger: TurnTrigger,
+        context: Any,
+        agent_result: AgentResult,
+    ) -> TurnRunResult:
+        if agent_result.task_id is None:
+            disposition = self.conversation_runtime.mark_failed(
+                context.freshness_guard.turn_id,
+                "async_task_missing",
+            )
+            return self._result_from_disposition(
+                turn_id=context.freshness_guard.turn_id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+        context.freshness_guard.guard_state_change()
+        disposition = self.conversation_runtime.mark_pending_async_reply(
+            turn_id=context.freshness_guard.turn_id,
+            based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
+            reason_code="sync_timeout",
+        )
+        self.outbound_delivery.deliver(
+            DeliveryRequest(
+                account_id=trigger.account_id,
+                conversation_id=trigger.conversation_id,
+                turn_id=context.freshness_guard.turn_id,
+                message_type="waiting",
+                visible_text=WAITING_TEXT,
+                idempotency_key=f"{trigger.trigger_id}:waiting",
+                segments=(WAITING_TEXT,),
+            )
+        )
+        self._async_states[agent_result.task_id] = _AsyncState(
+            task_id=agent_result.task_id,
+            turn_id=context.freshness_guard.turn_id,
+            trigger_id=trigger.trigger_id,
+            trigger_type=trigger.trigger_type,
+            conversation_id=trigger.conversation_id,
+            account_id=trigger.account_id,
+            based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
+        )
+        return self._result_from_disposition(
+            turn_id=context.freshness_guard.turn_id,
+            trigger=trigger,
+            disposition=disposition.disposition,
+            reason_code=disposition.reason_code,
+            visible_text=WAITING_TEXT,
+            async_task_id=agent_result.task_id,
+        )
+
+    def _record_validated_output(
+        self,
+        *,
+        turn_id: str,
+        trigger: TurnTrigger,
+        based_on_inbound_seq: int | None,
+        validated: ValidatedOutput,
+    ) -> TurnRunResult:
+        if not validated.valid:
+            disposition = self.conversation_runtime.mark_failed(
+                turn_id=turn_id,
+                reason_code=validated.reason_code or "invalid_output_protocol",
+            )
+            return self._result_from_disposition(
+                turn_id=turn_id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+        if validated.kind == "no_reply":
+            disposition = self.conversation_runtime.commit_no_reply(
+                turn_id=turn_id,
+                based_on_inbound_seq=based_on_inbound_seq,
+                reason_code="intentional_no_reply",
+            )
+            return self._result_from_disposition(
+                turn_id=turn_id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+
+        self.conversation_runtime.guard_state_change(turn_id, based_on_inbound_seq)
+        disposition = self.conversation_runtime.commit_reply(
+            turn_id=turn_id,
+            based_on_inbound_seq=based_on_inbound_seq,
+            segments=validated.segments,
+            reason_code=validated.reason_code or "reply_ready",
+        )
+        self.conversation_runtime.guard_state_change(turn_id, based_on_inbound_seq)
+        visible_text = "\n".join(validated.segments)
+        self.outbound_delivery.deliver(
+            DeliveryRequest(
+                account_id=trigger.account_id,
+                conversation_id=trigger.conversation_id,
+                turn_id=turn_id,
+                message_type="reply",
+                visible_text=visible_text,
+                idempotency_key=f"{trigger.trigger_id}:reply",
+                segments=validated.segments,
+            )
+        )
+        return self._result_from_disposition(
+            turn_id=turn_id,
+            trigger=trigger,
+            disposition=disposition.disposition,
+            reason_code=disposition.reason_code,
+            visible_text=visible_text,
+        )
+
+    def _conversation_runtime_error_result(
+        self,
+        turn_id: str,
+        trigger: TurnTrigger,
+        error: ConversationRuntimeError,
+    ) -> TurnRunResult:
+        if error.code == "turn_superseded":
+            disposition = self.conversation_runtime.get_disposition(turn_id)
+            return self._result_from_disposition(
+                turn_id=turn_id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+        disposition = self.conversation_runtime.mark_failed(turn_id, error.code)
+        return self._result_from_disposition(
+            turn_id=turn_id,
+            trigger=trigger,
+            disposition=disposition.disposition,
+            reason_code=disposition.reason_code,
+        )
+
+    def _result_from_disposition(
+        self,
+        *,
+        turn_id: str,
+        trigger: TurnTrigger,
+        disposition: str,
+        reason_code: str | None,
+        visible_text: str | None = None,
+        async_task_id: str | None = None,
+    ) -> TurnRunResult:
+        return TurnRunResult(
+            turn_id=turn_id,
+            trigger_id=trigger.trigger_id,
+            trigger_type=trigger.trigger_type,
+            disposition=disposition,
+            reason_code=reason_code,
+            visible_text=visible_text,
+            async_task_id=async_task_id,
+        )
