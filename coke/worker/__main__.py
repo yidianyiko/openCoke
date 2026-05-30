@@ -49,8 +49,8 @@ def run_worker_loop(
         block_ms=settings.worker_block_ms,
     )
     consumer.ensure_group()
-    handled = 0
-    while iterations is None or handled < iterations:
+    attempts = 0
+    while iterations is None or attempts < iterations:
         try:
             count = consumer.reclaim_pending_once(
                 lambda event: _handle_event(runtime, event),
@@ -58,11 +58,12 @@ def run_worker_loop(
             )
             if count == 0:
                 count = consumer.poll_once(lambda event: _handle_event(runtime, event))
-            handled += count
+            attempts += 1
         except Exception:
             runtime.session.rollback()
             LOGGER.exception("worker loop iteration failed")
             time.sleep(1.0)
+            attempts += 1
 
 
 def _handle_event(runtime: CokeRuntime, event: StreamEvent) -> None:

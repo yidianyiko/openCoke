@@ -16,10 +16,10 @@ from coke.config import Settings
 from coke.domains.conversation_runtime.models import OutboxRecord
 from coke.domains.reminder.models import ReminderFireGroup
 from coke.domains.reminder.scheduler import ReminderScheduler
+from coke.infra.tracing import generate_traceparent
 
 
 LOGGER = logging.getLogger(__name__)
-TRACEPARENT_SYNTHETIC = "00-00000000000000000000000000000000-0000000000000000-00"
 
 
 def scan_and_enqueue_due_turns(runtime: CokeRuntime, now: datetime | None = None) -> int:
@@ -107,7 +107,7 @@ def _append_outbox(
             topic=topic,
             idempotency_key=idempotency_key,
             payload=payload,
-            traceparent=TRACEPARENT_SYNTHETIC,
+            traceparent=generate_traceparent(),
             status="pending",
             created_at=now,
             published_at=None,

@@ -58,6 +58,17 @@ def create_app(
                 create_provider_webhook_blueprint(
                     channel_reachability_service,
                     provider_adapters,
+                    conversation_runtime_service=(
+                        composed_runtime.conversation_runtime_service
+                        if composed_runtime is not None
+                        else None
+                    ),
+                    commit_callback=(
+                        composed_runtime.session.commit
+                        if composed_runtime is not None
+                        and composed_runtime.session is not None
+                        else None
+                    ),
                 )
             )
 
