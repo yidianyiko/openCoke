@@ -1,5 +1,4 @@
-import type { ApiResponse } from '../../shared/src/types/api';
-import type { ProductActionAvailability } from '../../shared/src/types/action-availability';
+import type { ApiResponse, ProductActionAvailability } from './api-types';
 import type { LocaleMessages } from './i18n';
 import { customerApi } from './customer-api';
 

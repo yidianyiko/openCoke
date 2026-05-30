@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../../shared/src/types/api';
+import type { ApiResponse } from './api-types';
 import { customerApi } from './customer-api';
 
 export interface CustomerAgentInstance {

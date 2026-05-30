@@ -145,7 +145,7 @@ services:
       [
         "sh",
         "-lc",
-        "corepack enable && pnpm install --frozen-lockfile=false && pnpm build && pnpm start",
+        "corepack enable && CI=true pnpm install --frozen-lockfile=false && CI=true pnpm build && pnpm start",
       ]
     volumes:
       - ./web:/app

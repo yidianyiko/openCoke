@@ -9,6 +9,11 @@ export type ApiResponse<T> =
       issues?: unknown;
     };
 
+export type ProductActionAvailability<Action extends string, Reason extends string> = {
+  actions: Record<Action, boolean>;
+  unavailableReasons: Partial<Record<Action, Reason[]>>;
+};
+
 export type PublicUserLinkResponse = {
   code: string;
   status: 'active' | 'disabled' | 'expired';
