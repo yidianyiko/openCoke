@@ -6,10 +6,13 @@ from typing import Mapping
 
 from agno.models.openai.like import OpenAILike
 
+# Verified against the live SiliconFlow model catalog (/v1/models): the GLM-5.1
+# serverless id carries the `Pro/` prefix; `zai-org/GLM-5.1` returns
+# "Model does not exist". Detector stays on GLM-5.1 thinking-off (locked).
 SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
-DEFAULT_INTERACTION_MODEL = "zai-org/GLM-5.1"
-DEFAULT_INTERPRETER_MODEL = "zai-org/GLM-5.1"
-DEFAULT_DETECTOR_MODEL = "zai-org/GLM-5.1"
+DEFAULT_INTERACTION_MODEL = "Pro/zai-org/GLM-5.1"
+DEFAULT_INTERPRETER_MODEL = "Pro/zai-org/GLM-5.1"
+DEFAULT_DETECTOR_MODEL = "Pro/zai-org/GLM-5.1"
 
 
 class LLMConfigurationError(RuntimeError):

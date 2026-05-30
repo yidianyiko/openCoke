@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from coke.config import ConfigurationError, Settings
 from coke.domains.calendar_import.google import GoogleCalendarClientPort
@@ -533,9 +534,10 @@ def compose_coke_runtime(
     lock_ttl_ms: int = 30_000,
 ) -> CokeRuntime:
     now = now or (lambda: datetime.now(UTC))
-    id_factory = id_factory or (
-        lambda prefix: f"{prefix}_{datetime.now(UTC).timestamp()}"
-    )
+    # Row ids must be valid UUIDs because every domain `id` primary-key column is
+    # UUID in the clean schema; a `{prefix}_{timestamp}` string only works for the
+    # in-memory dict-key repos and fails the Postgres-backed repositories.
+    id_factory = id_factory or (lambda prefix: uuid4().hex)
 
     repositories = repositories or CokeRepositories(
         identity_access=InMemoryIdentityAccessRepository(now=now),
