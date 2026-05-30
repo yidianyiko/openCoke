@@ -13,49 +13,111 @@ import {
   applyCustomerWechatChannelRefreshFailure,
 } from './customer-wechat-channel-machine';
 import { customerApi } from './customer-api';
+import { storeCustomerAuth } from './customer-auth';
 import { messages } from './i18n';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  localStorage.clear();
 });
 
 describe('customer-wechat-channel api helpers', () => {
-  it('calls the neutral personal channel create/connect/status/disconnect/archive endpoints', async () => {
+  it('calls the clean channel endpoints with the stored account id', async () => {
+    storeCustomerAuth({
+      token: 'session_1',
+      customerId: 'acct_1',
+      identityId: 'acct_1',
+      claimStatus: 'active',
+      email: 'alice@example.com',
+      membershipRole: 'owner',
+    });
     const customerPostSpy = vi.spyOn(customerApi, 'post').mockResolvedValue({
-      ok: true,
-      data: { status: 'missing' },
+      account_id: 'acct_1',
+      channel_id: null,
+      provider_type: 'wechat_personal',
+      connection_state: 'connecting',
+      reachable: false,
+      pairing_code: 'pairing_abc123',
+      pairing_expires_at: 1_780_000_000,
+      instructions: 'add the Coke WeChat bot and send this code',
     } as never);
-    const customerGetSpy = vi.spyOn(customerApi, 'get').mockResolvedValue({
-      ok: true,
-      data: { status: 'missing' },
-    } as never);
-    const customerDeleteSpy = vi.spyOn(customerApi, 'delete').mockResolvedValue({
-      ok: true,
-      data: { status: 'archived' },
-    } as never);
+    const customerGetSpy = vi.spyOn(customerApi, 'get')
+      .mockResolvedValueOnce({
+        account_id: 'acct_1',
+        channel_id: null,
+        provider_type: null,
+        connection_state: 'not_connected',
+        reachable: false,
+      } as never)
+      .mockResolvedValueOnce({
+        account_id: 'acct_1',
+        channel_id: 'channel_1',
+        provider_type: 'wechat_personal',
+        connection_state: 'connected',
+        reachable: true,
+      } as never)
+      .mockResolvedValueOnce({
+        account_id: 'acct_1',
+        channel_id: 'channel_1',
+        provider_type: 'wechat_personal',
+        connection_state: 'connected',
+        reachable: true,
+      } as never);
 
-    await createCustomerWechatChannel();
+    await expect(createCustomerWechatChannel()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        status: 'pending',
+        pairing_code: 'pairing_abc123',
+        expires_at: 1_780_000_000,
+      },
+    });
     await connectCustomerWechatChannel();
-    await getCustomerWechatChannelStatus();
+    await expect(getCustomerWechatChannelStatus()).resolves.toEqual({
+      ok: true,
+      data: { status: 'missing' },
+    });
     await disconnectCustomerWechatChannel();
     await archiveCustomerWechatChannel();
 
-    expect(customerPostSpy).toHaveBeenNthCalledWith(1, '/api/customer/channels/wechat-personal');
-    expect(customerPostSpy).toHaveBeenNthCalledWith(2, '/api/customer/channels/wechat-personal/connect');
-    expect(customerPostSpy).toHaveBeenNthCalledWith(3, '/api/customer/channels/wechat-personal/disconnect');
-    expect(customerGetSpy).toHaveBeenCalledWith('/api/customer/channels/wechat-personal/status');
-    expect(customerDeleteSpy).toHaveBeenCalledWith('/api/customer/channels/wechat-personal');
+    expect(customerPostSpy).toHaveBeenNthCalledWith(1, '/api/channels/wechat-personal/connect', {
+      account_id: 'acct_1',
+    });
+    expect(customerPostSpy).toHaveBeenNthCalledWith(2, '/api/channels/wechat-personal/connect', {
+      account_id: 'acct_1',
+    });
+    expect(customerPostSpy).toHaveBeenNthCalledWith(3, '/api/channels/channel_1/remove', {
+      account_id: 'acct_1',
+    });
+    expect(customerPostSpy).toHaveBeenNthCalledWith(4, '/api/channels/channel_1/remove', {
+      account_id: 'acct_1',
+    });
+    expect(customerGetSpy).toHaveBeenNthCalledWith(1, '/api/channels/status?account_id=acct_1');
+    expect(customerGetSpy).toHaveBeenNthCalledWith(2, '/api/channels/status?account_id=acct_1');
+    expect(customerGetSpy).toHaveBeenNthCalledWith(3, '/api/channels/status?account_id=acct_1');
   });
 
   it('normalizes an empty archive success into an archived channel state', async () => {
-    const customerDeleteSpy = vi.spyOn(customerApi, 'delete').mockResolvedValue(undefined as never);
+    storeCustomerAuth({
+      token: 'session_1',
+      customerId: 'acct_1',
+      identityId: 'acct_1',
+      claimStatus: 'active',
+      email: 'alice@example.com',
+      membershipRole: 'owner',
+    });
+    vi.spyOn(customerApi, 'get').mockResolvedValue({
+      account_id: 'acct_1',
+      channel_id: null,
+      provider_type: null,
+      connection_state: 'not_connected',
+      reachable: false,
+    } as never);
 
     await expect(archiveCustomerWechatChannel()).resolves.toEqual({
       ok: true,
       data: { status: 'archived' },
     });
-
-    expect(customerDeleteSpy).toHaveBeenCalledWith('/api/customer/channels/wechat-personal');
   });
 });
 
@@ -72,8 +134,8 @@ describe('getCustomerWechatChannelViewModel', () => {
       primaryActionLabel: 'Connect WeChat',
     });
     expect(getCustomerWechatChannelViewModel({ status: 'pending' }, copy)).toMatchObject({
-      title: 'Scan the QR code to connect',
-      primaryActionLabel: 'Refresh QR',
+      title: 'Send the pairing code to connect',
+      primaryActionLabel: 'Refresh code',
     });
     expect(
       getCustomerWechatChannelViewModel(
@@ -113,7 +175,7 @@ describe('customer-wechat-channel state machine', () => {
   it('uses the mutation response immediately, including pending connect payloads', () => {
     const mutationResult = {
       status: 'pending',
-      connect_url: 'https://wx.example.com/connect?session=abc',
+      pairing_code: 'pairing_abc123',
       expires_at: 1234567890,
     } as const;
 
@@ -123,7 +185,7 @@ describe('customer-wechat-channel state machine', () => {
   it('preserves an existing pending session when a transient refresh fails', () => {
     const current = {
       status: 'pending',
-      connect_url: 'https://wx.example.com/connect?session=abc',
+      pairing_code: 'pairing_abc123',
       expires_at: 1234567890,
     } as const;
 

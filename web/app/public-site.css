@@ -455,6 +455,21 @@
   color: var(--ink-700);
 }
 
+.coke-site .customer-channel-page__pairing-code {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--ink-08);
+  background: #fff;
+  color: var(--ink-900);
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .coke-site .customer-channel-page__qr-frame {
   display: flex;
   align-items: center;

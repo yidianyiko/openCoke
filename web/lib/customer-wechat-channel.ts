@@ -1,6 +1,7 @@
 import type { ApiResponse, ProductActionAvailability } from './api-types';
 import type { LocaleMessages } from './i18n';
 import { customerApi } from './customer-api';
+import { getStoredCustomerSession } from './customer-auth';
 
 type CustomerWechatChannelStatus =
   | 'missing'
@@ -13,7 +14,10 @@ type CustomerWechatChannelStatus =
 export interface CustomerWechatChannelState {
   status: CustomerWechatChannelStatus;
   connect_url?: string;
+  pairing_code?: string;
+  instructions?: string;
   expires_at?: number;
+  channel_id?: string;
   masked_identity?: string;
   error?: string;
   message?: string;
@@ -32,6 +36,102 @@ interface CustomerWechatChannelViewModel {
 }
 
 type CustomerWechatChannelViewModelMessages = LocaleMessages['customerPages']['bindWechat']['viewModel'];
+
+type CleanChannelError = {
+  error: {
+    code: string;
+  };
+};
+
+type CleanChannelStatus = {
+  account_id: string;
+  channel_id: string | null;
+  provider_type: string | null;
+  connection_state: string;
+  reachable: boolean;
+  pairing_code?: string;
+  pairing_expires_at?: number;
+  instructions?: string;
+};
+
+type CleanChannelBody = {
+  channel_id: string;
+  account_id: string;
+  provider_type: string;
+  channel_identity_id: string;
+  lifecycle: string;
+  connection_state: string;
+  removable: boolean;
+};
+
+function isCleanChannelError(value: unknown): value is CleanChannelError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as CleanChannelError).error?.code === 'string'
+  );
+}
+
+function currentAccountId(): string | null {
+  return getStoredCustomerSession()?.customerId ?? null;
+}
+
+function accountRequired<T>(): ApiResponse<T> {
+  return { ok: false, error: 'missing_session' };
+}
+
+function cleanStatusToCustomerState(
+  status: CleanChannelStatus | CleanChannelError,
+): ApiResponse<CustomerWechatChannelState> {
+  if (isCleanChannelError(status)) {
+    return { ok: false, error: status.error.code };
+  }
+
+  const state: CustomerWechatChannelState = {
+    status: 'missing',
+    channel_id: status.channel_id ?? undefined,
+  };
+
+  if (status.connection_state === 'connecting') {
+    state.status = 'pending';
+    state.pairing_code = status.pairing_code;
+    state.expires_at = status.pairing_expires_at;
+    state.instructions = status.instructions;
+  } else if (status.connection_state === 'connected') {
+    state.status = 'connected';
+  } else if (status.connection_state === 'not_connected' && status.channel_id != null) {
+    state.status = 'disconnected';
+  } else if (
+    status.connection_state === 'connection_failed' ||
+    status.connection_state === 'reconnection_required'
+  ) {
+    state.status = 'error';
+    state.error = status.connection_state;
+  } else if (status.connection_state === 'removed') {
+    state.status = 'archived';
+  }
+
+  return { ok: true, data: state };
+}
+
+function removedChannelToState(
+  channel: CleanChannelBody | CleanChannelError | undefined,
+): ApiResponse<CustomerWechatChannelState> {
+  if (channel == null) {
+    return { ok: true, data: { status: 'archived' } };
+  }
+  if (isCleanChannelError(channel)) {
+    return { ok: false, error: channel.error.code };
+  }
+  return {
+    ok: true,
+    data: {
+      status: channel.connection_state === 'removed' ? 'archived' : 'disconnected',
+      channel_id: channel.channel_id,
+    },
+  };
+}
 
 function normalizeEmptyArchiveResponse(
   response: ApiResponse<CustomerWechatChannelState> | undefined,
@@ -101,29 +201,54 @@ export function getCustomerWechatChannelViewModel(
 }
 
 export function createCustomerWechatChannel(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  return customerApi.post<ApiResponse<CustomerWechatChannelState>>('/api/customer/channels/wechat-personal');
+  return connectCustomerWechatChannel();
 }
 
 export function connectCustomerWechatChannel(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  return customerApi.post<ApiResponse<CustomerWechatChannelState>>(
-    '/api/customer/channels/wechat-personal/connect',
-  );
+  const accountId = currentAccountId();
+  if (!accountId) {
+    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
+  }
+  return customerApi
+    .post<CleanChannelStatus | CleanChannelError>('/api/channels/wechat-personal/connect', {
+      account_id: accountId,
+    })
+    .then(cleanStatusToCustomerState);
 }
 
 export function getCustomerWechatChannelStatus(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  return customerApi.get<ApiResponse<CustomerWechatChannelState>>(
-    '/api/customer/channels/wechat-personal/status',
-  );
+  const accountId = currentAccountId();
+  if (!accountId) {
+    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
+  }
+  return customerApi
+    .get<CleanChannelStatus | CleanChannelError>(
+      `/api/channels/status?account_id=${encodeURIComponent(accountId)}`,
+    )
+    .then(cleanStatusToCustomerState);
 }
 
 export function disconnectCustomerWechatChannel(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  return customerApi.post<ApiResponse<CustomerWechatChannelState>>(
-    '/api/customer/channels/wechat-personal/disconnect',
-  );
+  const accountId = currentAccountId();
+  if (!accountId) {
+    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
+  }
+  return getCustomerWechatChannelStatus().then((status) => {
+    if (!status.ok) {
+      return status;
+    }
+    if (!status.data.channel_id) {
+      return { ok: true, data: { status: 'archived' } };
+    }
+    return customerApi
+      .post<CleanChannelBody | CleanChannelError>(
+        `/api/channels/${encodeURIComponent(status.data.channel_id)}/remove`,
+        { account_id: accountId },
+      )
+      .then(removedChannelToState);
+  });
 }
 
 export function archiveCustomerWechatChannel(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  return customerApi
-    .delete<ApiResponse<CustomerWechatChannelState> | undefined>('/api/customer/channels/wechat-personal')
-    .then(normalizeEmptyArchiveResponse);
+  return disconnectCustomerWechatChannel().then(normalizeEmptyArchiveResponse);
 }

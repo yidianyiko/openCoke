@@ -4,6 +4,8 @@ import {
   clearCustomerAuth,
   getCustomerToken,
   getCustomerProfile,
+  loginCustomer,
+  registerCustomer,
   getStoredCustomerProfile,
   getStoredCustomerSession,
   storeCustomerAuth,
@@ -21,6 +23,7 @@ describe('customer auth storage', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.mocked(customerApi.get).mockReset();
+    vi.mocked(customerApi.post).mockReset();
   });
 
   it('stores customer profile state separately from the session token', () => {
@@ -120,30 +123,89 @@ describe('customer auth storage', () => {
     expect(getStoredCustomerProfile()).toBeNull();
   });
 
-  it('fetches the hydrated customer profile from the neutral me endpoint', async () => {
-    vi.mocked(customerApi.get).mockResolvedValueOnce({
+  it('maps login credentials and the clean auth response into customer session state', async () => {
+    vi.mocked(customerApi.post).mockResolvedValueOnce({
+      account_id: 'acct_1',
+      session_token: 'session_1',
+    });
+
+    await expect(
+      loginCustomer({
+        email: 'alice@example.com',
+        password: 'secret',
+      }),
+    ).resolves.toEqual({
       ok: true,
       data: {
-        id: 'ck_1',
-        customerId: 'ck_1',
-        identityId: 'idt_1',
+        token: 'session_1',
+        customerId: 'acct_1',
+        identityId: 'acct_1',
         claimStatus: 'active',
         email: 'alice@example.com',
         membershipRole: 'owner',
-        display_name: 'Alice',
-        email_verified: true,
-        status: 'normal',
-        subscription_active: true,
-        subscription_expires_at: null,
       },
     });
+    expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith('/api/auth/login', {
+      email: 'alice@example.com',
+      password_hash: 'secret',
+    });
+  });
+
+  it('maps register input to the clean account registration endpoint', async () => {
+    vi.mocked(customerApi.post).mockResolvedValueOnce({
+      account_id: 'acct_2',
+      session_token: 'session_2',
+      email_verification_artifact_id: 'artifact_1',
+    });
+
+    await expect(
+      registerCustomer({
+        displayName: 'Alice',
+        email: 'alice@example.com',
+        password: 'secret',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        token: 'session_2',
+        customerId: 'acct_2',
+        identityId: 'acct_2',
+        email: 'alice@example.com',
+      },
+    });
+    expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith('/api/auth/register', {
+      email: 'alice@example.com',
+      password_hash: 'secret',
+      default_timezone: expect.any(String),
+    });
+  });
+
+  it('hydrates the customer profile from current-user and access-status', async () => {
+    storeCustomerAuth({
+      token: 'customer-token',
+      customerId: 'acct_1',
+      identityId: 'acct_1',
+      claimStatus: 'active',
+      email: 'alice@example.com',
+      membershipRole: 'owner',
+    });
+    vi.mocked(customerApi.get)
+      .mockResolvedValueOnce({
+        account_id: 'acct_1',
+        origin: 'web_first',
+      })
+      .mockResolvedValueOnce({
+        account_id: 'acct_1',
+        access_allowed: true,
+        denial_reason: null,
+      });
 
     await expect(getCustomerProfile()).resolves.toEqual({
       ok: true,
       data: {
-        id: 'ck_1',
-        customerId: 'ck_1',
-        identityId: 'idt_1',
+        id: 'acct_1',
+        customerId: 'acct_1',
+        identityId: 'acct_1',
         claimStatus: 'active',
         email: 'alice@example.com',
         membershipRole: 'owner',
@@ -154,6 +216,10 @@ describe('customer auth storage', () => {
         subscription_expires_at: null,
       },
     });
-    expect(vi.mocked(customerApi.get)).toHaveBeenCalledWith('/api/auth/me');
+    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(1, '/api/auth/current-user');
+    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(
+      2,
+      '/api/auth/access-status?account_id=acct_1',
+    );
   });
 });

@@ -304,6 +304,28 @@ describe('CustomerWechatPersonalPage branded layout', () => {
     expect(container.textContent).toContain('What you can do next');
     expect(container.textContent).toContain('Need an account?');
   });
+
+  it('renders a pending personal-WeChat pairing code', async () => {
+    getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'pending',
+        pairing_code: 'pairing_abc123',
+        expires_at: 1710000000,
+        instructions: 'add the Coke WeChat bot and send this code',
+      },
+    });
+
+    renderWithLocale(root, 'en');
+    await waitForText(container, 'pairing_abc123');
+
+    expect(container.textContent).toContain('Send the pairing code to connect');
+    expect(container.textContent).toContain('add the Coke WeChat bot and send this code');
+    expect(container.textContent).toContain('pairing_abc123');
+    expect(container.textContent).toContain('Refresh code');
+    expect(container.querySelector('.customer-channel-page__pairing-code')).toBeTruthy();
+    expect(container.querySelector('.customer-channel-page__qr-image')).toBeFalsy();
+  });
 });
 
 describe('CustomerWechatPersonalPage sign out', () => {
@@ -649,12 +671,12 @@ describe('CustomerWechatPersonalPage refresh ordering', () => {
     container?.remove();
   });
 
-  it('keeps fresher mutation QR data when an older poll resolves later', async () => {
+  it('keeps fresher mutation pairing data when an older poll resolves later', async () => {
     const staleRefresh = createDeferred<{
       ok: true;
       data: {
         status: 'pending';
-        connect_url: string;
+        pairing_code: string;
         expires_at: number;
       };
     }>();
@@ -664,7 +686,7 @@ describe('CustomerWechatPersonalPage refresh ordering', () => {
         ok: true,
         data: {
           status: 'pending',
-          connect_url: 'https://wx.example.com/connect/initial',
+          pairing_code: 'pairing_initial',
           expires_at: 1710000000,
         },
       })
@@ -674,7 +696,7 @@ describe('CustomerWechatPersonalPage refresh ordering', () => {
       ok: true,
       data: {
         status: 'pending',
-        connect_url: 'https://wx.example.com/connect/fresh',
+        pairing_code: 'pairing_fresh',
         expires_at: 1710003600,
       },
     });
@@ -689,7 +711,7 @@ describe('CustomerWechatPersonalPage refresh ordering', () => {
     intervalCallbacks[0]();
 
     const refreshButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Refresh QR'),
+      button.textContent?.includes('Refresh code'),
     );
     expect(refreshButton).toBeTruthy();
     refreshButton?.click();
@@ -699,7 +721,7 @@ describe('CustomerWechatPersonalPage refresh ordering', () => {
       ok: true,
       data: {
         status: 'pending',
-        connect_url: 'https://wx.example.com/connect/stale',
+        pairing_code: 'pairing_stale',
         expires_at: 1709990000,
       },
     });

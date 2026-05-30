@@ -1,10 +1,8 @@
 'use client';
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import QRCode from 'qrcode';
 import type { ApiResponse } from '../../../../lib/api-types';
 import { useLocale } from '../../../../components/locale-provider';
 import {
@@ -177,7 +175,6 @@ export default function CustomerWechatPersonalPage() {
   const [user, setUser] = useState<CustomerProfile | null>(() => getStoredCustomerProfile());
   const [profileReady, setProfileReady] = useState<boolean>(false);
   const [channel, setChannel] = useState<CustomerWechatChannelState | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<'create' | 'connect' | 'disconnect' | 'archive' | null>(null);
@@ -331,33 +328,18 @@ export default function CustomerWechatPersonalPage() {
   }, [blockedAccessState, hasToken, profileReady, refreshChannel, user]);
 
   useEffect(() => {
-    if (channel?.status !== 'pending' || !channel.connect_url) {
-      setQrDataUrl(null);
+    if (channel?.status !== 'pending') {
       return;
     }
-
-    let cancelled = false;
-    void QRCode.toDataURL(channel.connect_url)
-      .then((url) => {
-        if (!cancelled) {
-          setQrDataUrl(url);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setQrDataUrl(null);
-        }
-      });
 
     const timer = window.setInterval(() => {
       void refreshChannel({ silent: true });
     }, 3000);
 
     return () => {
-      cancelled = true;
       window.clearInterval(timer);
     };
-  }, [channel?.connect_url, channel?.status, refreshChannel]);
+  }, [channel?.status, refreshChannel]);
 
   function handleSignOut() {
     clearCustomerAuth();
@@ -512,30 +494,27 @@ export default function CustomerWechatPersonalPage() {
 
       {channel.status === 'pending' ? (
         <div className="customer-channel-page__section">
-          <div className="customer-channel-page__qr-frame">
-            {qrDataUrl ? (
-              <Image
-                src={qrDataUrl}
-                alt={copy.qr.imageAlt}
-                width={288}
-                height={288}
-                unoptimized
-                className="customer-channel-page__qr-image"
-              />
+          <div className="customer-channel-page__surface customer-channel-page__surface--neutral">
+            <p className="customer-channel-page__surface-eyebrow">{copy.pairing.codeLabel}</p>
+            {channel.pairing_code ? (
+              <p className="customer-channel-page__pairing-code">{channel.pairing_code}</p>
             ) : (
-              <p className="customer-channel-page__surface-copy">{copy.qr.preparing}</p>
+              <p className="customer-channel-page__surface-copy">{copy.pairing.preparing}</p>
             )}
+            <p className="customer-channel-page__surface-copy">
+              {channel.instructions ?? copy.pairing.instructions}
+            </p>
           </div>
 
           {channel.expires_at ? (
             <p className="customer-channel-page__meta">
-              {copy.qr.expiresPrefix} {normalizeExpiresAt(channel.expires_at).toLocaleString(dateLocale)}.
+              {copy.pairing.expiresPrefix} {normalizeExpiresAt(channel.expires_at).toLocaleString(dateLocale)}.
             </p>
           ) : null}
 
           {refreshError ? (
             <p className="auth-alert auth-alert--warning customer-channel-page__alert">
-              {refreshError} {copy.qr.activeSuffix}
+              {refreshError} {copy.pairing.activeSuffix}
             </p>
           ) : null}
         </div>

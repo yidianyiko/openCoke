@@ -59,6 +59,64 @@ interface ResetCustomerPasswordInput {
   password: string;
 }
 
+type CleanAuthError = {
+  error: {
+    code: string;
+  };
+};
+
+type CleanAuthResult = {
+  account_id: string;
+  session_token: string;
+};
+
+type CleanCurrentUser = {
+  account_id: string;
+  origin: string;
+};
+
+type CleanAccessStatus = {
+  account_id: string;
+  access_allowed: boolean;
+  denial_reason: string | null;
+};
+
+function isCleanAuthError(value: unknown): value is CleanAuthError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as CleanAuthError).error?.code === 'string'
+  );
+}
+
+function currentTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+function displayNameFromEmail(email: string): string {
+  const name = email.split('@')[0]?.trim();
+  if (!name) {
+    return 'Coke user';
+  }
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function sessionFromCleanAuth(result: CleanAuthResult, email: string): CustomerAuthResult {
+  return {
+    token: result.session_token,
+    customerId: result.account_id,
+    identityId: result.account_id,
+    claimStatus: 'active',
+    email,
+    membershipRole: 'owner',
+  };
+}
+
+function errorResponse<T>(error: string): ApiResponse<T> {
+  return { ok: false, error };
+}
+
 function getStorage(): Storage | null {
   if (typeof window === 'undefined') {
     return null;
@@ -136,39 +194,143 @@ export function getStoredCustomerProfile(): CustomerProfile | null {
 export function registerCustomer(
   input: RegisterCustomerInput,
 ): Promise<ApiResponse<CustomerAuthResult>> {
-  return customerApi.post<ApiResponse<CustomerAuthResult>>('/api/auth/register', input);
+  return customerApi
+    .post<CleanAuthResult | CleanAuthError>('/api/auth/register', {
+      email: input.email,
+      password_hash: input.password,
+      default_timezone: currentTimezone(),
+    })
+    .then((result) => {
+      if (isCleanAuthError(result)) {
+        return errorResponse<CustomerAuthResult>(
+          result.error.code === 'email_already_registered'
+            ? 'email_already_exists'
+            : result.error.code,
+        );
+      }
+      return { ok: true, data: sessionFromCleanAuth(result, input.email) };
+    });
 }
 
 export function loginCustomer(
   input: LoginCustomerInput,
 ): Promise<ApiResponse<CustomerAuthResult>> {
-  return customerApi.post<ApiResponse<CustomerAuthResult>>('/api/auth/login', input);
+  return customerApi
+    .post<CleanAuthResult | CleanAuthError>('/api/auth/login', {
+      email: input.email,
+      password_hash: input.password,
+    })
+    .then((result) => {
+      if (isCleanAuthError(result)) {
+        return errorResponse<CustomerAuthResult>(result.error.code);
+      }
+      return { ok: true, data: sessionFromCleanAuth(result, input.email) };
+    });
 }
 
 export function verifyCustomerEmail(
   input: VerifyCustomerEmailInput,
 ): Promise<ApiResponse<CustomerAuthResult>> {
-  return customerApi.post<ApiResponse<CustomerAuthResult>>('/api/auth/verify-email', input);
+  const session = getStoredCustomerSession();
+  return customerApi
+    .post<{ account_id: string; email: string } | CleanAuthError>(
+      '/api/auth/email-verification/verify',
+      { token: input.token },
+    )
+    .then((result) => {
+      if (isCleanAuthError(result)) {
+        return errorResponse<CustomerAuthResult>(result.error.code);
+      }
+      if (!session || session.email.toLowerCase() !== input.email.toLowerCase()) {
+        return errorResponse<CustomerAuthResult>('verified_login_required');
+      }
+      return {
+        ok: true,
+        data: {
+          ...session,
+          token: getCustomerToken() ?? '',
+          claimStatus: 'active',
+          email: result.email,
+        },
+      };
+    });
 }
 
 export function resendCustomerVerification(
   input: CustomerEmailInput,
 ): Promise<ApiResponse<CustomerAuthMessageResult>> {
-  return customerApi.post<ApiResponse<CustomerAuthMessageResult>>('/api/auth/resend-verification', input);
+  void input;
+  return Promise.resolve(errorResponse<CustomerAuthMessageResult>('unsupported_operation'));
 }
 
 export function requestCustomerPasswordReset(
   input: CustomerEmailInput,
 ): Promise<ApiResponse<CustomerAuthMessageResult>> {
-  return customerApi.post<ApiResponse<CustomerAuthMessageResult>>('/api/auth/forgot-password', input);
+  return customerApi
+    .post<{ accepted: boolean } | CleanAuthError>('/api/auth/password-reset/request', input)
+    .then((result) => {
+      if (isCleanAuthError(result)) {
+        return errorResponse<CustomerAuthMessageResult>(result.error.code);
+      }
+      return { ok: true, data: { message: 'accepted' } };
+    });
 }
 
 export function resetCustomerPassword(
   input: ResetCustomerPasswordInput,
 ): Promise<ApiResponse<CustomerAuthMessageResult>> {
-  return customerApi.post<ApiResponse<CustomerAuthMessageResult>>('/api/auth/reset-password', input);
+  return customerApi
+    .post<{ account_id: string; email: string } | CleanAuthError>(
+      '/api/auth/password-reset/complete',
+      {
+        token: input.token,
+        password_hash: input.password,
+      },
+    )
+    .then((result) => {
+      if (isCleanAuthError(result)) {
+        return errorResponse<CustomerAuthMessageResult>(result.error.code);
+      }
+      return { ok: true, data: { message: 'password_reset' } };
+    });
 }
 
 export function getCustomerProfile(): Promise<ApiResponse<CustomerProfile>> {
-  return customerApi.get<ApiResponse<CustomerProfile>>('/api/auth/me');
+  const session = getStoredCustomerSession();
+  if (!session) {
+    return Promise.resolve(errorResponse<CustomerProfile>('missing_session'));
+  }
+  return customerApi
+    .get<CleanCurrentUser | CleanAuthError>('/api/auth/current-user')
+    .then((currentUser) => {
+      if (isCleanAuthError(currentUser)) {
+        return errorResponse<CustomerProfile>(currentUser.error.code);
+      }
+      return customerApi
+        .get<CleanAccessStatus | CleanAuthError>(
+          `/api/auth/access-status?account_id=${encodeURIComponent(currentUser.account_id)}`,
+        )
+        .then((access) => {
+          if (isCleanAuthError(access)) {
+            return errorResponse<CustomerProfile>(access.error.code);
+          }
+          const denialReason = access.denial_reason;
+          return {
+            ok: true,
+            data: {
+              id: currentUser.account_id,
+              customerId: currentUser.account_id,
+              identityId: currentUser.account_id,
+              claimStatus: access.access_allowed ? 'active' : 'pending',
+              email: session.email,
+              membershipRole: session.membershipRole,
+              display_name: displayNameFromEmail(session.email),
+              email_verified: denialReason !== 'email_verification_required',
+              status: denialReason === 'suspended' ? 'suspended' : 'normal',
+              subscription_active: denialReason !== 'subscription_inactive',
+              subscription_expires_at: null,
+            },
+          } satisfies ApiResponse<CustomerProfile>;
+        });
+    });
 }
