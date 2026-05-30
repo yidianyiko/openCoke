@@ -14,6 +14,7 @@
 **Status Date:** 2026-05-30
 **Freshness Check:** Checked against current `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md` Task 7 and architecture-watch notes, requirements §5.4, target architecture §1/§3.3/§4/§9 invariants, `coke/schema.py`, Task 6 conversation runtime, and existing domain layering patterns.
 **Verification Note:** Turn implementation and backend unit surface pass. The routed `repo-os-docs` check is blocked by existing ownership-registry references to removed legacy `memo-runtime` and nested `gateway` files; that cleanup is outside Task 7's allowed file scope.
+**Live Debugging Addendum (2026-05-30):** The local live stack showed real GLM-5.1 Interaction Agent turns failing before reminder creation because fenced JSON was rejected and the actual inbound text was buried inside a JSON context blob. Live verification also exposed an Agno `kwargs` tool-argument wrapper and a detector prompt-shape issue for non-recurring reminders. This addendum keeps the fix inside the turn-runtime/Interaction Agent + detector/tool boundary: strict output validation remains unchanged, reminder field extraction remains inside the reminder tool, and no fallback prose or regex intent routing is added.
 
 **Source Specs:**
 - `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
@@ -218,6 +219,119 @@ Set:
 Only after verification passes.
 
 - [ ] **Step 5: Commit**
+
+## Task 5: Live GLM-5.1 Interaction Agent Debugging
+
+**Files:**
+- Modify: `coke/llm/agno_interaction_agent.py`
+- Modify: `tests/unit/coke/llm/test_interaction_agent.py`
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-turn-runtime.md`
+
+- [x] **Step 1: Add failing tests for fenced JSON output and primary user input**
+
+Add tests that prove:
+
+```python
+def test_fenced_json_agno_response_maps_to_output():
+    fake_agent = FakeAgentInstance(
+        content='```json\n{"type":"reply","segments":["ok"]}\n```'
+    )
+    agent = AgnoInteractionAgent(model=object(), agent_factory=FakeAgentFactory(fake_agent))
+
+    result = agent.invoke(_request(memory_enabled=True))
+
+    assert result.output == {"type": "reply", "segments": ["ok"]}
+
+
+def test_inbound_text_is_sent_as_primary_agent_input_with_context_supporting():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(_request(memory_enabled=True, text="提醒我明天早上9点跑步"))
+
+    prompt = fake_agent.calls[0]["input"]
+    assert prompt.startswith("User message:\n提醒我明天早上9点跑步")
+    assert "Trusted context:" in prompt
+    assert '"payload"' not in prompt.split("Trusted context:", 1)[0]
+```
+
+- [x] **Step 2: Run the focused tests and verify they fail**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py -v
+```
+
+Expected: the fenced JSON test fails with `result.output is None`; the primary input test fails because the prompt is the whole JSON payload.
+
+- [x] **Step 3: Implement minimal Interaction Agent fix**
+
+Change only the agent side:
+
+```python
+def _agent_input(request: AgentRequest) -> str:
+    user_text = _user_text(request)
+    support_payload = _input_payload(request)
+    return "\n\n".join(
+        (
+            f"User message:\n{user_text}",
+            "Trusted context:\n"
+            + json.dumps(support_payload, ensure_ascii=False, default=str),
+        )
+    )
+```
+
+Use `_agent_input(request)` in `agent.run(...)`, add a narrow helper that extracts `request.payload["text"]` when it is a string, and update `_mapping_or_none` to strip a markdown JSON code fence or surrounding prose before `json.loads`. Do not change `coke/turn/output_protocol.py`.
+
+- [x] **Step 4: Verify the focused tests pass**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py -v
+```
+
+Expected: all interaction-agent unit tests pass.
+
+- [x] **Step 5: Run full unit verification**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+```
+
+Expected: full unit suite passes.
+
+- [x] **Step 6: Restart the live worker and verify live reminder and greeting turns**
+
+Run the worker restart commands from the live-debugging request, then post:
+
+```bash
+TS=$(date +%s); curl -sS -X POST http://127.0.0.1:8000/webhooks/whatsapp/evolution -H 'Content-Type: application/json' -d "{\"event\":\"messages.upsert\",\"instance\":\"coke\",\"data\":{\"key\":{\"remoteJid\":\"15551239001@s.whatsapp.net\",\"fromMe\":false,\"id\":\"MSG_${TS}\"},\"pushName\":\"olivers\",\"message\":{\"conversation\":\"提醒我明天早上9点跑步\"},\"messageTimestamp\":${TS}}}"
+```
+
+Then inspect:
+
+```bash
+psql -h /var/run/postgresql -d coke_local -c "SELECT kind,content,next_fire_at FROM reminder; SELECT disposition,reason_code FROM output_disposition ORDER BY created_at DESC LIMIT 3; SELECT direction,substring(text,1,120) FROM message WHERE direction='outbound' ORDER BY created_at DESC LIMIT 3;"
+```
+
+Expected: exactly one new timed running reminder around tomorrow 09:00, latest turn disposition `replied`, and an outbound message row. Repeat with `你好`; expected: `replied`, outbound message row, and no new reminder.
+
+- [x] **Step 7: Mark plan complete and commit**
+
+After unit and live verification pass, set:
+
+```markdown
+**Plan Status:** complete
+```
+
+Then commit the plan, test, and agent changes in one coherent commit.
 
 Run:
 

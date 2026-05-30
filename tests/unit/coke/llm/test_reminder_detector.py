@@ -41,6 +41,26 @@ def test_extract_maps_structured_model_output_to_detected_reminder_fields():
     assert client.calls[0]["user"]["captured_timezone"] == "Asia/Tokyo"
 
 
+def test_extract_prompt_requires_empty_recurrence_object_for_non_recurring_items():
+    client = FakeJSONClient(
+        {
+            "content": "pay rent",
+            "trigger_time": "2026-06-01T09:00:00+09:00",
+            "recurrence_rule": {},
+            "duration_minutes": None,
+            "kind": "timed",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    detector.extract("remind me to pay rent", "Asia/Tokyo", datetime(2026, 5, 30, 10, 0, tzinfo=UTC))
+
+    assert "Use {} for one-time or non-recurring reminders" in client.calls[0]["system"]
+    assert client.calls[0]["user"]["schema"]["recurrence_rule"] == (
+        "object; use {} for non-recurring reminders; never null"
+    )
+
+
 def test_extract_rejects_invalid_output_without_regex_recovery():
     client = FakeJSONClient(
         {

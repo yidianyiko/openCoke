@@ -12,6 +12,7 @@ from coke.domains.reminder.models import (
 )
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
+from coke.llm.semantic_interpreter import LLMOutputError
 
 NOW = datetime(2026, 5, 30, 12, 0, tzinfo=UTC)
 
@@ -214,6 +215,34 @@ def test_batch_items_commit_independently_and_detector_output_is_trusted_or_inva
         ("remind me tomorrow to book dentist", "UTC"),
         ("call mom tomorrow", "UTC"),
     ]
+
+
+def test_detector_invalid_shape_fails_item_without_tool_exception(repository):
+    class InvalidDetector:
+        def extract(self, text, captured_timezone, now):
+            raise LLMOutputError("invalid recurrence_rule")
+
+    service = ReminderService(
+        repository=repository,
+        detector=InvalidDetector(),
+        now=lambda: NOW,
+        id_factory=sequence_factory("detector"),
+    )
+
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="detect_and_create",
+                raw_text="remind me tomorrow to run",
+                captured_timezone="UTC",
+            )
+        ],
+    )
+
+    assert result.items[0].state == "failed"
+    assert result.items[0].reason == "invalid_detector_output"
+    assert repository.list_active_reminders("acct_1") == []
 
 
 def test_time_validation_blocks_past_or_incomplete_times_before_commit(service):

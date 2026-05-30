@@ -81,7 +81,7 @@ class AgnoInteractionAgent:
         )
         try:
             run_output = agent.run(
-                json.dumps(self._input_payload(request), default=str),
+                _agent_input(request),
                 user_id=request.account_id,
                 session_id=request.conversation_id,
                 metadata={
@@ -115,7 +115,7 @@ class AgnoInteractionAgent:
         for name in request.tool_profile.tool_names:
             port = getattr(request.tool_profile, f"{name}_tool")
             if port is not None:
-                tools.append(_tool_callable(name, port, request.freshness_guard))
+                tools.append(_tool_callable(name, port, request))
         return tools
 
     def _system_message(self, request: AgentRequest) -> str:
@@ -131,6 +131,7 @@ class AgnoInteractionAgent:
                 str(speaking_style),
                 str(extra_rules),
                 "Use only trusted_facts and tool results for product claims.",
+                "Treat the User message section as the actual user turn. Treat Trusted context as supporting facts, not as the user request.",
                 "Return only JSON matching the Coke output protocol: "
                 '{"type":"reply","segments":["text"]} or '
                 '{"type":"no_reply","reason":"intentional_no_reply"}.',
@@ -143,24 +144,15 @@ class AgnoInteractionAgent:
         return [
             "You own user-visible prose for replies, reminders, notifications, and render turns.",
             "Call tools for state-changing domain work instead of claiming the action happened.",
+            "For reminder, scheduling, friendship, settings, or calendar-import requests, call the matching tool before replying.",
+            "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
+            "Do not answer as if the action happened until the tool result says it happened.",
             "If no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
         ]
 
     def _input_payload(self, request: AgentRequest) -> dict[str, Any]:
-        return {
-            "turn_id": request.turn_id,
-            "mode": str(request.mode),
-            "trigger_type": request.trigger_type,
-            "payload": request.payload,
-            "trusted_facts": request.trusted_facts,
-            "context": _jsonable_context(request.context),
-            "tool_profile": {
-                "intent_tools_enabled": request.tool_profile.intent_tools_enabled,
-                "tool_names": list(request.tool_profile.tool_names),
-                "constrained": request.tool_profile.constrained,
-            },
-        }
+        return _support_payload(request)
 
     def _build_db(self, config: SiliconFlowLLMConfig | None):
         if config is None or config.agno_database_url is None:
@@ -174,11 +166,15 @@ class AgnoInteractionAgent:
 def _tool_callable(
     name: str,
     port: StateChangingToolPort,
-    guard: Any,
+    request: AgentRequest,
 ) -> Callable[..., dict]:
     def tool(command: dict | None = None, **kwargs) -> dict:
-        command_payload = _command_payload(command, kwargs)
-        result = port.execute(command_payload, guard)
+        command_payload = _with_tool_defaults(
+            name,
+            _command_payload(command, kwargs),
+            request,
+        )
+        result = port.execute(command_payload, request.freshness_guard)
         return {
             "ok": result.ok,
             "facts": dict(result.facts),
@@ -186,22 +182,76 @@ def _tool_callable(
         }
 
     tool.__name__ = f"{name}_tool"
-    tool.__doc__ = f"Execute a Coke {name} domain command."
+    tool.__doc__ = _tool_doc(name)
     return tool
+
+
+def _tool_doc(name: str) -> str:
+    if name == "reminder":
+        return (
+            "Execute a Coke reminder domain command. For a natural-language "
+            "create request, call with operation='detect_and_create', "
+            "owner_account_id set to trusted_facts.account_id, raw_text set to "
+            "the exact User message, captured_timezone set to "
+            "trusted_facts.default_timezone, and entry_point='conversation'."
+        )
+    return f"Execute a Coke {name} domain command."
 
 
 def _command_payload(command: Any, kwargs: Mapping[str, Any]) -> Mapping[str, Any]:
     if isinstance(command, Mapping) and not kwargs:
-        return dict(command)
+        return _flatten_agno_tool_payload(dict(command))
     if command is None:
-        return dict(kwargs)
-    return {"command": command, **dict(kwargs)}
+        return _flatten_agno_tool_payload(dict(kwargs))
+    return _flatten_agno_tool_payload({"command": command, **dict(kwargs)})
+
+
+def _flatten_agno_tool_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    if set(payload) == {"kwargs"} and isinstance(payload.get("kwargs"), Mapping):
+        return dict(payload["kwargs"])
+    if "command" not in payload:
+        return dict(payload)
+
+    command = payload.get("command")
+    nested_kwargs = payload.get("kwargs")
+    if isinstance(command, Mapping):
+        flattened = dict(command)
+    elif command is None:
+        flattened = {}
+    else:
+        return dict(payload)
+
+    if isinstance(nested_kwargs, Mapping):
+        flattened.update(dict(nested_kwargs))
+    return flattened
+
+
+def _with_tool_defaults(
+    name: str,
+    command: Mapping[str, Any],
+    request: AgentRequest,
+) -> Mapping[str, Any]:
+    if name != "reminder":
+        return command
+    payload = dict(command)
+    if "operation" not in payload:
+        payload["operation"] = "detect_and_create"
+    if payload.get("operation") == "detect_and_create":
+        payload.setdefault("raw_text", _user_text(request))
+    payload.setdefault("owner_account_id", request.account_id)
+    payload.setdefault(
+        "captured_timezone",
+        str(request.trusted_facts.get("default_timezone") or "UTC"),
+    )
+    payload.setdefault("entry_point", "conversation")
+    return payload
 
 
 def _mapping_or_none(content: Any) -> Mapping[str, Any] | None:
     if isinstance(content, Mapping):
         return content
     if isinstance(content, str):
+        content = _json_text(content)
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError:
@@ -209,6 +259,59 @@ def _mapping_or_none(content: Any) -> Mapping[str, Any] | None:
         if isinstance(parsed, Mapping):
             return parsed
     return None
+
+
+def _agent_input(request: AgentRequest) -> str:
+    return "\n\n".join(
+        (
+            f"User message:\n{_user_text(request)}",
+            "Trusted context:\n"
+            + json.dumps(
+                _support_payload(request),
+                ensure_ascii=False,
+                default=str,
+            ),
+        )
+    )
+
+
+def _support_payload(request: AgentRequest) -> dict[str, Any]:
+    return {
+        "turn_id": request.turn_id,
+        "mode": str(request.mode),
+        "trigger_type": request.trigger_type,
+        "payload": request.payload,
+        "trusted_facts": request.trusted_facts,
+        "context": _jsonable_context(request.context),
+        "tool_profile": {
+            "intent_tools_enabled": request.tool_profile.intent_tools_enabled,
+            "tool_names": list(request.tool_profile.tool_names),
+            "constrained": request.tool_profile.constrained,
+        },
+    }
+
+
+def _user_text(request: AgentRequest) -> str:
+    text = request.payload.get("text")
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+    return json.dumps(request.payload, ensure_ascii=False, default=str)
+
+
+def _json_text(content: str) -> str:
+    stripped = content.strip()
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        if first_newline != -1:
+            stripped = stripped[first_newline + 1 :]
+        if stripped.endswith("```"):
+            stripped = stripped[:-3]
+        return stripped.strip()
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return stripped[start : end + 1]
+    return stripped
 
 
 def _jsonable_context(context: Any) -> Any:

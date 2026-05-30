@@ -36,6 +36,7 @@ class SiliconFlowReminderDetector:
         payload = self.client.complete_json(
             system=(
                 "Extract precise reminder fields for Coke. Return only trusted JSON. "
+                "Use {} for one-time or non-recurring reminders; recurrence_rule must never be null. "
                 "Do not repair output with regex, normalize guessed durations, or "
                 "rewrite past/incomplete times."
             ),
@@ -47,7 +48,7 @@ class SiliconFlowReminderDetector:
                 "schema": {
                     "content": "string|null",
                     "trigger_time": "ISO-8601 datetime|null",
-                    "recurrence_rule": "object",
+                    "recurrence_rule": "object; use {} for non-recurring reminders; never null",
                     "duration_minutes": "integer|null",
                     "kind": "timed|no_trigger_time|recurring|proactive|shared_projection|null",
                 },

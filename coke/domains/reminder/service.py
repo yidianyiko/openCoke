@@ -343,11 +343,14 @@ class ReminderService:
     def _detect_item(self, item: ReminderBatchItem) -> ReminderBatchItem:
         if self.detector is None or item.raw_text is None:
             raise ReminderError("detector_unavailable")
-        fields: DetectedReminderFields = self.detector.extract(
-            item.raw_text,
-            item.captured_timezone,
-            self._now(),
-        )
+        try:
+            fields: DetectedReminderFields = self.detector.extract(
+                item.raw_text,
+                item.captured_timezone,
+                self._now(),
+            )
+        except RuntimeError as error:
+            raise ReminderError("invalid_detector_output") from error
         if not fields.content:
             raise ReminderError("invalid_detector_output")
         return ReminderBatchItem(
