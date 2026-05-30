@@ -9,17 +9,17 @@ RUN apt-get update \
         build-essential \
         ca-certificates \
         curl \
-        ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY requirements.txt ./requirements.txt
-COPY alibabacloud-nls-python-sdk-dev ./alibabacloud-nls-python-sdk-dev
 
 RUN pip install --upgrade pip setuptools wheel \
     && pip install -r requirements.txt
 
 COPY . .
 
-CMD ["python", "agent/runner/agent_runner.py"]
+EXPOSE 8000
+
+CMD ["python", "-c", "from coke.app import create_app; from coke.config import Settings; create_app(Settings.from_env()).run(host='0.0.0.0', port=8000)"]

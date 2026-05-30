@@ -23,6 +23,7 @@ surfaces:
     description: Python domain/API/worker rebuild contracts.
     paths:
       - coke/**
+      - migrations/**
       - tests/unit/coke/**
     commands:
       - .venv/bin/python -m pytest tests/unit/coke -v
@@ -30,10 +31,10 @@ surfaces:
   - name: clean-rebuild-web
     description: Thin Next.js client over the Python API.
     paths:
-      - gateway/packages/web/**
+      - web/**
     commands:
-      - cd gateway && pnpm --filter @coke/web test
-      - cd gateway && pnpm --filter @coke/web build
+      - cd web && pnpm test
+      - cd web && pnpm build
 
   - name: repo-os-docs
     paths:
@@ -53,106 +54,33 @@ surfaces:
       - docs/superpowers/**
       - artifacts/evidence/**
 
-  - name: worker-runtime
-    paths:
-      - agent/runner/**
-      - agent/agno_agent/adapters/**
-      - agent/agno_agent/capabilities/**
-      - agent/agno_agent/model_factory.py
-      - agent/agno_agent/prompts/**
-      - agent/agno_agent/runtime/**
-      - agent/agno_agent/schemas/**
-      - agent/agno_agent/tools/**
-      - agent/agno_agent/utils/**
-      - agent/prompt/**
-      - agent/reminder/**
-      - dao/reminder_dao.py
-
-  - name: product-reminder
-    paths:
-      - agent/reminder/**
-      - agent/runner/reminder_*.py
-      - gateway/packages/api/src/routes/customer-reminder-routes.ts
-      - connector/clawscale_bridge/reminder_management_service.py
-      - dao/reminder_dao.py
-
-  - name: product-memo
-    paths:
-      - memo-runtime/**
-      - agent/agno_agent/capabilities/memo.py
-
-  - name: product-calendar-import
-    paths:
-      - gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts
-      - gateway/packages/api/src/routes/customer-google-calendar-import-callback-routes.ts
-      - gateway/packages/api/src/routes/calendar-import-handoff-routes.ts
-      - gateway/packages/api/src/lib/google-calendar-*
-      - gateway/packages/api/src/lib/calendar-import-handoff.ts
-      - connector/clawscale_bridge/google_calendar_import_service.py
-      - agent/agno_agent/capabilities/calendar_import_port.py
-      - agent/agno_agent/tools/calendar_import_handoff.py
-
-  - name: product-timezone
-    paths:
-      - agent/timezone_service.py
-      - agent/agno_agent/capabilities/timezone_port.py
-      - agent/agno_agent/tools/timezone_tools.py
-      - dao/user_dao.py
-
-  - name: bridge
-    paths:
-      - connector/clawscale_bridge/**
-
-  - name: gateway-api
-    paths:
-      - gateway/packages/api/**
-      - gateway/packages/shared/**
-
-  - name: gateway-web
-    paths:
-      - gateway/packages/web/**
-
   - name: deploy
     paths:
+      - Dockerfile
       - docker-compose.prod.yml
       - deploy/**
-      - scripts/deploy-*.sh
-      - scripts/test-deploy-compose-to-gcp.sh
       - docs/deploy.md
 
   - name: repo-os
     paths:
       - docs/fitness/surfaces.yaml
+      - docs/fitness/ownership-registry.yaml
       - scripts/check
       - scripts/verify-surface
       - scripts/suggest-verification
       - scripts/review-trigger
       - scripts/guardrails.py
-      - tests/unit/test_repo_os_structure.py
-      - tests/unit/test_guardrail_scripts.py
 
 review_triggers:
-  - name: cross_boundary_bridge_gateway
-    type: cross_boundary_change
-    severity: high
-    boundaries:
-      bridge:
-        - connector/clawscale_bridge/**
-      gateway:
-        - gateway/packages/api/**
-        - gateway/packages/shared/**
-    min_boundaries: 2
-
-  - name: cross_boundary_worker_bridge
+  - name: cross_boundary_backend_web
     type: cross_boundary_change
     severity: medium
     boundaries:
-      worker-runtime:
-        - agent/runner/**
-        - agent/agno_agent/**
-        - agent/prompt/**
-      bridge:
-        - connector/clawscale_bridge/**
+      backend:
+        - coke/**
+        - migrations/**
+      web:
+        - web/**
     min_boundaries: 2
 
   - name: sensitive_repo_os_change
@@ -179,10 +107,9 @@ review_triggers:
     type: changed_paths
     severity: high
     paths:
+      - Dockerfile
       - docker-compose.prod.yml
       - deploy/**
-      - scripts/deploy-*.sh
-      - scripts/test-deploy-compose-to-gcp.sh
 
   - name: oversized_change
     type: diff_size
@@ -195,15 +122,11 @@ review_triggers:
     type: evidence_gap
     severity: medium
     paths:
-      - agent/**
-      - connector/**
-      - gateway/packages/**
-      - dao/**
-      - entity/**
-      - util/**
-      - framework/**
+      - coke/**
+      - migrations/**
+      - web/**
       - deploy/**
-      - scripts/deploy-*.sh
-      - scripts/test-deploy-compose-to-gcp.sh
+      - Dockerfile
+      - docker-compose.prod.yml
     evidence_paths:
       - artifacts/evidence/**

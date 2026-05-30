@@ -164,7 +164,6 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 
 ## Superseded Discovery Surfaces
 
-Future-route ownership must not be inferred from `gateway/packages/api` or
-`connector/clawscale_bridge`. Those directories describe legacy implementation
-surfaces until deleted or rewritten. The clean rebuild's discoverable route
-contract is the Python API and webhook list above.
+Route ownership must not be inferred from deleted legacy Gateway or bridge
+surfaces. The clean rebuild's discoverable route contract is the Python API and
+webhook list above.

@@ -125,22 +125,21 @@ def collect_changed_files(base: str) -> list[str]:
 
 
 def collect_tracked_web_files() -> list[str]:
-    gateway_root = ROOT / "gateway"
     result = subprocess.run(
-        ["git", "ls-files", "packages/web"],
-        cwd=gateway_root,
+        ["git", "ls-files", "web"],
+        cwd=ROOT,
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
-        raise RuntimeError(f"failed to list nested gateway web files: {detail}")
+        raise RuntimeError(f"failed to list tracked web files: {detail}")
     files: list[str] = []
     for line in result.stdout.splitlines():
         normalized = line.strip().lstrip("./")
-        if normalized.startswith("packages/web/"):
-            files.append(f"gateway/{normalized}")
+        if normalized.startswith("web/"):
+            files.append(normalized)
     return files
 
 
@@ -148,7 +147,6 @@ def is_forbidden_backend_channel_target(target: str) -> bool:
     normalized = target.replace("\\", "/")
     forbidden_path_fragments = (
         "api/src/channel",
-        "gateway/packages/api/src/channel",
     )
     forbidden_aliases = ("@coke/api-channel",)
     return (
@@ -165,7 +163,7 @@ def check_import_boundaries(
     forbidden_named_symbols = ("CHANNEL_CONFIG_SCHEMA", "ChannelConfigField")
     for file_path in files:
         normalized = file_path.strip().lstrip("./")
-        if not normalized.startswith("gateway/packages/web/"):
+        if not normalized.startswith("web/"):
             continue
         if not normalized.endswith((".ts", ".tsx", ".mts")):
             continue
@@ -212,11 +210,11 @@ def load_ownership_registry(path: Path | None = None) -> dict[str, Any]:
 
 
 def expected_route_registry_paths() -> set[str]:
-    routes_root = ROOT / "gateway" / "packages" / "api" / "src" / "routes"
+    routes_root = ROOT / "coke" / "api"
     return {
         str(path.relative_to(ROOT))
-        for path in routes_root.glob("*.ts")
-        if not path.name.endswith(".test.ts")
+        for path in routes_root.glob("*.py")
+        if path.name.endswith("_routes.py") or path.name == "provider_webhooks.py"
     }
 
 
@@ -469,7 +467,7 @@ def cmd_check_import_boundaries(args: argparse.Namespace) -> int:
         print(error)
         return 1
     if not files:
-        print("MISS no tracked gateway web files found for import-boundary check")
+        print("MISS no tracked web files found for import-boundary check")
         return 1
     errors = check_import_boundaries(files)
     if not errors:

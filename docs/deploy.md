@@ -57,8 +57,8 @@ Backend implementation changes:
 Web implementation changes:
 
 ```bash
-cd gateway && pnpm --filter @coke/web test
-cd gateway && pnpm --filter @coke/web build
+cd web && pnpm test
+cd web && pnpm build
 ```
 
 Deployment implementation tasks must add task-specific smoke evidence for the

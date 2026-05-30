@@ -17,4 +17,5 @@ Channel boundary split. The detailed ownership rule lives in
 ## Rule
 
 No provider secret, webhook token, app token, access token, or
-provider-specific credential field may be imported by `gateway/packages/web`.
+provider-specific credential field may be imported by the top-level `web/`
+client.

@@ -25,7 +25,7 @@ filterwarnings = [
 asyncio_mode = "auto"
 
 [tool.coverage.run]
-source = ["agent", "dao", "util", "entity", "connector", "coke"]
+source = ["coke"]
 branch = true
 omit = [
     "*/tests/*",

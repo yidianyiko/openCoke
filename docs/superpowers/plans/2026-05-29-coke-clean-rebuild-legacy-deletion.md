@@ -10,7 +10,7 @@
 
 ---
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 **Status Date:** 2026-05-30
 **Source Specs:**
 - `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md` Task 11, Task 12, and Architecture Issues To Watch During Execution.
@@ -83,33 +83,33 @@ Expected before implementation: FAIL because the scanner flags at least one forb
 - Modify: `web/lib/user-link-api.test.ts`
 - Modify: `web/OWNERS.md`
 
-- [ ] **Step 1: Repoint package ownership**
+- [x] **Step 1: Repoint package ownership**
 
 Change `web/package.json` package name from `@clawscale/web` to `@coke/web`.
 
-- [ ] **Step 2: Vendor shared types inside web**
+- [x] **Step 2: Vendor shared types inside web**
 
 Create `web/lib/api-types.ts` with `ApiResponse`, `PublicUserLinkResponse`, `PublicLinkSessionResponse`, `PublicLinkSessionStatusResponse`, and `DirectFriendshipResponse` shapes used by `web/lib/user-link-api.ts`.
 
-- [ ] **Step 3: Replace shared package imports**
+- [x] **Step 3: Replace shared package imports**
 
 In `web/lib/user-link-api.ts`, replace `../../shared/src/types/*` imports with imports from `./api-types`.
 
-- [ ] **Step 4: Use one public API base**
+- [x] **Step 4: Use one public API base**
 
 In `web/lib/customer-api.ts` and `web/lib/admin-api.ts`, resolve only `NEXT_PUBLIC_API_BASE_URL`, trim trailing slashes, and append existing `/api/*` paths. Tests should assert `https://api.example.com/api/auth/me`, not Gateway or Bridge names.
 
-- [ ] **Step 5: Confirm required web routes still exist**
+- [x] **Step 5: Confirm required web routes still exist**
 
 Run: `test -f` checks for auth, account, access-status or subscription, claim, channels, reminders, friends, shared reminders or equivalent shared-reminder route, settings/my-agent, calendar-import, `/`, `/faqs`, `/demos`, `/privacy`, `/terms`, and `web/app/u/[code]/page.tsx`.
 
-- [ ] **Step 6: Confirm no ClawScale package dependency remains**
+- [x] **Step 6: Confirm no ClawScale package dependency remains**
 
 Run: `rg -n "@clawscale|from '../../shared|from \"../../shared" web`
 
 Expected: no matches except historical prose in already generated build output if generated output has not been removed; if `web/out` carries stale generated text, delete `web/out`.
 
-- [ ] **Step 7: Run web tests/build when possible**
+- [x] **Step 7: Run web tests/build when possible**
 
 Run from `web/`:
 
@@ -120,7 +120,9 @@ pnpm build
 
 Expected: pass. If `pnpm` or dependencies are unavailable and network install would be required, skip and record the blocker.
 
-- [ ] **Step 8: Commit web extraction**
+Result: skipped full web test/build because `web/node_modules` is absent and `pnpm test` reports `vitest: not found`; no network install was performed.
+
+- [x] **Step 8: Commit web extraction**
 
 Run:
 
@@ -143,7 +145,7 @@ git commit -m "feat: extract coke web client"
 - Modify: `Dockerfile`
 - Modify: `docker-compose.prod.yml`
 
-- [ ] **Step 1: Remove submodules**
+- [x] **Step 1: Remove submodules**
 
 Run:
 
@@ -157,31 +159,31 @@ rm -rf .git/modules/memo-runtime
 git rm .gitmodules
 ```
 
-- [ ] **Step 2: Uninstall the legacy editable package**
+- [x] **Step 2: Uninstall the legacy editable package**
 
 Run: `/data/projects/coke/.venv/bin/pip uninstall -y coke-memo-runtime`
 
-- [ ] **Step 3: Delete legacy runtime directories and process scripts**
+- [x] **Step 3: Delete legacy runtime directories and process scripts**
 
 Run `git rm -r` for the listed legacy directories and old process scripts.
 
-- [ ] **Step 4: Delete legacy tests**
+- [x] **Step 4: Delete legacy tests**
 
 Remove every tracked test outside `tests/unit/coke/`.
 
-- [ ] **Step 5: Remove legacy-only dependencies**
+- [x] **Step 5: Remove legacy-only dependencies**
 
 Remove `pymongo`, local `./alibabacloud-nls-python-sdk-dev`, and media/provider packages used only by deleted runtime code from `requirements.txt`. Keep clean rebuild dependencies: Agno, Flask, gunicorn, APScheduler, pydantic, Redis, SQLAlchemy, Alembic, psycopg, OpenTelemetry, pytest, and timezone/date helpers.
 
-- [ ] **Step 6: Narrow coverage**
+- [x] **Step 6: Narrow coverage**
 
 Set `[tool.coverage.run].source` in `pyproject.toml` to `["coke"]`.
 
-- [ ] **Step 7: Repoint deploy files**
+- [x] **Step 7: Repoint deploy files**
 
 Update `Dockerfile` to start the Flask clean API by default and `docker-compose.prod.yml` to run `coke-api`, `coke-worker`, `coke-scheduler`, `web`, `postgres`, and `redis`, with no Mongo, Gateway, Bridge, or legacy agent command.
 
-- [ ] **Step 8: Commit legacy deletion**
+- [x] **Step 8: Commit legacy deletion**
 
 Run:
 
@@ -203,27 +205,27 @@ git commit -m "refactor: remove legacy coke runtime"
 - Modify: `scripts/e2e/clean-rebuild-canonical-doc-sync.sh`
 - Modify: current canonical docs only if they still claim deleted runtime owners.
 
-- [ ] **Step 1: Update required-file checks**
+- [x] **Step 1: Update required-file checks**
 
 Remove required files under deleted legacy paths from `scripts/check`; require `web/OWNERS.md`; remove the Gateway gitlink check.
 
-- [ ] **Step 2: Update ownership registry**
+- [x] **Step 2: Update ownership registry**
 
 Remove legacy route/contract entries and retain clean rebuild ownership entries for `coke/**`, `web/**`, `migrations/**`, `docs/**`, and deployment/tooling.
 
-- [ ] **Step 3: Update surfaces**
+- [x] **Step 3: Update surfaces**
 
 Remove legacy surfaces and review triggers for `agent`, `connector`, `dao`, `gateway/packages`, `memo-runtime`, and similar paths. Repoint `clean-rebuild-web` and `web` to `web/**` with `cd web && pnpm test` and `cd web && pnpm build`.
 
-- [ ] **Step 4: Update guardrail scripts**
+- [x] **Step 4: Update guardrail scripts**
 
 Change helper scripts that inspect tracked Gateway web files or legacy route registries so they inspect `web/**` and `coke/api/**`, or delete legacy-specific checks if no current clean-rebuild owner remains.
 
-- [ ] **Step 5: Strengthen canonical doc sync**
+- [x] **Step 5: Strengthen canonical doc sync**
 
 Keep current-target checks for The Turn, clean modules, Postgres/Redis, Mongo removed, and web over Python API. Add forbidden checks for current claims assigning product/API ownership to Gateway, Bridge, Mongo, or memo-runtime.
 
-- [ ] **Step 6: Commit repo-OS cleanup**
+- [x] **Step 6: Commit repo-OS cleanup**
 
 Run:
 
@@ -237,13 +239,13 @@ git commit -m "chore: repoint repo os to clean rebuild"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-legacy-deletion.md`
 
-- [ ] **Step 1: Run clean unit suite**
+- [x] **Step 1: Run clean unit suite**
 
 Run: `/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q`
 
 Expected: at least `312 passed`; include the new no-legacy guard.
 
-- [ ] **Step 2: Run repo-OS and canonical sync**
+- [x] **Step 2: Run repo-OS and canonical sync**
 
 Run:
 
@@ -254,7 +256,7 @@ bash scripts/e2e/clean-rebuild-canonical-doc-sync.sh
 
 Expected: both exit 0.
 
-- [ ] **Step 3: Confirm removed root directories**
+- [x] **Step 3: Confirm removed root directories**
 
 Run:
 
@@ -264,7 +266,7 @@ for path in agent connector dao entity framework util conf tools alibabacloud-nl
 
 Expected: exit 0.
 
-- [ ] **Step 4: Inspect status and commits**
+- [x] **Step 4: Inspect status and commits**
 
 Run:
 
@@ -275,6 +277,6 @@ git log --oneline main..HEAD
 
 Expected: status clean after the final plan-status commit; log lists this slice's coherent commits.
 
-- [ ] **Step 5: Mark plan complete**
+- [x] **Step 5: Mark plan complete**
 
 After all verification commands pass, change `Plan Status` to `complete`, update status date if needed, and commit the plan closeout.
