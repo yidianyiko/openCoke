@@ -19,7 +19,6 @@ from coke.domains.channel_reachability.service import ChannelReachabilityService
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
 from coke.domains.identity_access.service import IdentityAccessService
 
-
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 
 
@@ -202,6 +201,98 @@ def test_connecting_is_not_reachable_and_connected_is_reachable(
 
     assert connected.connection_state == "connected"
     assert service.get_status(account.id).reachable is True
+
+
+def test_wechat_personal_connect_issues_pairing_code_and_status_reuses_it(
+    identity_service, reachability
+):
+    registered = identity_service.register_web_account("wechat@example.com", "hash_1")
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    service, _adapter = reachability
+
+    pending = service.start_wechat_personal_connection(registered.account.id)
+    status = service.get_status(registered.account.id)
+
+    assert pending.account_id == registered.account.id
+    assert pending.channel_id is None
+    assert pending.provider_type == "wechat_personal"
+    assert pending.connection_state == "connecting"
+    assert pending.reachable is False
+    assert pending.pairing_code.startswith("pairing_code_")
+    assert pending.pairing_code == status.pairing_code
+    assert pending.pairing_expires_at == NOW.timestamp() + 900
+    assert status.connection_state == "connecting"
+    assert "Coke WeChat bot" in pending.instructions
+    assert service.repository.list_channels(registered.account.id) == []
+
+
+def test_wechat_personal_inbound_with_pairing_code_binds_and_connects(
+    identity_service, reachability
+):
+    registered = identity_service.register_web_account("wxbind@example.com", "hash_1")
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    service, _adapter = reachability
+    pending = service.start_wechat_personal_connection(registered.account.id)
+
+    accepted = service.accept_provider_inbound(
+        NormalizedInbound(
+            provider_type="wechat_personal",
+            provider_subject="wxid_lizihao",
+            text=pending.pairing_code,
+            raw_event_id="wx_msg_pairing",
+            received_at=NOW,
+            pairing_code=pending.pairing_code,
+        )
+    )
+
+    identity = identity_service.repository.get_channel_identity_by_provider(
+        "wechat_personal",
+        "wxid_lizihao",
+    )
+    channel = service.repository.get_active_channel(registered.account.id)
+    assert identity is not None
+    assert identity.account_id == registered.account.id
+    assert channel is not None
+    assert channel.channel_identity_id == identity.id
+    assert channel.connection_state == "connected"
+    assert accepted.account_id == registered.account.id
+    assert accepted.channel_id == channel.id
+    assert accepted.created_account is False
+
+
+def test_unpaired_wechat_personal_inbound_fails_closed_without_auto_provision(
+    identity_service, reachability
+):
+    service, _adapter = reachability
+
+    with pytest.raises(ChannelReachabilityError, match="identity_pairing_required"):
+        service.accept_provider_inbound(
+            NormalizedInbound(
+                provider_type="wechat_personal",
+                provider_subject="wxid_unbound",
+                text="hello",
+                raw_event_id="wx_msg_unbound",
+                received_at=NOW,
+            )
+        )
+
+    assert (
+        identity_service.repository.get_channel_identity_by_provider(
+            "wechat_personal",
+            "wxid_unbound",
+        )
+        is None
+    )
 
 
 def test_revoked_access_blocks_existing_channel_completion_from_webhook(
@@ -729,7 +820,9 @@ def test_repository_rejects_existing_route_key_reassigned_to_another_channel(
     reachability,
 ):
     first_account, first_identity = verified_web_account(identity_service)
-    second_registration = identity_service.register_web_account("b@example.com", "hash_2")
+    second_registration = identity_service.register_web_account(
+        "b@example.com", "hash_2"
+    )
     identity_service.set_access_state(
         account_id=second_registration.account.id,
         email_verification_state="verified",
@@ -772,7 +865,10 @@ def test_repository_rejects_existing_route_key_reassigned_to_another_channel(
         service.repository.upsert_route(reassigned_route)
 
     assert service.repository.get_route(first_route.id).channel_id == first_channel.id
-    assert service.repository.get_active_route_for_channel(second_channel.id).id == second_route.id
+    assert (
+        service.repository.get_active_route_for_channel(second_channel.id).id
+        == second_route.id
+    )
 
 
 def test_remove_relink_same_address_retires_old_route_and_preserves_attempt_history(

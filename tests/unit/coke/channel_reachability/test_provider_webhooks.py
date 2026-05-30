@@ -11,6 +11,7 @@ from coke.domains.channel_reachability.models import (
     NormalizedInbound,
     ProviderWebhookAcceptance,
 )
+from coke.providers.wechat_personal import WeChatPersonalAdapter
 
 
 class FakeAdapter:
@@ -143,6 +144,34 @@ def test_provider_webhook_normalizes_and_returns_structured_identity_facts_only(
     assert adapters["whatsapp_evolution"].calls == [payload]
 
 
+def test_wechat_personal_webhook_accepts_connector_pairing_payload():
+    client, service, _adapters = make_client(
+        adapters={
+            "wechat_personal": WeChatPersonalAdapter(
+                now=lambda: datetime(2026, 5, 29, tzinfo=UTC)
+            )
+        }
+    )
+
+    response = client.post(
+        "/webhooks/wechat/personal",
+        json={
+            "message_id": "wx_msg_1",
+            "wxid": "wxid_lizihao",
+            "text": "pairing_abc123",
+            "pairing_code": "pairing_abc123",
+        },
+    )
+
+    assert response.status_code == 202
+    inbound = service.calls[0][1]
+    assert inbound.provider_type == "wechat_personal"
+    assert inbound.provider_subject == "wxid_lizihao"
+    assert inbound.text == "pairing_abc123"
+    assert inbound.raw_event_id == "wx_msg_1"
+    assert inbound.pairing_code == "pairing_abc123"
+
+
 def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():
     conversation_runtime = FakeConversationRuntimeService()
     commits = []
@@ -169,9 +198,7 @@ def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():
         "/webhooks/whatsapp/evolution",
         json=payload,
         headers={
-            "traceparent": (
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-            )
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
         },
     )
 
@@ -183,9 +210,7 @@ def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():
             "causal_inbound_event_id": "wa_msg_1",
             "text": "hello",
             "payload": payload,
-            "traceparent": (
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-            ),
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
         }
     ]
     assert commits == ["committed"]

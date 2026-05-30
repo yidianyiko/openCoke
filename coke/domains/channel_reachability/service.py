@@ -23,49 +23,49 @@ from coke.domains.channel_reachability.repository import (
 from coke.domains.identity_access.models import (
     AccessDecision,
     AccountActivation,
+    ArtifactIssueResult,
     ChannelIdentity,
     ChannelIdentityResolution,
     IdentityAccessError,
 )
 from coke.providers.base import ProviderAdapter
 
-
 IdentityCallResult = TypeVar("IdentityCallResult")
 
 
 class IdentityAccessPort(Protocol):
-    def check_access_for_action(self, account_id: str, action: str) -> AccessDecision:
-        ...
+    def check_access_for_action(
+        self, account_id: str, action: str
+    ) -> AccessDecision: ...
 
-    def get_activation(self, account_id: str) -> AccountActivation:
-        ...
+    def get_activation(self, account_id: str) -> AccountActivation: ...
 
-    def observe_usable_channel(self, account_id: str) -> AccountActivation:
-        ...
+    def observe_usable_channel(self, account_id: str) -> AccountActivation: ...
 
-    def mark_first_inbound_received(self, account_id: str) -> AccountActivation:
-        ...
+    def mark_first_inbound_received(self, account_id: str) -> AccountActivation: ...
 
     def can_remove_channel_identity(
         self, account_id: str, channel_identity_id: str
-    ) -> bool:
-        ...
+    ) -> bool: ...
 
     def get_owned_channel_identity(
         self, account_id: str, channel_identity_id: str
-    ) -> ChannelIdentity:
-        ...
+    ) -> ChannelIdentity: ...
 
-    def preview_pairing_code_account(self, pairing_code: str) -> str:
-        ...
+    def preview_pairing_code_account(self, pairing_code: str) -> str: ...
+
+    def get_pending_pairing_code(
+        self, account_id: str
+    ) -> ArtifactIssueResult | None: ...
+
+    def ensure_pairing_code(self, account_id: str) -> ArtifactIssueResult: ...
 
     def resolve_or_create_channel_identity(
         self,
         provider_type: str,
         provider_subject: str,
         pairing_code: str | None = None,
-    ) -> ChannelIdentityResolution:
-        ...
+    ) -> ChannelIdentityResolution: ...
 
 
 class ChannelReachabilityService:
@@ -86,6 +86,11 @@ class ChannelReachabilityService:
     def get_status(self, account_id: str) -> ChannelStatus:
         channel = self.repository.get_active_channel(account_id)
         if channel is None:
+            pending = self._identity_call(
+                lambda: self.identity_access.get_pending_pairing_code(account_id)
+            )
+            if pending is not None:
+                return self._pending_wechat_status(account_id, pending)
             return ChannelStatus(
                 account_id=account_id,
                 channel_id=None,
@@ -100,6 +105,18 @@ class ChannelReachabilityService:
             connection_state=channel.connection_state,
             reachable=channel.connection_state == "connected",
         )
+
+    def start_wechat_personal_connection(self, account_id: str) -> ChannelStatus:
+        self._require_provider("wechat_personal")
+        self._require_product_channel("wechat_personal")
+        self._require_access(account_id)
+        active = self.repository.get_active_channel(account_id)
+        if active is not None:
+            return self.get_status(account_id)
+        pairing = self._identity_call(
+            lambda: self.identity_access.ensure_pairing_code(account_id)
+        )
+        return self._pending_wechat_status(account_id, pairing)
 
     def create_channel(
         self,
@@ -405,6 +422,22 @@ class ChannelReachabilityService:
             return callback()
         except IdentityAccessError as error:
             raise ChannelReachabilityError(error.code, fact=error.fact) from error
+
+    def _pending_wechat_status(
+        self,
+        account_id: str,
+        pairing: ArtifactIssueResult,
+    ) -> ChannelStatus:
+        return ChannelStatus(
+            account_id=account_id,
+            channel_id=None,
+            provider_type="wechat_personal",
+            connection_state="connecting",
+            reachable=False,
+            pairing_code=pairing.code,
+            pairing_expires_at=pairing.artifact.expires_at.timestamp(),
+            instructions="add the Coke WeChat bot and send this code",
+        )
 
 
 def _delivery_route_key(

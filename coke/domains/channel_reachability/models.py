@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, TypeAlias
 
-
 ChannelConnectionState = Literal[
     "not_connected",
     "connecting",
@@ -121,6 +120,9 @@ class ChannelStatus:
     provider_type: str | None
     connection_state: ChannelConnectionState
     reachable: bool
+    pairing_code: str | None = None
+    pairing_expires_at: float | None = None
+    instructions: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

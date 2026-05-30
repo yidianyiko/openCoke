@@ -8,7 +8,14 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from coke import schema
-from coke.domains._pg import db_id, insert_row, many, one_or_none, update_row, write_with_integrity
+from coke.domains._pg import (
+    db_id,
+    insert_row,
+    many,
+    one_or_none,
+    update_row,
+    write_with_integrity,
+)
 from coke.domains.identity_access.models import (
     Account,
     AccountAccess,
@@ -65,13 +72,23 @@ class IdentityAccessRepository(Protocol):
         provider_subject: str,
     ) -> ChannelIdentity | None: ...
 
-    def get_channel_identity(self, channel_identity_id: str) -> ChannelIdentity | None: ...
+    def get_channel_identity(
+        self, channel_identity_id: str
+    ) -> ChannelIdentity | None: ...
 
     def list_channel_identities(self, account_id: str) -> list[ChannelIdentity]: ...
 
     def add_artifact(self, artifact: AuthArtifact) -> None: ...
 
     def get_artifact_by_code(self, code: str) -> AuthArtifact | None: ...
+
+    def get_latest_unconsumed_artifact(
+        self,
+        *,
+        account_id: str,
+        artifact_type: str,
+        purpose: str,
+    ) -> AuthArtifact | None: ...
 
     def save_artifact(self, artifact: AuthArtifact) -> None: ...
 
@@ -201,7 +218,9 @@ class InMemoryIdentityAccessRepository:
         provider_type: str,
         provider_subject: str,
     ) -> ChannelIdentity | None:
-        return self.channel_identities_by_provider.get((provider_type, provider_subject))
+        return self.channel_identities_by_provider.get(
+            (provider_type, provider_subject)
+        )
 
     def get_channel_identity(self, channel_identity_id: str) -> ChannelIdentity | None:
         return self.channel_identities_by_id.get(channel_identity_id)
@@ -221,6 +240,25 @@ class InMemoryIdentityAccessRepository:
     def get_artifact_by_code(self, code: str) -> AuthArtifact | None:
         return self.artifacts_by_code.get(code)
 
+    def get_latest_unconsumed_artifact(
+        self,
+        *,
+        account_id: str,
+        artifact_type: str,
+        purpose: str,
+    ) -> AuthArtifact | None:
+        artifacts = [
+            artifact
+            for artifact in self.artifacts_by_code.values()
+            if artifact.account_id == account_id
+            and artifact.type == artifact_type
+            and artifact.purpose == purpose
+            and artifact.consumed_at is None
+        ]
+        if not artifacts:
+            return None
+        return max(artifacts, key=lambda artifact: (artifact.created_at, artifact.id))
+
     def save_artifact(self, artifact: AuthArtifact) -> None:
         if artifact.code not in self.artifacts_by_code:
             raise ValueError("artifact_not_found")
@@ -238,7 +276,10 @@ class PostgresIdentityAccessRepository:
         self.session = session
 
     def count_accounts(self) -> int:
-        return int(self.session.scalar(sa.select(sa.func.count()).select_from(schema.account)) or 0)
+        return int(
+            self.session.scalar(sa.select(sa.func.count()).select_from(schema.account))
+            or 0
+        )
 
     def add_account(self, account: Account) -> None:
         insert_row(
@@ -250,7 +291,9 @@ class PostgresIdentityAccessRepository:
         )
 
     def get_account(self, account_id: str) -> Account | None:
-        row = one_or_none(self.session, schema.account, schema.account.c.id == account_id)
+        row = one_or_none(
+            self.session, schema.account, schema.account.c.id == account_id
+        )
         return _account(row) if row else None
 
     def add_activation(self, activation: AccountActivation) -> None:
@@ -458,7 +501,10 @@ class PostgresIdentityAccessRepository:
                 schema.channel_identity,
                 schema.channel_identity.c.account_id == account_id,
                 schema.channel_identity.c.lifecycle == "active",
-                order_by=(schema.channel_identity.c.created_at, schema.channel_identity.c.id),
+                order_by=(
+                    schema.channel_identity.c.created_at,
+                    schema.channel_identity.c.id,
+                ),
             )
         ]
 
@@ -479,6 +525,33 @@ class PostgresIdentityAccessRepository:
             self.session,
             schema.auth_artifact,
             schema.auth_artifact.c.token_hash == code,
+        )
+        return _artifact(row) if row else None
+
+    def get_latest_unconsumed_artifact(
+        self,
+        *,
+        account_id: str,
+        artifact_type: str,
+        purpose: str,
+    ) -> AuthArtifact | None:
+        row = (
+            self.session.execute(
+                sa.select(schema.auth_artifact)
+                .where(
+                    schema.auth_artifact.c.account_id == account_id,
+                    schema.auth_artifact.c.type == artifact_type,
+                    schema.auth_artifact.c.purpose == purpose,
+                    schema.auth_artifact.c.consumed_at.is_(None),
+                )
+                .order_by(
+                    schema.auth_artifact.c.created_at.desc(),
+                    schema.auth_artifact.c.id.desc(),
+                )
+                .limit(1)
+            )
+            .mappings()
+            .first()
         )
         return _artifact(row) if row else None
 
@@ -686,9 +759,11 @@ def _artifact(row: Mapping) -> AuthArtifact:
     return AuthArtifact(
         id=db_id(row["id"]),
         account_id=db_id(row["account_id"]) if row["account_id"] is not None else None,
-        target_account_id=db_id(row["target_account_id"])
-        if row["target_account_id"] is not None
-        else None,
+        target_account_id=(
+            db_id(row["target_account_id"])
+            if row["target_account_id"] is not None
+            else None
+        ),
         type=row["type"],
         purpose=row["purpose"],
         delivery=row["delivery"],

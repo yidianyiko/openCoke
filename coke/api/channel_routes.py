@@ -20,15 +20,15 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         result = reachability_service.get_status(
             account_id=_query_str_field("account_id")
         )
-        return jsonify(
-            {
-                "account_id": result.account_id,
-                "channel_id": result.channel_id,
-                "provider_type": result.provider_type,
-                "connection_state": result.connection_state,
-                "reachable": result.reachable,
-            }
+        return jsonify(_status_body(result))
+
+    @blueprint.post("/wechat-personal/connect")
+    def connect_wechat_personal():
+        payload = _json_payload()
+        result = reachability_service.start_wechat_personal_connection(
+            account_id=_body_str_field(payload, "account_id")
         )
+        return jsonify(_status_body(result))
 
     @blueprint.post("")
     def create():
@@ -116,6 +116,26 @@ def _channel_body(channel) -> dict:
         "connection_state": channel.connection_state,
         "removable": channel.removable,
     }
+
+
+def _status_body(status) -> dict:
+    body = {
+        "account_id": status.account_id,
+        "channel_id": status.channel_id,
+        "provider_type": status.provider_type,
+        "connection_state": status.connection_state,
+        "reachable": status.reachable,
+    }
+    pairing_code = getattr(status, "pairing_code", None)
+    pairing_expires_at = getattr(status, "pairing_expires_at", None)
+    instructions = getattr(status, "instructions", None)
+    if pairing_code is not None:
+        body["pairing_code"] = pairing_code
+    if pairing_expires_at is not None:
+        body["pairing_expires_at"] = pairing_expires_at
+    if instructions is not None:
+        body["instructions"] = instructions
+    return body
 
 
 def _json_payload() -> dict:

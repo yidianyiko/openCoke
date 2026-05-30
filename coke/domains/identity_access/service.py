@@ -341,15 +341,7 @@ class IdentityAccessService:
         )
 
     def issue_pairing_code(self, account_id: str) -> ArtifactIssueResult:
-        account = self._require_account(account_id)
-        if account.origin != "web_first":
-            raise IdentityAccessError("pairing_requires_web_first_account")
-        access_decision = self.check_access_for_action(
-            account_id=account_id,
-            action="connect_channel",
-        )
-        if not access_decision.allowed:
-            raise IdentityAccessError("access_denied", fact=access_decision.fact)
+        self._require_pairing_allowed(account_id)
         return self._issue_artifact(
             artifact_type=ArtifactType.PAIRING_CODE,
             purpose="channel_pairing",
@@ -357,6 +349,23 @@ class IdentityAccessService:
             account_id=account_id,
             ttl=timedelta(minutes=15),
         )
+
+    def get_pending_pairing_code(self, account_id: str) -> ArtifactIssueResult | None:
+        self._require_pairing_allowed(account_id)
+        artifact = self.repository.get_latest_unconsumed_artifact(
+            account_id=account_id,
+            artifact_type=ArtifactType.PAIRING_CODE,
+            purpose="channel_pairing",
+        )
+        if artifact is None or artifact.expires_at <= self._now():
+            return None
+        return ArtifactIssueResult(artifact=artifact, code=artifact.code)
+
+    def ensure_pairing_code(self, account_id: str) -> ArtifactIssueResult:
+        pending = self.get_pending_pairing_code(account_id)
+        if pending is not None:
+            return pending
+        return self.issue_pairing_code(account_id)
 
     def issue_password_reset(self, email: str) -> ArtifactIssueResult:
         credential = self.repository.get_credential_by_email(email)
@@ -508,6 +517,18 @@ class IdentityAccessService:
         self._require_account(artifact.account_id)
         return artifact.account_id
 
+    def _require_pairing_allowed(self, account_id: str) -> Account:
+        account = self._require_account(account_id)
+        if account.origin != "web_first":
+            raise IdentityAccessError("pairing_requires_web_first_account")
+        access_decision = self.check_access_for_action(
+            account_id=account_id,
+            action="connect_channel",
+        )
+        if not access_decision.allowed:
+            raise IdentityAccessError("access_denied", fact=access_decision.fact)
+        return account
+
     def _create_account(self, origin: str, default_timezone: str) -> Account:
         account = Account(
             id=self._id_factory("account"),
@@ -533,9 +554,9 @@ class IdentityAccessService:
             AccountAccess(
                 id=self._id_factory("access"),
                 account_id=account.id,
-                email_verification_state="required"
-                if origin == "web_first"
-                else "verified",
+                email_verification_state=(
+                    "required" if origin == "web_first" else "verified"
+                ),
                 subscription_state="active",
                 suspension_state="active",
                 access_allowed=origin == "messaging_first",

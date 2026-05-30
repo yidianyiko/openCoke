@@ -10,7 +10,6 @@ from coke.app import create_app
 from coke.config import Settings
 from coke.domains.channel_reachability.models import ChannelReachabilityError
 
-
 DATABASE_URL = "postgresql+psycopg://coke:coke@localhost:5432/coke_test"
 REDIS_URL = "redis://localhost:6379/15"
 
@@ -27,6 +26,21 @@ class FakeReachabilityService:
             provider_type="whatsapp_evolution",
             connection_state="connected",
             reachable=True,
+        )
+
+    def start_wechat_personal_connection(self, account_id):
+        self.calls.append(
+            ("start_wechat_personal_connection", {"account_id": account_id})
+        )
+        return SimpleNamespace(
+            account_id=account_id,
+            channel_id=None,
+            provider_type="wechat_personal",
+            connection_state="connecting",
+            reachable=False,
+            pairing_code="pairing_abc123",
+            pairing_expires_at=1_780_000_000,
+            instructions="add the Coke WeChat bot and send this code",
         )
 
     def create_channel(self, account_id, provider_type, channel_identity_id, removable):
@@ -122,6 +136,63 @@ def test_status_route_is_thin_service_adapter():
     assert service.calls == [("get_status", {"account_id": "acct_1"})]
 
 
+def test_status_route_surfaces_pending_wechat_pairing_fields():
+    class PendingStatusService(FakeReachabilityService):
+        def get_status(self, account_id):
+            self.calls.append(("get_status", {"account_id": account_id}))
+            return SimpleNamespace(
+                account_id=account_id,
+                channel_id=None,
+                provider_type="wechat_personal",
+                connection_state="connecting",
+                reachable=False,
+                pairing_code="pairing_abc123",
+                pairing_expires_at=1_780_000_000,
+                instructions="add the Coke WeChat bot and send this code",
+            )
+
+    client, service = make_client(PendingStatusService())
+
+    response = client.get("/api/channels/status?account_id=acct_1")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "account_id": "acct_1",
+        "channel_id": None,
+        "provider_type": "wechat_personal",
+        "connection_state": "connecting",
+        "reachable": False,
+        "pairing_code": "pairing_abc123",
+        "pairing_expires_at": 1_780_000_000,
+        "instructions": "add the Coke WeChat bot and send this code",
+    }
+    assert service.calls == [("get_status", {"account_id": "acct_1"})]
+
+
+def test_wechat_personal_connect_route_issues_pairing_status():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/channels/wechat-personal/connect",
+        json={"account_id": "acct_1"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "account_id": "acct_1",
+        "channel_id": None,
+        "provider_type": "wechat_personal",
+        "connection_state": "connecting",
+        "reachable": False,
+        "pairing_code": "pairing_abc123",
+        "pairing_expires_at": 1_780_000_000,
+        "instructions": "add the Coke WeChat bot and send this code",
+    }
+    assert service.calls == [
+        ("start_wechat_personal_connection", {"account_id": "acct_1"})
+    ]
+
+
 def test_channel_action_routes_delegate_to_service_methods():
     client, service = make_client()
 
@@ -138,25 +209,29 @@ def test_channel_action_routes_delegate_to_service_methods():
         == 201
     )
     assert (
-        client.post("/api/channels/channel_1/connect", json={"account_id": "acct_1"})
-        .status_code
+        client.post(
+            "/api/channels/channel_1/connect", json={"account_id": "acct_1"}
+        ).status_code
         == 200
     )
     assert (
-        client.get("/api/channels/channel_1/poll?account_id=acct_1").status_code
+        client.get("/api/channels/channel_1/poll?account_id=acct_1").status_code == 200
+    )
+    assert (
+        client.post(
+            "/api/channels/channel_1/retry", json={"account_id": "acct_1"}
+        ).status_code
         == 200
     )
     assert (
-        client.post("/api/channels/channel_1/retry", json={"account_id": "acct_1"})
-        .status_code
+        client.post(
+            "/api/channels/channel_1/remove", json={"account_id": "acct_1"}
+        ).status_code
         == 200
     )
     assert (
-        client.post("/api/channels/channel_1/remove", json={"account_id": "acct_1"})
-        .status_code
-        == 200
+        client.get("/api/channels/resolve-route?account_id=acct_1").status_code == 200
     )
-    assert client.get("/api/channels/resolve-route?account_id=acct_1").status_code == 200
 
     assert [call[0] for call in service.calls] == [
         "create_channel",
