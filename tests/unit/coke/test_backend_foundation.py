@@ -38,6 +38,85 @@ def test_settings_from_env_reads_app_env(monkeypatch):
     assert settings.app_env == "test"
 
 
+def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_BASE_URL", "https://evolution.test")
+    monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_API_KEY", "evolution-key")
+    monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_INSTANCE", "coke")
+    monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
+    monkeypatch.setenv("COKE_INTERACTION_MODEL", "custom/interaction")
+    monkeypatch.setenv("COKE_INTERPRETER_MODEL", "custom/interpreter")
+    monkeypatch.setenv("COKE_DETECTOR_MODEL", "custom/detector")
+    monkeypatch.setenv("COKE_GOOGLE_CLIENT_ID", "google-client")
+    monkeypatch.setenv("COKE_GOOGLE_CLIENT_SECRET", "google-secret")
+    monkeypatch.setenv("COKE_LOCK_TTL_MS", "45000")
+    monkeypatch.setenv("COKE_WORK_STREAM", "coke.work.test")
+    monkeypatch.setenv("COKE_WORK_GROUP", "workers-test")
+    monkeypatch.setenv("COKE_WORK_CONSUMER", "worker-a")
+    monkeypatch.setenv("COKE_REPLY_CHANNEL_PREFIX", "coke:reply:test")
+    monkeypatch.setenv("COKE_LLM_FAKE", "0")
+
+    settings = Settings.from_env()
+
+    assert settings.evolution_base_url == "https://evolution.test"
+    assert settings.evolution_api_key == "evolution-key"
+    assert settings.evolution_instance == "coke"
+    assert settings.siliconflow_api_key == "sf-key"
+    assert settings.interaction_model == "custom/interaction"
+    assert settings.interpreter_model == "custom/interpreter"
+    assert settings.detector_model == "custom/detector"
+    assert settings.google_client_id == "google-client"
+    assert settings.google_client_secret == "google-secret"
+    assert settings.lock_ttl_ms == 45000
+    assert settings.work_stream_name == "coke.work.test"
+    assert settings.work_group_name == "workers-test"
+    assert settings.work_consumer_name == "worker-a"
+    assert settings.reply_channel_prefix == "coke:reply:test"
+    assert settings.llm_fake is False
+
+
+def test_settings_from_env_allows_fake_llm_without_siliconflow_key(monkeypatch):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.delenv("SiliconFlow_API_KEY", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.llm_fake is True
+    assert settings.siliconflow_api_key is None
+
+
+def test_settings_from_env_requires_siliconflow_key_for_real_llm(monkeypatch):
+    from coke.config import ConfigurationError, Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("COKE_LLM_FAKE", raising=False)
+    monkeypatch.delenv("SiliconFlow_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError, match="SiliconFlow_API_KEY"):
+        Settings.from_env()
+
+
+def test_settings_from_env_rejects_invalid_lock_ttl(monkeypatch):
+    from coke.config import ConfigurationError, Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.setenv("COKE_LOCK_TTL_MS", "0")
+
+    with pytest.raises(ConfigurationError, match="COKE_LOCK_TTL_MS"):
+        Settings.from_env()
+
+
 def test_settings_from_env_fails_closed_without_database_url(monkeypatch):
     from coke.config import ConfigurationError, Settings
 

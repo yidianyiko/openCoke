@@ -34,6 +34,11 @@ def create_app(
         calendar_import_service = (
             calendar_import_service or composed_runtime.calendar_import_service
         )
+        provider_adapters = provider_adapters or getattr(
+            composed_runtime,
+            "provider_adapters",
+            None,
+        )
 
     if identity_access_service is not None:
         from coke.api.auth_routes import create_auth_blueprint

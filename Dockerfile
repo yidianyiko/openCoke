@@ -22,4 +22,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "-c", "from coke.app import create_app; from coke.config import Settings; create_app(Settings.from_env()).run(host='0.0.0.0', port=8000)"]
+CMD ["gunicorn", "coke.api.wsgi:app", "-b", "0.0.0.0:8000", "-w", "2"]
