@@ -83,6 +83,24 @@ class ReminderBatchItem:
     time_state: TimeValidationState | None = None
     incomplete_date: bool = False
     shared_reminder_id: str | None = None
+    turn_id: str | None = None
+    item_index: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ReminderOutboxEvent:
+    id: str
+    topic: str
+    idempotency_key: str
+    payload: dict[str, Any]
+    traceparent: str
+    status: str
+    created_at: datetime
+    published_at: datetime | None
+    processed_at: datetime | None
+    acked_at: datetime | None
+    retry_count: int
+    last_error: str | None
 
 
 @dataclass(frozen=True, slots=True)

@@ -88,6 +88,93 @@ def test_timed_and_no_trigger_create_use_owner_timezone_and_default_duration(ser
     assert reminders[1].hidden_from_calendar is False
 
 
+def test_personal_reminder_create_writes_outbox_event(service):
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+                turn_id="turn_1",
+                item_index=1,
+            )
+        ],
+    )
+
+    assert result.items[0].state == "succeeded"
+    outbox = service.repository.outbox_records
+    assert len(outbox) == 1
+    assert outbox[0].topic == "reminder.lifecycle"
+    assert outbox[0].idempotency_key == "reminder:create:turn_1:1"
+    assert outbox[0].payload["operation"] == "create"
+    assert outbox[0].payload["reminder_id"] == result.items[0].reminder_id
+
+
+def test_personal_reminder_lifecycle_writes_outbox_events(service):
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="stretch",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            )
+        ],
+    )
+    reminder_id = created.items[0].reminder_id
+
+    service.reschedule_reminder(
+        owner_account_id="acct_1",
+        reminder_id=reminder_id,
+        trigger_time=NOW + timedelta(hours=2),
+        captured_timezone="UTC",
+    )
+    service.complete_reminder("acct_1", reminder_id)
+    deleted = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="delete me",
+                trigger_time=NOW + timedelta(hours=3),
+                captured_timezone="UTC",
+            )
+        ],
+    )
+    service.delete_reminder("acct_1", deleted.items[0].reminder_id)
+
+    operations = [
+        record.payload["operation"] for record in service.repository.outbox_records
+    ]
+    assert operations == ["create", "reschedule", "complete", "create", "delete"]
+
+
+def test_commit_guard_blocks_personal_reminder_write(service):
+    class StaleCommitGuard:
+        def __call__(self):
+            raise RuntimeError("turn_superseded")
+
+    with pytest.raises(RuntimeError, match="turn_superseded"):
+        service.execute_batch(
+            owner_account_id="acct_1",
+            items=[
+                ReminderBatchItem(
+                    operation="create",
+                    content="pay rent",
+                    trigger_time=NOW + timedelta(hours=1),
+                    captured_timezone="UTC",
+                )
+            ],
+            commit_guard=StaleCommitGuard(),
+        )
+
+    assert service.repository.list_active_reminders("acct_1") == []
+    assert service.repository.outbox_records == []
+
+
 def test_duplicate_prevention_uses_schema_key_not_duration_or_entry_point(service):
     trigger_time = NOW + timedelta(hours=2)
     created = service.execute_batch(
@@ -481,6 +568,39 @@ def test_undelivered_resend_excludes_handled_deleted_and_proactive_discards(repo
     assert repository.get_fire(proactive_fire.id).delivery_result is None
     assert resend.fire_ids == [personal_fire.id]
     assert service.undelivered_resend_turn("acct_1").fire_ids == []
+
+
+def test_record_fire_delivery_marks_failed_outputs_by_class(service):
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="personal",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="proactive",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+                kind="proactive",
+            ),
+        ],
+    )
+    personal_fire = service.claim_due_fire(result.items[0].reminder_id, NOW)
+    proactive_fire = service.claim_due_fire(result.items[1].reminder_id, NOW)
+
+    service.record_fire_delivery([personal_fire.id], delivered=False)
+    service.record_proactive_delivery(proactive_fire.id, delivered=False)
+
+    assert (
+        service.repository.get_fire(personal_fire.id).delivery_result == "undelivered"
+    )
+    assert service.repository.get_fire(personal_fire.id).fire_state == "claimed"
+    assert service.repository.get_fire(proactive_fire.id).delivery_result is None
+    assert service.repository.get_fire(proactive_fire.id).fire_state == "discarded"
 
 
 def test_user_cannot_mutate_proactive_reminders(service):

@@ -67,6 +67,7 @@ class FakeSharedReminderService:
         self.calls = []
 
     def create_shared_reminder(self, **kwargs):
+        kwargs.pop("commit_guard", None)
         self.calls.append(kwargs)
         return type(
             "SharedReminderResult",
@@ -178,7 +179,9 @@ def test_instructions_require_final_protocol_reply_after_tool_work():
     factory = FakeAgentFactory(fake_agent)
     agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
 
-    agent.invoke(_request(memory_enabled=True, social_scheduling_tool=FakeSocialSchedulingTool()))
+    agent.invoke(
+        _request(memory_enabled=True, social_scheduling_tool=FakeSocialSchedulingTool())
+    )
 
     instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
     assert "After any tool call" in instructions
@@ -211,7 +214,9 @@ def test_protocol_retry_instruction_is_sent_as_retry_context():
     assert "previous assistant answer for this same turn was rejected" in prompt
     assert '{"type":"reply","segments":["..."]}' in prompt
     assert "one to three non-empty string segments" in prompt
-    assert prompt.index("Protocol retry instruction:") < prompt.index("Trusted context:")
+    assert prompt.index("Protocol retry instruction:") < prompt.index(
+        "Trusted context:"
+    )
 
 
 def test_protocol_retry_instruction_includes_specific_violation_guidance():

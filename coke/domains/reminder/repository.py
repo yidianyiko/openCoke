@@ -3,20 +3,49 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from collections.abc import Mapping
-from typing import Protocol
+from typing import Callable, Protocol
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from coke import schema
-from coke.domains._pg import db_id, insert_row, json_value, many, one_or_none, update_row
-from coke.domains.reminder.models import Reminder, ReminderFire
+from coke.domains._pg import (
+    db_id,
+    insert_row,
+    json_value,
+    many,
+    one_or_none,
+    update_row,
+    write_with_integrity,
+)
+from coke.domains.reminder.models import Reminder, ReminderFire, ReminderOutboxEvent
 
 
 class ReminderRepository(Protocol):
+    @property
+    def outbox_records(self) -> list[ReminderOutboxEvent]: ...
+
     def add_reminder(self, reminder: Reminder) -> None: ...
 
     def save_reminder(self, reminder: Reminder) -> None: ...
+
+    def add_reminder_with_outbox(
+        self,
+        reminder: Reminder,
+        outbox: ReminderOutboxEvent,
+        before_write: Callable[[], None] | None = None,
+    ) -> None: ...
+
+    def save_reminder_with_outbox(
+        self,
+        reminder: Reminder,
+        outbox: ReminderOutboxEvent,
+        before_write: Callable[[], None] | None = None,
+    ) -> None: ...
+
+    def get_outbox_by_idempotency_key(
+        self, idempotency_key: str
+    ) -> ReminderOutboxEvent | None: ...
 
     def get_reminder(self, reminder_id: str) -> Reminder | None: ...
 
@@ -44,6 +73,12 @@ class InMemoryReminderRepository:
         self.reminders_by_id: dict[str, Reminder] = {}
         self.fires_by_id: dict[str, ReminderFire] = {}
         self.fires_by_occurrence: dict[tuple[str, str], ReminderFire] = {}
+        self.outbox_by_id: dict[str, ReminderOutboxEvent] = {}
+        self.outbox_by_idempotency_key: dict[str, ReminderOutboxEvent] = {}
+
+    @property
+    def outbox_records(self) -> list[ReminderOutboxEvent]:
+        return list(self.outbox_by_id.values())
 
     def add_reminder(self, reminder: Reminder) -> None:
         if reminder.id in self.reminders_by_id:
@@ -56,6 +91,39 @@ class InMemoryReminderRepository:
             raise ValueError("reminder_not_found")
         self._assert_no_duplicate(reminder)
         self.reminders_by_id[reminder.id] = reminder
+
+    def add_reminder_with_outbox(
+        self,
+        reminder: Reminder,
+        outbox: ReminderOutboxEvent,
+        before_write: Callable[[], None] | None = None,
+    ) -> None:
+        self._atomic_write(
+            lambda: (
+                before_write() if before_write is not None else None,
+                self.add_reminder(reminder),
+                self._add_outbox(outbox),
+            )
+        )
+
+    def save_reminder_with_outbox(
+        self,
+        reminder: Reminder,
+        outbox: ReminderOutboxEvent,
+        before_write: Callable[[], None] | None = None,
+    ) -> None:
+        self._atomic_write(
+            lambda: (
+                before_write() if before_write is not None else None,
+                self.save_reminder(reminder),
+                self._add_outbox(outbox),
+            )
+        )
+
+    def get_outbox_by_idempotency_key(
+        self, idempotency_key: str
+    ) -> ReminderOutboxEvent | None:
+        return self.outbox_by_idempotency_key.get(idempotency_key)
 
     def get_reminder(self, reminder_id: str) -> Reminder | None:
         return self.reminders_by_id.get(reminder_id)
@@ -149,6 +217,26 @@ class InMemoryReminderRepository:
             ):
                 raise ValueError("duplicate_reminder")
 
+    def _add_outbox(self, outbox: ReminderOutboxEvent) -> None:
+        if outbox.id in self.outbox_by_id:
+            raise ValueError("duplicate_reminder_outbox_id")
+        if outbox.idempotency_key in self.outbox_by_idempotency_key:
+            raise ValueError("duplicate_reminder_outbox_idempotency_key")
+        self.outbox_by_id[outbox.id] = outbox
+        self.outbox_by_idempotency_key[outbox.idempotency_key] = outbox
+
+    def _atomic_write(self, operation: Callable[[], object]) -> None:
+        reminders = dict(self.reminders_by_id)
+        outbox = dict(self.outbox_by_id)
+        outbox_by_key = dict(self.outbox_by_idempotency_key)
+        try:
+            operation()
+        except Exception:
+            self.reminders_by_id = reminders
+            self.outbox_by_id = outbox
+            self.outbox_by_idempotency_key = outbox_by_key
+            raise
+
     def discard_future_proactive(
         self, owner_account_id: str, discarded_at: datetime
     ) -> None:
@@ -170,6 +258,10 @@ class InMemoryReminderRepository:
 class PostgresReminderRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    @property
+    def outbox_records(self) -> list[ReminderOutboxEvent]:
+        return [_outbox(row) for row in many(self.session, schema.outbox)]
 
     def add_reminder(self, reminder: Reminder) -> None:
         insert_row(
@@ -202,8 +294,85 @@ class PostgresReminderRepository:
         ):
             raise ValueError("reminder_not_found")
 
+    def add_reminder_with_outbox(
+        self,
+        reminder: Reminder,
+        outbox: ReminderOutboxEvent,
+        before_write: Callable[[], None] | None = None,
+    ) -> None:
+        if before_write is not None:
+            before_write()
+
+        def _write() -> None:
+            self.session.execute(
+                schema.reminder.insert().values(**_reminder_values(reminder))
+            )
+            self.session.execute(
+                schema.outbox.insert().values(**_outbox_values(outbox))
+            )
+
+        write_with_integrity(
+            self.session,
+            _write,
+            {
+                "pk_reminder": "duplicate_reminder_id",
+                "uq_reminder_active_timed_duplicate": "duplicate_reminder",
+                "uq_reminder_active_no_trigger_duplicate": "duplicate_reminder",
+                "pk_outbox": "duplicate_reminder_outbox_id",
+                "uq_outbox_idempotency_key": "duplicate_reminder_outbox_idempotency_key",
+            },
+            default_error="reminder_outbox_write_failed",
+        )
+
+    def save_reminder_with_outbox(
+        self,
+        reminder: Reminder,
+        outbox: ReminderOutboxEvent,
+        before_write: Callable[[], None] | None = None,
+    ) -> None:
+        if self.get_reminder(reminder.id) is None:
+            raise ValueError("reminder_not_found")
+        if before_write is not None:
+            before_write()
+
+        def _write() -> None:
+            rowcount = self.session.execute(
+                schema.reminder.update()
+                .where(schema.reminder.c.id == reminder.id)
+                .values(**_reminder_values(reminder))
+            ).rowcount
+            if not rowcount:
+                raise ValueError("reminder_not_found")
+            self.session.execute(
+                schema.outbox.insert().values(**_outbox_values(outbox))
+            )
+
+        write_with_integrity(
+            self.session,
+            _write,
+            {
+                "uq_reminder_active_timed_duplicate": "duplicate_reminder",
+                "uq_reminder_active_no_trigger_duplicate": "duplicate_reminder",
+                "pk_outbox": "duplicate_reminder_outbox_id",
+                "uq_outbox_idempotency_key": "duplicate_reminder_outbox_idempotency_key",
+            },
+            default_error="reminder_outbox_write_failed",
+        )
+
+    def get_outbox_by_idempotency_key(
+        self, idempotency_key: str
+    ) -> ReminderOutboxEvent | None:
+        row = one_or_none(
+            self.session,
+            schema.outbox,
+            schema.outbox.c.idempotency_key == idempotency_key,
+        )
+        return _outbox(row) if row else None
+
     def get_reminder(self, reminder_id: str) -> Reminder | None:
-        row = one_or_none(self.session, schema.reminder, schema.reminder.c.id == reminder_id)
+        row = one_or_none(
+            self.session, schema.reminder, schema.reminder.c.id == reminder_id
+        )
         return _reminder(row) if row else None
 
     def list_active_reminders(self, owner_account_id: str) -> list[Reminder]:
@@ -342,7 +511,11 @@ def _reminder(row: Mapping) -> Reminder:
         row["duration_minutes"],
         row["lifecycle"],
         row["hidden_from_calendar"],
-        db_id(row["shared_reminder_id"]) if row["shared_reminder_id"] is not None else None,
+        (
+            db_id(row["shared_reminder_id"])
+            if row["shared_reminder_id"] is not None
+            else None
+        ),
         row["created_at"],
         row["updated_at"],
     )
@@ -377,4 +550,38 @@ def _fire(row: Mapping) -> ReminderFire:
         row["missed_catch_up"],
         row["created_at"],
         row["updated_at"],
+    )
+
+
+def _outbox_values(outbox: ReminderOutboxEvent) -> dict:
+    return {
+        "id": outbox.id,
+        "topic": outbox.topic,
+        "idempotency_key": outbox.idempotency_key,
+        "payload": json_value(outbox.payload),
+        "traceparent": outbox.traceparent,
+        "status": outbox.status,
+        "created_at": outbox.created_at,
+        "published_at": outbox.published_at,
+        "processed_at": outbox.processed_at,
+        "acked_at": outbox.acked_at,
+        "retry_count": outbox.retry_count,
+        "last_error": outbox.last_error,
+    }
+
+
+def _outbox(row: Mapping) -> ReminderOutboxEvent:
+    return ReminderOutboxEvent(
+        db_id(row["id"]),
+        row["topic"],
+        row["idempotency_key"],
+        dict(row["payload"]),
+        row["traceparent"],
+        row["status"],
+        row["created_at"],
+        row["published_at"],
+        row["processed_at"],
+        row["acked_at"],
+        row["retry_count"],
+        row["last_error"],
     )

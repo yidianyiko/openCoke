@@ -135,6 +135,22 @@ def test_active_friendship_is_unique_and_removed_pair_can_reestablish():
     )
 
 
+def test_commit_guard_blocks_friendship_and_notification_fact():
+    service, repo, _, _ = make_service({"owner", "joiner"})
+    link = service.get_or_create_friend_link("owner")
+
+    with pytest.raises(RuntimeError, match="turn_superseded"):
+        service.establish_friendship_from_token(
+            "joiner",
+            link.public_token,
+            commit_guard=lambda: (_ for _ in ()).throw(RuntimeError("turn_superseded")),
+        )
+
+    assert repo.friendships_by_id == {}
+    assert repo.notification_facts_by_id == {}
+    assert repo.notification_recipients_by_id == {}
+
+
 def test_remove_friend_lifecycle_does_not_cancel_existing_shared_reminders():
     service, _, _, _ = make_service({"owner", "friend"})
     create_active_friendship(service, "owner", "friend")
@@ -166,6 +182,31 @@ def test_remove_friend_lifecycle_does_not_cancel_existing_shared_reminders():
     )
     assert blocked.status == "needs_participants"
     assert blocked.follow_up_facts["reason"] == "receiver_not_active_friend"
+
+
+def test_commit_guard_blocks_shared_reminder_and_notification_fact():
+    service, repo, _, _ = make_service({"creator", "friend"})
+    create_active_friendship(service, "creator", "friend")
+
+    with pytest.raises(RuntimeError, match="turn_superseded"):
+        service.create_shared_reminder(
+            creator_account_id="creator",
+            receiver_account_ids=["friend"],
+            title="planning",
+            local_trigger_at=datetime(2026, 6, 1, 9, 0),
+            captured_timezone="Asia/Tokyo",
+            duration_minutes=30,
+            context={"source": "test"},
+            commit_guard=lambda: (_ for _ in ()).throw(RuntimeError("turn_superseded")),
+        )
+
+    assert repo.shared_reminders_by_id == {}
+    assert repo.projections_by_id == {}
+    assert [
+        fact
+        for fact in repo.notification_facts_by_id.values()
+        if fact.object_type == "shared_reminder"
+    ] == []
 
 
 def test_group_shared_reminder_creation_is_one_object_with_participant_projections():
