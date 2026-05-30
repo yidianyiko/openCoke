@@ -10,11 +10,11 @@
 
 ---
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 **Status Date:** 2026-05-30
-**Blocker:** None currently. This live-readiness follow-up remains in progress
-until Bug A/B/C/D regression tests, full unit tests, Postgres integration tests,
-redeploy, and mocked Phase 4-6 live resume have fresh evidence.
+**Blocker:** None. Bug A/B/C/D regression work, full unit tests, Postgres
+integration tests, clean-stack redeploy, and mocked Phase 4-6 live resume now
+have fresh evidence.
 **Freshness Check:** Read `AGENTS.md`, `docs/design-docs/index.md`, `docs/design-docs/human-ai-working-contract.md`, master plan Task 9 and architecture-watch sections, requirements §§5.6/5.7/5.9, target architecture §§3.5/4/8/9/14/15, `coke/schema.py`, existing `identity_access`, `channel_reachability`, `coke/api/*_routes.py`, and `coke/app.py`.
 
 **Files:**
@@ -168,11 +168,11 @@ Run: `zsh scripts/review-trigger --base HEAD~1`
 
 Expected: command completes; record any non-blocking findings in handoff if present.
 
-- [ ] **Step 4: Mark this plan complete**
+- [x] **Step 4: Mark this plan complete**
 
 Set `Plan Status` to `complete` only after verification passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
@@ -272,7 +272,7 @@ git add coke/composition.py coke/llm/agno_interaction_agent.py tests/unit/coke/t
 git commit -m "fix: expose social scheduling friend links to agent"
 ```
 
-- [ ] **Step 9: Redeploy clean stack**
+- [x] **Step 9: Redeploy clean stack**
 
 Run:
 
@@ -283,7 +283,7 @@ REMOTE_HOST=gcp-coke REMOTE_ROOT=/home/whoami/coke-clean PROJECT_NAME=coke-clean
 Then confirm the clean API health endpoint returns HTTP 200 and the old stack
 containers are still running.
 
-- [ ] **Step 10: Resume mocked live E2E**
+- [x] **Step 10: Resume mocked live E2E**
 
 Against `http://127.0.0.1:8000/webhooks/whatsapp/evolution` on `gcp-coke`,
 send Evolution `messages.upsert` payloads for two mocked WhatsApp senders.
@@ -293,7 +293,7 @@ messaging-first account/channel/anchor/reply, personal reminder, friend link and
 reply code, second account plus active friendship, shared reminder projections
 and notification facts, and reminder fire plus outbound delivery attempt.
 
-- [ ] **Step 11: Mark this task and plan complete**
+- [x] **Step 11: Mark this task and plan complete**
 
 Only after Steps 6, 7, 9, and 10 have passing evidence, set this Task 7
 checkboxes complete and set `Plan Status` to `complete`.
@@ -502,7 +502,7 @@ COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/pos
 
 Expected: full integration suite passes.
 
-- [ ] **Step 3: Commit coherent fix**
+- [x] **Step 3: Commit coherent fix**
 
 Run:
 
@@ -511,7 +511,7 @@ git add coke/domains/social_scheduling/repository.py coke/domains/social_schedul
 git commit -m "fix: harden live social scheduling persistence"
 ```
 
-- [ ] **Step 4: Redeploy coke-clean**
+- [x] **Step 4: Redeploy coke-clean**
 
 Run:
 
@@ -529,7 +529,7 @@ ssh gcp-coke 'cd /home/whoami/coke-clean && docker compose -p coke-clean ps'
 Expected: healthz returns `200`; `coke-clean-coke-scheduler-1` is `Up` and not
 restarting; the old stack containers are still running.
 
-- [ ] **Step 5: Resume mocked Phase 4-6 live test**
+- [x] **Step 5: Resume mocked Phase 4-6 live test**
 
 On `gcp-coke`, send mocked Evolution messages to
 `http://127.0.0.1:8000/webhooks/whatsapp/evolution` for fresh olivers and
@@ -547,7 +547,7 @@ capture rows proving:
   `reminder_fire` row and render-turn outbound message. Evolution mock delivery
   may fail; database rows are the verdict.
 
-- [ ] **Step 6: Close the plan**
+- [x] **Step 6: Close the plan**
 
 Only after Steps 1-5 have evidence, update `Plan Status` to `complete`, set
 `Status Date` to the completion date, check off the remaining boxes, and commit
@@ -651,7 +651,7 @@ Evidence:
 `COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q`
 passed with `42 passed in 4.50s`.
 
-- [ ] **Step 6: Commit the fix**
+- [x] **Step 6: Commit the fix**
 
 Run:
 
@@ -660,7 +660,7 @@ git add coke/llm/agno_interaction_agent.py coke/composition.py tests/unit/coke/l
 git commit -m "fix: normalize agno tool arguments"
 ```
 
-- [ ] **Step 7: Redeploy coke-clean**
+- [x] **Step 7: Redeploy coke-clean**
 
 Run:
 
@@ -679,7 +679,7 @@ ssh gcp-coke 'cd /home/whoami/coke && docker compose ps'
 Expected: clean API healthz returns `200`, `coke-clean-coke-scheduler-1` is up
 with restart count `0`, and the old stack is still running.
 
-- [ ] **Step 8: Resume mocked Phase 5 and Phase 6**
+- [x] **Step 8: Resume mocked Phase 5 and Phase 6**
 
 Against `http://127.0.0.1:8000/webhooks/whatsapp/evolution` on `gcp-coke`, use
 fresh olivers and 李梓豪 mock senders. Quickly redo setup: provision both
@@ -690,8 +690,29 @@ code, create a shared reminder, and then force one projection reminder's
 `reminder_fire`. Evolution mock-number delivery may fail; database rows are the
 verdict.
 
-- [ ] **Step 9: Close the plan**
+- [x] **Step 9: Close the plan**
 
 Only after Steps 1-8 have evidence, update `Plan Status` to `complete`, set
 `Status Date` to the completion date, check off Task 12, and commit any plan
 closeout change.
+
+Closeout evidence:
+- Commit: `16a7b5d1 fix: normalize agno tool arguments`.
+- Deploy: `scripts/deploy-compose-to-gcp.sh` completed with
+  `[deploy-clean] clean deploy health check passed`; clean `/healthz` returned
+  `200`.
+- Process health: `coke-clean-coke-scheduler-1`,
+  `coke-clean-coke-api-1`, `coke-clean-coke-worker-1`, and
+  `coke-clean-coke-outbox-relay-1` had restart count `0`; old `coke-*` stack
+  containers remained running.
+- Live run: `phase56_20260530T093339Z` provisioned olivers and 李梓豪, created
+  friendship notification fact `c391ac66-9e75-4987-b7b0-d5c5d4946445`
+  referencing outbox `28cd857e-f080-4344-80d8-3098dabcc5cd`, created active
+  shared reminder `3832c900-fc37-4c8b-a128-b8bdcdc3d777`, produced two active
+  projections, persisted shared-reminder notification fact
+  `4fd2d150-150c-4cb4-85ad-e4b856d7a83b` plus outbox
+  `49e0d2e3-f812-415b-82d4-8d2d1fc1f439`, and returned an agent reply matching
+  the persisted shared reminder.
+- Scheduler resume: forced reminder `b12a6fc3-ae33-4401-9c12-70d2f64607a0`
+  produced reminder fire `d0164945-9687-4a2e-a50e-67ddfab0d482` and
+  render-turn outbound message `df3ac514-f3fc-4c9d-a859-b9ca209de00f`.
