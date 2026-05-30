@@ -15,6 +15,7 @@ ToolName = Literal[
     "social_scheduling",
     "calendar_import",
     "identity_access",
+    "settings",
 ]
 
 
@@ -38,6 +39,7 @@ class ToolProfile:
     social_scheduling_tool: Any | None = None
     calendar_import_tool: Any | None = None
     identity_access_tool: Any | None = None
+    settings_tool: Any | None = None
 
     @classmethod
     def interactive(cls, tool_ports: Any) -> ToolProfile:
@@ -50,6 +52,8 @@ class ToolProfile:
             names.append("calendar_import")
         if getattr(tool_ports, "identity_access_tool", None) is not None:
             names.append("identity_access")
+        if getattr(tool_ports, "settings_tool", None) is not None:
+            names.append("settings")
         return cls(
             intent_tools_enabled=True,
             tool_names=tuple(names),
@@ -57,6 +61,7 @@ class ToolProfile:
             social_scheduling_tool=getattr(tool_ports, "social_scheduling_tool", None),
             calendar_import_tool=getattr(tool_ports, "calendar_import_tool", None),
             identity_access_tool=getattr(tool_ports, "identity_access_tool", None),
+            settings_tool=getattr(tool_ports, "settings_tool", None),
         )
 
     @classmethod

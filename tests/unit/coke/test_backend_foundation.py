@@ -6,7 +6,6 @@ import sys
 
 import pytest
 
-
 POSTGRES_URL = "postgresql+psycopg://coke:pass@localhost:5432/coke"
 REDIS_URL = "redis://localhost:6379/0"
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"

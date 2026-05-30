@@ -12,6 +12,7 @@ def create_app(
     reminder_service=None,
     social_scheduling_service=None,
     calendar_import_service=None,
+    settings_service=None,
     provider_adapters=None,
     composed_runtime=None,
 ) -> Flask:
@@ -33,6 +34,11 @@ def create_app(
         )
         calendar_import_service = (
             calendar_import_service or composed_runtime.calendar_import_service
+        )
+        settings_service = settings_service or getattr(
+            composed_runtime,
+            "settings_service",
+            None,
         )
         provider_adapters = provider_adapters or getattr(
             composed_runtime,
@@ -84,6 +90,13 @@ def create_app(
 
         app.register_blueprint(
             create_reminder_blueprint(reminder_service, identity_access_service)
+        )
+
+    if settings_service is not None and identity_access_service is not None:
+        from coke.api.settings_routes import create_settings_blueprint
+
+        app.register_blueprint(
+            create_settings_blueprint(settings_service, identity_access_service)
         )
 
     if social_scheduling_service is not None and identity_access_service is not None:

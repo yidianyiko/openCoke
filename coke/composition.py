@@ -39,6 +39,12 @@ from coke.domains.reminder.repository import (
     PostgresReminderRepository,
 )
 from coke.domains.reminder.service import ReminderService
+from coke.domains.settings.models import SettingsError, SettingsView
+from coke.domains.settings.repository import (
+    InMemorySettingsRepository,
+    PostgresSettingsRepository,
+)
+from coke.domains.settings.service import SettingsService
 from coke.domains.social_scheduling.availability import BusyInterval
 from coke.domains.social_scheduling.repository import (
     InMemorySocialSchedulingRepository,
@@ -81,6 +87,7 @@ class CokeRepositories:
     reminder: Any
     social_scheduling: Any
     calendar_import: Any
+    settings: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +96,7 @@ class CokeToolAdapters:
     social_scheduling_tool: "SocialSchedulingToolAdapter"
     calendar_import_tool: "CalendarImportToolAdapter"
     identity_access_tool: "IdentityAccessToolAdapter"
+    settings_tool: "SettingsToolAdapter"
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +108,7 @@ class CokeRuntime:
     reminder_service: ReminderService
     social_scheduling_service: SocialSchedulingService
     calendar_import_service: CalendarImportService
+    settings_service: SettingsService
     adapters: CokeToolAdapters
     tool_ports: AgentToolPorts
     pre_llm_gate: PreLLMGateService
@@ -234,8 +243,13 @@ class ReminderAvailabilityAdapter:
 
 
 class IdentityAccessPreLLMGatePort:
-    def __init__(self, identity_access: IdentityAccessService) -> None:
+    def __init__(
+        self,
+        identity_access: IdentityAccessService,
+        settings_service: SettingsService | None = None,
+    ) -> None:
         self.identity_access = identity_access
+        self.settings_service = settings_service
 
     def evaluate(self, trigger) -> GateDecision:
         try:
@@ -249,7 +263,17 @@ class IdentityAccessPreLLMGatePort:
             activation = self.identity_access.mark_first_inbound_received(
                 trigger.account_id
             )
+            settings_view = (
+                self.settings_service.view_settings(trigger.account_id)
+                if self.settings_service is not None
+                else None
+            )
         except IdentityAccessError as error:
+            return GateDecision.denied(
+                denial_reason=error.code,
+                access_facts=error.fact or {"type": error.code},
+            )
+        except SettingsError as error:
             return GateDecision.denied(
                 denial_reason=error.code,
                 access_facts=error.fact or {"type": error.code},
@@ -262,6 +286,8 @@ class IdentityAccessPreLLMGatePort:
             ),
             "memory_enabled": True,
         }
+        if settings_view is not None:
+            trust_facts.update(_settings_view_facts(settings_view))
         return GateDecision.allowed(
             trust_facts=trust_facts,
             activation_guidance_required=activation.first_guidance_sent_at is None,
@@ -615,6 +641,72 @@ class IdentityAccessToolAdapter:
         )
 
 
+class SettingsToolAdapter:
+    def __init__(self, settings_service: SettingsService) -> None:
+        self.settings_service = settings_service
+
+    def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
+        operation = _required_str(command, "operation")
+        account_id = _required_str(
+            command, "account_id", default_key="owner_account_id"
+        )
+        try:
+            if operation == "view_settings":
+                return ToolExecutionResult(
+                    ok=True,
+                    facts=_settings_view_facts(
+                        self.settings_service.view_settings(account_id)
+                    ),
+                )
+
+            _guard_state_change(guard)
+            if operation == "set_timezone":
+                view = self.settings_service.set_timezone(
+                    account_id,
+                    _required_str(
+                        command,
+                        "default_timezone",
+                        default_key="timezone",
+                    ),
+                )
+                return ToolExecutionResult(ok=True, facts=_settings_view_facts(view))
+
+            if operation == "update_settings":
+                view = self.settings_service.update_settings(
+                    account_id,
+                    **_settings_update_fields(command),
+                )
+                return ToolExecutionResult(ok=True, facts=_settings_view_facts(view))
+
+            if operation == "update_profile":
+                view = self.settings_service.update_profile(
+                    account_id,
+                    **_profile_update_fields(command),
+                )
+                return ToolExecutionResult(ok=True, facts=_settings_view_facts(view))
+
+            if operation == "reset_agent_settings":
+                view = self.settings_service.reset_agent_settings(account_id)
+                return ToolExecutionResult(ok=True, facts=_settings_view_facts(view))
+        except SettingsError as error:
+            return ToolExecutionResult(
+                ok=False,
+                facts=error.fact or {"type": error.code},
+                reason_code=error.code,
+            )
+        except ValueError as error:
+            reason_code = str(error) or "settings_write_failed"
+            return ToolExecutionResult(
+                ok=False,
+                facts={"type": reason_code},
+                reason_code=reason_code,
+            )
+
+        return ToolExecutionResult(
+            ok=False, facts={}, reason_code="unsupported_settings_operation"
+        )
+
+
 def compose_coke_runtime(
     *,
     semantic_interpreter: SemanticInterpreter,
@@ -638,14 +730,31 @@ def compose_coke_runtime(
     # in-memory dict-key repos and fails the Postgres-backed repositories.
     id_factory = id_factory or (lambda prefix: uuid4().hex)
 
-    repositories = repositories or CokeRepositories(
-        identity_access=InMemoryIdentityAccessRepository(now=now),
-        channel_reachability=InMemoryChannelReachabilityRepository(),
-        conversation_runtime=InMemoryConversationRuntimeRepository(now=now),
-        reminder=InMemoryReminderRepository(),
-        social_scheduling=InMemorySocialSchedulingRepository(),
-        calendar_import=InMemoryCalendarImportRepository(),
-    )
+    if repositories is None:
+        identity_repository = InMemoryIdentityAccessRepository(now=now)
+        repositories = CokeRepositories(
+            identity_access=identity_repository,
+            channel_reachability=InMemoryChannelReachabilityRepository(),
+            conversation_runtime=InMemoryConversationRuntimeRepository(now=now),
+            reminder=InMemoryReminderRepository(),
+            social_scheduling=InMemorySocialSchedulingRepository(),
+            calendar_import=InMemoryCalendarImportRepository(),
+            settings=InMemorySettingsRepository(
+                accounts=identity_repository.accounts,
+            ),
+        )
+    elif repositories.settings is None:
+        repositories = CokeRepositories(
+            identity_access=repositories.identity_access,
+            channel_reachability=repositories.channel_reachability,
+            conversation_runtime=repositories.conversation_runtime,
+            reminder=repositories.reminder,
+            social_scheduling=repositories.social_scheduling,
+            calendar_import=repositories.calendar_import,
+            settings=InMemorySettingsRepository(
+                accounts=getattr(repositories.identity_access, "accounts", None),
+            ),
+        )
 
     identity_access_service = IdentityAccessService(
         repository=repositories.identity_access,
@@ -685,21 +794,29 @@ def compose_coke_runtime(
         now=now,
         id_factory=id_factory,
     )
+    settings_service = SettingsService(
+        repository=repositories.settings,
+        proactive_reminder_port=repositories.reminder,
+        now=now,
+        id_factory=id_factory,
+    )
 
     adapters = CokeToolAdapters(
         reminder_tool=ReminderToolAdapter(reminder_service),
         social_scheduling_tool=SocialSchedulingToolAdapter(social_scheduling_service),
         calendar_import_tool=CalendarImportToolAdapter(calendar_import_service),
         identity_access_tool=IdentityAccessToolAdapter(identity_access_service),
+        settings_tool=SettingsToolAdapter(settings_service),
     )
     tool_ports = AgentToolPorts(
         reminder_tool=adapters.reminder_tool,
         social_scheduling_tool=adapters.social_scheduling_tool,
         calendar_import_tool=adapters.calendar_import_tool,
         identity_access_tool=adapters.identity_access_tool,
+        settings_tool=adapters.settings_tool,
     )
     pre_llm_gate = PreLLMGateService(
-        IdentityAccessPreLLMGatePort(identity_access_service)
+        IdentityAccessPreLLMGatePort(identity_access_service, settings_service)
     )
     lock_manager = ConversationLockManager(
         redis_client=redis_client,
@@ -725,6 +842,7 @@ def compose_coke_runtime(
         reminder_service=reminder_service,
         social_scheduling_service=social_scheduling_service,
         calendar_import_service=calendar_import_service,
+        settings_service=settings_service,
         adapters=adapters,
         tool_ports=tool_ports,
         pre_llm_gate=pre_llm_gate,
@@ -764,6 +882,7 @@ def build_runtime_from_settings(
         reminder=PostgresReminderRepository(session),
         social_scheduling=PostgresSocialSchedulingRepository(session),
         calendar_import=PostgresCalendarImportRepository(session),
+        settings=PostgresSettingsRepository(session),
     )
     semantic_interpreter, interaction_agent, reminder_detector = _llm_from_settings(
         settings
@@ -802,6 +921,7 @@ def build_runtime_from_settings(
         reminder_service=runtime.reminder_service,
         social_scheduling_service=runtime.social_scheduling_service,
         calendar_import_service=runtime.calendar_import_service,
+        settings_service=runtime.settings_service,
         adapters=runtime.adapters,
         tool_ports=runtime.tool_ports,
         pre_llm_gate=runtime.pre_llm_gate,
@@ -1030,6 +1150,59 @@ def _availability_facts(result: Any) -> list[dict[str, Any]]:
         }
         for item in items
     ]
+
+
+def _settings_view_facts(view: SettingsView) -> dict[str, Any]:
+    settings = view.agent_settings
+    profile = view.user_profile
+    agent_settings = {
+        "assistant_name": settings.assistant_name,
+        "user_address_name": settings.user_address_name,
+        "persona": settings.persona,
+        "background": settings.background,
+        "speaking_style": settings.speaking_style,
+        "extra_rules": settings.extra_rules,
+        "proactive_enabled": settings.proactive_enabled,
+        "memory_enabled": settings.memory_enabled,
+    }
+    user_profile = {
+        "real_name": profile.real_name,
+        "nickname": profile.nickname,
+        "description": profile.description,
+        "relationship_description": profile.relationship_description,
+    }
+    return {
+        "account_id": view.account_id,
+        "default_timezone": view.default_timezone,
+        **agent_settings,
+        "agent_settings": agent_settings,
+        "user_profile": user_profile,
+    }
+
+
+def _settings_update_fields(command: Mapping[str, Any]) -> dict[str, Any]:
+    fields = (
+        "default_timezone",
+        "assistant_name",
+        "user_address_name",
+        "persona",
+        "background",
+        "speaking_style",
+        "extra_rules",
+        "proactive_enabled",
+        "memory_enabled",
+    )
+    return {field: command[field] for field in fields if field in command}
+
+
+def _profile_update_fields(command: Mapping[str, Any]) -> dict[str, Any]:
+    fields = (
+        "real_name",
+        "nickname",
+        "description",
+        "relationship_description",
+    )
+    return {field: command[field] for field in fields if field in command}
 
 
 def _first_reason(items: list[Any]) -> str | None:

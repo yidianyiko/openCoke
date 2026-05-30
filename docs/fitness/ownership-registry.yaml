@@ -8,6 +8,7 @@ systems:
   - reminder
   - social-scheduling
   - calendar-import
+  - settings
   - turn
   - provider-adapters
   - state-infrastructure
@@ -33,6 +34,8 @@ routes:
   - path: coke/api/shared_reminder_routes.py
     owner: social-scheduling
     secondary_owner: reminder
+  - path: coke/api/settings_routes.py
+    owner: settings
 
 contracts:
   - path: coke/app.py
