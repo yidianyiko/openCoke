@@ -7,13 +7,13 @@ from typing import Any, Protocol
 
 
 class RedisLockPort(Protocol):
-    def set(self, name: str, value: str, nx: bool = False, px: int | None = None): ...
+    def acquire_lock(self, name: str, token: str, ttl_ms: int) -> bool: ...
 
-    def get(self, name: str): ...
+    def get_token(self, name: str) -> str | None: ...
 
-    def pexpire(self, name: str, ttl_ms: int): ...
+    def extend_if_owned(self, name: str, token: str, ttl_ms: int) -> bool: ...
 
-    def delete(self, name: str): ...
+    def release_if_owned(self, name: str, token: str) -> bool: ...
 
 
 Instrument = Callable[[dict[str, Any]], None]
@@ -37,7 +37,7 @@ class ConversationLockManager:
     def acquire(self, conversation_id: str) -> ConversationLock | None:
         token = self._token_factory()
         key = self._key(conversation_id)
-        acquired = self.redis_client.set(key, token, nx=True, px=self.ttl_ms)
+        acquired = self.redis_client.acquire_lock(key, token, self.ttl_ms)
         if not acquired:
             return None
         return ConversationLock(
@@ -63,21 +63,16 @@ class ConversationLock:
     instrument: Instrument
 
     def heartbeat(self) -> bool:
-        if not self._owns_lock():
-            self._record_loss()
-            return False
-        extended = bool(self.redis_client.pexpire(self.key, self.ttl_ms))
+        extended = self.redis_client.extend_if_owned(self.key, self.token, self.ttl_ms)
         if not extended:
             self._record_loss()
         return extended
 
     def release(self) -> bool:
-        if not self._owns_lock():
-            return False
-        return bool(self.redis_client.delete(self.key))
+        return self.redis_client.release_if_owned(self.key, self.token)
 
     def _owns_lock(self) -> bool:
-        return _decode_redis_value(self.redis_client.get(self.key)) == self.token
+        return _decode_redis_value(self.redis_client.get_token(self.key)) == self.token
 
     def _record_loss(self) -> None:
         self.instrument(
