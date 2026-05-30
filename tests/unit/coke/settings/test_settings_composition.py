@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+from coke.composition import compose_coke_runtime
+from coke.turn.agent import AgentResult
+from coke.turn.context import TurnMode, TurnTrigger
+
+NOW = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
+
+
+class FakeSemanticInterpreter:
+    def interpret(self, request):
+        raise AssertionError("not used in this composition test")
+
+
+class FakeInteractionAgent:
+    def invoke(self, request):
+        return AgentResult.completed({"type": "reply", "segments": ["ok"]})
+
+    def complete_async(self, task_id):
+        return AgentResult.completed({"type": "reply", "segments": ["ok"]})
+
+
+class FakeOutboundDelivery:
+    def deliver(self, request):
+        return None
+
+
+def test_composition_exposes_settings_tool_and_pre_llm_trusted_settings_facts():
+    runtime = compose_coke_runtime(
+        semantic_interpreter=FakeSemanticInterpreter(),
+        interaction_agent=FakeInteractionAgent(),
+        redis_client=object(),
+        outbound_delivery=FakeOutboundDelivery(),
+        now=lambda: NOW,
+        id_factory=_id_factory(),
+    )
+    resolution = runtime.identity_access_service.resolve_or_create_channel_identity(
+        "whatsapp_evolution",
+        "sender",
+    )
+    account_id = resolution.account.id
+
+    runtime.adapters.settings_tool.execute(
+        {
+            "operation": "update_settings",
+            "account_id": account_id,
+            "default_timezone": "Asia/Tokyo",
+            "assistant_name": "Mina",
+            "user_address_name": "Yuki",
+            "speaking_style": "concise",
+            "memory_enabled": False,
+        },
+        _Guard(),
+    )
+
+    decision = runtime.pre_llm_gate.evaluate(
+        TurnTrigger(
+            trigger_id="trigger_1",
+            trigger_type="InboundTurn",
+            mode=TurnMode.INTERACTIVE,
+            conversation_id="conversation_1",
+            account_id=account_id,
+            payload={"text": "remind me tomorrow at 9"},
+        )
+    )
+
+    assert runtime.tool_ports.settings_tool is runtime.adapters.settings_tool
+    assert decision.permitted is True
+    assert decision.trust_facts["default_timezone"] == "Asia/Tokyo"
+    assert decision.trust_facts["assistant_name"] == "Mina"
+    assert decision.trust_facts["user_address_name"] == "Yuki"
+    assert decision.trust_facts["speaking_style"] == "concise"
+    assert decision.trust_facts["memory_enabled"] is False
+
+
+class _Guard:
+    def guard_state_change(self) -> None:
+        return None
+
+
+def _id_factory():
+    counters: dict[str, int] = {}
+
+    def factory(prefix: str) -> str:
+        counters[prefix] = counters.get(prefix, 0) + 1
+        return f"{prefix}_{counters[prefix]}"
+
+    return factory

@@ -14,8 +14,9 @@ class ToolExecutionResult:
 
 
 class StateChangingToolPort(Protocol):
-    def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
-        ...
+    def execute(
+        self, command: Mapping[str, Any], guard: Any
+    ) -> ToolExecutionResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +25,7 @@ class AgentToolPorts:
     social_scheduling_tool: StateChangingToolPort | None = None
     calendar_import_tool: StateChangingToolPort | None = None
     identity_access_tool: StateChangingToolPort | None = None
+    settings_tool: StateChangingToolPort | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,7 +6,9 @@ from typing import Any
 
 from agno.run.agent import RunOutput
 
-from coke.composition import SocialSchedulingToolAdapter
+from coke.composition import ReminderToolAdapter, SocialSchedulingToolAdapter
+from coke.domains.reminder.repository import InMemoryReminderRepository
+from coke.domains.reminder.service import ReminderService
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
 from coke.turn.agent import AgentRequest, AgentToolPorts, ToolExecutionResult
 from coke.turn.context import ToolProfile, TurnMode
@@ -55,6 +57,15 @@ class FakeSocialSchedulingTool:
     def execute(self, command, guard):
         self.calls.append((command, guard))
         return ToolExecutionResult(ok=True, facts={"friend_link_id": "link_1"})
+
+
+class FakeSettingsTool:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def execute(self, command, guard):
+        self.calls.append((command, guard))
+        return ToolExecutionResult(ok=True, facts={"default_timezone": "Asia/Tokyo"})
 
 
 class FakeGuard:
@@ -173,12 +184,47 @@ def test_agent_instructions_gate_success_claims_on_tool_ok_true():
     assert "must not claim the action succeeded" in instructions
 
 
+def test_agent_instructions_route_conversational_settings_to_settings_tool():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True, settings_tool=FakeSettingsTool()))
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "For global timezone switches" in instructions
+    assert "operation=set_timezone" in instructions
+    assert "operation=update_settings" in instructions
+    assert "operation=update_profile" in instructions
+    assert "operation=reset_agent_settings" in instructions
+    assert "memory_enabled=false" in instructions
+    assert "proactive_enabled=false" in instructions
+
+
+def test_agent_instructions_decline_unsupported_external_booking_without_reminder():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=FakeReminderTool()))
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "Unsupported external booking" in instructions
+    assert (
+        "call reminder_tool only when the user explicitly asks for a reminder"
+        in instructions
+    )
+    assert "never claim the class or appointment is booked" in instructions
+
+
 def test_instructions_require_final_protocol_reply_after_tool_work():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
     agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
 
-    agent.invoke(_request(memory_enabled=True, social_scheduling_tool=FakeSocialSchedulingTool()))
+    agent.invoke(
+        _request(memory_enabled=True, social_scheduling_tool=FakeSocialSchedulingTool())
+    )
 
     instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
     assert "After any tool call" in instructions
@@ -211,7 +257,9 @@ def test_protocol_retry_instruction_is_sent_as_retry_context():
     assert "previous assistant answer for this same turn was rejected" in prompt
     assert '{"type":"reply","segments":["..."]}' in prompt
     assert "one to three non-empty string segments" in prompt
-    assert prompt.index("Protocol retry instruction:") < prompt.index("Trusted context:")
+    assert prompt.index("Protocol retry instruction:") < prompt.index(
+        "Trusted context:"
+    )
 
 
 def test_protocol_retry_instruction_includes_specific_violation_guidance():
@@ -296,6 +344,46 @@ def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
                 "owner_account_id": "account_1",
                 "captured_timezone": "UTC",
                 "entry_point": "conversation",
+            },
+            guard,
+        )
+    ]
+
+
+def test_settings_tool_doc_and_defaults_use_trusted_account():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    settings_tool = FakeSettingsTool()
+    guard = object()
+
+    agent.invoke(
+        _request(memory_enabled=True, settings_tool=settings_tool, guard=guard)
+    )
+
+    tools = factory.agent_kwargs[0]["tools"]
+    assert [tool.__name__ for tool in tools] == ["settings_tool"]
+    doc = tools[0].__doc__ or ""
+    assert "set_timezone" in doc
+    assert "update_settings" in doc
+    assert "update_profile" in doc
+    assert "reset_agent_settings" in doc
+    assert "proactive_enabled" in doc
+    assert "memory_enabled" in doc
+    assert "trusted_facts.account_id" in doc
+    assert tools[0](
+        {"operation": "set_timezone", "default_timezone": "Asia/Tokyo"}
+    ) == {
+        "ok": True,
+        "facts": {"default_timezone": "Asia/Tokyo"},
+        "reason_code": None,
+    }
+    assert settings_tool.calls == [
+        (
+            {
+                "operation": "set_timezone",
+                "default_timezone": "Asia/Tokyo",
+                "account_id": "account_1",
             },
             guard,
         )
@@ -638,6 +726,42 @@ def test_memory_switch_disables_long_term_agno_memory_context():
     assert factory.agent_kwargs[0]["enable_user_memories"] is False
 
 
+def test_coach_booking_refusal_path_does_not_create_reminder_or_claim_booking():
+    fake_agent = FakeAgentInstance(
+        content={
+            "type": "reply",
+            "segments": [
+                "我不能直接帮你在外部 App 里约课。真正约课需要你自己在 App 里点；如果需要，我可以帮你设提醒。"
+            ],
+        }
+    )
+    factory = FakeAgentFactory(fake_agent)
+    reminder_repo = InMemoryReminderRepository()
+    reminder_tool = ReminderToolAdapter(
+        ReminderService(
+            reminder_repo,
+            now=lambda: datetime(2026, 5, 31, 12, 0),
+            id_factory=lambda prefix: f"{prefix}_1",
+        )
+    )
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="帮我约彭教练这周五下午4点的私教课",
+            reminder_tool=reminder_tool,
+        )
+    )
+
+    reply_text = "".join(result.output["segments"])
+    assert reminder_repo.list_active_reminders("account_1") == []
+    assert "已预约" not in reply_text
+    assert "预约好了" not in reply_text
+    assert "已经帮你约" not in reply_text
+    assert "booked" not in reply_text.lower()
+
+
 def test_complete_async_reruns_timed_out_request():
     fake_agent = FakeAgentInstance(
         content={"type": "reply", "segments": ["finished"]},
@@ -665,13 +789,17 @@ def _request(
     default_timezone: str = "UTC",
     reminder_tool=None,
     social_scheduling_tool=None,
+    settings_tool=None,
     guard=None,
     trusted_facts: dict[str, Any] | None = None,
 ) -> AgentRequest:
-    tool_ports = AgentToolPorts(
-        reminder_tool=reminder_tool,
-        social_scheduling_tool=social_scheduling_tool,
-    )
+    tool_kwargs = {
+        "reminder_tool": reminder_tool,
+        "social_scheduling_tool": social_scheduling_tool,
+    }
+    if settings_tool is not None:
+        tool_kwargs["settings_tool"] = settings_tool
+    tool_ports = AgentToolPorts(**tool_kwargs)
     facts = {
         "assistant_name": "Coke",
         "persona": "concise assistant",

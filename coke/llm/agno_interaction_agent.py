@@ -34,6 +34,12 @@ _REMINDER_OP_ALIASES = {
     "update": "reschedule_reminder",
     "modify_time": "reschedule_reminder",
 }
+_SETTINGS_OP_ALIASES = {
+    "timezone": "set_timezone",
+    "set_default_timezone": "set_timezone",
+    "reset": "reset_agent_settings",
+    "reset_settings": "reset_agent_settings",
+}
 
 
 class ToolArgumentError(ValueError):
@@ -144,14 +150,22 @@ class AgnoInteractionAgent:
 
     def _system_message(self, request: AgentRequest) -> str:
         assistant_name = request.trusted_facts.get("assistant_name") or "Coke"
+        user_address_name = request.trusted_facts.get("user_address_name") or ""
         persona = request.trusted_facts.get("persona") or ""
+        background = request.trusted_facts.get("background") or ""
         speaking_style = request.trusted_facts.get("speaking_style") or ""
         extra_rules = request.trusted_facts.get("extra_rules") or ""
         return "\n".join(
             part
             for part in (
                 f"You are {assistant_name}, the single Coke Interaction Agent.",
+                (
+                    f"Address the user as {user_address_name} when it is natural."
+                    if user_address_name
+                    else ""
+                ),
                 str(persona),
+                str(background),
                 str(speaking_style),
                 str(extra_rules),
                 "Use only trusted_facts and tool results for product claims.",
@@ -179,6 +193,11 @@ class AgnoInteractionAgent:
             "For shared-reminder creation, call social_scheduling_tool with operation=create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, title, local_trigger_at, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes, and context.",
             "For shared-reminder cancellation requests, call social_scheduling_tool with operation=cancel_shared_reminder, account_id from trusted_facts.account_id, and shared_reminder_id from trusted context or prior tool results.",
             "When a user gives a friend name but not an account ID, call operation=list_friends first. If exactly one active friend matches the request context, use that friend's account_id; otherwise ask a clarification instead of inventing an ID.",
+            "For global timezone switches, call settings_tool with operation=set_timezone, account_id from trusted_facts.account_id, and default_timezone as the requested IANA timezone; do not rewrite existing reminders.",
+            "For assistant name, user address name, persona, background, speaking style, extra rules, memory, or proactive preference changes, call settings_tool with operation=update_settings and account_id from trusted_facts.account_id; memory_enabled=false stops long-term memory use/addition, and proactive_enabled=false cancels untriggered proactive follow-ups.",
+            "For explicit user profile facts such as real name, nickname, description, or relationship description, call settings_tool with operation=update_profile and account_id from trusted_facts.account_id.",
+            "For settings reset requests, call settings_tool with operation=reset_agent_settings and account_id from trusted_facts.account_id.",
+            "Unsupported external booking, reservation, class, coach, restaurant, ticket, or appointment actions are not reminder creation. Decline gracefully, explain that the user must complete the external action themselves, and offer to set a reminder; call reminder_tool only when the user explicitly asks for a reminder, and never claim the class or appointment is booked.",
             "Do not answer as if the action happened until the tool result says it happened.",
             "For any state-changing tool result from reminder, social_scheduling, settings, or calendar-import, report success only when ok=true; when ok=false, reason_code is present, or status starts with needs_, must not claim the action succeeded and should ask the required follow-up or report the failure honestly.",
             'After any tool call, you MUST emit a final user-facing protocol object: {"type":"reply","segments":["..."]} confirming the real tool result in the user\'s language, or {"type":"no_reply","reason":"intentional_no_reply"} only when no user-visible message is truly warranted; the final message must still be JSON, not plain natural-language text; never end with empty assistant content, reasoning-only content, or only tool calls.',
@@ -268,6 +287,23 @@ def _tool_doc(name: str) -> str:
             "account_id set to trusted_facts.account_id and "
             "shared_reminder_id."
         )
+    if name == "settings":
+        return (
+            "Execute Coke settings/profile commands. Use account_id set to "
+            "trusted_facts.account_id. For conversational global timezone "
+            "switches, call operation='set_timezone' with default_timezone as "
+            "an IANA timezone; this affects future relative-time reminders and "
+            "does not rewrite existing reminders. For assistant name, how the "
+            "assistant addresses the user, persona, background, speaking_style, "
+            "extra_rules, proactive_enabled, or memory_enabled, call "
+            "operation='update_settings'. Setting proactive_enabled=false "
+            "cancels untriggered proactive follow-ups; setting "
+            "memory_enabled=false stops long-term memory use and addition "
+            "without deleting existing memory. For explicit profile facts, call "
+            "operation='update_profile'. To restore agent defaults, call "
+            "operation='reset_agent_settings'. To inspect current values, call "
+            "operation='view_settings'."
+        )
     return f"Execute a Coke {name} domain command."
 
 
@@ -319,9 +355,7 @@ def _flatten_agno_tool_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
             flattened[key] = value
 
     if nested_kwargs is not None:
-        flattened.update(
-            _mapping_from_tool_value(nested_kwargs, "invalid_tool_kwargs")
-        )
+        flattened.update(_mapping_from_tool_value(nested_kwargs, "invalid_tool_kwargs"))
     return flattened
 
 
@@ -363,6 +397,10 @@ def _with_tool_defaults(
     command: Mapping[str, Any],
     request: AgentRequest,
 ) -> Mapping[str, Any]:
+    if name == "settings":
+        payload = _normalize_settings_operation(command)
+        payload.setdefault("account_id", request.account_id)
+        return payload
     if name != "reminder":
         return command
     payload = _normalize_reminder_operation(command)
@@ -376,6 +414,28 @@ def _with_tool_defaults(
         str(request.trusted_facts.get("default_timezone") or "UTC"),
     )
     payload.setdefault("entry_point", "conversation")
+    return payload
+
+
+def _normalize_settings_operation(command: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(command)
+    nested_command = payload.pop("command", None)
+    if isinstance(nested_command, Mapping):
+        nested = dict(nested_command)
+        op = nested.pop("op", None)
+        if op is not None and "operation" not in nested:
+            nested["operation"] = _SETTINGS_OP_ALIASES.get(str(op), str(op))
+        nested.update(payload)
+        payload = nested
+    elif "op" in payload and "operation" not in payload:
+        op = str(payload.pop("op"))
+        payload["operation"] = _SETTINGS_OP_ALIASES.get(op, op)
+    if "operation" in payload:
+        payload["operation"] = _SETTINGS_OP_ALIASES.get(
+            str(payload["operation"]), str(payload["operation"])
+        )
+    if "timezone" in payload and "default_timezone" not in payload:
+        payload["default_timezone"] = payload.pop("timezone")
     return payload
 
 
