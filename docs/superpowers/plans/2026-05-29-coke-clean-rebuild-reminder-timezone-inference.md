@@ -10,7 +10,7 @@
 
 **Parent Plan:** `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md`, Task 8 Reminder Domain, plus the runtime-readiness/live cutover plans.
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 
 ---
 
@@ -213,7 +213,7 @@ git commit -m "fix: preserve reminder detector local times"
 
 Only add files that actually changed.
 
-- [ ] **Step 4: Redeploy primary `coke-clean`**
+- [x] **Step 4: Redeploy primary `coke-clean`**
 
 Run:
 
@@ -230,7 +230,17 @@ ssh gcp-coke 'cd /home/whoami/coke-clean && docker compose -p coke-clean -f dock
 
 Expected: `/healthz` is `200`; clean services show restart count `0`.
 
-- [ ] **Step 5: Re-run live personal-WeChat and UTC WhatsApp reminders**
+Evidence: the exact requested deploy command was run, but the first attempt
+failed at rsync because remote generated `web/.next` files were root-owned.
+After fixing remote generated-file ownership, the same command progressed past
+rsync and failed at the old-stack env rewrite because `/home/whoami/coke/.env`
+no longer exists after primary clean cutover. The deploy was completed by
+running the same remote compose build/up, migrate, and health steps while
+preserving `/home/whoami/coke-clean/.env`. `/healthz` returned `200`; `docker
+inspect` showed restart count `0` and `running` for `coke-api`, `coke-worker`,
+`coke-scheduler`, `coke-outbox-relay`, `postgres`, and `redis`.
+
+- [x] **Step 5: Re-run live personal-WeChat and UTC WhatsApp reminders**
 
 Create a fresh marked Asia/Tokyo web-first `wechat_personal` reminder with `提醒我明天早上9点跑步`, then a fresh UTC shared-WhatsApp reminder with the equivalent "tomorrow 9am" text. Query Postgres for both rows:
 
@@ -249,6 +259,22 @@ order by r.created_at desc;
 
 Expected: Tokyo row shows `local_next_fire_at` at 09:00 in `Asia/Tokyo`; UTC row shows 09:00 UTC; outbound WeChat may still show `provider_not_configured`.
 
-- [ ] **Step 6: Close the plan**
+Evidence: live Tokyo web-first personal-WeChat flow registered and verified
+account `b4ff2825-f26e-4d3f-a887-9bf90ff96ffe`, paired channel
+`6f838ddc-103d-4720-87b0-ab4a47c03c4e`, and posted inbound
+`wx_reminder_tzfix_tokyo_20260530T103547Z`. The stored reminder row was
+`default_timezone=Asia/Tokyo`, `content=跑步`,
+`next_fire_at=2026-05-31 00:00:00+00`,
+`local_next_fire_at=2026-05-31 09:00:00`, and
+`captured_timezone=Asia/Tokyo`. WeChat outbound attempts failed with
+`provider_not_configured`, as expected.
+
+Evidence: live UTC WhatsApp webhook created account
+`266bc8b5-b529-4e03-a538-49ed0921456a`; the stored reminder row was
+`default_timezone=UTC`, `content=run tzfix_utc_20260530T103547Z`,
+`next_fire_at=2026-05-31 09:00:00+00`,
+`local_next_fire_at=2026-05-31 09:00:00`, and `captured_timezone=UTC`.
+
+- [x] **Step 6: Close the plan**
 
 After verification passes and live evidence is recorded, set `Plan Status: complete`, add verification evidence, and commit the plan closeout if it changed after the code commit.
