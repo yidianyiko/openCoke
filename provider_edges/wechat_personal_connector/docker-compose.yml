@@ -1,0 +1,17 @@
+services:
+  wechat-personal-connector:
+    build:
+      context: ../..
+      dockerfile: provider_edges/wechat_personal_connector/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    ports:
+      - "${WECHAT_CONNECTOR_BIND:-0.0.0.0}:${WECHAT_CONNECTOR_PORT:-8095}:8095"
+    volumes:
+      - wechat_personal_state:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  wechat_personal_state:
