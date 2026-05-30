@@ -353,7 +353,7 @@ class SocialSchedulingToolAdapter:
                     requester_account_id=_required_str(
                         command, "requester_account_id", default_key="account_id"
                     ),
-                    friend_account_ids=list(command.get("friend_account_ids") or ()),
+                    friend_account_ids=_list_value(command, "friend_account_ids"),
                     local_start=_required_datetime(command, "local_start"),
                     local_end=_required_datetime(command, "local_end"),
                     requester_timezone=str(command.get("requester_timezone") or "UTC"),
@@ -393,8 +393,10 @@ class SocialSchedulingToolAdapter:
                     creator_account_id=_required_str(
                         command, "creator_account_id", default_key="account_id"
                     ),
-                    receiver_account_ids=list(
-                        command.get("receiver_account_ids") or ()
+                    receiver_account_ids=_list_value(
+                        command,
+                        "receiver_account_ids",
+                        aliases=("participant_account_ids", "participants"),
                     ),
                     title=command.get("title"),
                     local_trigger_at=_optional_datetime(
@@ -402,7 +404,7 @@ class SocialSchedulingToolAdapter:
                     ),
                     captured_timezone=str(command.get("captured_timezone") or "UTC"),
                     duration_minutes=int(command.get("duration_minutes") or 15),
-                    context=dict(command.get("context") or {}),
+                    context=_optional_context(command.get("context")),
                 )
                 return ToolExecutionResult(
                     ok=result.status in {"created", "duplicate"},
@@ -887,6 +889,54 @@ def _optional_datetime(value: Any) -> datetime | None:
     if isinstance(value, str):
         return datetime.fromisoformat(value)
     raise ValueError("invalid_datetime")
+
+
+def _list_value(
+    command: Mapping[str, Any],
+    key: str,
+    *,
+    aliases: tuple[str, ...] = (),
+) -> list[Any]:
+    value = command.get(key)
+    for alias in aliases:
+        if value is not None:
+            break
+        value = command.get(alias)
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple | set):
+        return list(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(stripped)
+            except ValueError as exc:
+                raise ValueError(f"{key}_invalid") from exc
+            if isinstance(parsed, list):
+                return parsed
+            raise ValueError(f"{key}_invalid")
+        return [part.strip() for part in stripped.split(",") if part.strip()]
+    raise ValueError(f"{key}_invalid")
+
+
+def _optional_context(value: Any) -> dict | None:
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        return {"text": stripped}
+    raise ValueError("context_invalid")
 
 
 def _reminder_batch_item(command: Mapping[str, Any]) -> ReminderBatchItem:

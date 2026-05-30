@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from agno.run.agent import RunOutput
 
+from coke.composition import SocialSchedulingToolAdapter
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
 from coke.turn.agent import AgentRequest, AgentToolPorts, ToolExecutionResult
 from coke.turn.context import ToolProfile, TurnMode
@@ -53,6 +55,29 @@ class FakeSocialSchedulingTool:
     def execute(self, command, guard):
         self.calls.append((command, guard))
         return ToolExecutionResult(ok=True, facts={"friend_link_id": "link_1"})
+
+
+class FakeGuard:
+    def guard_state_change(self) -> None:
+        return None
+
+
+class FakeSharedReminderService:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def create_shared_reminder(self, **kwargs):
+        self.calls.append(kwargs)
+        return type(
+            "SharedReminderResult",
+            (),
+            {
+                "status": "created",
+                "shared_reminder": type("SharedReminder", (), {"id": "shared_1"})(),
+                "breakdown": {},
+                "follow_up_facts": {},
+            },
+        )()
 
 
 def test_invoke_maps_valid_agno_response_to_agent_result():
@@ -317,6 +342,122 @@ def test_reminder_tool_unwraps_agno_kwargs_argument_shape():
             },
             reminder_tool.calls[0][1],
         )
+    ]
+
+
+def test_tool_callable_accepts_command_as_json_string_envelope():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    reminder_tool = FakeReminderTool()
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=reminder_tool))
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    result = tool(
+        '{"operation":"create","owner_account_id":"owner_2","content":"pay rent"}'
+    )
+
+    assert result == {
+        "ok": True,
+        "facts": {"reminder_id": "reminder_1"},
+        "reason_code": None,
+    }
+    assert reminder_tool.calls == [
+        (
+            {
+                "operation": "create",
+                "owner_account_id": "owner_2",
+                "content": "pay rent",
+                "captured_timezone": "UTC",
+                "entry_point": "conversation",
+            },
+            reminder_tool.calls[0][1],
+        )
+    ]
+
+
+def test_tool_callable_coerces_json_string_list_fields_once_for_all_tools():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    service = FakeSharedReminderService()
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=SocialSchedulingToolAdapter(service),
+            guard=FakeGuard(),
+        )
+    )
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    result = tool(
+        command={
+            "operation": "create_shared_reminder",
+            "creator_account_id": "creator_1",
+            "receiver_account_ids": '["friend_1", "friend_2"]',
+            "title": "Team sync",
+            "local_trigger_at": "2026-05-31T08:49:17",
+            "captured_timezone": "UTC",
+            "duration_minutes": 15,
+            "context": {"source": "unit"},
+        }
+    )
+
+    assert result["ok"] is True
+    assert service.calls[0]["receiver_account_ids"] == ["friend_1", "friend_2"]
+
+
+def test_social_scheduling_tool_normalizes_live_agno_kwargs_string_shape():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    service = FakeSharedReminderService()
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    guard = FakeGuard()
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=SocialSchedulingToolAdapter(service),
+            guard=guard,
+        )
+    )
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    result = tool(
+        kwargs={
+            "operation": "create_shared_reminder",
+            "creator_account_id": "94a66a76ad4247ff87400bda8ec5012c",
+            "receiver_account_ids": ["4b9f7196-ac61-4bca-96e5-c7a84c00e671"],
+            "title": "RR8 agent shared phase456_20260530T0845Z",
+            "local_trigger_at": "2026-05-31T08:49:17",
+            "captured_timezone": "UTC",
+            "duration_minutes": 15,
+            "context": "gcp clean live phase 5 verification",
+        }
+    )
+
+    assert result == {
+        "ok": True,
+        "facts": {
+            "status": "created",
+            "shared_reminder_id": "shared_1",
+            "breakdown": {},
+            "follow_up_facts": {},
+        },
+        "reason_code": None,
+    }
+    assert service.calls == [
+        {
+            "creator_account_id": "94a66a76ad4247ff87400bda8ec5012c",
+            "receiver_account_ids": ["4b9f7196-ac61-4bca-96e5-c7a84c00e671"],
+            "title": "RR8 agent shared phase456_20260530T0845Z",
+            "local_trigger_at": datetime.fromisoformat("2026-05-31T08:49:17"),
+            "captured_timezone": "UTC",
+            "duration_minutes": 15,
+            "context": {"text": "gcp clean live phase 5 verification"},
+        }
     ]
 
 

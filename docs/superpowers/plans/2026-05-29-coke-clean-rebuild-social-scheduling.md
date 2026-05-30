@@ -13,7 +13,7 @@
 **Plan Status:** in_progress
 **Status Date:** 2026-05-30
 **Blocker:** None currently. This live-readiness follow-up remains in progress
-until Bug A/B/C regression tests, full unit tests, Postgres integration tests,
+until Bug A/B/C/D regression tests, full unit tests, Postgres integration tests,
 redeploy, and mocked Phase 4-6 live resume have fresh evidence.
 **Freshness Check:** Read `AGENTS.md`, `docs/design-docs/index.md`, `docs/design-docs/human-ai-working-contract.md`, master plan Task 9 and architecture-watch sections, requirements §§5.6/5.7/5.9, target architecture §§3.5/4/8/9/14/15, `coke/schema.py`, existing `identity_access`, `channel_reachability`, `coke/api/*_routes.py`, and `coke/app.py`.
 
@@ -552,3 +552,146 @@ capture rows proving:
 Only after Steps 1-5 have evidence, update `Plan Status` to `complete`, set
 `Status Date` to the completion date, check off the remaining boxes, and commit
 the plan closeout if it changed after the fix commit.
+
+### Task 12: Bug D - Agno Tool Argument Normalization
+
+**Files:**
+- Modify: `coke/llm/agno_interaction_agent.py`
+- Modify: `coke/composition.py`
+- Test: `tests/unit/coke/llm/test_interaction_agent.py`
+- Test: `tests/unit/coke/test_social_scheduling_tool_adapter.py`
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-social-scheduling.md`
+
+- [x] **Step 1: Inspect raw Agno tool-call arguments**
+
+Run on the clean deployment host:
+
+```bash
+ssh gcp-coke 'docker exec coke-clean-postgres-1 psql -U coke -d coke -tAc "SELECT runs FROM ai.agno_sessions ORDER BY created_at DESC LIMIT 1"'
+```
+
+Read `messages[].tool_calls[].function.arguments` for the
+`create_shared_reminder` call and record whether the envelope is a JSON string,
+a nested `{"command": ...}` object/string, flat kwargs, or malformed list/string
+fields such as `participants`, `participant_account_ids`, or receiver names.
+
+Evidence: clean Agno stored `function.arguments` as a JSON string with top-level
+`kwargs`; the nested kwargs contained `operation="create_shared_reminder"`,
+`receiver_account_ids` as a list, and `context` as a plain string:
+`"gcp clean live phase 5 verification"`. The failing adapter path attempted
+`dict(context_string)`, producing
+`dictionary update sequence element #0 has length 1; 2 is required`.
+
+- [x] **Step 2: Write the failing regression test**
+
+Add a unit test that reproduces the real argument shape from Step 1. The test
+must fail before implementation with the live signature
+`dictionary update sequence element #0 has length 1; 2 is required`, or with a
+wrong command shape that prevents shared-reminder creation. The expected green
+behavior is that the shared-reminder adapter receives a normalized command and
+returns `ok=True` only when the domain operation actually succeeds.
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py -q
+```
+
+Expected red result: the regression test fails because a string or nested
+command envelope is still handled with unsafe `dict(...)` conversion or list
+fields remain strings.
+
+Red evidence:
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py -q`
+failed with 3 regression failures, including the live
+`dictionary update sequence element #0 has length 1; 2 is required` signature.
+
+- [x] **Step 3: Implement shared tool-argument normalization**
+
+Add one reusable normalizer in the Agno tool boundary and route every
+`reminder`, `social_scheduling`, `calendar`, and `identity` tool through it. It
+must accept JSON-string envelopes, nested `{"command": {...}}` or
+`{"command": "{...}"}` payloads, and flat kwargs. It must never call `dict()` on
+a string. It must coerce known list-typed fields
+(`participants`, `participant_account_ids`, `receiver_names`, `receivers`,
+`friend_account_ids`) from JSON strings or comma-separated strings into lists.
+If normalization cannot produce a mapping, return an `ok=False` tool result with
+a clear reason code instead of guessing business values or raising a raw Python
+exception.
+
+- [x] **Step 4: Run focused green tests**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py -q
+```
+
+Expected: the new regression test and existing tool tests pass.
+
+Evidence:
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py -q`
+passed with `22 passed in 2.05s`.
+
+- [x] **Step 5: Run required full verification**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q
+```
+
+Expected: both suites pass. If either fails, classify the failure before
+editing further.
+
+Evidence:
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q` passed with
+`380 passed in 9.16s`.
+`COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q`
+passed with `42 passed in 4.50s`.
+
+- [ ] **Step 6: Commit the fix**
+
+Run:
+
+```bash
+git add coke/llm/agno_interaction_agent.py coke/composition.py tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/test_social_scheduling_tool_adapter.py docs/superpowers/plans/2026-05-29-coke-clean-rebuild-social-scheduling.md
+git commit -m "fix: normalize agno tool arguments"
+```
+
+- [ ] **Step 7: Redeploy coke-clean**
+
+Run:
+
+```bash
+REMOTE_HOST=gcp-coke REMOTE_ROOT=/home/whoami/coke-clean PROJECT_NAME=coke-clean COKE_CLEAN_API_PORT=8000 COKE_CLEAN_POSTGRES_PORT=55432 COKE_CLEAN_REDIS_PORT=56379 scripts/deploy-compose-to-gcp.sh
+```
+
+Then verify:
+
+```bash
+ssh gcp-coke 'curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/healthz'
+ssh gcp-coke 'cd /home/whoami/coke-clean && docker compose -p coke-clean ps'
+ssh gcp-coke 'cd /home/whoami/coke && docker compose ps'
+```
+
+Expected: clean API healthz returns `200`, `coke-clean-coke-scheduler-1` is up
+with restart count `0`, and the old stack is still running.
+
+- [ ] **Step 8: Resume mocked Phase 5 and Phase 6**
+
+Against `http://127.0.0.1:8000/webhooks/whatsapp/evolution` on `gcp-coke`, use
+fresh olivers and 李梓豪 mock senders. Quickly redo setup: provision both
+messaging-first subjects, establish friendship through friend link and invite
+code, create a shared reminder, and then force one projection reminder's
+`next_fire_at` to the recent past. Query clean Postgres rows for
+`shared_reminder`, `reminder_projection`, `notification_fact`, `outbox`, and
+`reminder_fire`. Evolution mock-number delivery may fail; database rows are the
+verdict.
+
+- [ ] **Step 9: Close the plan**
+
+Only after Steps 1-8 have evidence, update `Plan Status` to `complete`, set
+`Status Date` to the completion date, check off Task 12, and commit any plan
+closeout change.

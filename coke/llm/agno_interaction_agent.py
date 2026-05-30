@@ -14,6 +14,22 @@ from coke.turn.agent import AgentRequest, AgentResult, StateChangingToolPort
 
 AgentFactory = Callable[..., Any]
 TaskIdFactory = Callable[[], str]
+_LIST_TOOL_FIELDS = frozenset(
+    {
+        "participants",
+        "participant_account_ids",
+        "receiver_account_ids",
+        "receiver_names",
+        "receivers",
+        "friend_account_ids",
+    }
+)
+
+
+class ToolArgumentError(ValueError):
+    def __init__(self, reason_code: str) -> None:
+        self.reason_code = reason_code
+        super().__init__(reason_code)
 
 
 class CokeAgnoMemoryManager(AgnoMemoryManager):
@@ -173,12 +189,19 @@ def _tool_callable(
     request: AgentRequest,
 ) -> Callable[..., dict]:
     def tool(command: dict | None = None, **kwargs) -> dict:
-        command_payload = _with_tool_defaults(
-            name,
-            _command_payload(command, kwargs),
-            request,
-        )
-        result = port.execute(command_payload, request.freshness_guard)
+        try:
+            command_payload = _with_tool_defaults(
+                name,
+                _command_payload(command, kwargs),
+                request,
+            )
+            result = port.execute(command_payload, request.freshness_guard)
+        except ToolArgumentError as error:
+            return {
+                "ok": False,
+                "facts": {"type": error.reason_code},
+                "reason_code": error.reason_code,
+            }
         return {
             "ok": result.ok,
             "facts": dict(result.facts),
@@ -220,31 +243,90 @@ def _tool_doc(name: str) -> str:
 
 
 def _command_payload(command: Any, kwargs: Mapping[str, Any]) -> Mapping[str, Any]:
-    if isinstance(command, Mapping) and not kwargs:
-        return _flatten_agno_tool_payload(dict(command))
     if command is None:
-        return _flatten_agno_tool_payload(dict(kwargs))
-    return _flatten_agno_tool_payload({"command": command, **dict(kwargs)})
+        payload: Any = dict(kwargs)
+    elif kwargs:
+        payload = {"command": command, **dict(kwargs)}
+    else:
+        payload = command
+    return _normalize_agno_tool_payload(payload)
+
+
+def _normalize_agno_tool_payload(payload: Any) -> Mapping[str, Any]:
+    normalized = _mapping_from_tool_value(payload, "invalid_tool_arguments")
+    normalized = _flatten_agno_tool_payload(normalized)
+    return _coerce_tool_fields(normalized)
+
+
+def _mapping_from_tool_value(value: Any, reason_code: str) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ToolArgumentError(reason_code) from exc
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+    raise ToolArgumentError(reason_code)
 
 
 def _flatten_agno_tool_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
-    if set(payload) == {"kwargs"} and isinstance(payload.get("kwargs"), Mapping):
-        return dict(payload["kwargs"])
+    if set(payload) == {"kwargs"}:
+        return _mapping_from_tool_value(payload.get("kwargs"), "invalid_tool_kwargs")
     if "command" not in payload:
         return dict(payload)
 
     command = payload.get("command")
     nested_kwargs = payload.get("kwargs")
-    if isinstance(command, Mapping):
-        flattened = dict(command)
-    elif command is None:
-        flattened = {}
-    else:
-        return dict(payload)
+    flattened = (
+        {}
+        if command is None
+        else _mapping_from_tool_value(command, "invalid_tool_command")
+    )
 
-    if isinstance(nested_kwargs, Mapping):
-        flattened.update(dict(nested_kwargs))
+    for key, value in payload.items():
+        if key not in {"command", "kwargs"}:
+            flattened[key] = value
+
+    if nested_kwargs is not None:
+        flattened.update(
+            _mapping_from_tool_value(nested_kwargs, "invalid_tool_kwargs")
+        )
     return flattened
+
+
+def _coerce_tool_fields(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    normalized = dict(payload)
+    for key in _LIST_TOOL_FIELDS:
+        if key in normalized:
+            normalized[key] = _coerce_list_field(key, normalized[key])
+    return normalized
+
+
+def _coerce_list_field(key: str, value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple | set):
+        return list(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ToolArgumentError(f"{key}_invalid") from exc
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, str):
+                return [parsed]
+            raise ToolArgumentError(f"{key}_invalid")
+        return [part.strip() for part in stripped.split(",") if part.strip()]
+    raise ToolArgumentError(f"{key}_invalid")
 
 
 def _with_tool_defaults(
