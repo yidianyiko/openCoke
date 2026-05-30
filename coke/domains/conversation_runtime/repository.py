@@ -51,6 +51,8 @@ class ConversationRuntimeRepository(Protocol):
 
     def outbound_messages_for_turn(self, turn_id: str) -> list[Message]: ...
 
+    def latest_inbound_context_token(self, conversation_id: str) -> str | None: ...
+
     def save_disposition(self, disposition: OutputDisposition) -> None: ...
 
     def get_disposition(self, turn_id: str) -> OutputDisposition | None: ...
@@ -187,6 +189,26 @@ class InMemoryConversationRuntimeRepository:
             for message in self.messages_by_id.values()
             if message.direction == "outbound" and message.turn_id == turn_id
         ]
+
+    def latest_inbound_context_token(self, conversation_id: str) -> str | None:
+        messages = sorted(
+            (
+                message
+                for message in self.messages_by_id.values()
+                if (
+                    message.conversation_id == conversation_id
+                    and message.direction == "inbound"
+                    and message.seq is not None
+                )
+            ),
+            key=lambda message: (message.seq or 0, message.id),
+            reverse=True,
+        )
+        for message in messages:
+            token = _context_token(message.payload)
+            if token is not None:
+                return token
+        return None
 
     def save_disposition(self, disposition: OutputDisposition) -> None:
         self.dispositions_by_turn_id[disposition.turn_id] = disposition
@@ -405,6 +427,20 @@ class PostgresConversationRuntimeRepository:
             )
         ]
 
+    def latest_inbound_context_token(self, conversation_id: str) -> str | None:
+        rows = many(
+            self.session,
+            schema.message,
+            schema.message.c.conversation_id == conversation_id,
+            schema.message.c.direction == "inbound",
+            order_by=(schema.message.c.seq.desc(), schema.message.c.id.desc()),
+        )
+        for row in rows:
+            token = _context_token(dict(row["payload"]))
+            if token is not None:
+                return token
+        return None
+
     def save_disposition(self, disposition: OutputDisposition) -> None:
         existing = self.get_disposition(disposition.turn_id)
         if existing is None:
@@ -548,6 +584,13 @@ def _message(row: Mapping) -> Message:
         row["created_at"],
         row["updated_at"],
     )
+
+
+def _context_token(payload: Mapping) -> str | None:
+    token = payload.get("context_token")
+    if isinstance(token, str) and token.strip():
+        return token.strip()
+    return None
 
 
 def _media_values(media: InboundMedia) -> dict:

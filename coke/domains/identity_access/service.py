@@ -226,6 +226,43 @@ class IdentityAccessService:
             created_account=True,
         )
 
+    def bind_channel_identity_to_account(
+        self,
+        account_id: str,
+        provider_type: str,
+        provider_subject: str,
+        is_account_anchor: bool = False,
+    ) -> ChannelIdentityResolution:
+        account = self._require_account(account_id)
+        access_decision = self.check_access_for_action(
+            account_id=account_id,
+            action="connect_channel",
+        )
+        if not access_decision.allowed:
+            raise IdentityAccessError("access_denied", fact=access_decision.fact)
+        existing = self.repository.get_channel_identity_by_provider(
+            provider_type, provider_subject
+        )
+        if existing is not None:
+            if existing.account_id != account_id:
+                raise IdentityAccessError("channel_identity_already_bound")
+            return ChannelIdentityResolution(
+                account=account,
+                channel_identity=existing,
+                created_account=False,
+            )
+        identity = self._create_channel_identity(
+            account_id=account_id,
+            provider_type=provider_type,
+            provider_subject=provider_subject,
+            is_account_anchor=is_account_anchor,
+        )
+        return ChannelIdentityResolution(
+            account=account,
+            channel_identity=identity,
+            created_account=False,
+        )
+
     def issue_login_url(self, account_id: str) -> ArtifactIssueResult:
         self._require_account(account_id)
         return self._issue_artifact(

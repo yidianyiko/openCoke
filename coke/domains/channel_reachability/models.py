@@ -110,6 +110,9 @@ class NormalizedInbound:
     raw_event_id: str
     received_at: datetime
     pairing_code: str | None = None
+    account_id: str | None = None
+    connector_session_id: str | None = None
+    context_token: str | None = None
     payload: Mapping[str, ImmutableJsonValue] | None = None
 
 
@@ -123,6 +126,11 @@ class ChannelStatus:
     pairing_code: str | None = None
     pairing_expires_at: float | None = None
     instructions: str | None = None
+    session_id: str | None = None
+    qrcode_id: str | None = None
+    qrcode_image: str | None = None
+    connector_status: str | None = None
+    masked_identity: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

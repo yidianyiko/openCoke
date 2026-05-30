@@ -108,6 +108,27 @@ def test_inbound_messages_increment_durable_latest_seq_and_preserve_media_refere
     assert repository.outbox_records[0].payload["message_id"] == first.message.id
 
 
+def test_latest_context_token_reads_newest_inbound_message_payload(service):
+    first = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="hello",
+        payload={"provider": "wechat_personal", "context_token": "ctx-old"},
+        traceparent=TRACEPARENT,
+    )
+    service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="after",
+        payload={"provider": "wechat_personal", "context_token": "ctx-new"},
+        traceparent=TRACEPARENT,
+    )
+
+    assert service.latest_context_token(first.conversation.id) == "ctx-new"
+
+
 def test_turn_records_based_on_inbound_seq_and_replay_reconciles_existing_turn(
     service,
     repository,

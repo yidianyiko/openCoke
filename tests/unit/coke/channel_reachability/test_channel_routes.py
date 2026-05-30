@@ -38,9 +38,29 @@ class FakeReachabilityService:
             provider_type="wechat_personal",
             connection_state="connecting",
             reachable=False,
-            pairing_code="pairing_abc123",
-            pairing_expires_at=1_780_000_000,
-            instructions="add the Coke WeChat bot and send this code",
+            session_id="ilink_session_1",
+            qrcode_id="qr_1",
+            qrcode_image="data:image/png;base64,QR1",
+            connector_status="waiting_for_scan",
+            instructions="scan this QR code with this user's own WeChat account",
+        )
+
+    def poll_wechat_personal_login(self, account_id, session_id):
+        self.calls.append(
+            (
+                "poll_wechat_personal_login",
+                {"account_id": account_id, "session_id": session_id},
+            )
+        )
+        return SimpleNamespace(
+            account_id=account_id,
+            channel_id="channel_1",
+            provider_type="wechat_personal",
+            connection_state="connected",
+            reachable=True,
+            session_id=session_id,
+            connector_status="connected",
+            masked_identity="wxid...lice",
         )
 
     def create_channel(self, account_id, provider_type, channel_identity_id, removable):
@@ -136,7 +156,7 @@ def test_status_route_is_thin_service_adapter():
     assert service.calls == [("get_status", {"account_id": "acct_1"})]
 
 
-def test_status_route_surfaces_pending_wechat_pairing_fields():
+def test_status_route_surfaces_pending_wechat_qr_fields():
     class PendingStatusService(FakeReachabilityService):
         def get_status(self, account_id):
             self.calls.append(("get_status", {"account_id": account_id}))
@@ -146,9 +166,11 @@ def test_status_route_surfaces_pending_wechat_pairing_fields():
                 provider_type="wechat_personal",
                 connection_state="connecting",
                 reachable=False,
-                pairing_code="pairing_abc123",
-                pairing_expires_at=1_780_000_000,
-                instructions="add the Coke WeChat bot and send this code",
+                session_id="ilink_session_1",
+                qrcode_id="qr_1",
+                qrcode_image="data:image/png;base64,QR1",
+                connector_status="waiting_for_scan",
+                instructions="scan this QR code with this user's own WeChat account",
             )
 
     client, service = make_client(PendingStatusService())
@@ -162,14 +184,16 @@ def test_status_route_surfaces_pending_wechat_pairing_fields():
         "provider_type": "wechat_personal",
         "connection_state": "connecting",
         "reachable": False,
-        "pairing_code": "pairing_abc123",
-        "pairing_expires_at": 1_780_000_000,
-        "instructions": "add the Coke WeChat bot and send this code",
+        "session_id": "ilink_session_1",
+        "qrcode_id": "qr_1",
+        "qrcode_image": "data:image/png;base64,QR1",
+        "connector_status": "waiting_for_scan",
+        "instructions": "scan this QR code with this user's own WeChat account",
     }
     assert service.calls == [("get_status", {"account_id": "acct_1"})]
 
 
-def test_wechat_personal_connect_route_issues_pairing_status():
+def test_wechat_personal_connect_route_starts_ilink_qr_login():
     client, service = make_client()
 
     response = client.post(
@@ -184,12 +208,41 @@ def test_wechat_personal_connect_route_issues_pairing_status():
         "provider_type": "wechat_personal",
         "connection_state": "connecting",
         "reachable": False,
-        "pairing_code": "pairing_abc123",
-        "pairing_expires_at": 1_780_000_000,
-        "instructions": "add the Coke WeChat bot and send this code",
+        "session_id": "ilink_session_1",
+        "qrcode_id": "qr_1",
+        "qrcode_image": "data:image/png;base64,QR1",
+        "connector_status": "waiting_for_scan",
+        "instructions": "scan this QR code with this user's own WeChat account",
     }
     assert service.calls == [
         ("start_wechat_personal_connection", {"account_id": "acct_1"})
+    ]
+
+
+def test_wechat_personal_login_status_route_polls_connector_session():
+    client, service = make_client()
+
+    response = client.get(
+        "/api/channels/wechat-personal/login-status"
+        "?account_id=acct_1&session_id=ilink_session_1"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "account_id": "acct_1",
+        "channel_id": "channel_1",
+        "provider_type": "wechat_personal",
+        "connection_state": "connected",
+        "reachable": True,
+        "session_id": "ilink_session_1",
+        "connector_status": "connected",
+        "masked_identity": "wxid...lice",
+    }
+    assert service.calls == [
+        (
+            "poll_wechat_personal_login",
+            {"account_id": "acct_1", "session_id": "ilink_session_1"},
+        )
     ]
 
 

@@ -4,6 +4,7 @@ import {
   connectCustomerWechatChannel,
   createCustomerWechatChannel,
   disconnectCustomerWechatChannel,
+  getCustomerWechatChannelLoginStatus,
   getCustomerWechatChannelStatus,
   getCustomerWechatChannelViewModel,
 } from './customer-wechat-channel';
@@ -37,9 +38,11 @@ describe('customer-wechat-channel api helpers', () => {
       provider_type: 'wechat_personal',
       connection_state: 'connecting',
       reachable: false,
-      pairing_code: 'pairing_abc123',
-      pairing_expires_at: 1_780_000_000,
-      instructions: 'add the Coke WeChat bot and send this code',
+      session_id: 'ilink_session_1',
+      qrcode_id: 'qr_1',
+      qrcode_image: 'data:image/png;base64,QR1',
+      connector_status: 'waiting_for_scan',
+      instructions: "scan this QR code with this user's own WeChat account",
     } as never);
     const customerGetSpy = vi.spyOn(customerApi, 'get')
       .mockResolvedValueOnce({
@@ -68,8 +71,10 @@ describe('customer-wechat-channel api helpers', () => {
       ok: true,
       data: {
         status: 'pending',
-        pairing_code: 'pairing_abc123',
-        expires_at: 1_780_000_000,
+        session_id: 'ilink_session_1',
+        qrcode_id: 'qr_1',
+        qrcode_image: 'data:image/png;base64,QR1',
+        connector_status: 'waiting_for_scan',
       },
     });
     await connectCustomerWechatChannel();
@@ -95,6 +100,42 @@ describe('customer-wechat-channel api helpers', () => {
     expect(customerGetSpy).toHaveBeenNthCalledWith(1, '/api/channels/status?account_id=acct_1');
     expect(customerGetSpy).toHaveBeenNthCalledWith(2, '/api/channels/status?account_id=acct_1');
     expect(customerGetSpy).toHaveBeenNthCalledWith(3, '/api/channels/status?account_id=acct_1');
+  });
+
+  it('polls a clean iLink login session for account-bound QR confirmation', async () => {
+    storeCustomerAuth({
+      token: 'session_1',
+      customerId: 'acct_1',
+      identityId: 'acct_1',
+      claimStatus: 'active',
+      email: 'alice@example.com',
+      membershipRole: 'owner',
+    });
+    const customerGetSpy = vi.spyOn(customerApi, 'get').mockResolvedValueOnce({
+      account_id: 'acct_1',
+      channel_id: 'channel_1',
+      provider_type: 'wechat_personal',
+      connection_state: 'connected',
+      reachable: true,
+      session_id: 'ilink_session_1',
+      connector_status: 'connected',
+      masked_identity: 'wxid...lice',
+    } as never);
+
+    await expect(getCustomerWechatChannelLoginStatus('ilink_session_1')).resolves.toEqual({
+      ok: true,
+      data: {
+        status: 'connected',
+        channel_id: 'channel_1',
+        session_id: 'ilink_session_1',
+        connector_status: 'connected',
+        masked_identity: 'wxid...lice',
+      },
+    });
+
+    expect(customerGetSpy).toHaveBeenCalledWith(
+      '/api/channels/wechat-personal/login-status?account_id=acct_1&session_id=ilink_session_1',
+    );
   });
 
   it('normalizes an empty archive success into an archived channel state', async () => {
@@ -134,8 +175,8 @@ describe('getCustomerWechatChannelViewModel', () => {
       primaryActionLabel: 'Connect WeChat',
     });
     expect(getCustomerWechatChannelViewModel({ status: 'pending' }, copy)).toMatchObject({
-      title: 'Send the pairing code to connect',
-      primaryActionLabel: 'Refresh code',
+      title: 'Scan to connect WeChat',
+      primaryActionLabel: 'Refresh QR',
     });
     expect(
       getCustomerWechatChannelViewModel(
@@ -175,8 +216,8 @@ describe('customer-wechat-channel state machine', () => {
   it('uses the mutation response immediately, including pending connect payloads', () => {
     const mutationResult = {
       status: 'pending',
-      pairing_code: 'pairing_abc123',
-      expires_at: 1234567890,
+      session_id: 'ilink_session_1',
+      qrcode_image: 'data:image/png;base64,QR1',
     } as const;
 
     expect(applyCustomerWechatChannelMutationResult(mutationResult)).toEqual(mutationResult);
@@ -185,8 +226,8 @@ describe('customer-wechat-channel state machine', () => {
   it('preserves an existing pending session when a transient refresh fails', () => {
     const current = {
       status: 'pending',
-      pairing_code: 'pairing_abc123',
-      expires_at: 1234567890,
+      session_id: 'ilink_session_1',
+      qrcode_image: 'data:image/png;base64,QR1',
     } as const;
 
     expect(

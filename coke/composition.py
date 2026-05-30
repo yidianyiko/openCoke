@@ -165,16 +165,28 @@ class FakeReminderDetector:
 
 
 class ChannelReachabilityOutboundDelivery:
-    def __init__(self, channel_reachability: ChannelReachabilityService) -> None:
+    def __init__(
+        self,
+        channel_reachability: ChannelReachabilityService,
+        *,
+        conversation_runtime: Any | None = None,
+    ) -> None:
         self.channel_reachability = channel_reachability
+        self.conversation_runtime = conversation_runtime
 
     def deliver(self, request: DeliveryRequest) -> None:
         try:
+            context_token = None
+            if self.conversation_runtime is not None:
+                context_token = self.conversation_runtime.latest_context_token(
+                    request.conversation_id
+                )
             self.channel_reachability.send_text(
                 account_id=request.account_id,
                 text=request.visible_text,
                 idempotency_key=request.idempotency_key,
                 turn_id=request.turn_id,
+                context_token=context_token,
             )
         except ChannelReachabilityError:
             raise
@@ -765,7 +777,10 @@ def build_runtime_from_settings(
     object.__setattr__(
         runtime.turn_runner,
         "outbound_delivery",
-        ChannelReachabilityOutboundDelivery(runtime.channel_reachability_service),
+        ChannelReachabilityOutboundDelivery(
+            runtime.channel_reachability_service,
+            conversation_runtime=runtime.conversation_runtime_service,
+        ),
     )
     return CokeRuntime(
         repositories=runtime.repositories,

@@ -30,6 +30,14 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         )
         return jsonify(_status_body(result))
 
+    @blueprint.get("/wechat-personal/login-status")
+    def wechat_personal_login_status():
+        result = reachability_service.poll_wechat_personal_login(
+            account_id=_query_str_field("account_id"),
+            session_id=_query_str_field("session_id"),
+        )
+        return jsonify(_status_body(result))
+
     @blueprint.post("")
     def create():
         payload = _json_payload()
@@ -126,15 +134,24 @@ def _status_body(status) -> dict:
         "connection_state": status.connection_state,
         "reachable": status.reachable,
     }
-    pairing_code = getattr(status, "pairing_code", None)
-    pairing_expires_at = getattr(status, "pairing_expires_at", None)
     instructions = getattr(status, "instructions", None)
-    if pairing_code is not None:
-        body["pairing_code"] = pairing_code
-    if pairing_expires_at is not None:
-        body["pairing_expires_at"] = pairing_expires_at
+    session_id = getattr(status, "session_id", None)
+    qrcode_id = getattr(status, "qrcode_id", None)
+    qrcode_image = getattr(status, "qrcode_image", None)
+    connector_status = getattr(status, "connector_status", None)
+    masked_identity = getattr(status, "masked_identity", None)
     if instructions is not None:
         body["instructions"] = instructions
+    if session_id is not None:
+        body["session_id"] = session_id
+    if qrcode_id is not None:
+        body["qrcode_id"] = qrcode_id
+    if qrcode_image is not None:
+        body["qrcode_image"] = qrcode_image
+    if connector_status is not None:
+        body["connector_status"] = connector_status
+    if masked_identity is not None:
+        body["masked_identity"] = masked_identity
     return body
 
 

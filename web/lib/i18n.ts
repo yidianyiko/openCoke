@@ -257,6 +257,7 @@ type CustomerPagesMessages = {
     };
     pairing: {
       codeLabel: string;
+      qrAlt: string;
       instructions: string;
       preparing: string;
       expiresPrefix: string;
@@ -741,17 +742,18 @@ export const messages: MessagesCatalog = {
           description: 'We are checking the personal channel attached to this Kap account.',
         },
         statusDescriptions: {
-          missing: 'Create the channel first, then send a pairing code from your own WeChat.',
+          missing: 'Create the channel first, then scan the QR with your own WeChat.',
           archived: 'Archived channels do not route messages. Create a fresh channel to start over.',
           disconnected:
-            'The channel exists but is not connected yet. Send a pairing code to bring it online.',
+            'The channel exists but is not connected yet. Scan a QR to bring it online.',
         },
         pairing: {
-          codeLabel: 'Pairing code',
-          instructions: 'Add the Coke WeChat bot and send this code.',
-          preparing: 'Preparing your pairing code...',
-          expiresPrefix: 'This pairing code expires at',
-          activeSuffix: 'The current pairing code is still active.',
+          codeLabel: 'Scan to connect WeChat',
+          qrAlt: 'WeChat login QR code',
+          instructions: "Scan this QR code with this user's own WeChat account.",
+          preparing: 'Preparing your WeChat login QR...',
+          expiresPrefix: 'This QR code expires at',
+          activeSuffix: 'The current QR code is still active.',
         },
         connectedCard: {
           eyebrow: 'Connected',
@@ -766,9 +768,9 @@ export const messages: MessagesCatalog = {
         nextSteps: {
           title: 'What you can do next',
           missing: 'Create your personal WeChat channel for this account.',
-          disconnected: 'Send a pairing code to connect the existing channel.',
+          disconnected: 'Scan a QR to connect the existing channel.',
           pending:
-            'Add the Coke WeChat bot, send the pairing code, then continue messaging from that WeChat account.',
+            "Scan the QR with this user's own WeChat, confirm login, then keep messaging from that account.",
           connected: 'Disconnect the channel when you want to take it offline.',
           error: 'Retry the connect flow or archive the broken channel.',
           archived: 'Create a fresh channel if you want to start over.',
@@ -788,21 +790,21 @@ export const messages: MessagesCatalog = {
             eyebrow: 'No channel yet',
             title: 'Create my WeChat channel',
             description:
-              'Create a personal WeChat channel for this Kap account, then bind it with a pairing code.',
+              'Create a personal WeChat channel for this Kap account, then connect it by scanning a QR.',
             primaryActionLabel: 'Create my WeChat channel',
           },
           disconnected: {
             eyebrow: 'Channel created',
             title: 'Connect WeChat',
             description:
-              'Your personal WeChat channel exists. Send the pairing code to bring it online.',
+              'Your personal WeChat channel exists. Scan a QR to bring it online.',
             primaryActionLabel: 'Connect WeChat',
           },
           pending: {
-            eyebrow: 'Pairing in progress',
-            title: 'Send the pairing code to connect',
-            description: 'Use the code below to bind your WeChat account to Kap.',
-            primaryActionLabel: 'Refresh code',
+            eyebrow: 'Waiting for scan',
+            title: 'Scan to connect WeChat',
+            description: 'Use the QR below to bind your own WeChat account to Kap.',
+            primaryActionLabel: 'Refresh QR',
           },
           connected: {
             eyebrow: 'Connected',
@@ -1173,16 +1175,17 @@ export const messages: MessagesCatalog = {
           description: '我们正在检查当前 Kap 账号绑定的个人微信通道状态。',
         },
         statusDescriptions: {
-          missing: '先创建通道，然后用你自己的微信发送配对码。',
+          missing: '先创建通道，然后用你自己的微信扫码连接。',
           archived: '归档通道不会再转发消息。若要重新开始，请创建一个新的通道。',
-          disconnected: '通道已经存在，但尚未连接。发送配对码即可让它重新上线。',
+          disconnected: '通道已经存在，但尚未连接。扫码即可让它重新上线。',
         },
         pairing: {
-          codeLabel: '配对码',
-          instructions: '添加 Coke 微信机器人，然后发送这个配对码。',
-          preparing: '正在生成配对码...',
-          expiresPrefix: '该配对码过期时间：',
-          activeSuffix: '当前配对码仍然有效。',
+          codeLabel: '扫码连接微信',
+          qrAlt: '微信登录二维码',
+          instructions: '请用当前用户自己的微信扫描此二维码。',
+          preparing: '正在生成微信登录二维码...',
+          expiresPrefix: '该二维码过期时间：',
+          activeSuffix: '当前二维码仍然有效。',
         },
         connectedCard: {
           eyebrow: '已连接',
@@ -1197,8 +1200,8 @@ export const messages: MessagesCatalog = {
         nextSteps: {
           title: '接下来可以做什么',
           missing: '为这个账号创建你的个人微信通道。',
-          disconnected: '发送配对码，连接这个已存在的通道。',
-          pending: '添加 Coke 微信机器人，发送配对码，然后继续用这个微信账号发送消息。',
+          disconnected: '扫码连接这个已存在的通道。',
+          pending: '用这个用户自己的微信扫码并确认登录，然后继续用该微信账号发送消息。',
           connected: '需要下线时，可以断开这个通道。',
           error: '重新走一次连接流程，或归档当前异常通道。',
           archived: '如果想重新开始，请创建一个新的通道。',
@@ -1217,20 +1220,20 @@ export const messages: MessagesCatalog = {
           missing: {
             eyebrow: '尚未创建通道',
             title: '创建我的微信通道',
-            description: '为这个 Kap 账号创建一个个人微信通道，然后通过配对码把它连接起来。',
+            description: '为这个 Kap 账号创建一个个人微信通道，然后通过扫码把它连接起来。',
             primaryActionLabel: '创建我的微信通道',
           },
           disconnected: {
             eyebrow: '通道已创建',
             title: '连接微信',
-            description: '你的个人微信通道已经存在。发送配对码即可让它上线。',
+            description: '你的个人微信通道已经存在。扫码即可让它上线。',
             primaryActionLabel: '连接微信',
           },
           pending: {
-            eyebrow: '正在配对',
-            title: '发送配对码完成连接',
-            description: '使用下方配对码把你的微信账号绑定到 Kap。',
-            primaryActionLabel: '刷新配对码',
+            eyebrow: '等待扫码',
+            title: '扫码连接微信',
+            description: '使用下方二维码把你自己的微信账号绑定到 Kap。',
+            primaryActionLabel: '刷新二维码',
           },
           connected: {
             eyebrow: '已连接',

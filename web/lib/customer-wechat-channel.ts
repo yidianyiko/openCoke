@@ -14,7 +14,10 @@ type CustomerWechatChannelStatus =
 export interface CustomerWechatChannelState {
   status: CustomerWechatChannelStatus;
   connect_url?: string;
-  pairing_code?: string;
+  session_id?: string;
+  qrcode_id?: string;
+  qrcode_image?: string;
+  connector_status?: string;
   instructions?: string;
   expires_at?: number;
   channel_id?: string;
@@ -49,8 +52,11 @@ type CleanChannelStatus = {
   provider_type: string | null;
   connection_state: string;
   reachable: boolean;
-  pairing_code?: string;
-  pairing_expires_at?: number;
+  session_id?: string;
+  qrcode_id?: string;
+  qrcode_image?: string;
+  connector_status?: string;
+  masked_identity?: string;
   instructions?: string;
 };
 
@@ -95,11 +101,16 @@ function cleanStatusToCustomerState(
 
   if (status.connection_state === 'connecting') {
     state.status = 'pending';
-    state.pairing_code = status.pairing_code;
-    state.expires_at = status.pairing_expires_at;
+    state.session_id = status.session_id;
+    state.qrcode_id = status.qrcode_id;
+    state.qrcode_image = status.qrcode_image;
+    state.connector_status = status.connector_status;
     state.instructions = status.instructions;
   } else if (status.connection_state === 'connected') {
     state.status = 'connected';
+    state.session_id = status.session_id;
+    state.connector_status = status.connector_status;
+    state.masked_identity = status.masked_identity;
   } else if (status.connection_state === 'not_connected' && status.channel_id != null) {
     state.status = 'disconnected';
   } else if (
@@ -224,6 +235,20 @@ export function getCustomerWechatChannelStatus(): Promise<ApiResponse<CustomerWe
   return customerApi
     .get<CleanChannelStatus | CleanChannelError>(
       `/api/channels/status?account_id=${encodeURIComponent(accountId)}`,
+    )
+    .then(cleanStatusToCustomerState);
+}
+
+export function getCustomerWechatChannelLoginStatus(
+  sessionId: string,
+): Promise<ApiResponse<CustomerWechatChannelState>> {
+  const accountId = currentAccountId();
+  if (!accountId) {
+    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
+  }
+  return customerApi
+    .get<CleanChannelStatus | CleanChannelError>(
+      `/api/channels/wechat-personal/login-status?account_id=${encodeURIComponent(accountId)}&session_id=${encodeURIComponent(sessionId)}`,
     )
     .then(cleanStatusToCustomerState);
 }

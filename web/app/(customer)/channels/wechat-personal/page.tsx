@@ -18,6 +18,7 @@ import {
   connectCustomerWechatChannel,
   createCustomerWechatChannel,
   disconnectCustomerWechatChannel,
+  getCustomerWechatChannelLoginStatus,
   getCustomerWechatChannelStatus,
   getCustomerWechatChannelViewModel,
   type CustomerWechatChannelState,
@@ -166,6 +167,13 @@ function normalizeExpiresAt(expiresAt: number): Date {
   return new Date(expiresAt < 1_000_000_000_000 ? expiresAt * 1000 : expiresAt);
 }
 
+function currentPendingSession(channel: CustomerWechatChannelState | null): string | null {
+  if (channel?.status !== 'pending') {
+    return null;
+  }
+  return channel.session_id ?? null;
+}
+
 export default function CustomerWechatPersonalPage() {
   const { locale, messages } = useLocale();
   const copy = messages.customerPages.bindWechat;
@@ -258,7 +266,10 @@ export default function CustomerWechatPersonalPage() {
     }
 
     try {
-      const res = await getCustomerWechatChannelStatus();
+      const pendingSession = currentPendingSession(channelRef.current);
+      const res = pendingSession
+        ? await getCustomerWechatChannelLoginStatus(pendingSession)
+        : await getCustomerWechatChannelStatus();
       if (requestRevision != channelRevisionRef.current) {
         return;
       }
@@ -496,8 +507,14 @@ export default function CustomerWechatPersonalPage() {
         <div className="customer-channel-page__section">
           <div className="customer-channel-page__surface customer-channel-page__surface--neutral">
             <p className="customer-channel-page__surface-eyebrow">{copy.pairing.codeLabel}</p>
-            {channel.pairing_code ? (
-              <p className="customer-channel-page__pairing-code">{channel.pairing_code}</p>
+            {channel.qrcode_image ? (
+              <div className="customer-channel-page__qr-frame">
+                <img
+                  className="customer-channel-page__qr-image"
+                  src={channel.qrcode_image}
+                  alt={copy.pairing.qrAlt}
+                />
+              </div>
             ) : (
               <p className="customer-channel-page__surface-copy">{copy.pairing.preparing}</p>
             )}

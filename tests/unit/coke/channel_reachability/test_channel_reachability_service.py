@@ -58,6 +58,25 @@ class PassiveAdapter(RecordingAdapter):
     def __init__(self, provider_type: str) -> None:
         super().__init__()
         self.provider_type = provider_type
+        self.start_calls = []
+        self.status_calls = []
+
+    def start_login(self, *, account_id: str):
+        self.start_calls.append({"account_id": account_id})
+        return {
+            "session_id": f"session-{account_id}",
+            "qrcode_id": f"qr-{account_id}",
+            "qrcode_image": f"data:image/png;base64,{account_id}",
+            "status": "waiting_for_scan",
+        }
+
+    def poll_login_status(self, *, account_id: str, session_id: str):
+        self.status_calls.append({"account_id": account_id, "session_id": session_id})
+        return {
+            "session_id": session_id,
+            "status": "connected",
+            "ilink_user_id": "wxid_lizihao",
+        }
 
 
 @pytest.fixture
@@ -203,7 +222,7 @@ def test_connecting_is_not_reachable_and_connected_is_reachable(
     assert service.get_status(account.id).reachable is True
 
 
-def test_wechat_personal_connect_issues_pairing_code_and_status_reuses_it(
+def test_wechat_personal_connect_starts_ilink_login_and_status_stays_unconnected(
     identity_service, reachability
 ):
     registered = identity_service.register_web_account("wechat@example.com", "hash_1")
@@ -214,24 +233,26 @@ def test_wechat_personal_connect_issues_pairing_code_and_status_reuses_it(
         suspension_state="active",
     )
     service, _adapter = reachability
+    adapter = service.providers["wechat_personal"]
 
     pending = service.start_wechat_personal_connection(registered.account.id)
     status = service.get_status(registered.account.id)
 
+    assert adapter.start_calls == [{"account_id": registered.account.id}]
     assert pending.account_id == registered.account.id
     assert pending.channel_id is None
     assert pending.provider_type == "wechat_personal"
     assert pending.connection_state == "connecting"
     assert pending.reachable is False
-    assert pending.pairing_code.startswith("pairing_code_")
-    assert pending.pairing_code == status.pairing_code
-    assert pending.pairing_expires_at == NOW.timestamp() + 900
-    assert status.connection_state == "connecting"
-    assert "Coke WeChat bot" in pending.instructions
+    assert pending.session_id == f"session-{registered.account.id}"
+    assert pending.qrcode_id == f"qr-{registered.account.id}"
+    assert pending.qrcode_image == f"data:image/png;base64,{registered.account.id}"
+    assert pending.pairing_code is None
+    assert status.connection_state == "not_connected"
     assert service.repository.list_channels(registered.account.id) == []
 
 
-def test_wechat_personal_inbound_with_pairing_code_binds_and_connects(
+def test_wechat_personal_inbound_with_account_binding_connects_without_pairing(
     identity_service, reachability
 ):
     registered = identity_service.register_web_account("wxbind@example.com", "hash_1")
@@ -242,16 +263,17 @@ def test_wechat_personal_inbound_with_pairing_code_binds_and_connects(
         suspension_state="active",
     )
     service, _adapter = reachability
-    pending = service.start_wechat_personal_connection(registered.account.id)
 
     accepted = service.accept_provider_inbound(
         NormalizedInbound(
             provider_type="wechat_personal",
             provider_subject="wxid_lizihao",
-            text=pending.pairing_code,
+            text="hello",
             raw_event_id="wx_msg_pairing",
             received_at=NOW,
-            pairing_code=pending.pairing_code,
+            account_id=registered.account.id,
+            connector_session_id="session-1",
+            context_token="ctx-1",
         )
     )
 
@@ -290,6 +312,40 @@ def test_unpaired_wechat_personal_inbound_fails_closed_without_auto_provision(
         identity_service.repository.get_channel_identity_by_provider(
             "wechat_personal",
             "wxid_unbound",
+        )
+        is None
+    )
+
+
+def test_wechat_personal_inbound_pairing_code_fails_closed_without_session_account(
+    identity_service, reachability
+):
+    registered = identity_service.register_web_account("wxpair@example.com", "hash_1")
+    identity_service.set_access_state(
+        account_id=registered.account.id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+    )
+    pairing = identity_service.issue_pairing_code(registered.account.id)
+    service, _adapter = reachability
+
+    with pytest.raises(ChannelReachabilityError, match="identity_pairing_required"):
+        service.accept_provider_inbound(
+            NormalizedInbound(
+                provider_type="wechat_personal",
+                provider_subject="wxid_pairing_attempt",
+                text=pairing.code,
+                raw_event_id="wx_msg_pairing_attempt",
+                received_at=NOW,
+                pairing_code=pairing.code,
+            )
+        )
+
+    assert (
+        identity_service.repository.get_channel_identity_by_provider(
+            "wechat_personal",
+            "wxid_pairing_attempt",
         )
         is None
     )

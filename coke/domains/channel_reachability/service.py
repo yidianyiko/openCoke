@@ -67,6 +67,14 @@ class IdentityAccessPort(Protocol):
         pairing_code: str | None = None,
     ) -> ChannelIdentityResolution: ...
 
+    def bind_channel_identity_to_account(
+        self,
+        account_id: str,
+        provider_type: str,
+        provider_subject: str,
+        is_account_anchor: bool = False,
+    ) -> ChannelIdentityResolution: ...
+
 
 class ChannelReachabilityService:
     def __init__(
@@ -86,11 +94,6 @@ class ChannelReachabilityService:
     def get_status(self, account_id: str) -> ChannelStatus:
         channel = self.repository.get_active_channel(account_id)
         if channel is None:
-            pending = self._identity_call(
-                lambda: self.identity_access.get_pending_pairing_code(account_id)
-            )
-            if pending is not None:
-                return self._pending_wechat_status(account_id, pending)
             return ChannelStatus(
                 account_id=account_id,
                 channel_id=None,
@@ -107,16 +110,86 @@ class ChannelReachabilityService:
         )
 
     def start_wechat_personal_connection(self, account_id: str) -> ChannelStatus:
-        self._require_provider("wechat_personal")
+        adapter = self._require_provider("wechat_personal")
         self._require_product_channel("wechat_personal")
         self._require_access(account_id)
         active = self.repository.get_active_channel(account_id)
         if active is not None:
             return self.get_status(account_id)
-        pairing = self._identity_call(
-            lambda: self.identity_access.ensure_pairing_code(account_id)
+        if not hasattr(adapter, "start_login"):
+            raise ChannelReachabilityError("provider_login_not_supported")
+        login = adapter.start_login(account_id=account_id)
+        return ChannelStatus(
+            account_id=account_id,
+            channel_id=None,
+            provider_type="wechat_personal",
+            connection_state="connecting",
+            reachable=False,
+            session_id=_optional_response_str(login, "session_id"),
+            qrcode_id=_optional_response_str(login, "qrcode_id"),
+            qrcode_image=_optional_response_str(login, "qrcode_image_data_url")
+            or _optional_response_str(login, "qrcode_image"),
+            connector_status=_optional_response_str(login, "status"),
+            instructions="scan this QR code with this user's own WeChat account",
         )
-        return self._pending_wechat_status(account_id, pairing)
+
+    def poll_wechat_personal_login(
+        self, account_id: str, session_id: str
+    ) -> ChannelStatus:
+        adapter = self._require_provider("wechat_personal")
+        self._require_product_channel("wechat_personal")
+        self._require_access(account_id)
+        if not hasattr(adapter, "poll_login_status"):
+            raise ChannelReachabilityError("provider_login_not_supported")
+        status = adapter.poll_login_status(account_id=account_id, session_id=session_id)
+        connector_status = _optional_response_str(status, "status")
+        if connector_status == "connected":
+            wxid = _required_response_str(status, "ilink_user_id")
+            resolution = self._identity_call(
+                lambda: self.identity_access.bind_channel_identity_to_account(
+                    account_id=account_id,
+                    provider_type="wechat_personal",
+                    provider_subject=wxid,
+                    is_account_anchor=False,
+                )
+            )
+            channel = self.repository.get_active_channel(account_id)
+            if channel is None:
+                channel = self.create_channel(
+                    account_id=account_id,
+                    provider_type="wechat_personal",
+                    channel_identity_id=resolution.channel_identity.id,
+                    removable=True,
+                )
+            elif channel.channel_identity_id != resolution.channel_identity.id:
+                raise ChannelReachabilityError("active_channel_exists")
+            if channel.connection_state != "connected":
+                channel = self.mark_connected(account_id, channel.id)
+            return ChannelStatus(
+                account_id=account_id,
+                channel_id=channel.id,
+                provider_type="wechat_personal",
+                connection_state="connected",
+                reachable=True,
+                session_id=session_id,
+                connector_status=connector_status,
+                masked_identity=_mask_identity(wxid),
+            )
+        return ChannelStatus(
+            account_id=account_id,
+            channel_id=None,
+            provider_type="wechat_personal",
+            connection_state=(
+                "connection_failed" if connector_status == "expired" else "connecting"
+            ),
+            reachable=False,
+            session_id=session_id,
+            qrcode_id=_optional_response_str(status, "qrcode_id"),
+            qrcode_image=_optional_response_str(status, "qrcode_image_data_url")
+            or _optional_response_str(status, "qrcode_image"),
+            connector_status=connector_status,
+            instructions="scan this QR code with this user's own WeChat account",
+        )
 
     def create_channel(
         self,
@@ -256,6 +329,7 @@ class ChannelReachabilityService:
         idempotency_key: str,
         turn_id: str | None = None,
         message_id: str | None = None,
+        context_token: str | None = None,
     ) -> DeliveryAttempt:
         route = self.resolve_route(account_id)
         existing = self.repository.get_attempt_by_provider_idempotency(
@@ -287,11 +361,21 @@ class ChannelReachabilityService:
                 )
             return existing
         adapter = self._require_provider(route.provider_type)
-        result = adapter.send_text(
-            route=route,
-            text=text,
-            idempotency_key=idempotency_key,
-        )
+        if route.provider_type == "wechat_personal":
+            if not context_token:
+                raise ChannelReachabilityError("context_token_required")
+            result = adapter.send_text(
+                route=route,
+                text=text,
+                idempotency_key=idempotency_key,
+                context_token=context_token,
+            )
+        else:
+            result = adapter.send_text(
+                route=route,
+                text=text,
+                idempotency_key=idempotency_key,
+            )
         now = self._now()
         attempt = DeliveryAttempt(
             id=self._id_factory("delivery_attempt"),
@@ -316,6 +400,57 @@ class ChannelReachabilityService:
     ) -> ProviderWebhookAcceptance:
         self._require_provider(inbound.provider_type)
         self._require_product_channel(inbound.provider_type)
+        if (
+            inbound.provider_type == "wechat_personal"
+            and inbound.account_id is not None
+        ):
+            active = self.repository.get_active_channel(inbound.account_id)
+            if active is not None:
+                identity = self._identity_call(
+                    lambda: self.identity_access.bind_channel_identity_to_account(
+                        account_id=inbound.account_id,
+                        provider_type=inbound.provider_type,
+                        provider_subject=inbound.provider_subject,
+                        is_account_anchor=False,
+                    )
+                ).channel_identity
+                if active.channel_identity_id != identity.id:
+                    raise ChannelReachabilityError("active_channel_exists")
+            resolution = self._identity_call(
+                lambda: self.identity_access.bind_channel_identity_to_account(
+                    account_id=inbound.account_id,
+                    provider_type=inbound.provider_type,
+                    provider_subject=inbound.provider_subject,
+                    is_account_anchor=False,
+                )
+            )
+            account_id = resolution.account.id
+            self._require_access(account_id)
+            channel = self.repository.get_active_channel(account_id)
+            if channel is None:
+                channel = self.create_channel(
+                    account_id=account_id,
+                    provider_type=inbound.provider_type,
+                    channel_identity_id=resolution.channel_identity.id,
+                    removable=True,
+                )
+            if channel.connection_state != "connected":
+                channel = self.mark_connected(account_id=account_id, channel_id=channel.id)
+            self._identity_call(
+                lambda: self.identity_access.mark_first_inbound_received(account_id)
+            )
+            return ProviderWebhookAcceptance(
+                accepted=True,
+                provider_type=inbound.provider_type,
+                provider_subject=inbound.provider_subject,
+                account_id=account_id,
+                channel_identity_id=resolution.channel_identity.id,
+                channel_id=channel.id,
+                created_account=False,
+                raw_event_id=inbound.raw_event_id,
+            )
+        if inbound.provider_type == "wechat_personal":
+            raise ChannelReachabilityError("identity_pairing_required")
         if inbound.pairing_code is not None:
             target_account_id = self._identity_call(
                 lambda: self.identity_access.preview_pairing_code_account(
@@ -423,23 +558,6 @@ class ChannelReachabilityService:
         except IdentityAccessError as error:
             raise ChannelReachabilityError(error.code, fact=error.fact) from error
 
-    def _pending_wechat_status(
-        self,
-        account_id: str,
-        pairing: ArtifactIssueResult,
-    ) -> ChannelStatus:
-        return ChannelStatus(
-            account_id=account_id,
-            channel_id=None,
-            provider_type="wechat_personal",
-            connection_state="connecting",
-            reachable=False,
-            pairing_code=pairing.code,
-            pairing_expires_at=pairing.artifact.expires_at.timestamp(),
-            instructions="add the Coke WeChat bot and send this code",
-        )
-
-
 def _delivery_route_key(
     channel_id: str,
     provider_type: str,
@@ -447,3 +565,28 @@ def _delivery_route_key(
 ) -> str:
     material = f"{channel_id}\0{provider_type}\0{provider_subject}".encode("utf-8")
     return f"delivery-route:{sha256(material).hexdigest()}"
+
+
+def _optional_response_str(response: object, field: str) -> str | None:
+    if not isinstance(response, Mapping):
+        return None
+    value = response.get(field)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _required_response_str(response: object, field: str) -> str:
+    value = _optional_response_str(response, field)
+    if value is None:
+        raise ChannelReachabilityError(
+            "invalid_provider_response",
+            fact={"type": "invalid_provider_response", "field": field},
+        )
+    return value
+
+
+def _mask_identity(value: str) -> str:
+    if len(value) <= 8:
+        return value
+    return f"{value[:4]}***{value[-4:]}"

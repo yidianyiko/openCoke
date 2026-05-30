@@ -144,7 +144,7 @@ def test_provider_webhook_normalizes_and_returns_structured_identity_facts_only(
     assert adapters["whatsapp_evolution"].calls == [payload]
 
 
-def test_wechat_personal_webhook_accepts_connector_pairing_payload():
+def test_wechat_personal_webhook_accepts_account_bound_ilink_payload():
     client, service, _adapters = make_client(
         adapters={
             "wechat_personal": WeChatPersonalAdapter(
@@ -156,10 +156,12 @@ def test_wechat_personal_webhook_accepts_connector_pairing_payload():
     response = client.post(
         "/webhooks/wechat/personal",
         json={
+            "account_id": "acct_1",
+            "session_id": "session_1",
             "message_id": "wx_msg_1",
             "wxid": "wxid_lizihao",
-            "text": "pairing_abc123",
-            "pairing_code": "pairing_abc123",
+            "text": "hello",
+            "context_token": "ctx-1",
         },
     )
 
@@ -167,9 +169,12 @@ def test_wechat_personal_webhook_accepts_connector_pairing_payload():
     inbound = service.calls[0][1]
     assert inbound.provider_type == "wechat_personal"
     assert inbound.provider_subject == "wxid_lizihao"
-    assert inbound.text == "pairing_abc123"
+    assert inbound.text == "hello"
     assert inbound.raw_event_id == "wx_msg_1"
-    assert inbound.pairing_code == "pairing_abc123"
+    assert inbound.account_id == "acct_1"
+    assert inbound.connector_session_id == "session_1"
+    assert inbound.context_token == "ctx-1"
+    assert inbound.pairing_code is None
 
 
 def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():

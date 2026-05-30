@@ -59,7 +59,16 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
 
 
 @pytest.mark.parametrize(
-    ("adapter", "payload", "provider_subject", "text", "raw_event_id", "pairing_code"),
+    (
+        "adapter",
+        "payload",
+        "provider_subject",
+        "text",
+        "raw_event_id",
+        "pairing_code",
+        "account_id",
+        "context_token",
+    ),
     [
         (
             WhatsAppEvolutionAdapter(),
@@ -74,6 +83,8 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
             "pair code ABC123",
             "wa_msg_1",
             "ABC123",
+            None,
+            None,
         ),
         (
             WeChatPersonalAdapter(now=lambda: NOW),
@@ -81,12 +92,16 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
                 "message_id": "wx_msg_1",
                 "wxid": "wxid_alice",
                 "text": "hello",
-                "pairing_code": "WXPAIR",
+                "account_id": "acct_1",
+                "session_id": "session_1",
+                "context_token": "ctx-1",
             },
             "wxid_alice",
             "hello",
             "wx_msg_1",
-            "WXPAIR",
+            None,
+            "acct_1",
+            "ctx-1",
         ),
         (
             WeChatECloudAdapter(now=lambda: NOW),
@@ -98,6 +113,8 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
             "gewe_alice",
             "hello",
             "gewe_msg_1",
+            None,
+            None,
             None,
         ),
         (
@@ -111,6 +128,8 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
             "hello",
             "sms_msg_1",
             None,
+            None,
+            None,
         ),
     ],
 )
@@ -121,6 +140,8 @@ def test_provider_adapters_normalize_inbound_payloads(
     text,
     raw_event_id,
     pairing_code,
+    account_id,
+    context_token,
 ):
     inbound = adapter.normalize_inbound(payload)
 
@@ -129,6 +150,8 @@ def test_provider_adapters_normalize_inbound_payloads(
     assert inbound.text == text
     assert inbound.raw_event_id == raw_event_id
     assert inbound.pairing_code == pairing_code
+    assert inbound.account_id == account_id
+    assert inbound.context_token == context_token
     assert inbound.received_at in {NOW, EVOLUTION_TS}
     assert inbound.payload is not payload
 
@@ -434,15 +457,6 @@ def test_provider_adapters_reject_boolean_required_fields(adapter, payload, fiel
             },
         ),
         (
-            WeChatPersonalAdapter(now=lambda: NOW),
-            {
-                "message_id": "wx_msg_1",
-                "wxid": "wxid_alice",
-                "text": "hello",
-                "pairing_code": {"code": "WXPAIR"},
-            },
-        ),
-        (
             WeChatECloudAdapter(now=lambda: NOW),
             {
                 "msg_id": "gewe_msg_1",
@@ -472,6 +486,28 @@ def test_provider_adapters_reject_malformed_pairing_code(adapter, payload):
         "type": "invalid_provider_payload",
         "provider_type": adapter.provider_type,
         "field": "pairing_code",
+        "reason": "invalid_optional_field",
+    }
+
+
+@pytest.mark.parametrize("field", ["account_id", "session_id", "context_token"])
+def test_wechat_personal_rejects_malformed_ilink_optional_fields(field):
+    payload = {
+        "message_id": "wx_msg_1",
+        "wxid": "wxid_alice",
+        "text": "hello",
+        field: {"bad": "value"},
+    }
+
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
+        WeChatPersonalAdapter(now=lambda: NOW).normalize_inbound(payload)
+
+    assert exc_info.value.fact == {
+        "type": "invalid_provider_payload",
+        "provider_type": "wechat_personal",
+        "field": field,
         "reason": "invalid_optional_field",
     }
 
@@ -592,19 +628,26 @@ def test_whatsapp_evolution_send_text_maps_timeout_to_failed():
         "expected_url",
         "expected_json",
         "expected_message_id",
+        "send_kwargs",
     ),
     [
         (
             WeChatPersonalAdapter,
             {
-                "endpoint_url": "https://clawscale.example/messages/send",
+                "endpoint_url": "https://connector.example/send",
                 "api_key": "wx-secret",
             },
             delivery_route("wechat_personal", "wxid_alice"),
             {"message_id": "WX_SEND"},
-            "https://clawscale.example/messages/send",
-            {"to": "wxid_alice", "text": "hello"},
+            "https://connector.example/send",
+            {
+                "account_id": "acct_1",
+                "to": "wxid_alice",
+                "context_token": "ctx-1",
+                "text": "hello",
+            },
             "WX_SEND",
+            {"context_token": "ctx-1"},
         ),
         (
             WeChatECloudAdapter,
@@ -618,6 +661,7 @@ def test_whatsapp_evolution_send_text_maps_timeout_to_failed():
             "https://gewe.example/message/postText",
             {"appId": "app-1", "toWxid": "gewe_alice", "content": "hello"},
             "GEWE_SEND",
+            {},
         ),
         (
             LinqAdapter,
@@ -627,6 +671,7 @@ def test_whatsapp_evolution_send_text_maps_timeout_to_failed():
             "https://linq.example/sms/send",
             {"to": "+15555550123", "text": "hello"},
             "SMS_SEND",
+            {},
         ),
     ],
 )
@@ -638,6 +683,7 @@ def test_secondary_provider_send_text_posts_real_http_request(
     expected_url,
     expected_json,
     expected_message_id,
+    send_kwargs,
 ):
     requests = []
 
@@ -650,7 +696,12 @@ def test_secondary_provider_send_text_posts_real_http_request(
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
-    result = adapter.send_text(route=route, text="hello", idempotency_key="send_1")
+    result = adapter.send_text(
+        route=route,
+        text="hello",
+        idempotency_key="send_1",
+        **send_kwargs,
+    )
 
     assert requests[0].method == "POST"
     assert str(requests[0].url) == expected_url
@@ -666,3 +717,30 @@ def test_secondary_provider_send_text_posts_real_http_request(
     assert result.status == "sent"
     assert result.provider_message_id == expected_message_id
     assert result.error_code is None
+
+
+def test_wechat_personal_login_uses_connector_root_when_send_endpoint_configured():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            202,
+            json={
+                "session_id": "session_1",
+                "qrcode": "qr_1",
+                "qrcode_image_data_url": "data:image/png;base64,abc",
+            },
+        )
+
+    adapter = WeChatPersonalAdapter(
+        endpoint_url="https://connector.example/send",
+        api_key="wx-secret",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    adapter.start_login(account_id="acct_1")
+
+    assert requests[0].method == "POST"
+    assert str(requests[0].url) == "https://connector.example/login/start"
+    assert requests[0].headers["Authorization"] == "Bearer wx-secret"

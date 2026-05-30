@@ -12,6 +12,7 @@ const getCustomerProfileMock = vi.hoisted(() => vi.fn());
 const storeCustomerProfileMock = vi.hoisted(() => vi.fn());
 const clearCustomerAuthMock = vi.hoisted(() => vi.fn());
 const getCustomerWechatChannelStatusMock = vi.hoisted(() => vi.fn());
+const getCustomerWechatChannelLoginStatusMock = vi.hoisted(() => vi.fn());
 const createCustomerWechatChannelMock = vi.hoisted(() => vi.fn());
 const connectCustomerWechatChannelMock = vi.hoisted(() => vi.fn());
 const disconnectCustomerWechatChannelMock = vi.hoisted(() => vi.fn());
@@ -59,6 +60,8 @@ vi.mock('../../../../lib/customer-wechat-channel', async () => {
     connectCustomerWechatChannel: () => connectCustomerWechatChannelMock(),
     createCustomerWechatChannel: () => createCustomerWechatChannelMock(),
     disconnectCustomerWechatChannel: () => disconnectCustomerWechatChannelMock(),
+    getCustomerWechatChannelLoginStatus: (sessionId: string) =>
+      getCustomerWechatChannelLoginStatusMock(sessionId),
     getCustomerWechatChannelStatus: () => getCustomerWechatChannelStatusMock(),
   };
 });
@@ -118,6 +121,10 @@ function buildProfile(
     ...overrides,
   };
 }
+
+beforeEach(() => {
+  getCustomerWechatChannelLoginStatusMock.mockReset();
+});
 
 function renderWithLocale(root: Root, locale: 'en' | 'zh') {
   flushSync(() => {
@@ -305,26 +312,26 @@ describe('CustomerWechatPersonalPage branded layout', () => {
     expect(container.textContent).toContain('Need an account?');
   });
 
-  it('renders a pending personal-WeChat pairing code', async () => {
+  it('renders a pending personal-WeChat QR login', async () => {
     getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
       ok: true,
       data: {
         status: 'pending',
-        pairing_code: 'pairing_abc123',
-        expires_at: 1710000000,
-        instructions: 'add the Coke WeChat bot and send this code',
+        session_id: 'ilink_session_1',
+        qrcode_id: 'qr_1',
+        qrcode_image: 'data:image/png;base64,QR1',
+        instructions: 'scan this QR code with this user',
       },
     });
 
     renderWithLocale(root, 'en');
-    await waitForText(container, 'pairing_abc123');
+    await waitForText(container, 'Scan to connect WeChat');
 
-    expect(container.textContent).toContain('Send the pairing code to connect');
-    expect(container.textContent).toContain('add the Coke WeChat bot and send this code');
-    expect(container.textContent).toContain('pairing_abc123');
-    expect(container.textContent).toContain('Refresh code');
-    expect(container.querySelector('.customer-channel-page__pairing-code')).toBeTruthy();
-    expect(container.querySelector('.customer-channel-page__qr-image')).toBeFalsy();
+    expect(container.textContent).toContain('Scan to connect WeChat');
+    expect(container.textContent).toContain('scan this QR code with this user');
+    expect(container.textContent).toContain('Refresh QR');
+    expect(container.querySelector('.customer-channel-page__qr-image')).toBeTruthy();
+    expect(container.querySelector('.customer-channel-page__pairing-code')).toBeFalsy();
   });
 });
 
@@ -671,64 +678,64 @@ describe('CustomerWechatPersonalPage refresh ordering', () => {
     container?.remove();
   });
 
-  it('keeps fresher mutation pairing data when an older poll resolves later', async () => {
+  it('keeps fresher mutation QR data when an older poll resolves later', async () => {
     const staleRefresh = createDeferred<{
       ok: true;
       data: {
         status: 'pending';
-        pairing_code: string;
-        expires_at: number;
+        session_id: string;
+        qrcode_image: string;
       };
     }>();
 
-    getCustomerWechatChannelStatusMock
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          status: 'pending',
-          pairing_code: 'pairing_initial',
-          expires_at: 1710000000,
-        },
-      })
-      .mockReturnValueOnce(staleRefresh.promise);
+    getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'pending',
+        session_id: 'ilink_session_1',
+        qrcode_image: 'data:image/png;base64,initial',
+      },
+    });
+    getCustomerWechatChannelLoginStatusMock.mockReturnValueOnce(staleRefresh.promise);
 
     connectCustomerWechatChannelMock.mockResolvedValueOnce({
       ok: true,
       data: {
         status: 'pending',
-        pairing_code: 'pairing_fresh',
-        expires_at: 1710003600,
+        session_id: 'ilink_session_2',
+        qrcode_image: 'data:image/png;base64,fresh',
       },
     });
 
     renderWithLocale(root, 'en');
-
-    const freshExpiryText = new Date(1710003600 * 1000).toLocaleString();
-    const staleExpiryText = new Date(1709990000 * 1000).toLocaleString();
 
     await flushTicks(5);
     expect(intervalCallbacks).toHaveLength(1);
     intervalCallbacks[0]();
 
     const refreshButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Refresh code'),
+      button.textContent?.includes('Refresh QR'),
     );
     expect(refreshButton).toBeTruthy();
     refreshButton?.click();
 
-    await waitForText(container, freshExpiryText);
+    await flushTicks(5);
+    expect(container.querySelector('.customer-channel-page__qr-image')?.getAttribute('src')).toBe(
+      'data:image/png;base64,fresh',
+    );
     staleRefresh.resolve({
       ok: true,
       data: {
         status: 'pending',
-        pairing_code: 'pairing_stale',
-        expires_at: 1709990000,
+        session_id: 'ilink_session_1',
+        qrcode_image: 'data:image/png;base64,stale',
       },
     });
 
     await flushTicks(5);
 
-    expect(container.textContent).toContain(freshExpiryText);
-    expect(container.textContent).not.toContain(staleExpiryText);
+    expect(container.querySelector('.customer-channel-page__qr-image')?.getAttribute('src')).toBe(
+      'data:image/png;base64,fresh',
+    );
   });
 });

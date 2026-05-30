@@ -264,6 +264,10 @@ class ConversationRuntimeService:
             raise ConversationRuntimeError("disposition_not_found")
         return disposition
 
+    def latest_context_token(self, conversation_id: str) -> str | None:
+        self._require_conversation(conversation_id)
+        return self.repository.latest_inbound_context_token(conversation_id)
+
     def _ensure_fresh(self, turn: Turn, based_on_inbound_seq: int | None) -> None:
         if turn.based_on_inbound_seq != based_on_inbound_seq:
             raise ConversationRuntimeError("based_on_inbound_seq_mismatch")

@@ -74,7 +74,8 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
   access status, and recover from denied access.
 - Claim a messaging-first account through a one-time login URL or web-initiated
   claim code.
-- Bind a web-first channel through a pairing code.
+- Bind a web-first personal-WeChat channel through that account's own iLink QR
+  login session. Shared-channel claim and pairing artifacts remain separate.
 - Block normal assistant processing, channel connection, and calendar import
   when account access is denied.
 

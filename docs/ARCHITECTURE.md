@@ -152,7 +152,12 @@ shared WhatsApp; retained provider adapters are `wechat_personal`,
 `wechat_personal` is the only remaining ClawScale-shaped responsibility. It is
 an adapter peer, not a runtime center. Provider-specific identity or message
 shapes must be normalized at the ingress/egress boundary before they reach
-domain modules or the Interaction Agent.
+domain modules or the Interaction Agent. Personal-WeChat connection is web-first:
+each Coke account starts its own iLink bot QR login, and the resulting bot token
+and getupdates cursor are scoped to that account. Inbound personal-WeChat events
+arrive with the connector session/account association and carry the iLink
+`context_token`; outbound personal-WeChat sends must echo the latest stored
+conversation `context_token`.
 
 ## Product Invariants
 
