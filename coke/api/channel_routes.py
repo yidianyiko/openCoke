@@ -2,44 +2,45 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
+from coke.api.auth_helpers import require_customer_account_id
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
     PRODUCT_CHANNEL_PROVIDER_TYPES,
 )
 
 
-def create_channel_blueprint(reachability_service) -> Blueprint:
+def create_channel_blueprint(reachability_service, identity_service) -> Blueprint:
     blueprint = Blueprint("channels", __name__, url_prefix="/api/channels")
 
     @blueprint.errorhandler(ChannelReachabilityError)
     def handle_channel_error(error: ChannelReachabilityError):
-        return jsonify(_error_body(error.code, error.fact)), 400
+        return jsonify(_error_body(error.code, error.fact)), _status_code(error.code)
 
     @blueprint.get("/status")
     def status():
         result = reachability_service.get_status(
-            account_id=_query_str_field("account_id")
+            account_id=_customer_account_id(identity_service)
         )
         return jsonify(_status_body(result))
 
     @blueprint.post("/wechat-personal/connect")
     def connect_wechat_personal():
-        payload = _json_payload()
         result = reachability_service.start_wechat_personal_connection(
-            account_id=_body_str_field(payload, "account_id")
+            account_id=_customer_account_id(identity_service)
         )
         return jsonify(_status_body(result))
 
     @blueprint.get("/wechat-personal/login-status")
     def wechat_personal_login_status():
         result = reachability_service.poll_wechat_personal_login(
-            account_id=_query_str_field("account_id"),
+            account_id=_customer_account_id(identity_service),
             session_id=_query_str_field("session_id"),
         )
         return jsonify(_status_body(result))
 
     @blueprint.post("")
     def create():
+        account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         provider_type = _body_str_field(payload, "provider_type")
         if provider_type not in PRODUCT_CHANNEL_PROVIDER_TYPES:
@@ -52,7 +53,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
                 },
             )
         channel = reachability_service.create_channel(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=account_id,
             provider_type=provider_type,
             channel_identity_id=_body_str_field(payload, "channel_identity_id"),
             removable=_body_bool_field(payload, "removable"),
@@ -61,9 +62,8 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
 
     @blueprint.post("/<channel_id>/connect")
     def connect(channel_id: str):
-        payload = _json_payload()
         channel = reachability_service.connect_channel(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=_customer_account_id(identity_service),
             channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
@@ -71,25 +71,23 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     @blueprint.get("/<channel_id>/poll")
     def poll(channel_id: str):
         channel = reachability_service.poll_channel(
-            account_id=_query_str_field("account_id"),
+            account_id=_customer_account_id(identity_service),
             channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
     @blueprint.post("/<channel_id>/remove")
     def remove(channel_id: str):
-        payload = _json_payload()
         channel = reachability_service.remove_channel(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=_customer_account_id(identity_service),
             channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
 
     @blueprint.post("/<channel_id>/retry")
     def retry(channel_id: str):
-        payload = _json_payload()
         channel = reachability_service.retry_connection(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=_customer_account_id(identity_service),
             channel_id=_path_str_field(channel_id, "channel_id"),
         )
         return jsonify(_channel_body(channel))
@@ -97,7 +95,7 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
     @blueprint.get("/resolve-route")
     def resolve_route():
         route = reachability_service.resolve_route(
-            account_id=_query_str_field("account_id")
+            account_id=_customer_account_id(identity_service)
         )
         return jsonify(
             {
@@ -112,6 +110,10 @@ def create_channel_blueprint(reachability_service) -> Blueprint:
         )
 
     return blueprint
+
+
+def _customer_account_id(identity_service) -> str:
+    return require_customer_account_id(identity_service, ChannelReachabilityError)
 
 
 def _channel_body(channel) -> dict:
@@ -257,3 +259,7 @@ def _error_body(code: str, fact: dict | None = None) -> dict:
     if fact is not None:
         body["error"]["fact"] = fact
     return body
+
+
+def _status_code(code: str) -> int:
+    return 401 if code == "unauthorized" else 400

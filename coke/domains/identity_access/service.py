@@ -26,6 +26,7 @@ from coke.domains.identity_access.models import (
     RegistrationResult,
     Session,
 )
+from coke.domains.identity_access.passwords import PasswordHasher
 from coke.domains.identity_access.repository import IdentityAccessRepository
 
 
@@ -37,6 +38,7 @@ class IdentityAccessService:
         token_factory: Callable[[str], str] | None = None,
         id_factory: Callable[[str], str] | None = None,
         checkout_url_factory: Callable[[str], str] | None = None,
+        password_hasher: PasswordHasher | None = None,
     ) -> None:
         self.repository = repository
         self._now = now or (lambda: datetime.now(UTC))
@@ -47,11 +49,12 @@ class IdentityAccessService:
         self._checkout_url_factory = checkout_url_factory or (
             lambda account_id: f"https://checkout.example/{account_id}"
         )
+        self._password_hasher = password_hasher or PasswordHasher()
 
     def register_web_account(
         self,
         email: str,
-        password_hash: str,
+        password: str,
         default_timezone: str = "UTC",
     ) -> RegistrationResult:
         if self.repository.get_credential_by_email(email):
@@ -64,7 +67,7 @@ class IdentityAccessService:
             id=self._id_factory("credential"),
             account_id=account.id,
             email=email,
-            password_hash=password_hash,
+            password_hash=self._hash_password(password),
             email_verified_at=None,
             reset_required=False,
             created_at=self._now(),
@@ -86,9 +89,11 @@ class IdentityAccessService:
             email_verification=email_verification,
         )
 
-    def login(self, email: str, password_hash: str) -> LoginResult:
+    def login(self, email: str, password: str) -> LoginResult:
         credential = self.repository.get_credential_by_email(email)
-        if credential is None or credential.password_hash != password_hash:
+        if credential is None or not self._verify_password(
+            credential.password_hash, password
+        ):
             raise IdentityAccessError("invalid_credentials")
         account = self._require_account(credential.account_id)
         return LoginResult(account=account, session=self._create_session(account.id))
@@ -416,7 +421,7 @@ class IdentityAccessService:
             ttl=timedelta(hours=1),
         )
 
-    def reset_password(self, token: str, password_hash: str) -> Credential:
+    def reset_password(self, token: str, password: str) -> Credential:
         artifact = self._consume_artifact(
             token, expected_type=ArtifactType.PASSWORD_RESET
         )
@@ -427,7 +432,7 @@ class IdentityAccessService:
             raise IdentityAccessError("credential_not_found")
         updated = replace(
             credential,
-            password_hash=password_hash,
+            password_hash=self._hash_password(password),
             reset_required=False,
             updated_at=self._now(),
         )
@@ -791,6 +796,18 @@ class IdentityAccessService:
         if access is None:
             raise IdentityAccessError("access_not_found")
         return access
+
+    def _hash_password(self, password: str) -> str:
+        try:
+            return self._password_hasher.hash(password)
+        except ValueError as error:
+            raise IdentityAccessError("invalid_password") from error
+
+    def _verify_password(self, stored_hash: str, password: str) -> bool:
+        try:
+            return self._password_hasher.verify(stored_hash, password)
+        except ValueError:
+            return False
 
     def _default_id(self, prefix: str) -> str:
         return uuid4().hex

@@ -95,20 +95,46 @@ class ErrorService(FakeCalendarImportService):
         )
 
 
-def make_client(service=None):
+class FakeIdentityService:
+    def __init__(self, account_id="acct_1") -> None:
+        self.calls: list[tuple[str, dict]] = []
+        self.account_id = account_id
+
+    def current_user(self, session_token):
+        self.calls.append(("current_user", {"session_token": session_token}))
+        if session_token != "session_token":
+            raise AssertionError(f"unexpected session token: {session_token}")
+        return SimpleNamespace(id=self.account_id, origin="web_first")
+
+
+class AuthenticatedClient:
+    def __init__(self, raw_client) -> None:
+        self.raw = raw_client
+
+    def get(self, *args, **kwargs):
+        kwargs.setdefault("headers", {"Authorization": "Bearer session_token"})
+        return self.raw.get(*args, **kwargs)
+
+    def post(self, *args, **kwargs):
+        kwargs.setdefault("headers", {"Authorization": "Bearer session_token"})
+        return self.raw.post(*args, **kwargs)
+
+
+def make_client(service=None, identity_service=None):
     service = service or FakeCalendarImportService()
+    identity_service = identity_service or FakeIdentityService()
     app = Flask(__name__)
-    app.register_blueprint(create_calendar_import_blueprint(service))
-    return app.test_client(), service
+    app.register_blueprint(create_calendar_import_blueprint(service, identity_service))
+    return AuthenticatedClient(app.test_client()), service, identity_service
 
 
 def test_import_route_is_a_thin_service_adapter():
-    client, service = make_client()
+    client, service, identity = make_client()
 
     response = client.post(
         "/api/calendar-import/google/import",
         json={
-            "account_id": "acct_1",
+            "account_id": "spoofed_account",
             "auth_handle": "google-oauth-token",
             "provider_account_id": "google-user",
             "visible_start": "2026-05-30T12:00:00+00:00",
@@ -121,6 +147,7 @@ def test_import_route_is_a_thin_service_adapter():
     assert response.status_code == 200
     assert response.get_json()["summary"]["imported_count"] == 1
     assert response.get_json()["summary"]["items"][0]["status"] == "imported"
+    assert identity.calls == [("current_user", {"session_token": "session_token"})]
     assert service.calls == [
         (
             "import_google_calendar",
@@ -137,16 +164,45 @@ def test_import_route_is_a_thin_service_adapter():
     ]
 
 
+def test_import_route_rejects_missing_session_before_service_call():
+    client, service, identity = make_client()
+
+    response = client.post(
+        "/api/calendar-import/google/import",
+        json={
+            "account_id": "acct_1",
+            "auth_handle": "google-oauth-token",
+            "visible_start": "2026-05-30T12:00:00+00:00",
+            "visible_end": "2026-06-30T12:00:00+00:00",
+            "captured_timezone": "UTC",
+        },
+        headers={},
+    )
+
+    assert response.status_code == 401
+    assert response.get_json() == {
+        "error": {
+            "code": "unauthorized",
+            "fact": {
+                "type": "unauthorized",
+                "reason": "missing_bearer_token",
+            },
+        }
+    }
+    assert identity.calls == []
+    assert service.calls == []
+
+
 def test_stop_and_revoke_routes_delegate_to_service():
-    client, service = make_client()
+    client, service, _identity = make_client()
 
     stop_response = client.post(
         "/api/calendar-import/google/stop",
-        json={"account_id": "acct_1", "auth_handle": "google-oauth-token"},
+        json={"account_id": "spoofed_account", "auth_handle": "google-oauth-token"},
     )
     revoke_response = client.post(
         "/api/calendar-import/google/revoke",
-        json={"account_id": "acct_1", "auth_handle": "google-oauth-token"},
+        json={"account_id": "spoofed_account", "auth_handle": "google-oauth-token"},
     )
 
     assert stop_response.status_code == 200
@@ -160,7 +216,7 @@ def test_stop_and_revoke_routes_delegate_to_service():
 
 
 def test_route_errors_return_structured_error_body():
-    client, _service = make_client(ErrorService())
+    client, _service, _identity = make_client(ErrorService())
 
     response = client.post(
         "/api/calendar-import/google/stop",
@@ -181,11 +237,24 @@ def test_create_app_registers_calendar_import_blueprint_when_service_is_provided
         Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
         calendar_import_service=FakeCalendarImportService(),
     )
+    response = app.test_client().post(
+        "/api/calendar-import/google/stop",
+        json={"account_id": "acct_1", "auth_handle": "google-oauth-token"},
+        headers={"Authorization": "Bearer session_token"},
+    )
+    assert response.status_code == 404
+
+    app = create_app(
+        Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
+        identity_access_service=FakeIdentityService(),
+        calendar_import_service=FakeCalendarImportService(),
+    )
     client = app.test_client()
 
     response = client.post(
         "/api/calendar-import/google/stop",
         json={"account_id": "acct_1", "auth_handle": "google-oauth-token"},
+        headers={"Authorization": "Bearer session_token"},
     )
 
     assert response.status_code == 200

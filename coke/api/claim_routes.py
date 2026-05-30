@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
+from coke.api.auth_helpers import require_customer_account_id
 from coke.domains.identity_access.models import IdentityAccessError
 
 
@@ -13,7 +14,7 @@ def create_claim_blueprint(identity_service) -> Blueprint:
         body = {"error": {"code": error.code}}
         if error.fact is not None:
             body["error"]["fact"] = error.fact
-        return jsonify(body), 400
+        return jsonify(body), _status_code(error.code)
 
     @blueprint.post("/code")
     def issue_claim_code():
@@ -83,8 +84,8 @@ def create_claim_blueprint(identity_service) -> Blueprint:
 
     @blueprint.post("/pairing-code")
     def issue_pairing_code():
-        payload = _json_payload()
-        result = identity_service.issue_pairing_code(account_id=_body_field(payload, "account_id"))
+        account_id = require_customer_account_id(identity_service, IdentityAccessError)
+        result = identity_service.issue_pairing_code(account_id=account_id)
         return jsonify({"code": result.code, "artifact_id": result.artifact.id}), 201
 
     @blueprint.post("/pairing-code/redeem")
@@ -146,3 +147,7 @@ def _query_field(field: str) -> str:
             },
         )
     return value
+
+
+def _status_code(code: str) -> int:
+    return 401 if code == "unauthorized" else 400

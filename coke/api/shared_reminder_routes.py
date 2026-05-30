@@ -4,10 +4,14 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from coke.api.auth_helpers import require_customer_account_id
 from coke.domains.social_scheduling.models import SocialSchedulingError
 
 
-def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
+def create_shared_reminder_blueprint(
+    social_scheduling_service,
+    identity_service,
+) -> Blueprint:
     blueprint = Blueprint(
         "shared_reminders",
         __name__,
@@ -16,13 +20,14 @@ def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
 
     @blueprint.errorhandler(SocialSchedulingError)
     def handle_social_scheduling_error(error: SocialSchedulingError):
-        return jsonify(_error_body(error.code, error.fact)), 400
+        return jsonify(_error_body(error.code, error.fact)), _status_code(error.code)
 
     @blueprint.post("/availability")
     def availability():
+        requester_account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         result = social_scheduling_service.query_availability(
-            requester_account_id=_body_str_field(payload, "requester_account_id"),
+            requester_account_id=requester_account_id,
             friend_account_ids=_body_str_list_field(payload, "friend_account_ids"),
             local_start=_body_datetime_field(payload, "local_start"),
             local_end=_body_datetime_field(payload, "local_end"),
@@ -33,9 +38,10 @@ def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
 
     @blueprint.post("")
     def create_shared_reminder():
+        creator_account_id = _customer_account_id(identity_service)
         payload = _json_payload()
         result = social_scheduling_service.create_shared_reminder(
-            creator_account_id=_body_str_field(payload, "creator_account_id"),
+            creator_account_id=creator_account_id,
             receiver_account_ids=_body_str_list_field(payload, "receiver_account_ids"),
             title=_body_optional_str_field(payload, "title"),
             local_trigger_at=_body_optional_datetime_field(payload, "local_trigger_at"),
@@ -49,7 +55,7 @@ def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
     @blueprint.get("")
     def list_shared_reminders():
         reminders = social_scheduling_service.list_shared_reminders(
-            account_id=_query_str_field("account_id")
+            account_id=_customer_account_id(identity_service)
         )
         return jsonify(
             {"shared_reminders": [_shared_reminder_body(item) for item in reminders]}
@@ -58,7 +64,7 @@ def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
     @blueprint.get("/<shared_reminder_id>")
     def view_shared_reminder(shared_reminder_id: str):
         reminder = social_scheduling_service.view_shared_reminder(
-            account_id=_query_str_field("account_id"),
+            account_id=_customer_account_id(identity_service),
             shared_reminder_id=_path_str_field(
                 shared_reminder_id, "shared_reminder_id"
             ),
@@ -67,9 +73,8 @@ def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
 
     @blueprint.post("/<shared_reminder_id>/cancel")
     def cancel_shared_reminder(shared_reminder_id: str):
-        payload = _json_payload()
         result = social_scheduling_service.cancel_shared_reminder(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=_customer_account_id(identity_service),
             shared_reminder_id=_path_str_field(
                 shared_reminder_id, "shared_reminder_id"
             ),
@@ -83,9 +88,8 @@ def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
 
     @blueprint.post("/<shared_reminder_id>/complete-own-projection")
     def complete_own_projection(shared_reminder_id: str):
-        payload = _json_payload()
         projection = social_scheduling_service.complete_own_projection(
-            account_id=_body_str_field(payload, "account_id"),
+            account_id=_customer_account_id(identity_service),
             shared_reminder_id=_path_str_field(
                 shared_reminder_id, "shared_reminder_id"
             ),
@@ -98,6 +102,10 @@ def create_shared_reminder_blueprint(social_scheduling_service) -> Blueprint:
         )
 
     return blueprint
+
+
+def _customer_account_id(identity_service) -> str:
+    return require_customer_account_id(identity_service, SocialSchedulingError)
 
 
 def _create_result_body(result) -> dict:
@@ -313,3 +321,7 @@ def _error_body(code: str, fact: dict | None = None) -> dict:
     if fact is not None:
         body["error"]["fact"] = fact
     return body
+
+
+def _status_code(code: str) -> int:
+    return 401 if code == "unauthorized" else 400

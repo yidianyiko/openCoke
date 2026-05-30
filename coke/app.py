@@ -49,9 +49,15 @@ def create_app(
         app.register_blueprint(create_claim_blueprint(identity_access_service))
 
     if channel_reachability_service is not None:
-        from coke.api.channel_routes import create_channel_blueprint
+        if identity_access_service is not None:
+            from coke.api.channel_routes import create_channel_blueprint
 
-        app.register_blueprint(create_channel_blueprint(channel_reachability_service))
+            app.register_blueprint(
+                create_channel_blueprint(
+                    channel_reachability_service,
+                    identity_access_service,
+                )
+            )
         if provider_adapters is not None:
             from coke.api.provider_webhooks import create_provider_webhook_blueprint
 
@@ -73,25 +79,35 @@ def create_app(
                 )
             )
 
-    if reminder_service is not None:
+    if reminder_service is not None and identity_access_service is not None:
         from coke.api.reminder_routes import create_reminder_blueprint
 
-        app.register_blueprint(create_reminder_blueprint(reminder_service))
+        app.register_blueprint(
+            create_reminder_blueprint(reminder_service, identity_access_service)
+        )
 
-    if social_scheduling_service is not None:
+    if social_scheduling_service is not None and identity_access_service is not None:
         from coke.api.friend_routes import create_friend_blueprint
         from coke.api.shared_reminder_routes import create_shared_reminder_blueprint
 
-        app.register_blueprint(create_friend_blueprint(social_scheduling_service))
         app.register_blueprint(
-            create_shared_reminder_blueprint(social_scheduling_service)
+            create_friend_blueprint(social_scheduling_service, identity_access_service)
+        )
+        app.register_blueprint(
+            create_shared_reminder_blueprint(
+                social_scheduling_service,
+                identity_access_service,
+            )
         )
 
-    if calendar_import_service is not None:
+    if calendar_import_service is not None and identity_access_service is not None:
         from coke.api.calendar_import_routes import create_calendar_import_blueprint
 
         app.register_blueprint(
-            create_calendar_import_blueprint(calendar_import_service)
+            create_calendar_import_blueprint(
+                calendar_import_service,
+                identity_access_service,
+            )
         )
 
     @app.get("/healthz")

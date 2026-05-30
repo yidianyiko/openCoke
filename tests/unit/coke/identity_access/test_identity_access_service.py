@@ -39,14 +39,15 @@ def test_register_web_account_creates_credential_session_and_verification_artifa
 ):
     result = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="correct horse battery staple",
         default_timezone="Asia/Tokyo",
     )
 
     assert result.account.origin == "web_first"
     assert result.account.default_timezone == "Asia/Tokyo"
     assert result.credential.email == "a@example.com"
-    assert result.credential.password_hash == "hash_1"
+    assert result.credential.password_hash != "correct horse battery staple"
+    assert result.credential.password_hash.startswith("$argon2")
     assert result.session.account_id == result.account.id
     assert result.email_verification.type == ArtifactType.EMAIL_VERIFICATION
     assert result.email_verification.account_id == result.account.id
@@ -56,10 +57,10 @@ def test_register_web_account_creates_credential_session_and_verification_artifa
 def test_login_reuses_existing_web_account_and_creates_session(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
 
-    logged_in = identity_service.login(email="a@example.com", password_hash="hash_1")
+    logged_in = identity_service.login(email="a@example.com", password="hash_1")
 
     assert logged_in.account.id == registered.account.id
     assert logged_in.session.account_id == registered.account.id
@@ -70,13 +71,13 @@ def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_c
 ):
     first = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     second = identity_service.register_web_account(
         email="b@example.com",
-        password_hash="hash_2",
+        password="hash_2",
     )
-    login = identity_service.login(email="a@example.com", password_hash="hash_1")
+    login = identity_service.login(email="a@example.com", password="hash_1")
     first_reset = identity_service.issue_password_reset(email="a@example.com")
     second_reset = identity_service.issue_password_reset(email="a@example.com")
 
@@ -100,7 +101,7 @@ def test_default_identity_access_ids_are_schema_uuid_strings():
 
     registered = service.register_web_account(
         email="uuid@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     resolved = service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
@@ -126,7 +127,7 @@ def test_default_identity_access_ids_are_schema_uuid_strings():
 def test_repository_duplicate_guards_reject_silent_overwrites(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     sender = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
@@ -170,13 +171,13 @@ def test_repository_duplicate_guards_reject_silent_overwrites(identity_service):
 
 
 def test_login_rejects_unknown_or_wrong_password(identity_service):
-    identity_service.register_web_account(email="a@example.com", password_hash="hash_1")
+    identity_service.register_web_account(email="a@example.com", password="hash_1")
 
     with pytest.raises(IdentityAccessError, match="invalid_credentials"):
-        identity_service.login(email="a@example.com", password_hash="hash_2")
+        identity_service.login(email="a@example.com", password="hash_2")
 
     with pytest.raises(IdentityAccessError, match="invalid_credentials"):
-        identity_service.login(email="missing@example.com", password_hash="hash_1")
+        identity_service.login(email="missing@example.com", password="hash_1")
 
 
 def test_shared_whatsapp_first_seen_auto_provisions_one_messaging_account(
@@ -213,7 +214,7 @@ def test_pairing_code_binds_first_seen_provider_identity_to_web_account(
 ):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -263,7 +264,7 @@ def test_pairing_code_issuance_requires_allowed_channel_connection_access(
 ):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -300,7 +301,7 @@ def test_pairing_code_redemption_requires_allowed_channel_connection_access_befo
 ):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -364,7 +365,7 @@ def test_pairing_code_redemption_requires_allowed_channel_connection_access_befo
 def test_pairing_code_is_single_use(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -396,7 +397,7 @@ def test_known_provider_identity_with_expired_pairing_code_fails_closed(
     )
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -441,7 +442,7 @@ def test_known_provider_identity_with_wrong_type_pairing_code_fails_closed(
     )
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     login_url = identity_service.issue_login_url(account_id=registered.account.id)
 
@@ -474,7 +475,7 @@ def test_known_provider_identity_with_consumed_pairing_code_fails_closed(
     )
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -514,7 +515,7 @@ def test_known_provider_identity_with_access_denied_pairing_code_fails_closed(
     )
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -565,7 +566,7 @@ def test_known_provider_identity_cannot_be_rebound_with_valid_pairing_code(
     )
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -598,7 +599,7 @@ def test_known_provider_identity_cannot_be_rebound_with_valid_pairing_code(
 def test_login_url_authenticates_bound_account_once(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     login_url = identity_service.issue_login_url(account_id=registered.account.id)
 
@@ -755,7 +756,7 @@ def test_claim_code_channel_redemption_is_single_use(identity_service):
 def test_claim_code_wrong_type_and_expired_fail_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -807,7 +808,7 @@ def test_claim_code_requires_known_sender_identity_at_redemption(identity_servic
 def test_wrong_type_and_expired_artifacts_fail_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -840,7 +841,7 @@ def test_wrong_type_and_expired_artifacts_fail_closed(identity_service):
 def test_verify_email_updates_credential_and_access_state(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
 
     credential = identity_service.verify_email(token=registered.email_verification.code)
@@ -855,7 +856,7 @@ def test_verify_email_updates_credential_and_access_state(identity_service):
 def test_verify_email_is_single_use(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
 
     identity_service.verify_email(token=registered.email_verification.code)
@@ -867,7 +868,7 @@ def test_verify_email_is_single_use(identity_service):
 def test_expired_email_verification_fails_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     expired_service = IdentityAccessService(
         repository=identity_service.repository,
@@ -885,40 +886,45 @@ def test_expired_email_verification_fails_closed(identity_service):
     assert credential.email_verified_at is None
 
 
-def test_password_reset_updates_password_hash(identity_service):
+def test_password_reset_hashes_new_password_and_login_uses_it(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="old-password",
     )
     reset = identity_service.issue_password_reset(email="a@example.com")
 
     credential = identity_service.reset_password(
         token=reset.code,
-        password_hash="hash_2",
+        password="new-password",
     )
 
     assert credential.account_id == registered.account.id
-    assert credential.password_hash == "hash_2"
+    assert credential.password_hash != "new-password"
+    assert credential.password_hash.startswith("$argon2")
     assert credential.reset_required is False
+    with pytest.raises(IdentityAccessError, match="invalid_credentials"):
+        identity_service.login(email="a@example.com", password="old-password")
+    logged_in = identity_service.login(email="a@example.com", password="new-password")
+    assert logged_in.account.id == registered.account.id
 
 
 def test_password_reset_is_single_use(identity_service):
     identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     reset = identity_service.issue_password_reset(email="a@example.com")
 
-    identity_service.reset_password(token=reset.code, password_hash="hash_2")
+    identity_service.reset_password(token=reset.code, password="new-password")
 
     with pytest.raises(IdentityAccessError, match="artifact_consumed"):
-        identity_service.reset_password(token=reset.code, password_hash="hash_3")
+        identity_service.reset_password(token=reset.code, password="newer-password")
 
 
 def test_expired_password_reset_fails_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     reset = identity_service.issue_password_reset(email="a@example.com")
     expired_service = IdentityAccessService(
@@ -929,18 +935,19 @@ def test_expired_password_reset_fails_closed(identity_service):
     )
 
     with pytest.raises(IdentityAccessError, match="artifact_expired"):
-        expired_service.reset_password(token=reset.code, password_hash="hash_2")
+        expired_service.reset_password(token=reset.code, password="new-password")
 
     credential = identity_service.repository.get_credential_by_account(
         registered.account.id
     )
-    assert credential.password_hash == "hash_1"
+    assert credential.password_hash != "hash_1"
+    assert credential.password_hash.startswith("$argon2")
 
 
 def test_resend_artifact_increments_count_and_sets_pending(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     failed = replace(
         registered.email_verification,
@@ -959,7 +966,7 @@ def test_resend_artifact_increments_count_and_sets_pending(identity_service):
 def test_resend_consumed_artifact_fails_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.verify_email(token=registered.email_verification.code)
 
@@ -970,7 +977,7 @@ def test_resend_consumed_artifact_fails_closed(identity_service):
 def test_resend_expired_artifact_fails_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     expired_service = IdentityAccessService(
         repository=identity_service.repository,
@@ -993,7 +1000,7 @@ def test_resend_expired_artifact_fails_closed(identity_service):
 def test_resend_non_resendable_artifact_type_fails_closed(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     login_url = identity_service.issue_login_url(account_id=registered.account.id)
 
@@ -1028,7 +1035,7 @@ def test_pairing_identity_collision_does_not_consume_artifact():
     )
     registered = service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     service.set_access_state(
         account_id=registered.account.id,
@@ -1067,7 +1074,7 @@ def test_activation_web_first_requires_registration_channel_and_first_inbound(
 ):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
 
     assert (
@@ -1116,7 +1123,7 @@ def test_activation_messaging_first_requires_anchor_channel_and_first_inbound(
 def test_first_guidance_is_marked_once(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
 
     first = identity_service.mark_first_guidance_sent(account_id=registered.account.id)
@@ -1148,7 +1155,7 @@ def test_web_first_bound_identity_can_be_removed_by_channel_reachability(
 ):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -1177,7 +1184,7 @@ def test_preview_pairing_code_account_returns_account_without_consuming(
 ):
     registered = identity_service.register_web_account(
         email="preview@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -1201,7 +1208,7 @@ def test_preview_pairing_code_account_rejects_wrong_expired_or_consumed_artifact
 ):
     registered = identity_service.register_web_account(
         email="preview@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,

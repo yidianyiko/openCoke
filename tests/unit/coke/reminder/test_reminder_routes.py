@@ -138,20 +138,46 @@ class ErrorService(FakeReminderService):
         raise ReminderError("reminder_not_found", fact={"type": "reminder_not_found"})
 
 
-def make_client(service=None):
+class FakeIdentityService:
+    def __init__(self, account_id="acct_1") -> None:
+        self.calls: list[tuple[str, dict]] = []
+        self.account_id = account_id
+
+    def current_user(self, session_token):
+        self.calls.append(("current_user", {"session_token": session_token}))
+        if session_token != "session_token":
+            raise AssertionError(f"unexpected session token: {session_token}")
+        return SimpleNamespace(id=self.account_id, origin="web_first")
+
+
+class AuthenticatedClient:
+    def __init__(self, raw_client) -> None:
+        self.raw = raw_client
+
+    def get(self, *args, **kwargs):
+        kwargs.setdefault("headers", {"Authorization": "Bearer session_token"})
+        return self.raw.get(*args, **kwargs)
+
+    def post(self, *args, **kwargs):
+        kwargs.setdefault("headers", {"Authorization": "Bearer session_token"})
+        return self.raw.post(*args, **kwargs)
+
+
+def make_client(service=None, identity_service=None):
     service = service or FakeReminderService()
+    identity_service = identity_service or FakeIdentityService()
     app = Flask(__name__)
-    app.register_blueprint(create_reminder_blueprint(service))
-    return app.test_client(), service
+    app.register_blueprint(create_reminder_blueprint(service, identity_service))
+    return AuthenticatedClient(app.test_client()), service, identity_service
 
 
 def test_batch_and_calendar_routes_are_thin_service_adapters():
-    client, service = make_client()
+    client, service, identity = make_client()
 
     batch_response = client.post(
         "/api/reminders/batch",
         json={
-            "owner_account_id": "acct_1",
+            "owner_account_id": "spoofed_account",
             "items": [
                 {
                     "operation": "create",
@@ -164,7 +190,7 @@ def test_batch_and_calendar_routes_are_thin_service_adapters():
     )
     calendar_response = client.get(
         "/api/reminders/calendar"
-        "?owner_account_id=acct_1"
+        "?owner_account_id=spoofed_account"
         "&visible_start=2026-05-30T12:00:00%2B00:00"
         "&visible_end=2026-05-31T12:00:00%2B00:00"
         "&display_timezone=Asia/Tokyo"
@@ -178,17 +204,46 @@ def test_batch_and_calendar_routes_are_thin_service_adapters():
         "complete",
         "delete",
     ]
+    assert identity.calls == [
+        ("current_user", {"session_token": "session_token"}),
+        ("current_user", {"session_token": "session_token"}),
+    ]
+    assert service.calls[0][1]["owner_account_id"] == "acct_1"
+    assert service.calls[1][1]["owner_account_id"] == "acct_1"
     assert [call[0] for call in service.calls] == ["execute_batch", "calendar_entries"]
 
 
+def test_batch_route_rejects_missing_session_before_service_call():
+    client, service, identity = make_client()
+
+    response = client.post(
+        "/api/reminders/batch",
+        json={"owner_account_id": "acct_1", "items": []},
+        headers={},
+    )
+
+    assert response.status_code == 401
+    assert response.get_json() == {
+        "error": {
+            "code": "unauthorized",
+            "fact": {
+                "type": "unauthorized",
+                "reason": "missing_bearer_token",
+            },
+        }
+    }
+    assert identity.calls == []
+    assert service.calls == []
+
+
 def test_calendar_command_routes_delegate_to_service_methods():
-    client, service = make_client()
+    client, service, _identity = make_client()
 
     assert (
         client.post(
             "/api/reminders/reminder_1/schedule-unscheduled",
             json={
-                "owner_account_id": "acct_1",
+                "owner_account_id": "spoofed_account",
                 "trigger_time": "2026-05-30T13:00:00+00:00",
                 "captured_timezone": "UTC",
             },
@@ -198,21 +253,21 @@ def test_calendar_command_routes_delegate_to_service_methods():
     assert (
         client.post(
             "/api/reminders/reminder_1/clear-trigger-time",
-            json={"owner_account_id": "acct_1"},
+            json={"owner_account_id": "spoofed_account"},
         ).status_code
         == 200
     )
     assert (
         client.post(
             "/api/reminders/reminder_1/complete",
-            json={"owner_account_id": "acct_1"},
+            json={"owner_account_id": "spoofed_account"},
         ).status_code
         == 200
     )
     assert (
         client.post(
             "/api/reminders/reminder_1/delete",
-            json={"owner_account_id": "acct_1"},
+            json={"owner_account_id": "spoofed_account"},
         ).status_code
         == 200
     )
@@ -226,7 +281,7 @@ def test_calendar_command_routes_delegate_to_service_methods():
 
 
 def test_route_errors_return_structured_error_body():
-    client, _service = make_client(ErrorService())
+    client, _service, _identity = make_client(ErrorService())
 
     response = client.post(
         "/api/reminders/missing/clear-trigger-time",
@@ -247,6 +302,21 @@ def test_create_app_registers_reminder_blueprint_when_service_is_provided():
         Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
         reminder_service=FakeReminderService(),
     )
+    response = app.test_client().get(
+        "/api/reminders/calendar"
+        "?owner_account_id=acct_1"
+        "&visible_start=2026-05-30T12:00:00%2B00:00"
+        "&visible_end=2026-05-31T12:00:00%2B00:00"
+        "&display_timezone=UTC",
+        headers={"Authorization": "Bearer session_token"},
+    )
+    assert response.status_code == 404
+
+    app = create_app(
+        Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
+        identity_access_service=FakeIdentityService(),
+        reminder_service=FakeReminderService(),
+    )
     client = app.test_client()
 
     response = client.get(
@@ -254,7 +324,8 @@ def test_create_app_registers_reminder_blueprint_when_service_is_provided():
         "?owner_account_id=acct_1"
         "&visible_start=2026-05-30T12:00:00%2B00:00"
         "&visible_end=2026-05-31T12:00:00%2B00:00"
-        "&display_timezone=UTC"
+        "&display_timezone=UTC",
+        headers={"Authorization": "Bearer session_token"},
     )
 
     assert response.status_code == 200

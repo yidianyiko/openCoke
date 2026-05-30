@@ -197,7 +197,7 @@ export function registerCustomer(
   return customerApi
     .post<CleanAuthResult | CleanAuthError>('/api/auth/register', {
       email: input.email,
-      password_hash: input.password,
+      password: input.password,
       default_timezone: currentTimezone(),
     })
     .then((result) => {
@@ -218,7 +218,7 @@ export function loginCustomer(
   return customerApi
     .post<CleanAuthResult | CleanAuthError>('/api/auth/login', {
       email: input.email,
-      password_hash: input.password,
+      password: input.password,
     })
     .then((result) => {
       if (isCleanAuthError(result)) {
@@ -284,7 +284,7 @@ export function resetCustomerPassword(
       '/api/auth/password-reset/complete',
       {
         token: input.token,
-        password_hash: input.password,
+        password: input.password,
       },
     )
     .then((result) => {
@@ -307,9 +307,7 @@ export function getCustomerProfile(): Promise<ApiResponse<CustomerProfile>> {
         return errorResponse<CustomerProfile>(currentUser.error.code);
       }
       return customerApi
-        .get<CleanAccessStatus | CleanAuthError>(
-          `/api/auth/access-status?account_id=${encodeURIComponent(currentUser.account_id)}`,
-        )
+        .get<CleanAccessStatus | CleanAuthError>('/api/auth/access-status')
         .then((access) => {
           if (isCleanAuthError(access)) {
             return errorResponse<CustomerProfile>(access.error.code);

@@ -194,60 +194,102 @@ class ErrorService(FakeSocialSchedulingService):
         )
 
 
-def make_client(service=None):
+class FakeIdentityService:
+    def __init__(self, account_id="owner") -> None:
+        self.calls: list[tuple[str, dict]] = []
+        self.account_id = account_id
+
+    def current_user(self, session_token):
+        self.calls.append(("current_user", {"session_token": session_token}))
+        if session_token != "session_token":
+            raise AssertionError(f"unexpected session token: {session_token}")
+        return SimpleNamespace(id=self.account_id, origin="web_first")
+
+
+class AuthenticatedClient:
+    def __init__(self, raw_client) -> None:
+        self.raw = raw_client
+
+    def get(self, *args, **kwargs):
+        kwargs.setdefault("headers", {"Authorization": "Bearer session_token"})
+        return self.raw.get(*args, **kwargs)
+
+    def post(self, *args, **kwargs):
+        kwargs.setdefault("headers", {"Authorization": "Bearer session_token"})
+        return self.raw.post(*args, **kwargs)
+
+
+def make_client(service=None, identity_service=None):
     service = service or FakeSocialSchedulingService()
+    identity_service = identity_service or FakeIdentityService()
     app = create_app(
         Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
+        identity_access_service=identity_service,
         social_scheduling_service=service,
     )
-    return app.test_client(), service
+    return AuthenticatedClient(app.test_client()), service, identity_service
 
 
 def test_friend_routes_are_thin_service_adapters():
-    client, service = make_client()
+    client, service, identity = make_client()
 
-    assert client.get("/api/friends/link?owner_account_id=owner").status_code == 200
+    assert (
+        client.get("/api/friends/link?owner_account_id=spoofed_account").status_code
+        == 200
+    )
     assert (
         client.post(
-            "/api/friends/link/reset", json={"owner_account_id": "owner"}
+            "/api/friends/link/reset", json={"owner_account_id": "spoofed_account"}
         ).status_code
         == 200
     )
     assert (
         client.post(
-            "/api/friends/link/disable", json={"owner_account_id": "owner"}
+            "/api/friends/link/disable", json={"owner_account_id": "spoofed_account"}
         ).status_code
         == 200
     )
     assert (
         client.post(
             "/api/friends/join",
-            json={"joiner_account_id": "joiner", "public_token": "public_token"},
+            json={
+                "joiner_account_id": "spoofed_account",
+                "public_token": "public_token",
+            },
         ).status_code
         == 200
     )
     assert (
         client.post(
             "/api/friends/join",
-            json={"joiner_account_id": "joiner", "link_code": "link_code"},
+            json={"joiner_account_id": "spoofed_account", "link_code": "link_code"},
         ).status_code
         == 200
     )
     assert (
         client.post(
             "/api/friends/complete-deferred",
-            json={"joiner_account_id": "joiner", "friend_link_id": "link_1"},
+            json={"joiner_account_id": "spoofed_account", "friend_link_id": "link_1"},
         ).status_code
         == 200
     )
-    assert client.get("/api/friends?account_id=owner").status_code == 200
+    assert client.get("/api/friends?account_id=spoofed_account").status_code == 200
     assert (
         client.post(
-            "/api/friends/friend/remove", json={"account_id": "owner"}
+            "/api/friends/friend/remove", json={"account_id": "spoofed_account"}
         ).status_code
         == 200
     )
 
+    assert len(identity.calls) == 8
+    for _method, payload in service.calls:
+        account_keys = [
+            key
+            for key in ("owner_account_id", "joiner_account_id", "account_id")
+            if key in payload
+        ]
+        for key in account_keys:
+            assert payload[key] == "owner"
     assert [call[0] for call in service.calls] == [
         "get_or_create_friend_link",
         "reset_friend_link",
@@ -261,13 +303,32 @@ def test_friend_routes_are_thin_service_adapters():
     ]
 
 
+def test_friend_routes_reject_missing_session_before_service_call():
+    client, service, identity = make_client()
+
+    response = client.get("/api/friends/link?owner_account_id=owner", headers={})
+
+    assert response.status_code == 401
+    assert response.get_json() == {
+        "error": {
+            "code": "unauthorized",
+            "fact": {
+                "type": "unauthorized",
+                "reason": "missing_bearer_token",
+            },
+        }
+    }
+    assert identity.calls == []
+    assert service.calls == []
+
+
 def test_shared_reminder_routes_are_thin_service_adapters():
-    client, service = make_client()
+    client, service, identity = make_client(identity_service=FakeIdentityService("creator"))
 
     create = client.post(
         "/api/shared-reminders",
         json={
-            "creator_account_id": "creator",
+            "creator_account_id": "spoofed_account",
             "receiver_account_ids": ["friend"],
             "title": "sync",
             "local_trigger_at": "2026-06-01T09:00:00",
@@ -277,21 +338,21 @@ def test_shared_reminder_routes_are_thin_service_adapters():
         },
     )
     assert create.status_code == 201
-    assert client.get("/api/shared-reminders?account_id=creator").status_code == 200
+    assert client.get("/api/shared-reminders?account_id=spoofed_account").status_code == 200
     assert (
-        client.get("/api/shared-reminders/shared_1?account_id=creator").status_code
+        client.get("/api/shared-reminders/shared_1?account_id=spoofed_account").status_code
         == 200
     )
     assert (
         client.post(
-            "/api/shared-reminders/shared_1/cancel", json={"account_id": "creator"}
+            "/api/shared-reminders/shared_1/cancel", json={"account_id": "spoofed_account"}
         ).status_code
         == 200
     )
     assert (
         client.post(
             "/api/shared-reminders/shared_1/complete-own-projection",
-            json={"account_id": "creator"},
+            json={"account_id": "spoofed_account"},
         ).status_code
         == 200
     )
@@ -299,7 +360,7 @@ def test_shared_reminder_routes_are_thin_service_adapters():
         client.post(
             "/api/shared-reminders/availability",
             json={
-                "requester_account_id": "creator",
+                "requester_account_id": "spoofed_account",
                 "friend_account_ids": ["friend"],
                 "local_start": "2026-06-01T09:00:00",
                 "local_end": "2026-06-01T10:00:00",
@@ -309,6 +370,15 @@ def test_shared_reminder_routes_are_thin_service_adapters():
         == 200
     )
 
+    assert len(identity.calls) == 6
+    for _method, payload in service.calls:
+        account_keys = [
+            key
+            for key in ("creator_account_id", "requester_account_id", "account_id")
+            if key in payload
+        ]
+        for key in account_keys:
+            assert payload[key] == "creator"
     assert [call[0] for call in service.calls] == [
         "create_shared_reminder",
         "list_shared_reminders",
@@ -319,8 +389,27 @@ def test_shared_reminder_routes_are_thin_service_adapters():
     ]
 
 
+def test_shared_reminder_routes_reject_missing_session_before_service_call():
+    client, service, identity = make_client()
+
+    response = client.get("/api/shared-reminders?account_id=owner", headers={})
+
+    assert response.status_code == 401
+    assert response.get_json() == {
+        "error": {
+            "code": "unauthorized",
+            "fact": {
+                "type": "unauthorized",
+                "reason": "missing_bearer_token",
+            },
+        }
+    }
+    assert identity.calls == []
+    assert service.calls == []
+
+
 def test_routes_return_social_scheduling_errors_as_user_safe_json():
-    client, _ = make_client(ErrorService())
+    client, _, _identity = make_client(ErrorService())
 
     response = client.post("/api/friends/friend/remove", json={"account_id": "owner"})
 

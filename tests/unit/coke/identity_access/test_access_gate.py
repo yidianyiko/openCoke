@@ -32,7 +32,7 @@ def identity_service() -> IdentityAccessService:
 def test_allowed_access_returns_allowed_decision(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -65,7 +65,7 @@ def test_denied_access_returns_access_denied_turn_fact(
 ):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
@@ -112,7 +112,7 @@ def test_subscription_inactive_messaging_first_inbound_includes_checkout_url(ide
 def test_access_gate_reusable_for_gated_web_actions(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",
-        password_hash="hash_1",
+        password="hash_1",
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
