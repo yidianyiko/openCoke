@@ -4,7 +4,6 @@ from pathlib import Path
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[4]
 COMPOSE_CLEAN = ROOT / "docker-compose.clean.yml"
 DEPLOY_SCRIPT = ROOT / "scripts" / "deploy-compose-to-gcp.sh"
@@ -71,20 +70,20 @@ def test_clean_runtime_services_use_internal_postgres_redis_and_real_llm_env() -
 def test_clean_api_and_worker_can_reach_host_evolution_instance() -> None:
     services = _clean_compose()["services"]
 
-    assert services["coke-api"]["extra_hosts"] == [
-        "host.docker.internal:host-gateway"
-    ]
+    assert services["coke-api"]["extra_hosts"] == ["host.docker.internal:host-gateway"]
     assert services["coke-worker"]["extra_hosts"] == [
         "host.docker.internal:host-gateway"
     ]
 
 
-def test_clean_web_is_optional_for_stage1_default_deploy() -> None:
+def test_clean_web_is_part_of_default_deploy() -> None:
     services = _clean_compose()["services"]
     script = DEPLOY_SCRIPT.read_text()
 
-    assert services["coke-web"]["profiles"] == ["web"]
-    assert '--profile web rm -sf coke-web' in script
+    assert "profiles" not in services["coke-web"]
+    assert "coke-web" in services
+    assert "--profile web rm -sf coke-web" not in script
+    assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"' in script
 
 
 def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> None:

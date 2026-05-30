@@ -34,8 +34,6 @@ services:
     environment: *clean_runtime_environment
 
   coke-web:
-    profiles:
-      - web
     ports:
       - "127.0.0.1:${COKE_CLEAN_WEB_PORT:-4042}:4040"
 

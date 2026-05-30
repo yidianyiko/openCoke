@@ -68,7 +68,7 @@ for surface in "$@"; do
     [[ -z "$command" ]] && continue
     print "$command"
     if [[ "$dry_run" -eq 0 ]]; then
-      eval "$command"
+      ( eval "$command" )
     fi
   done <<< "$surface_cmds"
 done

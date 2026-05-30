@@ -77,9 +77,10 @@ if [[ "$DRY_RUN" == "1" ]]; then
     printf ' %q' "${RSYNC_SOURCES[@]}"
     printf ' %q\n' "${REMOTE_HOST}:${REMOTE_ROOT}/"
   )
-  log "dry run: would write ${REMOTE_ROOT}/.env from ${REMOTE_OLD_ROOT}/.env without printing secrets"
+  log "dry run: would write ${REMOTE_ROOT}/.env from existing clean env and ${REMOTE_OLD_ROOT}/.env without printing secrets"
   log "dry run: would run docker compose -p \"$PROJECT_NAME\" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --build"
   log "dry run: would run alembic upgrade head and curl -fsS \"http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz\""
+  log "dry run: would curl -fsS \"http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login\""
   exit 0
 fi
 
@@ -103,15 +104,20 @@ set -euo pipefail
 old_env="${REMOTE_OLD_ROOT}/.env"
 clean_env="${REMOTE_ROOT}/.env"
 
-if [[ ! -r "$old_env" ]]; then
-  echo "Old stack env not readable: $old_env" >&2
+if [[ ! -r "$old_env" && ! -r "$clean_env" ]]; then
+  echo "No readable env source: $clean_env or $old_env" >&2
   exit 1
 fi
 
-read_env() {
-  local key="$1"
+read_env_from_file() {
+  local file="$1"
+  local key="$2"
   local line value
-  line="$(grep -E "^${key}=" "$old_env" | tail -n 1 || true)"
+  if [[ ! -r "$file" ]]; then
+    printf ''
+    return
+  fi
+  line="$(grep -E "^${key}=" "$file" | tail -n 1 || true)"
   if [[ -z "$line" ]]; then
     printf ''
     return
@@ -124,6 +130,17 @@ read_env() {
     value="${value:1:${#value}-2}"
   fi
   printf '%s' "$value"
+}
+
+read_env() {
+  local key="$1"
+  local value
+  value="$(read_env_from_file "$clean_env" "$key")"
+  if [[ -n "$value" ]]; then
+    printf '%s' "$value"
+    return
+  fi
+  read_env_from_file "$old_env" "$key"
 }
 
 rewrite_evolution_base() {
@@ -140,6 +157,11 @@ evolution_instance="$(read_env WHATSAPP_EVOLUTION_INSTANCE)"
 if [[ -z "$evolution_instance" ]]; then
   evolution_instance="coke"
 fi
+wechat_personal_endpoint="$(read_env COKE_PROVIDER_WECHAT_PERSONAL_ENDPOINT_URL)"
+if [[ -z "$wechat_personal_endpoint" ]]; then
+  wechat_personal_endpoint="http://host.docker.internal:8095/send"
+fi
+wechat_personal_api_key="$(read_env COKE_PROVIDER_WECHAT_PERSONAL_API_KEY)"
 
 missing=()
 [[ -n "$siliconflow_api_key" ]] || missing+=("SiliconFlow_API_KEY")
@@ -161,7 +183,13 @@ SiliconFlow_API_KEY=${siliconflow_api_key}
 COKE_PROVIDER_EVOLUTION_BASE_URL=${evolution_base}
 COKE_PROVIDER_EVOLUTION_API_KEY=${evolution_api_key}
 COKE_PROVIDER_EVOLUTION_INSTANCE=${evolution_instance}
+COKE_PROVIDER_WECHAT_PERSONAL_ENDPOINT_URL=${wechat_personal_endpoint}
+NEXT_PUBLIC_API_BASE_URL=https://coke.keep4oforever.com
+NEXT_PUBLIC_COKE_WEB_URL=https://coke.keep4oforever.com
 EOF
+if [[ -n "$wechat_personal_api_key" ]]; then
+  printf 'COKE_PROVIDER_WECHAT_PERSONAL_API_KEY=%s\n' "$wechat_personal_api_key" >> "$clean_env"
+fi
 chmod 600 "$clean_env"
 echo "Clean env written to $clean_env"
 REMOTE_ENV
@@ -177,11 +205,12 @@ export COKE_API_PORT="$COKE_CLEAN_API_PORT"
 export COKE_WEB_PORT="$COKE_CLEAN_WEB_PORT"
 
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --build
-docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml --profile web rm -sf coke-web >/dev/null 2>&1 || true
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic upgrade head
 
-for _ in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"; then
+for _ in $(seq 1 60); do
+  if curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz" >/dev/null \
+    && curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login" >/dev/null; then
+    curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"
     printf '\n'
     exit 0
   fi
@@ -190,6 +219,7 @@ done
 
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml ps
 curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"
+curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"
 REMOTE_DEPLOY
 
-log "clean deploy health check passed"
+log "clean deploy health checks passed"
