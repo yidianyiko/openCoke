@@ -10,6 +10,7 @@ def create_app(
     identity_access_service=None,
     channel_reachability_service=None,
     reminder_service=None,
+    social_scheduling_service=None,
     provider_adapters=None,
 ) -> Flask:
     app = Flask(__name__)
@@ -41,6 +42,15 @@ def create_app(
         from coke.api.reminder_routes import create_reminder_blueprint
 
         app.register_blueprint(create_reminder_blueprint(reminder_service))
+
+    if social_scheduling_service is not None:
+        from coke.api.friend_routes import create_friend_blueprint
+        from coke.api.shared_reminder_routes import create_shared_reminder_blueprint
+
+        app.register_blueprint(create_friend_blueprint(social_scheduling_service))
+        app.register_blueprint(
+            create_shared_reminder_blueprint(social_scheduling_service)
+        )
 
     @app.get("/healthz")
     def healthz():
