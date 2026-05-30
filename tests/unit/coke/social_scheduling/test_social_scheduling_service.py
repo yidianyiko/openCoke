@@ -216,6 +216,27 @@ def test_group_shared_reminder_creation_is_one_object_with_participant_projectio
     assert duplicate.shared_reminder.id == created.shared_reminder.id
 
 
+def test_shared_reminder_accepts_aware_agent_datetime_as_local_wall_clock():
+    service, repo, _, _ = make_service({"creator", "friend"})
+    create_active_friendship(service, "creator", "friend")
+
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="aware time",
+        local_trigger_at=datetime(2029, 2, 19, 10, 0, tzinfo=UTC),
+        captured_timezone="Asia/Shanghai",
+        duration_minutes=15,
+        context={"source": "conversation"},
+    )
+
+    assert created.status == "created"
+    assert created.shared_reminder is not None
+    assert created.shared_reminder.local_trigger_at == datetime(2029, 2, 19, 10, 0)
+    assert created.shared_reminder.local_trigger_at.tzinfo is None
+    assert len(repo.shared_reminders_by_id) == 1
+
+
 def test_shared_reminder_view_cancel_and_completion_are_participant_scoped():
     service, _, _, _ = make_service({"creator", "friend", "outsider"})
     create_active_friendship(service, "creator", "friend")

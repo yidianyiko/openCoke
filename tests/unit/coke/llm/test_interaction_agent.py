@@ -255,7 +255,13 @@ def test_agent_instructions_name_real_social_scheduling_operations():
 
     instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
     assert "operation=get_friend_link" in instructions
+    assert "operation=list_friends" in instructions
+    assert "operation=remove_friend" in instructions
+    assert "operation=query_availability" in instructions
+    assert "operation=cancel_shared_reminder" in instructions
     assert "owner_account_id from trusted_facts.account_id" in instructions
+    assert "friend name" in instructions
+    assert "exactly one active friend" in instructions
     assert "establish_friendship_from_token" in instructions
     assert "accept_friend_request" not in instructions
     assert "create_friend_request" not in instructions
@@ -335,6 +341,27 @@ def test_social_scheduling_tool_doc_describes_shared_reminder_creation():
     assert "receiver_account_ids" in doc
     assert "local_trigger_at" in doc
     assert "context" in doc
+
+
+def test_social_scheduling_tool_doc_describes_friend_list_availability_and_cancel():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    doc = factory.agent_kwargs[0]["tools"][0].__doc__ or ""
+    assert "list_friends" in doc
+    assert "remove_friend" in doc
+    assert "query_availability" in doc
+    assert "cancel_shared_reminder" in doc
+    assert "friend_account_ids" in doc
+    assert "shared_reminder_id" in doc
 
 
 def test_empty_reminder_tool_call_defaults_to_detecting_current_user_message():

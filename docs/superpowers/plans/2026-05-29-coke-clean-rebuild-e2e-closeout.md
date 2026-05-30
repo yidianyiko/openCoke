@@ -40,6 +40,64 @@ If a case exposes a blocking product bug, diagnose the root cause, add a red
 test, watch it fail, implement the smallest fix, verify locally, redeploy
 non-disruptively, rerun the failed case, and then continue the sweep.
 
+**Task 11 Continuation Result (2026-05-31):** Reconciled the killed run and
+committed `d0a73ef1 fix: harden wechat personal context token sends`. The
+connector `/send` path now retries transient iLink `ret=-2` once, logs the
+response body, and preserves the strict `context_token` requirement. Fresh
+verification at that point: `/data/projects/coke/.venv/bin/python -m pytest
+tests/unit/coke -q` -> `429 passed in 10.30s`; `/data/projects/coke/.venv/bin/python
+-m pytest tests/integration/coke -q` -> `9 passed, 33 skipped in 3.82s`.
+
+**Task 11 Product Sweep Continuation (2026-05-31):** Deployed the connector and
+clean backend non-disruptively. API health on `127.0.0.1:8000` returned
+`{"ok":true}` and the connector on `127.0.0.1:8095` returned two connected
+sessions. Cached and synthetic `context_token` sends still returned `ret=-2`;
+this matches the iLink limitation that replies require the specific fresh
+inbound token. No real fresh WeChat re-scan/inbound was available, so real
+fresh-token send success could not be measured honestly.
+
+Matrix evidence from real-account webhook turns:
+
+- B batch, recurring create/update/cancel, and update-time plus complete:
+  product PASS; delivery attempts failed with iLink `ret=-2`.
+- C same-owner same-time: two independent reminders were created for olivers at
+  `2029-02-22 02:00:00+00`; scheduler produced one grouped outbox key
+  `reminder_fire:ae02ff016fcd4d39a189e51c8c8a31e6:2029-02-22T02:00:00+00:00`
+  with both fire ids. Deviation: running the future scan also enqueued older
+  test reminders; the synthetic `turn.reminder_fire` stream entries from that
+  scan window were acknowledged/deleted to stop test backlog.
+- D timezone switch: product FAIL/PARTIAL. Explicit New York timezone reminder
+  used `America/New_York`, but conversational global timezone switch did not
+  persist to account settings.
+- E friend link/join and friend-list: product PASS after prompt hardening.
+  Remove-friend was not rerun after the fix because it would intentionally
+  remove the active real friendship needed by the remaining matrix.
+- F availability: product PASS after prompt hardening; reply was privacy-safe
+  busy/free only.
+- G shared reminder create/cancel: product PASS after fixes; a marked
+  olivers -> 李梓豪 shared reminder became active and was cancelled through the
+  live webhook path. Notification recipient rows remained pending and delivery
+  still failed with synthetic-token `ret=-2`.
+- H coach booking: product FAIL. The agent created a personal reminder for a
+  coach booking instead of declining unsupported booking.
+- H rapid same-conversation messages: product PASS; one final reminder at the
+  updated time, no duplicate/stale reply.
+- I settings view/update/toggles: product FAIL. Conversational settings writes
+  are not implemented/persisted.
+
+Code fixes added after the initial Step 0 commit:
+
+- Normalize aware datetimes from the agent to local wall-clock values in shared
+  scheduling create/query paths.
+- Map UTC personal reminder busy intervals into the requester local timezone
+  before availability comparison.
+- Expand the interaction-agent social scheduling prompt/tool doc to expose
+  `list_friends`, `remove_friend`, `query_availability`, and
+  `cancel_shared_reminder`.
+- Make the Postgres social-scheduling repository treat invalid UUID-shaped
+  account/shared-reminder IDs as not found before querying, so model-supplied
+  display names fail closed rather than poisoning the worker transaction.
+
 ---
 
 ### Task 1: Provider Connector Investigation

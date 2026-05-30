@@ -182,6 +182,7 @@ class SocialSchedulingService:
         duration_minutes: int,
         context: dict | None,
     ) -> SharedReminderCreateResult:
+        local_trigger_at = _as_local_wall_clock(local_trigger_at)
         missing = _first_missing_field(
             receiver_account_ids, title, local_trigger_at, context
         )
@@ -383,6 +384,8 @@ class SocialSchedulingService:
         local_end: datetime,
         requester_timezone: str,
     ) -> FriendAvailability | list[FriendAvailability]:
+        local_start = _as_local_wall_clock(local_start)
+        local_end = _as_local_wall_clock(local_end)
         if not friend_account_ids:
             raise SocialSchedulingError(
                 "availability_requires_one_or_more_friends",
@@ -583,6 +586,12 @@ def _hash_token(value: str) -> str:
 
 def _hash_value(value: str) -> str:
     return canonical_hash(value)
+
+
+def _as_local_wall_clock(value: datetime | None) -> datetime | None:
+    if value is None or value.tzinfo is None:
+        return value
+    return value.replace(tzinfo=None)
 
 
 def _normalize_title(title: str) -> str:

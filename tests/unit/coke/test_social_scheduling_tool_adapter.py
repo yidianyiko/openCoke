@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
-from coke.composition import SocialSchedulingToolAdapter
+from coke.composition import ReminderAvailabilityAdapter, SocialSchedulingToolAdapter
+from coke.domains.reminder.models import Reminder
 from coke.domains.social_scheduling.availability import (
     AvailabilityWindow,
     FriendAvailability,
@@ -195,6 +196,41 @@ def test_social_scheduling_tool_exposes_privacy_safe_availability_query():
         )
     ]
     assert guard.calls == 0
+
+
+def test_reminder_availability_maps_utc_reminders_to_requester_local_wall_clock():
+    repository = SimpleNamespace(
+        list_active_reminders=lambda _account_id: [
+            Reminder(
+                id="reminder_1",
+                owner_account_id="friend_1",
+                content="private title",
+                content_hash="hash",
+                kind="timed",
+                next_fire_at=datetime(2029, 2, 21, 2, 0, tzinfo=UTC),
+                recurrence_rule={},
+                captured_timezone="Asia/Shanghai",
+                duration_minutes=30,
+                lifecycle="active",
+                hidden_from_calendar=False,
+                shared_reminder_id=None,
+                created_at=datetime(2026, 5, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 5, 30, tzinfo=UTC),
+            )
+        ]
+    )
+
+    intervals = ReminderAvailabilityAdapter(repository).personal_busy_intervals(
+        "friend_1",
+        datetime(2029, 2, 21, 9, 30),
+        datetime(2029, 2, 21, 10, 30),
+        "Asia/Shanghai",
+    )
+
+    assert len(intervals) == 1
+    assert intervals[0].start == datetime(2029, 2, 21, 10, 0)
+    assert intervals[0].end == datetime(2029, 2, 21, 10, 30)
+    assert intervals[0].detail_id == "reminder_1"
 
 
 def test_establish_friendship_operation_accepts_visible_invite_code():

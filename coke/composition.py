@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from coke.config import ConfigurationError, Settings
 from coke.domains.calendar_import.google import GoogleCalendarClientPort
@@ -215,7 +216,9 @@ class ReminderAvailabilityAdapter:
         for reminder in self.reminder_repository.list_active_reminders(account_id):
             if reminder.next_fire_at is None or reminder.kind == "proactive":
                 continue
-            interval_start = reminder.next_fire_at
+            interval_start = _local_wall_clock(
+                reminder.next_fire_at, requester_timezone
+            )
             interval_end = interval_start + _duration_delta(reminder.duration_minutes)
             if interval_start < end and interval_end > start:
                 intervals.append(
@@ -879,6 +882,12 @@ def _duration_delta(minutes: int):
     from datetime import timedelta
 
     return timedelta(minutes=minutes)
+
+
+def _local_wall_clock(value: datetime, timezone: str) -> datetime:
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(ZoneInfo(timezone)).replace(tzinfo=None)
 
 
 def _guard_state_change(guard: Any) -> None:

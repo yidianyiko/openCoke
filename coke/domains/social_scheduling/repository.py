@@ -4,7 +4,7 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from collections.abc import Mapping
 from typing import Protocol
-from uuid import uuid5, NAMESPACE_URL
+from uuid import UUID, uuid5, NAMESPACE_URL
 from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
@@ -549,6 +549,8 @@ class PostgresSocialSchedulingRepository:
     def get_active_friendship(
         self, account_a: str, account_b: str
     ) -> Friendship | None:
+        if not _is_db_uuid(account_a) or not _is_db_uuid(account_b):
+            return None
         low, high = unordered_pair(account_a, account_b)
         row = one_or_none(
             self.session,
@@ -560,6 +562,8 @@ class PostgresSocialSchedulingRepository:
         return _friendship(row) if row else None
 
     def list_active_friendships(self, account_id: str) -> list[Friendship]:
+        if not _is_db_uuid(account_id):
+            return []
         return [
             _friendship(row)
             for row in many(
@@ -604,6 +608,8 @@ class PostgresSocialSchedulingRepository:
         )
 
     def get_shared_reminder(self, shared_reminder_id: str) -> SharedReminder | None:
+        if not _is_db_uuid(shared_reminder_id):
+            return None
         row = one_or_none(
             self.session,
             schema.shared_reminder,
@@ -620,6 +626,8 @@ class PostgresSocialSchedulingRepository:
         captured_timezone: str,
         duration_minutes: int,
     ) -> SharedReminder | None:
+        if not _is_db_uuid(creator_account_id):
+            return None
         row = one_or_none(
             self.session,
             schema.shared_reminder,
@@ -636,6 +644,8 @@ class PostgresSocialSchedulingRepository:
     def list_shared_reminders_for_participant(
         self, account_id: str
     ) -> list[SharedReminder]:
+        if not _is_db_uuid(account_id):
+            return []
         statement = (
             sa.select(schema.shared_reminder)
             .join(
@@ -707,6 +717,8 @@ class PostgresSocialSchedulingRepository:
         )
 
     def list_projections(self, shared_reminder_id: str) -> list[ReminderProjection]:
+        if not _is_db_uuid(shared_reminder_id):
+            return []
         return [
             _projection(row)
             for row in many(
@@ -723,6 +735,8 @@ class PostgresSocialSchedulingRepository:
     def get_projection(
         self, shared_reminder_id: str, account_id: str
     ) -> ReminderProjection | None:
+        if not _is_db_uuid(shared_reminder_id) or not _is_db_uuid(account_id):
+            return None
         row = one_or_none(
             self.session,
             schema.reminder_projection,
@@ -737,6 +751,8 @@ class PostgresSocialSchedulingRepository:
         start: datetime,
         end: datetime,
     ) -> list[BusyInterval]:
+        if not _is_db_uuid(account_id):
+            return []
         intervals: list[BusyInterval] = []
         for reminder in self.list_shared_reminders_for_participant(account_id):
             if reminder.status != "active":
@@ -862,6 +878,8 @@ class PostgresSocialSchedulingRepository:
         ]
 
     def _participant_ids(self, shared_reminder_id: str) -> tuple[str, ...]:
+        if not _is_db_uuid(shared_reminder_id):
+            return ()
         rows = many(
             self.session,
             schema.reminder_projection,
@@ -969,6 +987,16 @@ def _friendship(row: Mapping) -> Friendship:
         row["created_at"],
         row["updated_at"],
     )
+
+
+def _is_db_uuid(value: str | None) -> bool:
+    if value is None:
+        return False
+    try:
+        UUID(str(value))
+    except ValueError:
+        return False
+    return True
 
 
 def _shared_values(reminder: SharedReminder) -> dict:
