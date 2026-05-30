@@ -521,6 +521,11 @@ export default function CustomerWechatPersonalPage() {
             <p className="customer-channel-page__surface-copy">
               {channel.instructions ?? copy.pairing.instructions}
             </p>
+            {channel.connector_status ? (
+              <p className="customer-channel-page__meta">
+                {copy.pairing.connectorStatusPrefix} {channel.connector_status}
+              </p>
+            ) : null}
           </div>
 
           {channel.expires_at ? (

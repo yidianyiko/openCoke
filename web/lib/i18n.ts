@@ -260,6 +260,7 @@ type CustomerPagesMessages = {
       qrAlt: string;
       instructions: string;
       preparing: string;
+      connectorStatusPrefix: string;
       expiresPrefix: string;
       activeSuffix: string;
     };
@@ -752,6 +753,7 @@ export const messages: MessagesCatalog = {
           qrAlt: 'WeChat login QR code',
           instructions: "Scan this QR code with this user's own WeChat account.",
           preparing: 'Preparing your WeChat login QR...',
+          connectorStatusPrefix: 'Connector status:',
           expiresPrefix: 'This QR code expires at',
           activeSuffix: 'The current QR code is still active.',
         },
@@ -1184,6 +1186,7 @@ export const messages: MessagesCatalog = {
           qrAlt: '微信登录二维码',
           instructions: '请用当前用户自己的微信扫描此二维码。',
           preparing: '正在生成微信登录二维码...',
+          connectorStatusPrefix: '连接器状态：',
           expiresPrefix: '该二维码过期时间：',
           activeSuffix: '当前二维码仍然有效。',
         },

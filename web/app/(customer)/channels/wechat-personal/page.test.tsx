@@ -333,6 +333,76 @@ describe('CustomerWechatPersonalPage branded layout', () => {
     expect(container.querySelector('.customer-channel-page__qr-image')).toBeTruthy();
     expect(container.querySelector('.customer-channel-page__pairing-code')).toBeFalsy();
   });
+
+  it('stays on the QR scan screen after connect and polls the returned session', async () => {
+    const intervalCallbacks: Array<() => void> = [];
+    vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler) => {
+      intervalCallbacks.push(() => {
+        if (typeof handler === 'function') {
+          handler();
+        }
+      });
+      return 1 as unknown as number;
+    }) as typeof window.setInterval);
+    vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+
+    getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'missing',
+      },
+    });
+    createCustomerWechatChannelMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'pending',
+        session_id: 'session_1',
+        qrcode_id: 'qr_1',
+        qrcode_image: 'data:image/png;base64,QR1',
+        connector_status: 'waiting_for_scan',
+        instructions: "scan this QR code with this user's own WeChat account",
+      },
+    });
+    getCustomerWechatChannelLoginStatusMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'pending',
+        session_id: 'session_1',
+        qrcode_id: 'qr_1',
+        qrcode_image: 'data:image/png;base64,QR1',
+        connector_status: 'waiting_for_scan',
+        instructions: "scan this QR code with this user's own WeChat account",
+      },
+    });
+
+    renderWithLocale(root, 'en');
+    await waitForText(container, 'Create my WeChat channel');
+
+    const createButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Create my WeChat channel'),
+    );
+    expect(createButton).toBeTruthy();
+    createButton?.click();
+    await waitForText(container, 'Scan to connect WeChat');
+
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(container.querySelector('.customer-channel-page__qr-image')?.getAttribute('src')).toBe(
+      'data:image/png;base64,QR1',
+    );
+    expect(container.textContent).toContain('waiting_for_scan');
+
+    for (let i = 0; i < 10 && intervalCallbacks.length === 0; i += 1) {
+      await flushTicks(1);
+    }
+    expect(intervalCallbacks).toHaveLength(1);
+    intervalCallbacks[0]();
+    await flushTicks(3);
+
+    expect(getCustomerWechatChannelLoginStatusMock).toHaveBeenCalledWith('session_1');
+    expect(container.querySelector('.customer-channel-page__qr-image')?.getAttribute('src')).toBe(
+      'data:image/png;base64,QR1',
+    );
+  });
 });
 
 describe('CustomerWechatPersonalPage sign out', () => {

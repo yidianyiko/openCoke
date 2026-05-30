@@ -138,6 +138,41 @@ describe('customer-wechat-channel api helpers', () => {
     );
   });
 
+  it('maps the live QR connect response without legacy pairing fields', async () => {
+    storeCustomerAuth({
+      token: 'session_1',
+      customerId: 'acct_1',
+      identityId: 'acct_1',
+      claimStatus: 'active',
+      email: 'alice@example.com',
+      membershipRole: 'owner',
+    });
+    vi.spyOn(customerApi, 'post').mockResolvedValueOnce({
+      account_id: 'acct_1',
+      channel_id: null,
+      connection_state: 'connecting',
+      connector_status: 'waiting_for_scan',
+      instructions: "scan this QR code with this user's own WeChat account",
+      provider_type: 'wechat_personal',
+      qrcode_id: 'qr_1',
+      qrcode_image: 'data:image/png;base64,QR1',
+      session_id: 'session_1',
+    } as never);
+
+    await expect(connectCustomerWechatChannel()).resolves.toEqual({
+      ok: true,
+      data: {
+        status: 'pending',
+        channel_id: undefined,
+        connector_status: 'waiting_for_scan',
+        instructions: "scan this QR code with this user's own WeChat account",
+        qrcode_id: 'qr_1',
+        qrcode_image: 'data:image/png;base64,QR1',
+        session_id: 'session_1',
+      },
+    });
+  });
+
   it('normalizes an empty archive success into an archived channel state', async () => {
     storeCustomerAuth({
       token: 'session_1',

@@ -1,6 +1,146 @@
-# Coke Clean Rebuild: Web + Personal WeChat Pairing
+# Coke Clean Rebuild: Web Personal-WeChat QR Repair
 
-Plan Status: complete
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Fix the live customer personal-WeChat connect page so a successful clean API connect response keeps the page on the QR scan screen, renders `qrcode_image`, and polls `login-status` by `account_id` + `session_id`.
+
+**Architecture:** The web client remains a thin Next.js client over the Python API. The client maps the clean channel response shape into UI state, never invents backend channel state, never navigates away on connect/poll failures, and surfaces retry/refresh in place.
+
+**Tech Stack:** Next.js App Router, React client components, TypeScript, Vitest/jsdom, pnpm, live HTTPS smoke via curl or Playwright when available.
+
+---
+
+Plan Status: in_progress (web fix deployed; live `login-status` poll is blocked by provider timeout)
+
+## Current Repair Scope
+
+- Modify: `web/lib/customer-wechat-channel.ts`
+- Modify: `web/lib/customer-wechat-channel.test.ts`
+- Modify: `web/app/(customer)/channels/wechat-personal/page.tsx`
+- Modify: `web/app/(customer)/channels/wechat-personal/page.test.tsx`
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-web.md`
+- Deploy only the web build assets/service if the local fix verifies; keep `coke-clean`, `evolution-*`, connector services, and clean `.env` intact.
+
+## Current Repair Steps
+
+- [x] **Step 1: Diagnose the live and local client flow**
+
+  Run these commands from the worktree root:
+
+  ```bash
+  git status --short
+  rg -n "qrcode_image|session_id|connector_status|router\\.replace|login-status|wechat-personal" web/app web/lib
+  cd web && pnpm test -- --run web/lib/customer-wechat-channel.test.ts web/app/\(customer\)/channels/wechat-personal/page.test.tsx
+  ```
+
+  Expected evidence: identify whether the page loses pending state because of response mapping, account/session lookup, polling, or navigation.
+
+- [x] **Step 2: Write failing focused web tests**
+
+  Add tests that use the exact live response fields:
+
+  ```ts
+  {
+    account_id: 'acct_1',
+    channel_id: null,
+    connection_state: 'connecting',
+    connector_status: 'waiting_for_scan',
+    instructions: "scan this QR code with this user's own WeChat account",
+    provider_type: 'wechat_personal',
+    qrcode_id: 'qr_1',
+    qrcode_image: 'data:image/png;base64,QR1',
+    session_id: 'session_1',
+  }
+  ```
+
+  The helper test must assert `qrcode_image` and `session_id` survive parsing. The page test must click the connect button, assert the QR `<img>` is rendered, assert `router.replace` was not called, and assert polling uses the pending `session_id`.
+
+- [x] **Step 3: Run the focused tests and confirm they fail**
+
+  Run:
+
+  ```bash
+  cd web && pnpm test -- --run web/lib/customer-wechat-channel.test.ts web/app/\(customer\)/channels/wechat-personal/page.test.tsx
+  ```
+
+  Expected: at least one new test fails for the current bug before production code changes.
+
+- [x] **Step 4: Implement the minimal web fix**
+
+  Update only the web channel client/page code needed to:
+
+  ```ts
+  // connect success
+  setChannel({ status: 'pending', session_id, qrcode_image, connector_status, instructions });
+  // poll
+  getCustomerWechatChannelLoginStatus(session_id);
+  // failures while pending
+  preserve existing pending QR and show an in-place warning.
+  ```
+
+  Do not change the backend contract or add legacy/compatibility fields.
+
+- [x] **Step 5: Verify local web and backend regression gates**
+
+  Run:
+
+  ```bash
+  cd web && pnpm test
+  cd web && pnpm build
+  /data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+  ```
+
+  Expected: all commands exit 0 with passing summaries.
+
+- [x] **Step 6: Verify live data flow and browser behavior**
+
+  Run the same API flow the page uses for `olivers`:
+
+  ```bash
+  curl -sS https://coke.keep4oforever.com/api/auth/login \
+    -H 'Content-Type: application/json' \
+    --data '{"email":"olivers@coke.keep4oforever.com","password_hash":"CokeTest-Olivers-2026!"}'
+  curl -sS https://coke.keep4oforever.com/api/channels/wechat-personal/connect \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $TOKEN" \
+    --data '{"account_id":"ae02ff016fcd4d39a189e51c8c8a31e6"}'
+  curl -sS "https://coke.keep4oforever.com/api/channels/wechat-personal/login-status?account_id=ae02ff016fcd4d39a189e51c8c8a31e6&session_id=$SESSION_ID" \
+    -H "Authorization: Bearer $TOKEN"
+  ```
+
+  If Playwright/Chromium is available, log into the live page, click the connect action, and assert the QR `<img>` has a non-empty data URL and the URL remains `/channels/wechat-personal`. If browser tooling is unavailable, keep the component test as the UI proof and say so.
+
+  Result: live connect returns HTTP 200 with non-empty `qrcode_image` and `session_id`; live Chromium/CDP clicked the connect action, stayed on `/channels/wechat-personal`, rendered a non-empty data-url QR image, and showed `waiting_for_scan`. The live `login-status` request returned HTTP 500; API logs show `httpx.ReadTimeout` in `coke/providers/wechat_personal.py` while polling the provider adapter. The web client preserves the QR in-place on poll errors, but the backend/provider timeout prevents proving a successful live poll in this run.
+
+- [x] **Step 7: Commit, deploy, health-check, and cleanup test accounts**
+
+  Run:
+
+  ```bash
+  git diff --check
+  git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-web.md web/lib/customer-wechat-channel.ts web/lib/customer-wechat-channel.test.ts web/app/\(customer\)/channels/wechat-personal/page.tsx web/app/\(customer\)/channels/wechat-personal/page.test.tsx
+  git commit -m "fix: keep wechat QR connect page pending"
+  ```
+
+  Deploy non-disruptively using `docs/deploy.md`, confirm:
+
+  ```bash
+  curl -sS -o /dev/null -w '%{http_code}\n' https://coke.keep4oforever.com/auth/login
+  ```
+
+  Then reset `olivers` (`ae02ff016fcd4d39a189e51c8c8a31e6`) and `lizihao` (`635d3bdc1b024a08acf49940b91a9de5`) personal-WeChat channels to `not_connected` and remove sessions/channels created during testing.
+
+- [ ] **Step 8: Close the plan**
+
+  After verification and cleanup pass, mark every current repair checkbox complete and set `Plan Status: complete`.
+
+  Not complete yet: the web repair is deployed and verified, but the required live `login-status` poll proof did not pass because the API timed out while calling the provider adapter.
+
+---
+
+# Prior Completed Plan: Web + Personal WeChat Pairing
+
+Prior Plan Status: complete
 
 ## Goal
 
