@@ -8,7 +8,7 @@
 
 **Tech Stack:** Docker Compose on `gcp-coke`, nginx, Postgres 17, Redis 7.2, Flask/Gunicorn clean API, Next.js web client, pytest.
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 
 **Verification Evidence:**
 - Remote old-stack teardown: `docker compose -p coke down -v --remove-orphans`; final `docker ps` showed only `coke-clean-*` and `evolution-*`.
@@ -505,26 +505,66 @@ The active `friend_link` row is `c20d5272-c9f4-4bc5-ab35-2790317a07f4`, and
 delivery attempt `26aa65d0-e7a8-4575-bd85-1e34f200c593` was `sent` with
 provider message id `coke-1780168181334-087e5a5da377`.
 
-- [ ] **Step 4: Phase 3 friend-link join**
+- [x] **Step 4: Phase 3 friend-link join**
 
 Post lizihao wxid `o9cq802Y5W-kzfSNDAL4gUrWK_OQ@im.wechat` with the code.
 Verify `friendship.lifecycle = 'active'` and the lizihao confirmation reply
 `delivery_attempt.status = 'sent'`. This is the regression phase.
 
-- [ ] **Step 5: Phase 4 shared reminder**
+Evidence: the first deployed rerun
+`formal-e2e-20260530T190351Z-p3-lizihao-join` still failed because GLM-5.1
+called `social_scheduling_tool`, received `ok=true` / `status=already_active`,
+then returned non-protocol plain text. After broadening the bounded protocol
+retry and redeploying, `formal-e2e-20260530T190351Z-p3b-lizihao-join` replied
+successfully. Turn `3a4f0115-514a-49ab-9dec-22e08e876918` was
+`replied/reply_ready`, active friendship
+`cd671792-c126-4d9e-ad43-ac4221ef2bf6` linked lizihao
+`635d3bdc-1b02-4a08-acf4-9940b91a9de5` and olivers
+`ae02ff01-6fcd-4d39-a189-e51c8c8a31e6`, and delivery attempt
+`fa9fed46-d33d-4b2b-9119-cafbab5ec2c7` was `sent` with provider message id
+`coke-1780168695568-09da018a2198`.
+
+- [x] **Step 5: Phase 4 shared reminder**
 
 Post olivers shared-reminder creation involving lizihao. Verify
 `shared_reminder.status = 'active'`, per-participant `reminder_projection`
 rows, `notification_fact` rows, and sent delivery attempts for both users'
 visible messages.
 
-- [ ] **Step 6: Phase 5 reminder fire**
+Evidence: `formal-e2e-20260530T190351Z-p4-olivers-shared-reminder` replied
+successfully. Shared reminder `13195519-06b3-446c-b46c-2b4edba9d00f` is
+`active` with title `一起喝水`, local trigger `2026-05-31 15:00:00`, timezone
+`Asia/Shanghai`, and duration `15`. Projection
+`b2c009e5-9323-4855-ac07-492d16aa94d8` maps olivers to reminder
+`2dc06f97-ded4-474f-a69f-1c9a12085461`; projection
+`2eedabb2-d558-4902-a0b5-c9e350af5ae5` maps lizihao to reminder
+`586bcf36-034c-4e96-a7dc-75ecf47f6714`. Notification fact
+`f908041f-fde8-4d19-9324-bfb8ae5fa4dd` was created with idempotency key
+`shared_reminder:1319551906b3446cb46c2b4edba9d00f:created`. Creator delivery
+attempt `b423fee2-0d16-4bf2-9ac4-bc5b1076d5ae` was `sent` with provider
+message id `coke-1780168779167-ad8088085732`; recipient notification delivery
+attempt `ec9a99b0-0e16-41ac-b188-5c991650d81c` was `sent` with provider
+message id `coke-1780168788878-604cc7bcd9d6`.
+
+- [x] **Step 6: Phase 5 reminder fire**
 
 Set a test reminder due, let the scheduler fire, and verify `reminder_fire`,
 render-turn message, and delivery attempt status. If iLink rejects unsolicited
 sends, record the exact provider constraint instead of counting it as sent.
 
-- [ ] **Step 7: Mark plan complete**
+Evidence: I set olivers shared-projection reminder
+`2dc06f97-ded4-474f-a69f-1c9a12085461` due by updating `next_fire_at` to
+`2026-05-30 19:21:37.032838+00`. The running scheduler claimed reminder fire
+`3e0c8d05-2bd3-461a-b726-17ec1ae13568` at due time
+`2026-05-30 19:21:37.032838+00`. Reminder-fire turn
+`59144e3f-ed7a-46de-aa7c-72a760849185` completed
+`replied/reply_ready` for trigger
+`reminder_fire:ae02ff016fcd4d39a189e51c8c8a31e6:2026-05-30T19:21:37.032838+00:00`.
+Outbound message `c32cdccc-09e0-4609-9e74-8df9390d4b26` was rendered, and
+delivery attempt `d9c2ae13-542f-4ef8-aa34-688771c86540` was `sent` with
+provider message id `coke-1780169039211-86cd34627138`.
+
+- [x] **Step 7: Mark plan complete**
 
 Only after the focused tests, full verification, deploy health, connector
 count, and all feasible E2E phases have evidence, set:
