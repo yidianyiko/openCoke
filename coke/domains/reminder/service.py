@@ -103,6 +103,49 @@ class ReminderService:
             fact={"transition": "schedule_unscheduled"},
         )
 
+    def reschedule_reminder(
+        self,
+        owner_account_id: str,
+        reminder_id: str,
+        trigger_time: datetime,
+        captured_timezone: str,
+    ) -> ReminderItemResult:
+        reminder = self._require_owned_reminder(owner_account_id, reminder_id)
+        if reminder.kind == "no_trigger_time" or reminder.next_fire_at is None:
+            return self.schedule_unscheduled(
+                owner_account_id=owner_account_id,
+                reminder_id=reminder_id,
+                trigger_time=trigger_time,
+                captured_timezone=captured_timezone,
+            )
+        if reminder.kind == "proactive":
+            raise ReminderError("proactive_user_immutable")
+        time_state = self.validate_trigger_time(
+            trigger_time=trigger_time,
+            captured_timezone=captured_timezone,
+            incomplete_date=False,
+        )
+        if time_state != "valid_future":
+            return ReminderItemResult(
+                state="needs-follow-up" if time_state != "invalid" else "failed",
+                reminder_id=reminder.id,
+                reason=time_state,
+                time_state=time_state,
+            )
+        updated = replace(
+            reminder,
+            next_fire_at=trigger_time,
+            captured_timezone=captured_timezone,
+            updated_at=self._now(),
+        )
+        self.repository.save_reminder(updated)
+        return ReminderItemResult(
+            state="succeeded",
+            reminder_id=updated.id,
+            time_state="valid_future",
+            fact={"transition": "reschedule_reminder"},
+        )
+
     def clear_trigger_time(
         self,
         owner_account_id: str,

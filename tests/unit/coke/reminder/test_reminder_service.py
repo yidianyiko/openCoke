@@ -384,6 +384,34 @@ def test_trigger_time_conversion_is_explicit_domain_state(service):
     ]
 
 
+def test_reschedule_reminder_updates_existing_timed_row_without_duplicate(service):
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="stretch",
+                trigger_time=NOW + timedelta(days=1),
+                captured_timezone="Asia/Shanghai",
+            )
+        ],
+    )
+
+    rescheduled = service.reschedule_reminder(
+        owner_account_id="acct_1",
+        reminder_id=created.items[0].reminder_id,
+        trigger_time=NOW + timedelta(days=1, hours=1),
+        captured_timezone="Asia/Shanghai",
+    )
+
+    reminders = service.repository.list_active_reminders("acct_1")
+    assert rescheduled.state == "succeeded"
+    assert rescheduled.reminder_id == created.items[0].reminder_id
+    assert len(reminders) == 1
+    assert reminders[0].next_fire_at == NOW + timedelta(days=1, hours=1)
+    assert reminders[0].captured_timezone == "Asia/Shanghai"
+
+
 def test_fire_lifecycle_is_occurrence_grain_idempotent_and_advances_recurring(service):
     trigger_time = NOW
     created = service.execute_batch(

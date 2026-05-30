@@ -268,9 +268,29 @@ def test_invalid_agent_output_retries_same_turn_once_then_uses_valid_retry(harne
     assert harness["agent"].requests[1].trusted_facts["protocol_retry"] == {
         "reason_code": "invalid_output_protocol",
         "attempt": 2,
+        "guidance": None,
     }
     assert len(harness["delivery"].deliveries) == 1
     assert harness["delivery"].deliveries[-1].visible_text == "好友已经添加好了。"
+
+
+def test_segment_count_violation_retry_carries_specific_protocol_guidance(harness):
+    harness["agent"].queued_results = [
+        AgentResult.completed(
+            {"type": "reply", "segments": ["one", "two", "three", "four"]}
+        ),
+        AgentResult.completed({"type": "reply", "segments": ["one two", "three four"]}),
+    ]
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert harness["agent"].invocations == 2
+    assert harness["agent"].requests[1].trusted_facts["protocol_retry"] == {
+        "reason_code": "invalid_output_protocol",
+        "attempt": 2,
+        "guidance": "reply_segments_must_contain_1_to_3_non_empty_strings",
+    }
 
 
 def test_invalid_agent_output_retry_still_invalid_fails_closed(harness):

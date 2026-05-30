@@ -479,6 +479,7 @@ def _protocol_retry_request(
             "protocol_retry": {
                 "reason_code": validated.reason_code or "invalid_output_protocol",
                 "attempt": 2,
+                "guidance": validated.retry_guidance,
             },
         },
     )

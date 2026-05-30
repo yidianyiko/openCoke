@@ -38,3 +38,18 @@ def test_output_protocol_rejects_empty_malformed_and_structurally_blocked_output
     assert blocked.valid is False
     assert blocked.reason_code == "invalid_output_protocol"
     assert validator.rewrite_invocations == 0
+
+
+def test_output_protocol_reports_segment_count_guidance_for_retry():
+    validator = OutputProtocolValidator()
+
+    too_many_segments = validator.validate_first_answer(
+        {"type": "reply", "segments": ["one", "two", "three", "four"]}
+    )
+
+    assert too_many_segments.valid is False
+    assert too_many_segments.reason_code == "invalid_output_protocol"
+    assert (
+        too_many_segments.retry_guidance
+        == "reply_segments_must_contain_1_to_3_non_empty_strings"
+    )

@@ -200,6 +200,7 @@ def test_protocol_retry_instruction_is_sent_as_retry_context():
                 "protocol_retry": {
                     "reason_code": "invalid_output_protocol",
                     "attempt": 2,
+                    "guidance": None,
                 }
             },
         )
@@ -209,7 +210,35 @@ def test_protocol_retry_instruction_is_sent_as_retry_context():
     assert "Protocol retry instruction:" in prompt
     assert "previous assistant answer for this same turn was rejected" in prompt
     assert '{"type":"reply","segments":["..."]}' in prompt
+    assert "one to three non-empty string segments" in prompt
     assert prompt.index("Protocol retry instruction:") < prompt.index("Trusted context:")
+
+
+def test_protocol_retry_instruction_includes_specific_violation_guidance():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            trusted_facts={
+                "protocol_retry": {
+                    "reason_code": "invalid_output_protocol",
+                    "attempt": 2,
+                    "guidance": "reply_segments_must_contain_1_to_3_non_empty_strings",
+                }
+            },
+        )
+    )
+
+    prompt = fake_agent.calls[0]["input"]
+    assert (
+        "Specific protocol violation: "
+        "reply_segments_must_contain_1_to_3_non_empty_strings."
+    ) in prompt
 
 
 def test_agent_instructions_name_real_social_scheduling_operations():
@@ -409,6 +438,77 @@ def test_tool_callable_accepts_command_as_json_string_envelope():
                 "owner_account_id": "owner_2",
                 "content": "pay rent",
                 "captured_timezone": "UTC",
+                "entry_point": "conversation",
+            },
+            reminder_tool.calls[0][1],
+        )
+    ]
+
+
+def test_reminder_tool_maps_agno_command_op_complete_without_defaulting_to_create():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    reminder_tool = FakeReminderTool()
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=reminder_tool))
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    result = tool(
+        kwargs={
+            "command": {
+                "op": "complete",
+                "reminder_id": "reminder_1",
+            },
+            "owner_account_id": "owner_1",
+            "captured_timezone": "Asia/Shanghai",
+        }
+    )
+
+    assert result["ok"] is True
+    assert reminder_tool.calls == [
+        (
+            {
+                "operation": "complete_reminder",
+                "reminder_id": "reminder_1",
+                "owner_account_id": "owner_1",
+                "captured_timezone": "Asia/Shanghai",
+                "entry_point": "conversation",
+            },
+            reminder_tool.calls[0][1],
+        )
+    ]
+
+
+def test_reminder_tool_maps_agno_modify_time_op_to_reschedule_operation():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    reminder_tool = FakeReminderTool()
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=reminder_tool))
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    tool(
+        kwargs={
+            "command": {
+                "op": "modify_time",
+                "reminder_id": "reminder_1",
+                "new_trigger_time": "2029-01-21T11:00:00+08:00",
+            },
+            "owner_account_id": "owner_1",
+            "captured_timezone": "Asia/Shanghai",
+        }
+    )
+
+    assert reminder_tool.calls == [
+        (
+            {
+                "operation": "reschedule_reminder",
+                "reminder_id": "reminder_1",
+                "trigger_time": "2029-01-21T11:00:00+08:00",
+                "owner_account_id": "owner_1",
+                "captured_timezone": "Asia/Shanghai",
                 "entry_point": "conversation",
             },
             reminder_tool.calls[0][1],

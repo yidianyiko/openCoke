@@ -8,7 +8,7 @@
 
 **Tech Stack:** Docker Compose on `gcp-coke`, nginx, Postgres 17, Redis 7.2, Flask/Gunicorn clean API, Next.js web client, pytest.
 
-**Plan Status:** complete
+**Plan Status:** blocked
 
 **Verification Evidence:**
 - Remote old-stack teardown: `docker compose -p coke down -v --remove-orphans`; final `docker ps` showed only `coke-clean-*` and `evolution-*`.
@@ -26,6 +26,19 @@ friend-link join turn committed the friendship but failed the turn with
 content after tool work. This addendum keeps the output contract strict:
 blank output remains invalid, the runtime may retry the same turn once when the
 first model result is blank, and no template/fallback prose is synthesized.
+
+**Live Personal-WeChat Happy-Path Sweep Addendum (2026-05-31):** Run the clean
+product matrix A-I against the two connected personal-WeChat accounts on
+`gcp-coke`: `olivers` account `ae02ff016fcd4d39a189e51c8c8a31e6` with wxid
+`o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat`, and `李梓豪` account
+`635d3bdc1b024a08acf49940b91a9de5` with wxid
+`o9cq802Y5W-kzfSNDAL4gUrWK_OQ@im.wechat`. Each case must use real Chinese
+phrasing from the repository issue records where available, drive inbound
+through the clean personal-WeChat webhook, verify clean Postgres rows, and
+verify each required visible reply has a real `delivery_attempt.status='sent'`.
+If a case exposes a blocking product bug, diagnose the root cause, add a red
+test, watch it fail, implement the smallest fix, verify locally, redeploy
+non-disruptively, rerun the failed case, and then continue the sweep.
 
 ---
 
@@ -572,3 +585,145 @@ count, and all feasible E2E phases have evidence, set:
 ```markdown
 **Plan Status:** complete
 ```
+
+### Task 10: Comprehensive Live Personal-WeChat Happy-Path Sweep
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-e2e-closeout.md`
+- Modify if bugs are blocking: focused `coke/` modules owned by the failing clean-domain path
+- Test if bugs are blocking: focused `tests/unit/coke/**` regression tests
+- Remote evidence: `gcp-coke` clean Postgres `coke`, clean API logs, clean personal-WeChat connector health
+
+- [x] **Step 1: Verify live target health and route bindings**
+
+Run:
+
+```bash
+ssh gcp-coke 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+ssh gcp-coke 'curl -fsS http://127.0.0.1:8000/healthz; echo; curl -fsS http://127.0.0.1:8095/healthz; echo'
+ssh gcp-coke "docker exec -i coke-clean-postgres-1 psql -U coke -d coke -v ON_ERROR_STOP=1 -c \"select a.id as account_id, a.default_timezone, ci.provider_subject, c.connection_state, dr.lifecycle, dr.provider_address from account a join channel_identity ci on ci.account_id=a.id join channel c on c.account_id=a.id and c.channel_identity_id=ci.id join delivery_route dr on dr.account_id=a.id where a.id in ('ae02ff016fcd4d39a189e51c8c8a31e6','635d3bdc1b024a08acf49940b91a9de5') order by a.id;\""
+```
+
+Expected: clean API healthy, connector `connected_session_count=2`, both real
+accounts have connected personal-WeChat routes.
+
+- [x] **Step 2: Build the case ledger from repository phrasings**
+
+Use the issue records named in the user request and preserve real Chinese
+phrasing where present:
+
+```text
+Daily: 你好 / 不用回复
+Timed reminder: 提醒我明天早上9点跑步
+Fire regression: 2分钟后提醒我喝水-<marker>。
+List: 列一下我的提醒。
+Recurring: create/update/cancel wording from the recurring regression note
+Shared create/status/cancel: wording from the shared real-user matrix
+Coach boundary: 帮我约彭教练...
+Ambiguous update: 改一下提醒时间
+```
+
+Record one unique marker per case and never reuse a marker after a partial run.
+
+- [ ] **Step 3: Run cases A-I one at a time through `/webhooks/wechat/personal`**
+
+For each case, post connector-shaped inbound from the correct wxid with a unique
+`message_id`, wait up to 180 seconds for worker/scheduler output, then query
+the clean schema. A case can pass only when the domain rows match the expected
+product state and each required visible reply has a real
+`delivery_attempt.status='sent'`; intentional no-reply passes only with
+`output_disposition.disposition='no_reply'` and no outbound delivery.
+
+- [x] **Step 4: Diagnose every failure before fixing**
+
+For a failed case, gather the failing `message`, `turn`, `output_disposition`,
+domain rows, `outbox`, `delivery_attempt`, and clean API/worker logs first.
+Classify the failure as product/runtime bug, test/harness bug, environment
+instability, or plan gap before editing.
+
+- [x] **Step 5: Use TDD for any blocking bug fix**
+
+Before changing production code, write the smallest focused failing unit test
+under `tests/unit/coke/**`, run it with:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest <focused-test> -v
+```
+
+Expected: the new test fails for the observed root cause. Then implement the
+smallest code fix, rerun the focused test, and run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+```
+
+- [x] **Step 6: Redeploy only after local verification passes**
+
+Run the repository deploy path preserving `coke-clean/.env` and the connector,
+then verify:
+
+```bash
+ssh gcp-coke 'curl -fsS http://127.0.0.1:8000/healthz; echo; curl -fsS http://127.0.0.1:8095/healthz; echo'
+```
+
+Expected: clean API healthy and connector still reports
+`connected_session_count=2`.
+
+2026-05-31 result: local focused tests failed first for the observed
+output-protocol and reminder-operation failures, then passed after the fixes.
+The full local unit suite passed with
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q`
+reporting `426 passed in 10.13s`. A backend-only clean redeploy preserved the
+connector and clean environment after the full deploy script hit a remote
+web `.next` permission problem. Post-deploy health returned clean API
+`{"ok":true}` and connector
+`{"connected":true,"connected_session_count":2,"ok":true,"status":"connected"}`.
+
+- [ ] **Step 7: Rerun the failed blocking case, then continue coverage**
+
+Do not count a fix as verified until the same live case that exposed it passes
+against DB and delivery-attempt evidence. Non-blocking bugs stay recorded in
+the final matrix while the sweep continues.
+
+2026-05-31 result: the original B1 timed-reminder failure passed after the
+output-protocol fix. The B4/B5 durable-state failures were corrected by the
+reminder-operation fix, but olivers delivery attempts then failed with
+`ilink_send_failed_ret_-2`, including when using the persisted connector
+context token. 李梓豪 delivery remained usable for several additional cases
+and produced `sent` evidence for greeting, cancel/delete, duplicate
+prevention, and ambiguous-reference clarification before another live
+delivery attempt failed with `ilink_send_failed_ret_-2` on the coach-boundary
+case. The remaining A-I matrix is blocked by strict delivery-verdict
+requirements until the live personal-WeChat connector/session issue is
+refreshed or diagnosed outside the clean product code path.
+
+- [x] **Step 8: Final verification, plan status, and commit**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+git diff --check
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
+
+If all required live cases are covered and verification passes, set
+`Plan Status` to `complete`, commit the plan plus any code/tests, and report
+`git log --oneline main..HEAD`.
+
+2026-05-31 result: verification passed, but the plan status remains `blocked`
+instead of `complete` because the strict A-I live matrix was not fully covered.
+Commands run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+git diff --check
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+zsh scripts/verify-surface clean-rebuild-backend repo-os-docs
+```
+
+`review-trigger` reported `human_review_required: no`; its remaining
+`evidence_gap` risk is expected because this sweep recorded live evidence in
+the plan/final report rather than under `artifacts/evidence/**`.

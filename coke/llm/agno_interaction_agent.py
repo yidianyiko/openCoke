@@ -24,6 +24,16 @@ _LIST_TOOL_FIELDS = frozenset(
         "friend_account_ids",
     }
 )
+_REMINDER_OP_ALIASES = {
+    "complete": "complete_reminder",
+    "done": "complete_reminder",
+    "delete": "delete_reminder",
+    "cancel": "delete_reminder",
+    "remove": "delete_reminder",
+    "reschedule": "reschedule_reminder",
+    "update": "reschedule_reminder",
+    "modify_time": "reschedule_reminder",
+}
 
 
 class ToolArgumentError(ValueError):
@@ -220,7 +230,11 @@ def _tool_doc(name: str) -> str:
             "create request, call with operation='detect_and_create', "
             "owner_account_id set to trusted_facts.account_id, raw_text set to "
             "the exact User message, captured_timezone set to "
-            "trusted_facts.default_timezone, and entry_point='conversation'."
+            "trusted_facts.default_timezone, and entry_point='conversation'. "
+            "For edits, call operation='reschedule_reminder' with reminder_id "
+            "and trigger_time. For completion, call operation='complete_reminder' "
+            "with reminder_id. For cancellation/deletion, call "
+            "operation='delete_reminder' with reminder_id."
         )
     if name == "social_scheduling":
         return (
@@ -336,7 +350,7 @@ def _with_tool_defaults(
 ) -> Mapping[str, Any]:
     if name != "reminder":
         return command
-    payload = dict(command)
+    payload = _normalize_reminder_operation(command)
     if "operation" not in payload:
         payload["operation"] = "detect_and_create"
     if payload.get("operation") == "detect_and_create":
@@ -347,6 +361,30 @@ def _with_tool_defaults(
         str(request.trusted_facts.get("default_timezone") or "UTC"),
     )
     payload.setdefault("entry_point", "conversation")
+    return payload
+
+
+def _normalize_reminder_operation(command: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(command)
+    nested_command = payload.pop("command", None)
+    if isinstance(nested_command, Mapping):
+        nested = dict(nested_command)
+        op = nested.pop("op", None)
+        if op is not None and "operation" not in nested:
+            nested["operation"] = _REMINDER_OP_ALIASES.get(str(op), str(op))
+        if "new_trigger_time" in nested and "trigger_time" not in nested:
+            nested["trigger_time"] = nested.pop("new_trigger_time")
+        nested.update(payload)
+        payload = nested
+    elif "op" in payload and "operation" not in payload:
+        op = str(payload.pop("op"))
+        payload["operation"] = _REMINDER_OP_ALIASES.get(op, op)
+    if "operation" in payload:
+        payload["operation"] = _REMINDER_OP_ALIASES.get(
+            str(payload["operation"]), str(payload["operation"])
+        )
+    if "new_trigger_time" in payload and "trigger_time" not in payload:
+        payload["trigger_time"] = payload.pop("new_trigger_time")
     return payload
 
 
@@ -378,6 +416,9 @@ def _agent_input(request: AgentRequest) -> str:
     ]
     protocol_retry = request.trusted_facts.get("protocol_retry")
     if protocol_retry:
+        guidance = ""
+        if isinstance(protocol_retry, Mapping) and protocol_retry.get("guidance"):
+            guidance = f"\nSpecific protocol violation: {protocol_retry['guidance']}."
         parts.append(
             "Protocol retry instruction:\n"
             "The previous assistant answer for this same turn was rejected "
@@ -385,7 +426,10 @@ def _agent_input(request: AgentRequest) -> str:
             "rewrite or summarize that prior answer. Use trusted facts, "
             "conversation history, and tool results to produce one final JSON "
             'object only: {"type":"reply","segments":["..."]} or '
-            '{"type":"no_reply","reason":"intentional_no_reply"}.'
+            '{"type":"no_reply","reason":"intentional_no_reply"}. '
+            "Reply JSON must contain one to three non-empty string segments; "
+            "combine lines into fewer segments when needed."
+            f"{guidance}"
         )
     parts.append(
         "Trusted context:\n"

@@ -318,6 +318,15 @@ class ReminderToolAdapter:
             )
             return _single_item_tool_result(result)
 
+        if operation == "reschedule_reminder":
+            result = self.reminder_service.reschedule_reminder(
+                owner_account_id=owner,
+                reminder_id=_required_str(command, "reminder_id"),
+                trigger_time=_required_datetime(command, "trigger_time"),
+                captured_timezone=str(command.get("captured_timezone") or "UTC"),
+            )
+            return _single_item_tool_result(result)
+
         if operation == "clear_trigger_time":
             result = self.reminder_service.clear_trigger_time(
                 owner_account_id=owner,

@@ -13,6 +13,7 @@ class ValidatedOutput:
     kind: OutputKind | None
     segments: tuple[str, ...] = ()
     reason_code: str | None = None
+    retry_guidance: str | None = None
 
 
 class OutputProtocolValidator:
@@ -27,11 +28,15 @@ class OutputProtocolValidator:
         if output_type == "reply":
             segments = output.get("segments")
             if not isinstance(segments, list) or not 1 <= len(segments) <= 3:
-                return self._invalid()
+                return self._invalid(
+                    "reply_segments_must_contain_1_to_3_non_empty_strings"
+                )
             clean_segments: list[str] = []
             for segment in segments:
                 if not isinstance(segment, str) or not segment.strip():
-                    return self._invalid()
+                    return self._invalid(
+                        "reply_segments_must_contain_1_to_3_non_empty_strings"
+                    )
                 clean_segments.append(segment)
             return ValidatedOutput(
                 valid=True,
@@ -51,9 +56,10 @@ class OutputProtocolValidator:
 
         return self._invalid()
 
-    def _invalid(self) -> ValidatedOutput:
+    def _invalid(self, retry_guidance: str | None = None) -> ValidatedOutput:
         return ValidatedOutput(
             valid=False,
             kind=None,
             reason_code="invalid_output_protocol",
+            retry_guidance=retry_guidance,
         )
