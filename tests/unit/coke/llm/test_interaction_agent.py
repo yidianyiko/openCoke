@@ -186,6 +186,32 @@ def test_instructions_require_final_protocol_reply_after_tool_work():
     assert "never end with empty assistant content" in instructions
 
 
+def test_protocol_retry_instruction_is_sent_as_retry_context():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            trusted_facts={
+                "protocol_retry": {
+                    "reason_code": "invalid_output_protocol",
+                    "attempt": 2,
+                }
+            },
+        )
+    )
+
+    prompt = fake_agent.calls[0]["input"]
+    assert "Protocol retry instruction:" in prompt
+    assert "previous assistant answer for this same turn was rejected" in prompt
+    assert '{"type":"reply","segments":["..."]}' in prompt
+    assert prompt.index("Protocol retry instruction:") < prompt.index("Trusted context:")
+
+
 def test_agent_instructions_name_real_social_scheduling_operations():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
@@ -513,11 +539,20 @@ def _request(
     reminder_tool=None,
     social_scheduling_tool=None,
     guard=None,
+    trusted_facts: dict[str, Any] | None = None,
 ) -> AgentRequest:
     tool_ports = AgentToolPorts(
         reminder_tool=reminder_tool,
         social_scheduling_tool=social_scheduling_tool,
     )
+    facts = {
+        "assistant_name": "Coke",
+        "persona": "concise assistant",
+        "memory_enabled": memory_enabled,
+        "default_timezone": default_timezone,
+    }
+    if trusted_facts is not None:
+        facts.update(trusted_facts)
     return AgentRequest(
         turn_id="turn_1",
         conversation_id="conversation_1",
@@ -525,12 +560,7 @@ def _request(
         mode=TurnMode.INTERACTIVE,
         trigger_type="InboundTurn",
         payload={"text": text},
-        trusted_facts={
-            "assistant_name": "Coke",
-            "persona": "concise assistant",
-            "memory_enabled": memory_enabled,
-            "default_timezone": default_timezone,
-        },
+        trusted_facts=facts,
         tool_profile=ToolProfile.interactive(tool_ports),
         freshness_guard=guard or object(),
         context={"memory": ["recent"]},

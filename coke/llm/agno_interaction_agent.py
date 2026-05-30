@@ -149,6 +149,7 @@ class AgnoInteractionAgent:
                 "Return only JSON matching the Coke output protocol: "
                 '{"type":"reply","segments":["text"]} or '
                 '{"type":"no_reply","reason":"intentional_no_reply"}.',
+                "A final plain-language assistant message without the JSON protocol is invalid and will not be delivered.",
                 "Do not emit fallback prose, parser repair text, or template summaries.",
             )
             if part
@@ -165,7 +166,7 @@ class AgnoInteractionAgent:
             "For shared-reminder creation, call social_scheduling_tool with operation=create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, title, local_trigger_at, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes, and context.",
             "Do not answer as if the action happened until the tool result says it happened.",
             "For any state-changing tool result from reminder, social_scheduling, settings, or calendar-import, report success only when ok=true; when ok=false, reason_code is present, or status starts with needs_, must not claim the action succeeded and should ask the required follow-up or report the failure honestly.",
-            'After any tool call, you MUST emit a final user-facing protocol object: {"type":"reply","segments":["..."]} confirming the real tool result in the user\'s language, or {"type":"no_reply","reason":"intentional_no_reply"} only when no user-visible message is truly warranted; never end with empty assistant content, reasoning-only content, or only tool calls.',
+            'After any tool call, you MUST emit a final user-facing protocol object: {"type":"reply","segments":["..."]} confirming the real tool result in the user\'s language, or {"type":"no_reply","reason":"intentional_no_reply"} only when no user-visible message is truly warranted; the final message must still be JSON, not plain natural-language text; never end with empty assistant content, reasoning-only content, or only tool calls.',
             "If no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
         ]
@@ -372,17 +373,29 @@ def _agent_result_from_content(content: Any) -> AgentResult:
 
 
 def _agent_input(request: AgentRequest) -> str:
-    return "\n\n".join(
-        (
-            f"User message:\n{_user_text(request)}",
-            "Trusted context:\n"
-            + json.dumps(
-                _support_payload(request),
-                ensure_ascii=False,
-                default=str,
-            ),
+    parts = [
+        f"User message:\n{_user_text(request)}",
+    ]
+    protocol_retry = request.trusted_facts.get("protocol_retry")
+    if protocol_retry:
+        parts.append(
+            "Protocol retry instruction:\n"
+            "The previous assistant answer for this same turn was rejected "
+            "because it was not a valid Coke output protocol object. Do not "
+            "rewrite or summarize that prior answer. Use trusted facts, "
+            "conversation history, and tool results to produce one final JSON "
+            'object only: {"type":"reply","segments":["..."]} or '
+            '{"type":"no_reply","reason":"intentional_no_reply"}.'
+        )
+    parts.append(
+        "Trusted context:\n"
+        + json.dumps(
+            _support_payload(request),
+            ensure_ascii=False,
+            default=str,
         )
     )
+    return "\n\n".join(parts)
 
 
 def _support_payload(request: AgentRequest) -> dict[str, Any]:

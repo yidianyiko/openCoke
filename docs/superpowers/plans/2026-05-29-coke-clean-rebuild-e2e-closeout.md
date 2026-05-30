@@ -402,6 +402,38 @@ git add coke/llm/agno_interaction_agent.py coke/turn/runner.py coke/turn/output_
 git commit -m "fix: retry blank interaction agent output once"
 ```
 
+- [x] **Step 6: Expand protocol retry after live regression evidence**
+
+The first deployed fix did not handle the real regression. The formal lizihao
+join rerun `formal-e2e-20260530T190351Z-p3-lizihao-join` failed with
+`invalid_output_protocol`: Agno run 4 called `social_scheduling_tool`, received
+`ok=true` / `status=already_active`, then returned non-protocol plain text
+(`你们已经是好友了...`). This was not blank output, so the blank-only retry did
+not fire.
+
+Add a bounded same-turn protocol retry for any invalid first answer. The retry
+does not synthesize or rewrite visible text; it re-invokes the Interaction Agent
+once with protocol retry context, and the normal output protocol validator still
+fails closed if the second answer is invalid.
+
+Red evidence:
+
+```text
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/turn/test_turn_runner.py -v
+4 failed, 24 passed in 2.66s
+```
+
+Green evidence:
+
+```text
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/turn/test_turn_runner.py -v
+28 passed in 2.02s
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+420 passed in 10.16s
+/data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q
+9 passed, 33 skipped in 3.84s
+```
+
 ### Task 8: Redeploy Clean Runtime
 
 **Files:**
@@ -409,16 +441,30 @@ git commit -m "fix: retry blank interaction agent output once"
 - Read: `docs/deploy.md`
 - Read: `docs/clawscale_bridge.md`
 
-- [ ] **Step 1: Deploy non-disruptively**
+- [x] **Step 1: Deploy non-disruptively**
 
 Deploy the current branch to `coke-clean` without stopping Evolution, the web
 service, or the personal-WeChat connector. Preserve `/home/whoami/coke-clean/.env`
 and provider configuration.
 
-- [ ] **Step 2: Confirm health and connector state**
+Deploy evidence: `scripts/deploy-compose-to-gcp.sh` stopped during rsync before
+service restart because root-owned remote `web/.next` artifacts rejected
+attribute/file updates. I reran the same allowlisted rsync with `--exclude=.next`
+and then ran the script's compose/migration/health sequence manually. Clean API
+health returned `{"ok":true}`; `coke-web`, Postgres, Redis, Evolution, and the
+personal-WeChat connector remained running.
+
+- [x] **Step 2: Confirm health and connector state**
 
 Run remote health checks and confirm `connected_session_count=2` from the
 personal-WeChat connector. Record the exact command outputs used as evidence.
+
+Health evidence:
+
+```text
+curl http://127.0.0.1:8000/healthz -> {"ok":true}
+curl http://127.0.0.1:8095/healthz -> {"connected":true,"connected_session_count":2,"ok":true,"status":"connected"}
+```
 
 ### Task 9: Formal Real Personal-WeChat E2E
 
@@ -426,23 +472,38 @@ personal-WeChat connector. Record the exact command outputs used as evidence.
 - Remote database: `coke-clean-postgres-1` database `coke`
 - Remote API: `/webhooks/wechat/personal`
 
-- [ ] **Step 1: State real-message safety**
+- [x] **Step 1: State real-message safety**
 
 Before running, state that this smoke can send real WeChat messages to the two
 connected real accounts.
 
-- [ ] **Step 2: Phase 1 personal reminder**
+- [x] **Step 2: Phase 1 personal reminder**
 
 Post connector-shaped inbound for olivers wxid
 `o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat` with text
 `提醒我明天早上9点跑步`. Verify one timed reminder row and the reply
 `delivery_attempt.status = 'sent'`.
 
-- [ ] **Step 3: Phase 2 friend link**
+Evidence: `formal-e2e-20260530T190351Z-p1-olivers-reminder` was accepted,
+turn `d98a122f-21b4-4961-8842-9736f2e08d22` replied, and delivery attempt
+`30e19af7-2517-4ddc-acbb-4706d9647745` was `sent` with provider message id
+`coke-1780167981549-799493d48fef`. The active timed reminder row was the
+existing duplicate-prevention row `9da54785-6738-4cb8-8c89-da421a08429a`
+(`content='跑步'`, `next_fire_at='2026-05-31 01:00:00+00'`,
+`captured_timezone='Asia/Shanghai'`), and the model correctly replied that it
+would not create a duplicate.
+
+- [x] **Step 3: Phase 2 friend link**
 
 Post olivers friend-link request. Verify one `friend_link` row, extract the
 code from the model reply, and verify the reply `delivery_attempt.status =
 'sent'`.
+
+Evidence: `formal-e2e-20260530T190351Z-p2-olivers-friend-link` replied with
+`https://coke.example/friends/friend_link_tJm4MJt4NQ3Vdaq5ntJtmHG_-K9Qhsif`.
+The active `friend_link` row is `c20d5272-c9f4-4bc5-ab35-2790317a07f4`, and
+delivery attempt `26aa65d0-e7a8-4575-bd85-1e34f200c593` was `sent` with
+provider message id `coke-1780168181334-087e5a5da377`.
 
 - [ ] **Step 4: Phase 3 friend-link join**
 

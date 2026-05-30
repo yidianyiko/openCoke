@@ -251,9 +251,9 @@ def test_malformed_agent_output_fails_closed_without_rewrite(harness):
     assert harness["delivery"].deliveries == []
 
 
-def test_blank_agent_output_retries_same_turn_once_then_uses_valid_retry(harness):
+def test_invalid_agent_output_retries_same_turn_once_then_uses_valid_retry(harness):
     harness["agent"].queued_results = [
-        AgentResult(output=None, blank_output=True),
+        AgentResult.completed(None),
         AgentResult.completed(
             {"type": "reply", "segments": ["好友已经添加好了。"]}
         ),
@@ -264,14 +264,19 @@ def test_blank_agent_output_retries_same_turn_once_then_uses_valid_retry(harness
     assert result.disposition == "replied"
     assert result.visible_text == "好友已经添加好了。"
     assert harness["agent"].invocations == 2
+    assert harness["agent"].requests[0].turn_id == harness["agent"].requests[1].turn_id
+    assert harness["agent"].requests[1].trusted_facts["protocol_retry"] == {
+        "reason_code": "invalid_output_protocol",
+        "attempt": 2,
+    }
     assert len(harness["delivery"].deliveries) == 1
     assert harness["delivery"].deliveries[-1].visible_text == "好友已经添加好了。"
 
 
-def test_blank_agent_output_retry_still_blank_fails_closed(harness):
+def test_invalid_agent_output_retry_still_invalid_fails_closed(harness):
     harness["agent"].queued_results = [
-        AgentResult(output=None, blank_output=True),
-        AgentResult(output=None, blank_output=True),
+        AgentResult.completed(None),
+        AgentResult.completed({"invalid": "shape"}),
     ]
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
@@ -282,8 +287,9 @@ def test_blank_agent_output_retry_still_blank_fails_closed(harness):
     assert harness["delivery"].deliveries == []
 
 
-def test_nonblank_malformed_agent_output_does_not_retry(harness):
+def test_invalid_agent_output_retry_does_not_loop(harness):
     harness["agent"].queued_results = [
+        AgentResult.completed(None),
         AgentResult.completed(None),
         AgentResult.completed({"type": "reply", "segments": ["would be bad"]}),
     ]
@@ -292,7 +298,7 @@ def test_nonblank_malformed_agent_output_does_not_retry(harness):
 
     assert result.disposition == "failed"
     assert result.reason_code == "invalid_output_protocol"
-    assert harness["agent"].invocations == 1
+    assert harness["agent"].invocations == 2
     assert harness["delivery"].deliveries == []
 
 

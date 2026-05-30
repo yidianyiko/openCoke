@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from coke.domains.conversation_runtime.models import ConversationRuntimeError
@@ -300,8 +300,10 @@ class TurnRunner:
         if agent_result.timed_out:
             return self._record_pending_async(trigger, context, agent_result)
         validated = self.output_protocol.validate_first_answer(agent_result.output)
-        if not validated.valid and agent_result.blank_output:
-            agent_result = self.interaction_agent.invoke(agent_request)
+        if not validated.valid:
+            agent_result = self.interaction_agent.invoke(
+                _protocol_retry_request(agent_request, validated)
+            )
             if agent_result.timed_out:
                 return self._record_pending_async(trigger, context, agent_result)
             validated = self.output_protocol.validate_first_answer(agent_result.output)
@@ -465,3 +467,18 @@ class TurnRunner:
             visible_text=visible_text,
             async_task_id=async_task_id,
         )
+
+
+def _protocol_retry_request(
+    request: AgentRequest, validated: ValidatedOutput
+) -> AgentRequest:
+    return replace(
+        request,
+        trusted_facts={
+            **dict(request.trusted_facts),
+            "protocol_retry": {
+                "reason_code": validated.reason_code or "invalid_output_protocol",
+                "attempt": 2,
+            },
+        },
+    )
