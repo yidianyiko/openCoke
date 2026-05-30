@@ -727,3 +727,92 @@ zsh scripts/verify-surface clean-rebuild-backend repo-os-docs
 `review-trigger` reported `human_review_required: no`; its remaining
 `evidence_gap` risk is expected because this sweep recorded live evidence in
 the plan/final report rather than under `artifacts/evidence/**`.
+
+### Task 11: iLink `ret=-2` Hardening And Product-Logic Sweep Completion
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-e2e-closeout.md`
+- Modify: `provider_edges/wechat_personal_connector/app.py`
+- Modify if root cause is confirmed in clean delivery: `coke/composition.py`
+- Modify if request context must be threaded: `coke/turn/runner.py`
+- Test: `tests/unit/coke/provider_edges/test_wechat_personal_connector.py`
+- Test if clean delivery changes: `tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py`
+- Test if turn request context changes: `tests/unit/coke/turn/test_turn_runner.py`
+
+- [ ] **Step 1: Capture the real iLink `ret=-2` response body**
+
+Inspect connector logs and, if needed, add connector-side logging of the full
+iLink `sendmessage` failure response. Evidence must include the actual response
+body, not only `ilink_send_failed_ret_-2`.
+
+- [ ] **Step 2: Confirm protocol root cause before fixing**
+
+Use the raw iLink protocol documents and live evidence to classify the failure:
+stale/wrong `context_token`, single-use/short-lived token behavior, unsupported
+unsolicited sends, session expiry, or rate limiting. Do not implement product
+logic changes until this classification is recorded.
+
+- [ ] **Step 3: Write failing tests for the confirmed delivery hardening**
+
+At minimum cover connector logging/response preservation for iLink business
+failures. If the clean app is using the wrong context token, add a failing test
+showing delivery uses the triggering inbound token, not the conversation's latest
+token.
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/provider_edges/test_wechat_personal_connector.py -v
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py -v
+```
+
+Expected before implementation: the new tests fail for the observed root cause.
+
+- [ ] **Step 4: Implement the smallest delivery fix**
+
+Preserve clean architecture boundaries: connector logs and maps iLink failures,
+ChannelReachability records real sent/failed attempts, and ConversationRuntime
+supplies only the relevant inbound context. Add bounded retry/backoff only for
+transient `ret=-2`; do not mark a failed send as success.
+
+- [ ] **Step 5: Verify locally and deploy non-disruptively**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+git diff --check
+```
+
+Then redeploy connector and clean backend without disturbing Postgres state or
+the two live WeChat sessions. Verify `/healthz` for API and connector and that
+`connected_session_count=2`.
+
+- [ ] **Step 6: Resume the remaining A-I live sweep product-logic first**
+
+Run the remaining B-I cases one at a time using the real olivers/李梓豪 accounts
+and repository phrasings. For each case, record domain rows and turn behavior as
+primary evidence, with delivery attempts as secondary evidence. Transient
+`ret=-2` after retry is noted but does not block product-bug discovery.
+
+- [ ] **Step 7: Fix product blockers with TDD and continue**
+
+For each hard product failure, gather DB/log evidence, write the focused failing
+test, run it red, implement the smallest fix, run the focused test green, run
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q`, redeploy,
+rerun the live case, and continue.
+
+- [ ] **Step 8: Close out with verification and commit**
+
+After all feasible cases have evidence, run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+git diff --check
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
+
+Set `Plan Status` to `complete` only if the full requested verification and live
+sweep pass. Otherwise leave the precise blocker and uncovered cases in this
+plan and final report.
