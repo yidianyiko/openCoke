@@ -10,7 +10,7 @@
 
 ---
 
-**Plan Status:** in-progress
+**Plan Status:** complete
 **Status Date:** 2026-05-30
 **Source Specs:**
 - `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md`
@@ -137,7 +137,7 @@ REMOTE_HOST=gcp-coke REMOTE_ROOT=/home/whoami/coke-clean PROJECT_NAME=coke-clean
 
 Expected: rsync dry-run output only; no compose actions.
 
-- [ ] **Step 10: Run Stage-1 clean deploy**
+- [x] **Step 10: Run Stage-1 clean deploy**
 
 Run:
 ```bash
@@ -146,7 +146,7 @@ REMOTE_HOST=gcp-coke REMOTE_ROOT=/home/whoami/coke-clean PROJECT_NAME=coke-clean
 
 Expected: clean compose project starts under `/home/whoami/coke-clean`; old `/home/whoami/coke` stack is not stopped or modified.
 
-- [ ] **Step 11: Verify clean health and schema on the box**
+- [x] **Step 11: Verify clean health and schema on the box**
 
 Run on `gcp-coke`:
 ```bash
@@ -157,11 +157,11 @@ docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.
 
 Expected: `{"ok":true}` and `public_table_count >= 28`.
 
-- [ ] **Step 12: Run localhost webhook smoke**
+- [x] **Step 12: Run localhost webhook smoke**
 
 POST a synthetic Evolution `messages.upsert` payload to `http://127.0.0.1:8000/webhooks/whatsapp/evolution` with text `提醒我明天早上9点跑步`, wait for worker processing, then query clean Postgres for `account.origin='messaging_first'`, conversation/message/turn rows, and a reminder row. Evolution send failure for the synthetic sender is acceptable; DB rows are the pass bar.
 
-- [ ] **Step 13: Confirm old stack remains up**
+- [x] **Step 13: Confirm old stack remains up**
 
 Run on `gcp-coke`:
 ```bash
@@ -171,6 +171,6 @@ ss -ltnp | egrep ':(4040|4041|8090|8081)\b'
 
 Expected: old containers and old ports remain present; no `docker compose down` was run against the old project.
 
-- [ ] **Step 14: Mark plan complete and commit plan status update**
+- [x] **Step 14: Mark plan complete and commit plan status update**
 
 After local and remote verification pass, set `Plan Status: complete`, tick all checklist boxes, and commit the plan status update.
