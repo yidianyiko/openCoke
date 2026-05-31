@@ -97,6 +97,8 @@ class TurnRunResult:
     reason_code: str | None
     visible_text: str | None = None
     async_task_id: str | None = None
+    latest_causal_inbound_event_id: str | None = None
+    coalesced_causal_inbound_event_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +110,7 @@ class _AsyncState:
     conversation_id: str
     account_id: str
     context_token: str | None
+    current_input_messages: tuple[Any, ...] = ()
 
 
 class TurnRunner:
@@ -171,7 +174,12 @@ class TurnRunner:
                 )
             raise
         self._commit_claim_boundary()
-        replay_result = self._replayed_result(start.replayed, start.turn.id, trigger)
+        replay_result = self._replayed_result(
+            start.replayed,
+            start.turn.id,
+            trigger,
+            current_input_messages=start.input_messages,
+        )
         if replay_result is not None:
             return replay_result
         gate = self.pre_llm_gate.evaluate(trigger)
@@ -195,6 +203,7 @@ class TurnRunner:
                 trigger=trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=start.input_messages,
             )
 
         try:
@@ -229,6 +238,7 @@ class TurnRunner:
                     trigger=trigger,
                     disposition=disposition.disposition,
                     reason_code=disposition.reason_code,
+                    current_input_messages=start.input_messages,
                 )
 
             trusted_facts = _trusted_facts_for_agent(
@@ -268,7 +278,10 @@ class TurnRunner:
             )
         except ConversationRuntimeError as error:
             return self._conversation_runtime_error_result(
-                start.turn.id, trigger, error
+                start.turn.id,
+                trigger,
+                error,
+                current_input_messages=start.input_messages,
             )
         finally:
             lock.release()
@@ -293,7 +306,10 @@ class TurnRunner:
         self._commit_claim_boundary()
         try:
             replay_result = self._replayed_result(
-                start.replayed, start.turn.id, trigger
+                start.replayed,
+                start.turn.id,
+                trigger,
+                current_input_messages=start.input_messages,
             )
             if replay_result is not None:
                 return replay_result
@@ -318,6 +334,7 @@ class TurnRunner:
                     trigger=trigger,
                     disposition=disposition.disposition,
                     reason_code=disposition.reason_code,
+                    current_input_messages=start.input_messages,
                 )
 
             try:
@@ -352,6 +369,7 @@ class TurnRunner:
                         trigger=trigger,
                         disposition=disposition.disposition,
                         reason_code=disposition.reason_code,
+                        current_input_messages=start.input_messages,
                     )
 
                 trusted_facts = _trusted_facts_for_agent(
@@ -391,7 +409,10 @@ class TurnRunner:
                 )
             except ConversationRuntimeError as error:
                 return self._conversation_runtime_error_result(
-                    start.turn.id, trigger, error
+                    start.turn.id,
+                    trigger,
+                    error,
+                    current_input_messages=start.input_messages,
                 )
             finally:
                 lock.release()
@@ -432,6 +453,7 @@ class TurnRunner:
                 trigger=trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=state.current_input_messages,
             )
         validated = self.output_protocol.validate_first_answer(result.output)
         validated = _validate_for_trigger(trigger, validated)
@@ -439,6 +461,7 @@ class TurnRunner:
             turn_id=state.turn_id,
             trigger=trigger,
             validated=validated,
+            current_input_messages=state.current_input_messages,
         )
 
     def _run_access_denied_turn(
@@ -482,6 +505,7 @@ class TurnRunner:
                 trigger=render_trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
             )
         try:
             freshness_guard = FreshnessGuard(
@@ -516,7 +540,10 @@ class TurnRunner:
             )
         except ConversationRuntimeError as error:
             return self._conversation_runtime_error_result(
-                turn_id, render_trigger, error
+                turn_id,
+                render_trigger,
+                error,
+                current_input_messages=current_input_messages,
             )
         finally:
             lock.release()
@@ -562,6 +589,7 @@ class TurnRunner:
                 trigger=render_trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
             )
         try:
             freshness_guard = FreshnessGuard(
@@ -596,7 +624,10 @@ class TurnRunner:
             )
         except ConversationRuntimeError as error:
             return self._conversation_runtime_error_result(
-                turn_id, render_trigger, error
+                turn_id,
+                render_trigger,
+                error,
+                current_input_messages=current_input_messages,
             )
         finally:
             lock.release()
@@ -707,6 +738,7 @@ class TurnRunner:
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
             validated=validated,
+            current_input_messages=agent_request.current_input_messages,
         )
 
     async def _invoke_agent_and_record_async(
@@ -753,6 +785,7 @@ class TurnRunner:
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
             validated=validated,
+            current_input_messages=agent_request.current_input_messages,
         )
 
     async def _interpret_semantic_async(
@@ -766,6 +799,7 @@ class TurnRunner:
         context: Any,
         agent_result: AgentResult,
     ) -> TurnRunResult:
+        current_input_messages = tuple(getattr(context, "current_input_messages", ()))
         if agent_result.task_id is None:
             disposition = self.conversation_runtime.mark_failed(
                 context.freshness_guard.turn_id,
@@ -776,6 +810,7 @@ class TurnRunner:
                 trigger=trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
             )
         context.freshness_guard.guard_state_change()
         disposition = self.conversation_runtime.mark_pending_async_reply(
@@ -797,6 +832,7 @@ class TurnRunner:
             conversation_id=trigger.conversation_id,
             account_id=trigger.account_id,
             context_token=_context_token_from_trigger(trigger),
+            current_input_messages=current_input_messages,
         )
         self._commit_close_boundary()
         self._async_states[agent_result.task_id] = async_state
@@ -820,6 +856,7 @@ class TurnRunner:
             reason_code=disposition.reason_code,
             visible_text=WAITING_TEXT,
             async_task_id=agent_result.task_id,
+            current_input_messages=current_input_messages,
         )
 
     def _record_validated_output(
@@ -828,6 +865,7 @@ class TurnRunner:
         turn_id: str,
         trigger: TurnTrigger,
         validated: ValidatedOutput,
+        current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
         if not validated.valid:
             disposition = self.conversation_runtime.mark_failed(
@@ -844,6 +882,7 @@ class TurnRunner:
                 trigger=trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
             )
         if validated.kind == "no_reply":
             disposition = self.conversation_runtime.commit_no_reply(
@@ -857,6 +896,7 @@ class TurnRunner:
                 trigger=trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
             )
 
         disposition = self.conversation_runtime.commit_reply(
@@ -887,6 +927,7 @@ class TurnRunner:
             disposition=disposition.disposition,
             reason_code=disposition.reason_code,
             visible_text=visible_text,
+            current_input_messages=current_input_messages,
         )
 
     def _commit_close_boundary(self) -> None:
@@ -917,6 +958,8 @@ class TurnRunner:
         replayed: bool,
         turn_id: str,
         trigger: TurnTrigger,
+        *,
+        current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult | None:
         if not replayed:
             return None
@@ -944,6 +987,7 @@ class TurnRunner:
             reason_code=disposition.reason_code,
             visible_text=visible_text,
             async_task_id=async_task_id,
+            current_input_messages=current_input_messages,
         )
 
     def _async_task_id_for_turn(self, turn_id: str) -> str | None:
@@ -1030,6 +1074,8 @@ class TurnRunner:
         turn_id: str,
         trigger: TurnTrigger,
         error: ConversationRuntimeError,
+        *,
+        current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
         if error.code == "turn_superseded":
             disposition = self.conversation_runtime.get_disposition(turn_id)
@@ -1038,6 +1084,7 @@ class TurnRunner:
                 trigger=trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
             )
         disposition = self.conversation_runtime.mark_failed(turn_id, error.code)
         return self._result_from_disposition(
@@ -1045,6 +1092,7 @@ class TurnRunner:
             trigger=trigger,
             disposition=disposition.disposition,
             reason_code=disposition.reason_code,
+            current_input_messages=current_input_messages,
         )
 
     def _result_from_disposition(
@@ -1056,7 +1104,11 @@ class TurnRunner:
         reason_code: str | None,
         visible_text: str | None = None,
         async_task_id: str | None = None,
+        current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
+        latest_causal_id, coalesced_causal_ids = _causal_ids_from_input_messages(
+            current_input_messages
+        )
         return TurnRunResult(
             turn_id=turn_id,
             trigger_id=trigger.trigger_id,
@@ -1065,7 +1117,29 @@ class TurnRunner:
             reason_code=reason_code,
             visible_text=visible_text,
             async_task_id=async_task_id,
+            latest_causal_inbound_event_id=latest_causal_id,
+            coalesced_causal_inbound_event_ids=coalesced_causal_ids,
         )
+
+
+def _causal_ids_from_input_messages(
+    current_input_messages: tuple[Any, ...],
+) -> tuple[str | None, tuple[str, ...]]:
+    causal_ids = tuple(
+        causal_id
+        for message in current_input_messages
+        if isinstance(
+            causal_id := getattr(message, "causal_inbound_event_id", None),
+            str,
+        )
+        and causal_id
+    )
+    if not causal_ids:
+        return None, ()
+    latest = causal_ids[-1]
+    return latest, tuple(
+        causal_id for causal_id in causal_ids[:-1] if causal_id != latest
+    )
 
 
 def _protocol_retry_request(

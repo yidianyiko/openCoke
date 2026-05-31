@@ -313,7 +313,12 @@ def _publish_reply(
 ) -> None:
     if runtime.reply_pubsub is None:
         return
-    causal_id = trigger.payload.get("causal_inbound_event_id")
+    latest_causal_id = getattr(result, "latest_causal_inbound_event_id", None)
+    causal_id = (
+        latest_causal_id
+        if isinstance(latest_causal_id, str) and latest_causal_id
+        else trigger.payload.get("causal_inbound_event_id")
+    )
     if not isinstance(causal_id, str) or not causal_id:
         return
     runtime.reply_pubsub.publish_reply(
@@ -326,6 +331,26 @@ def _publish_reply(
             "visible_text": result.visible_text,
         },
     )
+    published_coalesced_ids: set[str] = set()
+    for coalesced_id in getattr(result, "coalesced_causal_inbound_event_ids", ()):
+        if (
+            not isinstance(coalesced_id, str)
+            or not coalesced_id
+            or coalesced_id == causal_id
+            or coalesced_id in published_coalesced_ids
+        ):
+            continue
+        published_coalesced_ids.add(coalesced_id)
+        runtime.reply_pubsub.publish_reply(
+            coalesced_id,
+            {
+                "event_id": event_id,
+                "turn_id": result.turn_id,
+                "disposition": "superseded",
+                "reason_code": "coalesced_into_newer_inbound",
+                "visible_text": None,
+            },
+        )
 
 
 def _submit_interactive_trigger(

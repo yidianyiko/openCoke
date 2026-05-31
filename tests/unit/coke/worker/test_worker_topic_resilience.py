@@ -550,6 +550,56 @@ def test_drain_supervisor_completions_requeues_when_reply_publish_fails():
     ]
 
 
+def test_drain_supervisor_completions_publishes_coalesced_reply_to_latest_waiter():
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider_message_1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id="conversation_1",
+        account_id="account_1",
+        payload={
+            "_worker_event_id": "outbox_inbound_1",
+            "causal_inbound_event_id": "provider_message_1",
+        },
+    )
+    result = SimpleNamespace(
+        turn_id="turn_1",
+        disposition="replied",
+        reason_code="reply_ready",
+        visible_text="ok",
+        latest_causal_inbound_event_id="provider_message_2",
+        coalesced_causal_inbound_event_ids=("provider_message_1",),
+    )
+    supervisor.completed = [(trigger, result)]
+
+    _drain_supervisor_completions(runtime, supervisor)
+
+    assert runtime.reply_pubsub.published == [
+        (
+            "provider_message_2",
+            {
+                "event_id": "outbox_inbound_1",
+                "turn_id": "turn_1",
+                "disposition": "replied",
+                "reason_code": "reply_ready",
+                "visible_text": "ok",
+            },
+        ),
+        (
+            "provider_message_1",
+            {
+                "event_id": "outbox_inbound_1",
+                "turn_id": "turn_1",
+                "disposition": "superseded",
+                "reason_code": "coalesced_into_newer_inbound",
+                "visible_text": None,
+            },
+        ),
+    ]
+
+
 def _consumer(stream: RedisWorkStream, acked: list[str]) -> StreamConsumer:
     return StreamConsumer(
         redis_stream=stream,
