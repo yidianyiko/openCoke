@@ -10,7 +10,7 @@
 
 ---
 
-**Plan Status:** in-progress
+**Plan Status:** complete
 **Status Date:** 2026-05-31
 **Source Specs:** `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md`; `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md` §5.1/§5.3/§5.13; `docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md` §0/§13/§14/§15.
 
@@ -139,7 +139,7 @@ Evidence: 547 passed in 18.10s.
 Surface evidence: `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs`
 passed with 547 tests in 17.32s and `zsh scripts/check` ending `check passed`.
 
-- [ ] **Step 3: Commit script, tests, and plan progress**
+- [x] **Step 3: Commit script, tests, and plan progress**
 
 Run:
 
@@ -148,9 +148,16 @@ git add scripts/deploy-compose-to-gcp.sh tests/unit/coke/deploy/test_clean_compo
 git commit -m "fix: deploy clean coke stack differentially"
 ```
 
+Evidence:
+- `c0786767 fix: deploy clean coke stack differentially`
+- `6608a9d4 fix: record clean deploy marker after fallback health`
+- `f742ece5 fix: record deploy marker from deploy driver`
+- Marker recording was strengthened after live verification showed the remote
+  health fallback could return success while leaving `.deployed-sha` stale.
+
 ## Task 5: Verification Deploy To gcp-coke
 
-- [ ] **Step 1: Run one real deploy from current `main`**
+- [x] **Step 1: Run one real deploy from current `main`**
 
 Run from the worktree root and measure wall-clock time:
 
@@ -160,19 +167,55 @@ time scripts/deploy-compose-to-gcp.sh
 
 Expected for this change set: backend-only differential deploy, `coke-web` left running, no `pnpm install` or `pnpm build` in `coke-web` logs for the deploy window.
 
-- [ ] **Step 2: Verify live backend, web, and sessions**
+Evidence:
+- Final deploy command: `/usr/bin/time -p scripts/deploy-compose-to-gcp.sh`
+- Deploy start/end printed by the local runner: `2026-05-31T09:21:22Z` to
+  `2026-05-31T09:22:37Z`.
+- Wall-clock: `real 75.35`.
+- Script output selected `deploy tier backend`.
+- Changed paths since marker: `scripts/deploy-compose-to-gcp.sh` and
+  `tests/unit/coke/deploy/test_clean_compose_deploy_contract.py`.
+- Alembic ran `upgrade head` and `check`; `check` reported `No new upgrade
+  operations detected.`
+- `coke-web` was not recreated: container start time remained
+  `2026-05-31T07:36:20.181453582Z`.
+- `docker logs --since 2026-05-31T09:21:22Z coke-clean-coke-web-1` had
+  `web_build_log_matches=0` for `pnpm|next|build`.
+
+- [x] **Step 2: Verify live backend, web, and sessions**
 
 Verify `/healthz=200`, `/auth/login=200`, login API 200, backend containers restart-stable, both WeChat channels still `connected`, connector `session_count=2`, and worker logs contain no `unsupported_worker_topic`.
 
-- [ ] **Step 3: Verify deployed marker**
+Evidence:
+- API health: `healthz=200` with `{"ok":true}`.
+- Web page: `/auth/login` returned `web_login_page=200`.
+- Login API: `olivers_login=200`, `lizihao_login=200`.
+- Backend containers after settle: API/worker/scheduler/outbox relay all `Up
+  About a minute`; API health was `healthy`; restart counts were `0`.
+- Target WeChat channels: connected count for the two preserved accounts was
+  `2`; both connected rows had active delivery routes.
+- Connector health: `{"connected":true,"connected_session_count":2,"ok":true,"status":"connected"}`.
+- Worker logs since deploy: `unsupported_worker_topic_matches=0`.
+
+- [x] **Step 3: Verify deployed marker**
 
 Read `${REMOTE_ROOT}/.deployed-sha` and confirm it equals the committed local `HEAD`.
 
-- [ ] **Step 4: Mark plan complete after evidence**
+Evidence: `/home/whoami/coke-clean/.deployed-sha` is
+`f742ece58d07b1656bb69cd74416269dbf9b533e`.
+
+- [x] **Step 4: Mark plan complete after evidence**
 
 Update this plan with the exact passing test summaries, wall-clock time, deployed marker SHA, and set `Plan Status: complete`.
 
-- [ ] **Step 5: Commit plan closeout**
+Deviation recorded: the remote initially had no `.deployed-sha`. Before seeding
+the parent marker, an rsync checksum dry-run showed only
+`scripts/deploy-compose-to-gcp.sh` differed in deploy-relevant sources and no
+`web/` source would be changed. The first backend-only deploy then exposed that
+marker recording was not robust on all success paths, so the marker write was
+moved to the deploy driver and verified in the final deploy above.
+
+- [x] **Step 5: Commit plan closeout**
 
 Run:
 
