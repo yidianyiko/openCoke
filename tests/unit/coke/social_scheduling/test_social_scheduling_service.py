@@ -257,6 +257,7 @@ def test_group_shared_reminder_creation_is_one_object_with_participant_projectio
         "carol",
     }
     assert len(created.notification_facts) == 1
+    assert created.notification_facts[0].facts["actor_display_name"] == "Creator Name"
     assert created.notification_facts[0].facts["participants"] == [
         "bob",
         "carol",

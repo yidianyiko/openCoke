@@ -590,6 +590,7 @@ class SocialSchedulingService:
         self, friendship: Friendship, actor_account_id: str
     ) -> NotificationFact:
         participants = sorted([friendship.account_low_id, friendship.account_high_id])
+        actor_display_name = self.display_name_resolver(actor_account_id)
         return self._notifications.create_fact(
             notification_type="friendship_created",
             actor_account_id=actor_account_id,
@@ -598,6 +599,7 @@ class SocialSchedulingService:
             status="created",
             facts={
                 "actor_account_id": actor_account_id,
+                "actor_display_name": actor_display_name,
                 "object_type": "friendship",
                 "object_id": friendship.id,
                 "participants": participants,
@@ -618,14 +620,16 @@ class SocialSchedulingService:
         actor_account_id: str | None = None,
         recipients: list[str] | None = None,
     ) -> NotificationFact:
+        actor_id = actor_account_id or reminder.creator_account_id
         return self._notifications.create_fact(
             notification_type=f"shared_reminder_{status}",
-            actor_account_id=actor_account_id or reminder.creator_account_id,
+            actor_account_id=actor_id,
             object_type="shared_reminder",
             object_id=reminder.id,
             status=status,
             facts={
-                "actor_account_id": actor_account_id or reminder.creator_account_id,
+                "actor_account_id": actor_id,
+                "actor_display_name": self.display_name_resolver(actor_id),
                 "object_type": "shared_reminder",
                 "object_id": reminder.id,
                 "title": reminder.title,
