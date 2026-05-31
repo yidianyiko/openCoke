@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -44,7 +45,7 @@ class FakeReminderAvailability(ReminderAvailabilityPort):
         ]
 
 
-def make_service(reachable: set[str] | None = None):
+def make_service(reachable: set[str] | None = None, now=None):
     repo = InMemorySocialSchedulingRepository()
     reachability = FakeReachability(reachable)
     reminder_availability = FakeReminderAvailability()
@@ -52,7 +53,7 @@ def make_service(reachable: set[str] | None = None):
         repository=repo,
         reachability=reachability,
         reminder_availability=reminder_availability,
-        now=lambda: NOW,
+        now=now or (lambda: NOW),
         id_factory=lambda prefix: f"{prefix}_{len(repo.generated_ids) + 1}",
         token_factory=lambda prefix: f"{prefix}_token_{len(repo.generated_tokens) + 1}",
     )
@@ -276,6 +277,39 @@ def test_shared_reminder_accepts_aware_agent_datetime_as_local_wall_clock():
     assert created.shared_reminder.local_trigger_at == datetime(2029, 2, 19, 10, 0)
     assert created.shared_reminder.local_trigger_at.tzinfo is None
     assert len(repo.shared_reminders_by_id) == 1
+
+
+def test_shared_reminder_past_trigger_requires_confirmation_without_mutation():
+    service, repo, _, _ = make_service(
+        {"creator", "friend"},
+        now=lambda: datetime(2026, 5, 31, 11, 44, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+    create_active_friendship(service, "creator", "friend")
+
+    result = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="lunch",
+        local_trigger_at=datetime(2025, 7, 11, 12, 0),
+        captured_timezone="Asia/Shanghai",
+        duration_minutes=60,
+        context={"source": "conversation"},
+    )
+
+    assert result.status == "needs_past_time_confirmation"
+    assert result.shared_reminder is None
+    assert result.follow_up_facts == {
+        "time_state": "needs_past_time_confirmation",
+        "local_trigger_at": "2025-07-11T12:00:00",
+        "captured_timezone": "Asia/Shanghai",
+    }
+    assert repo.shared_reminders_by_id == {}
+    assert repo.projections_by_id == {}
+    assert [
+        fact
+        for fact in repo.notification_facts_by_id.values()
+        if fact.object_type == "shared_reminder"
+    ] == []
 
 
 def test_shared_reminder_view_cancel_and_completion_are_participant_scoped():

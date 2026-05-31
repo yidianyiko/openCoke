@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from itertools import count
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -25,10 +26,10 @@ def sequence_factory(kind: str):
 class FakeDetector:
     def __init__(self, outputs):
         self.outputs = list(outputs)
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, datetime]] = []
 
     def extract(self, text, captured_timezone, now):
-        self.calls.append((text, captured_timezone))
+        self.calls.append((text, captured_timezone, now))
         return self.outputs.pop(0)
 
 
@@ -298,7 +299,7 @@ def test_batch_items_commit_independently_and_detector_output_is_trusted_or_inva
     assert [
         reminder.content for reminder in repository.list_active_reminders("acct_1")
     ] == ["book dentist"]
-    assert detector.calls == [
+    assert [(text, timezone) for text, timezone, _ in detector.calls] == [
         ("remind me tomorrow to book dentist", "UTC"),
         ("call mom tomorrow", "UTC"),
     ]
@@ -352,6 +353,72 @@ def test_detected_local_wall_clock_times_are_persisted_as_account_timezone_insta
     assert new_york.next_fire_at == datetime(2026, 5, 31, 13, 0, tzinfo=UTC)
     assert tokyo.captured_timezone == "Asia/Tokyo"
     assert new_york.captured_timezone == "America/New_York"
+
+
+@pytest.mark.parametrize(
+    ("raw_text", "detected_time", "expected_fire_at"),
+    [
+        (
+            "和我的好友约一个明天中午的午餐",
+            datetime(2026, 6, 1, 12, 0),
+            datetime(2026, 6, 1, 4, 0, tzinfo=UTC),
+        ),
+        (
+            "提醒我明天早上9点跑步",
+            datetime(2026, 6, 1, 9, 0),
+            datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+        ),
+    ],
+)
+def test_detector_receives_account_local_now_for_relative_time_grounding(
+    repository,
+    raw_text,
+    detected_time,
+    expected_fire_at,
+):
+    detector = FakeDetector(
+        [
+            DetectedReminderFields(
+                content="午餐" if "午餐" in raw_text else "跑步",
+                trigger_time=detected_time,
+                recurrence_rule={},
+                duration_minutes=None,
+            )
+        ]
+    )
+    service = ReminderService(
+        repository=repository,
+        detector=detector,
+        now=lambda: datetime(2026, 5, 31, 3, 44, tzinfo=UTC),
+        id_factory=sequence_factory("relative"),
+    )
+
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="detect_and_create",
+                raw_text=raw_text,
+                captured_timezone="Asia/Shanghai",
+            )
+        ],
+    )
+
+    assert result.items[0].state == "succeeded"
+    assert [(text, timezone) for text, timezone, _ in detector.calls] == [
+        (raw_text, "Asia/Shanghai")
+    ]
+    detector_now = detector.calls[0][2]
+    assert detector_now.tzinfo == ZoneInfo("Asia/Shanghai")
+    assert (
+        detector_now.year,
+        detector_now.month,
+        detector_now.day,
+        detector_now.hour,
+        detector_now.minute,
+    ) == (2026, 5, 31, 11, 44)
+    reminder = repository.list_active_reminders("acct_1")[0]
+    assert reminder.next_fire_at == expected_fire_at
 
 
 def test_detector_invalid_shape_fails_item_without_tool_exception(repository):
@@ -422,6 +489,7 @@ def test_time_validation_blocks_past_or_incomplete_times_before_commit(service):
         "invalid",
     ]
     assert service.repository.list_active_reminders("acct_1") == []
+    assert service.repository.outbox_records == []
 
 
 def test_trigger_time_conversion_is_explicit_domain_state(service):

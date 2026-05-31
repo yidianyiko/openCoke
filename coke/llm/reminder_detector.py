@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.domains.reminder.models import DetectedReminderFields, ReminderKind
 from coke.llm.semantic_interpreter import (
@@ -33,11 +34,22 @@ class SiliconFlowReminderDetector:
         captured_timezone: str,
         now: datetime,
     ) -> DetectedReminderFields:
+        try:
+            zone = ZoneInfo(captured_timezone)
+        except ZoneInfoNotFoundError as error:
+            raise LLMOutputError("invalid captured_timezone") from error
+        local_now = (
+            now.astimezone(zone) if now.tzinfo is not None else now.replace(tzinfo=zone)
+        )
         payload = self.client.complete_json(
             system=(
                 "Extract precise reminder fields for Coke. Return only trusted JSON. "
                 "Use {} for one-time or non-recurring reminders; recurrence_rule must never be null. "
-                "Interpret reminder dates and times in captured_timezone. "
+                "Interpret reminder dates and times in captured_timezone. The provided "
+                "now value is the authoritative current datetime in captured_timezone. "
+                "Relative expressions such as 明天, 后天, 下周, 中午, 早上, 晚上, "
+                "tomorrow, next week, noon, morning, and evening must be computed from "
+                "that authoritative local now; never invent dates from model priors. "
                 "Preserve explicit hour and minute from the user's request; for example, "
                 "tomorrow 9 AM must return tomorrow at 09:00 in captured_timezone, not midnight. "
                 "Do not repair output with regex, normalize guessed durations, or "
@@ -46,7 +58,11 @@ class SiliconFlowReminderDetector:
             user={
                 "text": text,
                 "captured_timezone": captured_timezone,
-                "now": now.isoformat(),
+                "now": local_now.isoformat(),
+                "current_local_date": local_now.date().isoformat(),
+                "current_local_time": local_now.time()
+                .replace(microsecond=0)
+                .isoformat(),
                 "allowed_kind": sorted(REMINDER_KINDS),
                 "schema": {
                     "content": "string|null",
