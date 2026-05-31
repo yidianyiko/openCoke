@@ -93,6 +93,9 @@ class FakeSemanticInterpreter:
         self.next_decision = SemanticDecision(
             reply_necessity="reply_needed",
             intent_family="chit_chat",
+            intent_action="chit_chat",
+            ambiguity="clear",
+            required_clarification="none",
             language_hint="en",
         )
         self.calls = 0
@@ -242,6 +245,9 @@ def test_intentional_no_reply_skips_interaction_agent(harness):
     harness["semantic"].next_decision = SemanticDecision(
         reply_necessity="intentional_no_reply",
         intent_family="chit_chat",
+        intent_action="chit_chat",
+        ambiguity="clear",
+        required_clarification="none",
         language_hint="en",
     )
 
@@ -288,6 +294,47 @@ def test_malformed_agent_output_fails_closed_without_rewrite(harness):
     assert result.visible_text is None
     assert harness["runner"].output_protocol.rewrite_invocations == 0
     assert harness["delivery"].deliveries == []
+
+
+def test_required_clarification_is_passed_as_trusted_agent_instruction(harness):
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="reminder_op",
+        intent_action="create_reminder",
+        ambiguity="missing_time",
+        required_clarification="ask_trigger_time",
+        language_hint="zh",
+    )
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={
+            "text": "提醒我待会跑步",
+            "execute_reminder_tool": True,
+        },
+    )
+
+    result = harness["runner"].run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert harness["agent"].invocations == 1
+    assert harness["reminder_tool"].committed == 0
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["semantic_decision"]["intent_action"] == (
+        "create_reminder"
+    )
+    assert request.trusted_facts["required_clarification"] == {
+        "signal": "ask_trigger_time",
+        "ambiguity": "missing_time",
+        "instruction": "Ask exactly this clarification before any domain action.",
+    }
+    assert request.tool_profile.intent_tools_enabled is False
+    assert request.tool_profile.tool_names == ()
+    assert request.context.semantic_decision.intent_action == "create_reminder"
 
 
 def test_invalid_agent_output_retries_same_turn_once_then_uses_valid_retry(harness):
@@ -556,6 +603,30 @@ def test_render_mode_exposes_no_intent_or_business_mutation_tools(harness):
     assert request.tool_profile.intent_tools_enabled is False
     assert request.tool_profile.tool_names == ()
     assert request.tool_profile.reminder_tool is None
+
+
+def test_render_turn_context_contains_source_framing_for_system_trigger(harness):
+    result = harness["runner"].run_render_turn(
+        TurnTrigger(
+            trigger_id="reminder_fire:account_1:2026-05-30T10:00:00+00:00",
+            trigger_type="ReminderFireTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={"title": "提交周报", "fire_ids": ["fire_1"]},
+        )
+    )
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["turn_source"] == {
+        "trigger_type": "ReminderFireTurn",
+        "user_spoke_this_turn": False,
+        "instruction": (
+            "Render the reminder fact to the user. Do not answer the reminder "
+            "title as if the user said it."
+        ),
+    }
 
 
 def test_timeout_yields_waiting_text_pending_async_then_transitions_to_replied(

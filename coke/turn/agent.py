@@ -7,10 +7,23 @@ from coke.turn.context import ToolProfile, TurnMode
 
 
 @dataclass(frozen=True, slots=True)
+class DomainExecutionResult:
+    domain: str
+    intent: str
+    action: str
+    effect: str
+    intent_fulfilled: bool
+    visible_summary: str
+    reply_contract: str
+    privacy_notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ToolExecutionResult:
     ok: bool
     facts: Mapping[str, Any]
     reason_code: str | None = None
+    domain_result: DomainExecutionResult | None = None
 
 
 class StateChangingToolPort(Protocol):

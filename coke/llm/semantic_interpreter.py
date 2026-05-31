@@ -6,8 +6,11 @@ from typing import Any, Mapping, Protocol
 from agno.models.message import Message
 
 from coke.turn.semantic_interpreter import (
+    AmbiguityState,
     IntentFamily,
+    IntentAction,
     ReplyNecessity,
+    RequiredClarification,
     SemanticDecision,
     SemanticInterpreterRequest,
 )
@@ -23,8 +26,92 @@ INTENT_FAMILIES: set[IntentFamily] = {
     "friend_op",
     "settings",
     "post_reminder_reply",
+    "calendar_import",
     "claim",
 }
+INTENT_ACTIONS: set[IntentAction] = {
+    "create_reminder",
+    "update_reminder",
+    "complete_reminder",
+    "delete_reminder",
+    "list_reminders",
+    "batch_reminder_ops",
+    "schedule_unscheduled",
+    "clear_trigger_time",
+    "create_shared_reminder",
+    "cancel_shared_reminder",
+    "list_shared",
+    "availability_query",
+    "get_friend_link",
+    "add_via_code",
+    "list_friends",
+    "remove_friend",
+    "update_settings",
+    "set_timezone",
+    "toggle_proactive",
+    "toggle_memory",
+    "calendar_import",
+    "claim_identity",
+    "chit_chat",
+    "none",
+}
+AMBIGUITIES: set[AmbiguityState] = {
+    "clear",
+    "missing_time",
+    "missing_content",
+    "missing_participant",
+    "missing_title",
+    "missing_context",
+    "ambiguous_reference",
+    "vague_time",
+    "follow_up_time",
+    "new_topic_after_confirmation",
+    "domain_failure",
+    "none",
+}
+REQUIRED_CLARIFICATIONS: set[RequiredClarification] = {
+    "none",
+    "ask_trigger_time",
+    "ask_reminder_content",
+    "ask_participant",
+    "ask_shared_title",
+    "ask_context",
+    "ask_reference_choice",
+    "ask_friend_identity",
+    "ask_timezone_confirmation",
+}
+
+SEMANTIC_SYSTEM_PROMPT = """
+Classify this Coke turn semantically. Do not use keyword routing.
+Return only JSON with reply_necessity, intent_family, intent_action, ambiguity,
+required_clarification, and optional language_hint. language_hint is
+non-authoritative.
+
+Ownership:
+- SemanticInterpreter chooses high-level product intent, typed action,
+  ambiguity, and required clarification.
+- Reminder and Social Scheduling detectors own precise fields and executable
+  arguments. Do not extract trigger_time, friend IDs, durations, or write
+  arguments here.
+- Transcript is language evidence only. Trusted facts, focus, domain results,
+  and environment are authoritative for product state.
+
+Examples:
+- User: "提醒我明天早上9点跑步" -> reminder_op/create_reminder, clear, none.
+- User: "提醒我待会/晚点/过一会跑步" -> reminder_op/create_reminder,
+  vague_time, ask_trigger_time. Vague time must not become a concrete trigger time.
+- User: "提醒我买牛奶，也提醒我给妈妈打电话" -> reminder_op/batch_reminder_ops,
+  clear, none. A multi-operation utterance routes as batch_reminder_ops.
+- If Coke just asked for a trigger time, a follow-up that only supplies the missing time
+  completes the original reminder action as follow-up_time.
+- If a reminder was already confirmed and the user starts a new topic, new topic does not reopen
+  that already-confirmed reminder.
+- Friend list: friend_op/list_friends. Availability: scheduling/availability_query.
+- Shared reminder creation with friend names: scheduling/create_shared_reminder.
+- User challenge such as "我没设过这个" or "你是不是搞错了": keep reply_needed,
+  identify the challenged product area if clear, and mark ambiguity/domain_failure
+  when trusted facts are needed before claiming what happened.
+""".strip()
 
 
 class LLMOutputError(RuntimeError):
@@ -72,11 +159,7 @@ class SiliconFlowSemanticInterpreter:
 
     def interpret(self, request: SemanticInterpreterRequest) -> SemanticDecision:
         payload = self.client.complete_json(
-            system=(
-                "Classify this Coke turn semantically. Do not use keyword routing. "
-                "Return only JSON with reply_necessity, intent_family, and optional "
-                "language_hint. language_hint is non-authoritative."
-            ),
+            system=SEMANTIC_SYSTEM_PROMPT,
             user={
                 "account_id": request.account_id,
                 "conversation_id": request.conversation_id,
@@ -84,21 +167,32 @@ class SiliconFlowSemanticInterpreter:
                 "trusted_facts": request.trusted_facts,
                 "allowed_reply_necessity": sorted(REPLY_NECESSITIES),
                 "allowed_intent_family": sorted(INTENT_FAMILIES),
+                "allowed_intent_action": sorted(INTENT_ACTIONS),
+                "allowed_ambiguity": sorted(AMBIGUITIES),
+                "allowed_required_clarification": sorted(REQUIRED_CLARIFICATIONS),
             },
             schema_name="semantic_decision",
         )
-        reply_necessity = payload.get("reply_necessity")
-        if reply_necessity not in REPLY_NECESSITIES:
-            raise LLMOutputError("invalid reply_necessity")
-        intent_family = payload.get("intent_family")
-        if intent_family not in INTENT_FAMILIES:
-            raise LLMOutputError("invalid intent_family")
+        reply_necessity = _required_enum(
+            payload, "reply_necessity", REPLY_NECESSITIES
+        )
+        intent_family = _required_enum(payload, "intent_family", INTENT_FAMILIES)
+        intent_action = _required_enum(payload, "intent_action", INTENT_ACTIONS)
+        ambiguity = _required_enum(payload, "ambiguity", AMBIGUITIES)
+        required_clarification = _required_enum(
+            payload,
+            "required_clarification",
+            REQUIRED_CLARIFICATIONS,
+        )
         language_hint = payload.get("language_hint")
         if language_hint is not None and not isinstance(language_hint, str):
             raise LLMOutputError("invalid language_hint")
         return SemanticDecision(
             reply_necessity=reply_necessity,
             intent_family=intent_family,
+            intent_action=intent_action,
+            ambiguity=ambiguity,
+            required_clarification=required_clarification,
             language_hint=language_hint,
         )
 
@@ -114,3 +208,14 @@ def _mapping_from_content(content: Any, *, schema_name: str) -> Mapping[str, Any
         if isinstance(parsed, Mapping):
             return parsed
     raise LLMOutputError(f"invalid {schema_name} shape")
+
+
+def _required_enum(
+    payload: Mapping[str, Any],
+    field: str,
+    allowed: set[Any],
+) -> Any:
+    value = payload.get(field)
+    if value not in allowed:
+        raise LLMOutputError(f"invalid {field}")
+    return value

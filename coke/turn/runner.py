@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Protocol
 
 from coke.domains.conversation_runtime.models import ConversationRuntimeError
@@ -165,9 +165,14 @@ class TurnRunner:
                     reason_code=disposition.reason_code,
                 )
 
+            trusted_facts = _trusted_facts_for_agent(
+                gate.trust_facts,
+                trigger=trigger,
+                semantic_decision=semantic_decision,
+            )
             context = self.context_assembler.build(
                 trigger=trigger,
-                trusted_facts=gate.trust_facts,
+                trusted_facts=trusted_facts,
                 semantic_decision=semantic_decision,
                 focus_subject=self.focus_resolver.resolve(trigger.conversation_id),
                 reference_resolution=self.reference_resolver.resolve_all([]),
@@ -179,8 +184,13 @@ class TurnRunner:
                     ),
                 ),
                 freshness_guard=freshness_guard,
-                tool_profile=ToolProfile.interactive(self.tool_ports),
+                tool_profile=(
+                    ToolProfile.clarification()
+                    if semantic_decision.required_clarification != "none"
+                    else ToolProfile.interactive(self.tool_ports)
+                ),
                 onboarding_guidance_required=gate.activation_guidance_required,
+                turn_source=trusted_facts["turn_source"],
             )
             return self._invoke_agent_and_record(trigger, context, semantic_decision)
         except ConversationRuntimeError as error:
@@ -294,13 +304,17 @@ class TurnRunner:
             )
             context = self.context_assembler.build(
                 trigger=trigger,
-                trusted_facts=gate.trust_facts,
+                trusted_facts={
+                    **dict(gate.trust_facts),
+                    "turn_source": _turn_source_for_trigger(trigger),
+                },
                 semantic_decision=None,
                 focus_subject=None,
                 reference_resolution=None,
                 memory_context=None,
                 freshness_guard=freshness_guard,
                 tool_profile=ToolProfile.render(constrained=constrained),
+                turn_source=_turn_source_for_trigger(trigger),
             )
             return self._invoke_agent_and_record(
                 trigger, context, semantic_decision=None
@@ -607,6 +621,104 @@ def _protocol_retry_request(
             },
         },
     )
+
+
+def _trusted_facts_for_agent(
+    trust_facts: dict[str, Any],
+    *,
+    trigger: TurnTrigger,
+    semantic_decision: SemanticDecision,
+) -> dict[str, Any]:
+    facts = {
+        **dict(trust_facts),
+        "turn_source": _turn_source_for_trigger(trigger),
+        "semantic_decision": _semantic_decision_fact(semantic_decision),
+    }
+    if semantic_decision.required_clarification != "none":
+        facts["required_clarification"] = {
+            "signal": semantic_decision.required_clarification,
+            "ambiguity": semantic_decision.ambiguity,
+            "instruction": "Ask exactly this clarification before any domain action.",
+        }
+    return facts
+
+
+def _semantic_decision_fact(decision: SemanticDecision) -> dict[str, Any]:
+    return asdict(decision)
+
+
+def _turn_source_for_trigger(trigger: TurnTrigger) -> dict[str, Any]:
+    trigger_type = trigger.trigger_type
+    if trigger_type == "InboundTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": True,
+            "instruction": (
+                "This is a real message from the user. Reply to the user's "
+                "latest message."
+            ),
+        }
+    if trigger_type == "ReminderFireTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "Render the reminder fact to the user. Do not answer the "
+                "reminder title as if the user said it."
+            ),
+        }
+    if trigger_type == "ProactiveFireTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "This turn was initiated by Coke. Render the planned action. "
+                "Do not answer it as a user question."
+            ),
+        }
+    if trigger_type == "NotificationTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "Render the notification fact. Do not answer it as if the user "
+                "said it."
+            ),
+        }
+    if trigger_type == "AccessDeniedTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "Render the access recovery fact. Do not continue normal user "
+                "intent execution."
+            ),
+        }
+    if trigger_type == "NightlySummaryTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "Render the no-trigger-time reminder summary. Do not treat the "
+                "summary items as a user message."
+            ),
+        }
+    if trigger_type == "UndeliveredResendTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "Render previously undelivered reminder facts. Do not present "
+                "them as new user requests."
+            ),
+        }
+    return {
+        "trigger_type": trigger_type,
+        "user_spoke_this_turn": False,
+        "instruction": (
+            "Render the trusted trigger fact. Do not answer it as a user message."
+        ),
+    }
 
 
 def _recipient_account_ids(trigger: TurnTrigger) -> list[str]:
