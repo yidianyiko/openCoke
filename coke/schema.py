@@ -315,6 +315,12 @@ message = Table(
     _created_at(),
     _updated_at(),
     UniqueConstraint("turn_id", "segment_index", name="uq_message_turn_segment"),
+    UniqueConstraint(
+        "conversation_id",
+        "direction",
+        "seq",
+        name="uq_message_inbound_seq",
+    ),
 )
 
 inbound_media = Table(

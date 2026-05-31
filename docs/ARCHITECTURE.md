@@ -95,13 +95,18 @@ input_to_seq   = conversation.latest_inbound_seq
 The current input presented to the Interaction Agent is the ordered set of
 inbound messages in `[input_from_seq, input_to_seq]`. Agno session history may
 remain enabled, but it is not the source of truth for the current user input.
+Inbound sequence assignment is a database-owned ordering invariant: the
+conversation row is locked while assigning the next sequence, and inbound
+messages are protected by a unique `(conversation_id, direction, seq)` key.
 
 If a newer inbound message arrives in the same conversation before the active
 turn has persisted its close decision, the open input window extends. The active
-turn becomes `superseded`, its Agno run is cancelled, and a replacement turn is
-scheduled from the unchanged `last_closed_inbound_seq + 1` through the new
-`latest_inbound_seq`. The older user message is not discarded; the replacement
-turn processes the old and new messages together in sequence order.
+turn becomes `superseded` durably at inbound-record time, its Agno run id is
+included in the inbound outbox payload for provider cancellation, and a
+replacement turn is scheduled from the unchanged `last_closed_inbound_seq + 1`
+through the new `latest_inbound_seq`. The older user message is not discarded;
+the replacement turn processes the old and new messages together in sequence
+order.
 
 The close boundary is close-result persistence, not provider delivery. A close
 decision is `replied`, product-approved terminal `no_reply`, or
@@ -118,11 +123,16 @@ staged commands. This avoids leaving wrong durable side effects when a user send
 a correction before receiving the first agent-visible reply.
 
 The worker tier must observe new inbound while an interactive Agno run is still
-active. Interactive execution is therefore supervised per conversation. The
-supervisor records durable interruption intent, calls
-`Agent.acancel_run(run_id)`, cancels the asyncio task awaiting `Agent.arun(...)`,
-and relies on ConversationRuntime freshness checks as the final authority. Agno
-cancellation is a local execution aid, not durable correctness.
+active. Interactive execution is therefore supervised per conversation. In
+horizontally scaled workers, durable interruption state is shared through
+Postgres and the inbound outbox payload; process-local supervisor state is only
+an acceleration path. When a replacement worker finds the Redis conversation
+lock still held by the old worker, async interactive execution waits for the
+lock instead of terminally failing the newer turn. The supervisor calls
+`Agent.acancel_run(run_id)`, cancels any local asyncio task awaiting
+`Agent.arun(...)`, and relies on ConversationRuntime freshness checks as the
+final authority. Agno cancellation is a local execution aid, not durable
+correctness.
 
 ## Bounded Contexts
 

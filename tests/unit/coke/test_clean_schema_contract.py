@@ -272,6 +272,18 @@ class RecordingOp:
             CheckConstraint(condition, name=name)
         )
 
+    def create_unique_constraint(
+        self,
+        name: str,
+        table_name: str,
+        columns: list[str],
+        **kwargs,
+    ) -> None:
+        table = self.metadata.tables[table_name]
+        table.append_constraint(
+            UniqueConstraint(*(table.c[column] for column in columns), name=name)
+        )
+
     def drop_constraint(
         self,
         name: str,
@@ -357,6 +369,11 @@ def test_required_unique_constraints_are_declared():
     assert _constraint_columns("message", "uq_message_turn_segment") == (
         "turn_id",
         "segment_index",
+    )
+    assert _constraint_columns("message", "uq_message_inbound_seq") == (
+        "conversation_id",
+        "direction",
+        "seq",
     )
     assert _constraint_columns("reminder_fire", "uq_reminder_fire_occurrence") == (
         "reminder_id",

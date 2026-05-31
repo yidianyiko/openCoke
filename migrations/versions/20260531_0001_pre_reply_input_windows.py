@@ -62,6 +62,11 @@ def upgrade() -> None:
         "(input_from_seq is null and input_to_seq is null) or "
         "(input_from_seq is not null and input_to_seq is not null and input_from_seq <= input_to_seq)",
     )
+    op.create_unique_constraint(
+        op.f("uq_message_inbound_seq"),
+        "message",
+        ["conversation_id", "direction", "seq"],
+    )
     op.create_table(
         "staged_command",
         sa.Column("id", postgresql.UUID(as_uuid=False), nullable=False),
@@ -95,6 +100,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("staged_command")
+    op.drop_constraint("uq_message_inbound_seq", "message", type_="unique")
     op.drop_constraint("ck_turn_input_window_order", "turn", type_="check")
     op.add_column(
         "turn", sa.Column("based_on_inbound_seq", sa.BigInteger(), nullable=True)

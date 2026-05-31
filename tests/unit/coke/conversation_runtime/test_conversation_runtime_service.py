@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from itertools import count
 from uuid import UUID
@@ -10,6 +11,7 @@ from coke.domains.conversation_runtime.models import (
     ConversationRuntimeError,
     InboundMediaInput,
     Message,
+    OutboxRecord,
 )
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
@@ -405,7 +407,96 @@ def test_newer_inbound_before_close_supersedes_old_turn_without_closing(
     assert saved.last_closed_inbound_seq == 0
     superseded = service.get_disposition(turn.turn.id)
     assert superseded.disposition == "superseded"
-    assert superseded.reason_code == "newer_inbound_seq"
+    assert superseded.reason_code == "interrupted_by_newer_inbound"
+
+
+def test_record_inbound_interrupts_active_turn_durably_without_closing_window(
+    service,
+    repository,
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="old",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    newer = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="new",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    saved = repository.get_conversation(inbound.conversation.id)
+    superseded = service.get_disposition(turn.turn.id)
+    assert saved is not None
+    assert saved.last_closed_inbound_seq == 0
+    assert superseded.disposition == "superseded"
+    assert superseded.reason_code == "interrupted_by_newer_inbound"
+    assert tuple(getattr(newer, "interrupted_turns", ())) == (turn.turn,)
+    assert newer.outbox.payload.get("interrupted_turn_trigger_ids") == [
+        "inbound:provider:message-1"
+    ]
+    assert repository.active_interactive_turns(inbound.conversation.id) == []
+
+
+def test_repository_rejects_duplicate_inbound_seq_locally(service, repository):
+    first = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="first",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    duplicate_message = Message(
+        id="message_duplicate_seq",
+        conversation_id=first.conversation.id,
+        turn_id=None,
+        direction="inbound",
+        segment_index=None,
+        seq=1,
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-duplicate",
+        text="duplicate",
+        payload={"provider": "whatsapp_evolution"},
+        facts_hash=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    duplicate_outbox = OutboxRecord(
+        id="outbox_duplicate_seq",
+        topic="turn.inbound",
+        idempotency_key="inbound:provider:message-duplicate",
+        payload={"message_id": duplicate_message.id},
+        traceparent=TRACEPARENT,
+        status="pending",
+        created_at=NOW,
+        published_at=None,
+        processed_at=None,
+        acked_at=None,
+        retry_count=0,
+        last_error=None,
+    )
+
+    with pytest.raises(ConversationRuntimeError, match="duplicate_inbound_seq"):
+        repository.add_inbound_message_with_media_and_outbox(
+            replace(first.conversation, latest_inbound_seq=1),
+            duplicate_message,
+            (),
+            duplicate_outbox,
+        )
 
 
 def test_duplicate_close_of_already_closed_window_is_superseded(service):
@@ -516,7 +607,7 @@ def test_stale_outbound_commit_records_superseded_and_never_no_reply_or_failed(
 
     disposition = service.get_disposition(turn.turn.id)
     assert disposition.disposition == "superseded"
-    assert disposition.reason_code == "newer_inbound_seq"
+    assert disposition.reason_code == "interrupted_by_newer_inbound"
     assert disposition.disposition != "no_reply"
     assert disposition.disposition != "failed"
 
@@ -609,7 +700,9 @@ def test_pending_async_reply_is_only_non_terminal_and_transitions_to_replied(ser
 
     assert pending.disposition == "pending_async_reply"
     assert replied.disposition == "replied"
+    assert replied.id == pending.id
     assert service.get_disposition(turn.turn.id).disposition == "replied"
+    assert service.get_disposition(turn.turn.id).id == pending.id
 
 
 def test_outbound_segments_are_unique_by_turn_id_and_segment_index(service, repository):

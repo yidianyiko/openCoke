@@ -60,7 +60,17 @@ class ConversationRuntimeService:
                 created_at=now,
                 updated_at=now,
             )
-            self.repository.add_conversation(conversation)
+            try:
+                self.repository.add_conversation(conversation)
+            except ConversationRuntimeError as error:
+                if error.code != "duplicate_conversation_account":
+                    raise
+                conversation = self.repository.get_conversation_by_account(account_id)
+                if conversation is None:
+                    raise
+        active_turns = tuple(
+            self.repository.active_interactive_turns(conversation.id)
+        )
 
         next_seq = conversation.latest_inbound_seq + 1
         updated_conversation = replace(
@@ -108,6 +118,9 @@ class ConversationRuntimeService:
                 "message_id": message.id,
                 "trigger_id": f"inbound:{causal_inbound_event_id}",
                 "latest_inbound_seq": next_seq,
+                "interrupted_turn_trigger_ids": [
+                    turn.trigger_id for turn in active_turns
+                ],
             },
             traceparent=traceparent,
             status="pending",
@@ -124,11 +137,16 @@ class ConversationRuntimeService:
             preserved_media,
             outbox,
         )
+        interrupted_turns = self._interrupt_turns(
+            active_turns,
+            reason_code="interrupted_by_newer_inbound",
+        )
         return InboundRecordResult(
             conversation=updated_conversation,
             message=message,
             media=preserved_media,
             outbox=outbox,
+            interrupted_turns=interrupted_turns,
         )
 
     def start_turn(
@@ -228,7 +246,12 @@ class ConversationRuntimeService:
                     updated_at=now,
                 )
             )
-        disposition = self._new_disposition(turn.id, "replied", reason_code)
+        disposition = self._disposition_for_transition(
+            existing,
+            turn.id,
+            "replied",
+            reason_code,
+        )
         self.repository.save_disposition(disposition)
         updated_turn = replace(turn, completed_at=now, updated_at=now)
         self._save_close_state(conversation, updated_turn, now)
@@ -289,7 +312,12 @@ class ConversationRuntimeService:
             return existing
         self._ensure_turn_can_transition(existing, target="failed")
         now = self._now()
-        disposition = self._new_disposition(turn.id, "failed", reason_code)
+        disposition = self._disposition_for_transition(
+            existing,
+            turn.id,
+            "failed",
+            reason_code,
+        )
         self.repository.save_disposition(disposition)
         self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
         return disposition
@@ -304,6 +332,17 @@ class ConversationRuntimeService:
         if existing is not None:
             return existing
         return self._record_superseded(turn, reason_code)
+
+    def interrupt_active_interactive_turns(
+        self,
+        conversation_id: str,
+        reason_code: str = "interrupted_by_newer_inbound",
+    ) -> tuple[Turn, ...]:
+        self._require_conversation(conversation_id)
+        return self._interrupt_turns(
+            tuple(self.repository.active_interactive_turns(conversation_id)),
+            reason_code=reason_code,
+        )
 
     def guard_state_change(self, turn_id: str) -> None:
         turn = self._require_turn(turn_id)
@@ -415,6 +454,12 @@ class ConversationRuntimeService:
         return outbox
 
     def _ensure_turn_can_close(self, turn: Turn) -> Conversation:
+        existing = self.repository.get_disposition(turn.id)
+        if existing is not None and existing.disposition == "superseded":
+            raise ConversationRuntimeError(
+                "turn_superseded",
+                fact={"turn_id": turn.id},
+            )
         conversation = self._lock_conversation(turn.conversation_id)
         if turn.input_from_seq is None or turn.input_to_seq is None:
             return conversation
@@ -515,6 +560,9 @@ class ConversationRuntimeService:
         )
 
     def _record_superseded(self, turn: Turn, reason_code: str) -> OutputDisposition:
+        existing = self.repository.get_disposition(turn.id)
+        if existing is not None:
+            return existing
         now = self._now()
         conversation = self._require_conversation(turn.conversation_id)
         for command in self.repository.staged_commands_for_turn(turn.id):
@@ -534,6 +582,21 @@ class ConversationRuntimeService:
         )
         return disposition
 
+    def _interrupt_turns(
+        self,
+        turns: tuple[Turn, ...],
+        *,
+        reason_code: str,
+    ) -> tuple[Turn, ...]:
+        interrupted: list[Turn] = []
+        for turn in turns:
+            existing = self.repository.get_disposition(turn.id)
+            if existing is not None:
+                continue
+            self._record_superseded(turn, reason_code)
+            interrupted.append(turn)
+        return tuple(interrupted)
+
     def _ensure_turn_can_transition(
         self,
         existing: OutputDisposition | None,
@@ -541,6 +604,11 @@ class ConversationRuntimeService:
     ) -> None:
         if existing is None:
             return
+        if existing.disposition == "superseded":
+            raise ConversationRuntimeError(
+                "turn_superseded",
+                fact={"turn_id": existing.turn_id},
+            )
         if existing.disposition == "pending_async_reply" and target in {
             "replied",
             "failed",
@@ -549,6 +617,22 @@ class ConversationRuntimeService:
         if existing.disposition in TERMINAL_DISPOSITIONS:
             raise ConversationRuntimeError("turn_already_terminal")
         raise ConversationRuntimeError("invalid_disposition_transition")
+
+    def _disposition_for_transition(
+        self,
+        existing: OutputDisposition | None,
+        turn_id: str,
+        disposition: str,
+        reason_code: str | None,
+    ) -> OutputDisposition:
+        if existing is None:
+            return self._new_disposition(turn_id, disposition, reason_code)
+        return replace(
+            existing,
+            disposition=disposition,
+            reason_code=reason_code,
+            updated_at=self._now(),
+        )
 
     def _new_disposition(
         self,

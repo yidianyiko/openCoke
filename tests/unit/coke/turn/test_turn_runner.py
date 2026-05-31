@@ -386,6 +386,42 @@ async def test_async_inbound_turn_uses_async_interaction_agent_path(harness):
 
 
 @pytest.mark.asyncio
+async def test_async_inbound_turn_waits_for_held_conversation_lock(harness):
+    redis = FakeRedis()
+    lock_manager = ConversationLockManager(
+        redis_client=redis,
+        ttl_ms=30_000,
+        token_factory=lambda: "owner-shared-lock",
+    )
+    held_lock = lock_manager.acquire(harness["trigger"].conversation_id)
+    assert held_lock is not None
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=lock_manager,
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=harness["agent"],
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+    )
+
+    task = asyncio.create_task(runner.run_inbound_turn_async(harness["trigger"]))
+    try:
+        await asyncio.sleep(0.02)
+        assert task.done() is False
+    finally:
+        held_lock.release()
+
+    result = await asyncio.wait_for(task, timeout=1)
+    assert result.disposition == "replied"
+    assert harness["runtime"].get_disposition(result.turn_id).disposition == "replied"
+
+
+@pytest.mark.asyncio
 async def test_async_inbound_turn_does_not_block_event_loop_on_semantic_interpreter(
     harness,
 ):
@@ -878,7 +914,7 @@ def test_superseded_inbound_yields_distinct_disposition_and_blocks_state_commit(
     result = harness["runner"].run_inbound_turn(trigger)
 
     assert result.disposition == "superseded"
-    assert result.reason_code == "newer_inbound_seq"
+    assert result.reason_code == "interrupted_by_newer_inbound"
     assert harness["reminder_tool"].committed == 0
     assert harness["delivery"].deliveries == []
 

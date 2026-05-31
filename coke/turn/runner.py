@@ -135,6 +135,7 @@ class TurnRunner:
         account_timezone: Callable[[str], str | None] | None = None,
         claim_boundary_committer: Callable[[], None] | None = None,
         close_boundary_committer: Callable[[], None] | None = None,
+        lock_wait_interval_s: float = 0.05,
     ) -> None:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
@@ -154,6 +155,7 @@ class TurnRunner:
         self._account_timezone = account_timezone
         self._claim_boundary_committer = claim_boundary_committer or (lambda: None)
         self._close_boundary_committer = close_boundary_committer or (lambda: None)
+        self._lock_wait_interval_s = lock_wait_interval_s
         self._async_states: dict[str, _AsyncState] = {}
 
     def run_inbound_turn(self, trigger: TurnTrigger) -> TurnRunResult:
@@ -324,18 +326,9 @@ class TurnRunner:
                     current_input_messages=start.input_messages,
                 )
 
-            lock = self.lock_manager.acquire(trigger.conversation_id)
-            if lock is None:
-                disposition = self.conversation_runtime.mark_failed(
-                    start.turn.id, "conversation_lock_unavailable"
-                )
-                return self._result_from_disposition(
-                    turn_id=start.turn.id,
-                    trigger=trigger,
-                    disposition=disposition.disposition,
-                    reason_code=disposition.reason_code,
-                    current_input_messages=start.input_messages,
-                )
+            lock = await self._acquire_conversation_lock_async(
+                trigger.conversation_id
+            )
 
             try:
                 freshness_guard = FreshnessGuard(
@@ -579,18 +572,7 @@ class TurnRunner:
                 **gate.access_facts,
             }
         )
-        lock = self.lock_manager.acquire(trigger.conversation_id)
-        if lock is None:
-            disposition = self.conversation_runtime.mark_failed(
-                turn_id, "conversation_lock_unavailable"
-            )
-            return self._result_from_disposition(
-                turn_id=turn_id,
-                trigger=render_trigger,
-                disposition=disposition.disposition,
-                reason_code=disposition.reason_code,
-                current_input_messages=current_input_messages,
-            )
+        lock = await self._acquire_conversation_lock_async(trigger.conversation_id)
         try:
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
@@ -792,6 +774,13 @@ class TurnRunner:
         self, request: SemanticInterpreterRequest
     ) -> SemanticDecision:
         return await asyncio.to_thread(self.semantic_interpreter.interpret, request)
+
+    async def _acquire_conversation_lock_async(self, conversation_id: str):
+        while True:
+            lock = self.lock_manager.acquire(conversation_id)
+            if lock is not None:
+                return lock
+            await asyncio.sleep(self._lock_wait_interval_s)
 
     def _record_pending_async(
         self,

@@ -294,7 +294,7 @@ def test_superseded_inbound_blocks_state_commit_and_records_superseded(composed)
     )
 
     assert result.disposition == "superseded"
-    assert result.reason_code == "newer_inbound_seq"
+    assert result.reason_code == "interrupted_by_newer_inbound"
     assert (
         runtime.repositories.reminder.list_active_reminders(identity.account.id) == []
     )

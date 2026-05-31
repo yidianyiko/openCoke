@@ -32,7 +32,8 @@ class RetiredInteractiveTurn:
 
 @dataclass(slots=True)
 class ProviderCancelTask:
-    active: ActiveInteractiveTurn
+    trigger: TurnTrigger | None
+    run_id: str
     task: asyncio.Task[Any]
 
 
@@ -85,7 +86,8 @@ class InteractiveTurnSupervisor:
                 )
                 self._cancel_tasks.append(
                     ProviderCancelTask(
-                        existing,
+                        existing.trigger,
+                        existing.run_id,
                         asyncio.create_task(
                             self.interaction_agent.cancel(existing.run_id)
                         ),
@@ -94,6 +96,23 @@ class InteractiveTurnSupervisor:
                 self._active.pop(trigger.conversation_id, None)
 
         self._start_trigger(trigger, run_id)
+
+    async def cancel_provider_runs(
+        self,
+        run_ids: tuple[str, ...],
+        trigger: TurnTrigger | None = None,
+    ) -> None:
+        self._collect_done_cancel_tasks()
+        for run_id in run_ids:
+            if not isinstance(run_id, str) or not run_id:
+                continue
+            self._cancel_tasks.append(
+                ProviderCancelTask(
+                    trigger,
+                    run_id,
+                    asyncio.create_task(self.interaction_agent.cancel(run_id)),
+                )
+            )
 
     async def submit_if_idle(self, trigger: TurnTrigger) -> bool:
         self._collect_done_retired()
@@ -186,7 +205,7 @@ class InteractiveTurnSupervisor:
                 except Exception as error:
                     self._failures.append(
                         InteractiveTurnFailure(
-                            trigger=cancel_task.active.trigger,
+                            trigger=cancel_task.trigger,
                             error=error,
                             source="provider_cancel",
                         )

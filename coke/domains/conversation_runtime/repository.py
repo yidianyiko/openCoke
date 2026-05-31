@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
-from collections.abc import Mapping
 from typing import Protocol
 
 import sqlalchemy as sa
@@ -167,7 +166,16 @@ class InMemoryConversationRuntimeRepository:
     ) -> None:
         if message.direction != "inbound":
             raise ConversationRuntimeError("message_not_inbound")
+        if message.seq is None:
+            raise ConversationRuntimeError("inbound_seq_required")
         self._require_message_id_available(message.id)
+        for existing_message in self.messages_by_id.values():
+            if (
+                existing_message.conversation_id == message.conversation_id
+                and existing_message.direction == "inbound"
+                and existing_message.seq == message.seq
+            ):
+                raise ConversationRuntimeError("duplicate_inbound_seq")
         if outbox.id in self.outbox_by_id:
             raise ConversationRuntimeError("duplicate_outbox_id")
         if outbox.idempotency_key in self.outbox_by_idempotency_key:
@@ -431,12 +439,13 @@ class PostgresConversationRuntimeRepository:
         return _conversation(dict(row)) if row else None
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None:
-        row = one_or_none(
-            self.session,
-            schema.conversation,
-            schema.conversation.c.account_id == account_id,
+        statement = (
+            sa.select(schema.conversation)
+            .where(schema.conversation.c.account_id == account_id)
+            .with_for_update()
         )
-        return _conversation(row) if row else None
+        row = self.session.execute(statement).mappings().one_or_none()
+        return _conversation(dict(row)) if row else None
 
     def list_open_inbound_conversations(self) -> list[Conversation]:
         rows = self.session.execute(
@@ -529,6 +538,7 @@ class PostgresConversationRuntimeRepository:
                 "pk_message": "duplicate_message_id",
                 "pk_inbound_media": "duplicate_inbound_media_id",
                 "pk_outbox": "duplicate_outbox_id",
+                "uq_message_inbound_seq": "duplicate_inbound_seq",
                 "uq_outbox_idempotency_key": "duplicate_outbox_idempotency_key",
             },
             default_error="duplicate_message_id",

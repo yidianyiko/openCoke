@@ -108,12 +108,16 @@ class FakeSupervisor:
     def __init__(self) -> None:
         self.submitted = []
         self.idle_submitted = []
+        self.cancelled_provider_runs = []
         self.idle_accept = True
         self.completed = []
         self.failures = []
 
     async def submit(self, trigger):
         self.submitted.append(trigger)
+
+    async def cancel_provider_runs(self, run_ids, trigger):
+        self.cancelled_provider_runs.append((tuple(run_ids), trigger))
 
     async def submit_if_idle(self, trigger):
         if not self.idle_accept:
@@ -238,6 +242,43 @@ def test_inbound_event_submits_to_supervisor_and_acks_without_running_turn():
         "inbound:provider_message_1"
     ]
     assert redis.xpending("coke.work", "workers")["pending"] == 0
+
+
+def test_inbound_event_cancels_interrupted_provider_runs_before_submit():
+    redis = fakeredis.FakeRedis(decode_responses=True)
+    stream = RedisWorkStream(redis, stream_name="coke.work", group_name="workers")
+    stream.ensure_group()
+    stream.publish_event(
+        event_id="outbox_inbound_1",
+        topic="turn.inbound",
+        idempotency_key="inbound:1",
+        traceparent=TRACEPARENT,
+        payload={
+            "trigger_id": "inbound:provider_message_1",
+            "conversation_id": "conversation_1",
+            "message_id": "message_1",
+            "interrupted_turn_trigger_ids": ["inbound:provider_message_0"],
+        },
+    )
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    acked: list[str] = []
+    consumer = _consumer(stream, acked)
+
+    count = consumer.poll_once(
+        lambda event: _handle_event(runtime, event, supervisor=supervisor)
+    )
+
+    assert count == 1
+    assert acked == ["outbox_inbound_1"]
+    assert len(supervisor.submitted) == 1
+    assert supervisor.submitted[0].payload["interrupted_turn_trigger_ids"] == [
+        "inbound:provider_message_0"
+    ]
+    assert [
+        (run_ids, trigger.trigger_id)
+        for run_ids, trigger in supervisor.cancelled_provider_runs
+    ] == [(("inbound:provider_message_0",), "inbound:provider_message_1")]
 
 
 def test_covered_inbound_event_publishes_terminal_no_visible_result_and_acks():

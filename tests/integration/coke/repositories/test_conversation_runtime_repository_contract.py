@@ -228,6 +228,35 @@ def test_add_inbound_message_preserves_higher_durable_last_closed_seq(
     assert saved.last_closed_inbound_seq == 1
 
 
+def test_duplicate_inbound_seq_is_rejected(repository) -> None:
+    conversation = _conversation()
+    repository.add_conversation(conversation)
+    first = _inbound_message(
+        "50000000000000000000000000000001",
+        1,
+        "first",
+    )
+    duplicate = _inbound_message(
+        "50000000000000000000000000000002",
+        1,
+        "duplicate",
+    )
+    repository.add_inbound_message_with_media_and_outbox(
+        replace(conversation, latest_inbound_seq=1),
+        first,
+        (),
+        _outbox_for(first.id, 1),
+    )
+
+    with pytest.raises(ConversationRuntimeError, match="duplicate_inbound_seq"):
+        repository.add_inbound_message_with_media_and_outbox(
+            replace(conversation, latest_inbound_seq=1),
+            duplicate,
+            (),
+            _outbox_for(duplicate.id, 2),
+        )
+
+
 def test_conversation_uniqueness_errors_match_in_memory(repository) -> None:
     repository.add_conversation(_conversation())
     repository.add_turn(_turn())

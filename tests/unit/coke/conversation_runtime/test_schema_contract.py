@@ -31,6 +31,11 @@ def test_conversation_runtime_schema_has_ordering_and_replay_constraints():
         "turn_id",
         "segment_index",
     )
+    assert _unique_columns(message, "uq_message_inbound_seq") == (
+        "conversation_id",
+        "direction",
+        "seq",
+    )
 
     assert "disposition" in output_disposition.c
     assert "reason_code" in output_disposition.c

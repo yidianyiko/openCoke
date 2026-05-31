@@ -359,8 +359,31 @@ def _submit_interactive_trigger(
     *,
     supervisor_loop: Any | None = None,
 ) -> None:
+    _cancel_interrupted_provider_runs(
+        supervisor,
+        trigger,
+        supervisor_loop=supervisor_loop,
+    )
     _run_supervisor_coroutine(
         supervisor.submit(trigger),
+        supervisor_loop=supervisor_loop,
+    )
+
+
+def _cancel_interrupted_provider_runs(
+    supervisor: Any,
+    trigger: TurnTrigger,
+    *,
+    supervisor_loop: Any | None = None,
+) -> None:
+    cancel_provider_runs = getattr(supervisor, "cancel_provider_runs", None)
+    if not callable(cancel_provider_runs):
+        return
+    run_ids = _interrupted_turn_trigger_ids(trigger.payload)
+    if not run_ids:
+        return
+    _run_supervisor_coroutine(
+        cancel_provider_runs(run_ids, trigger),
         supervisor_loop=supervisor_loop,
     )
 
@@ -466,6 +489,17 @@ def _inbound_trigger(runtime: CokeRuntime, payload: Mapping[str, Any]) -> TurnTr
     message_id = _required_str(payload, "message_id")
     message = _message_row(runtime, message_id)
     conversation = _conversation_row(runtime, conversation_id)
+    trigger_payload = {
+        "message_id": message_id,
+        "text": message.get("text"),
+        "payload": dict(message.get("payload") or {}),
+        "causal_inbound_event_id": message.get("causal_inbound_event_id"),
+    }
+    interrupted_turn_trigger_ids = _interrupted_turn_trigger_ids(payload)
+    if interrupted_turn_trigger_ids:
+        trigger_payload["interrupted_turn_trigger_ids"] = list(
+            interrupted_turn_trigger_ids
+        )
     return TurnTrigger(
         trigger_id=_required_str(payload, "trigger_id"),
         trigger_type="InboundTurn",
@@ -477,12 +511,7 @@ def _inbound_trigger(runtime: CokeRuntime, payload: Mapping[str, Any]) -> TurnTr
             if message.get("channel_identity_id") is not None
             else None
         ),
-        payload={
-            "message_id": message_id,
-            "text": message.get("text"),
-            "payload": dict(message.get("payload") or {}),
-            "causal_inbound_event_id": message.get("causal_inbound_event_id"),
-        },
+        payload=trigger_payload,
     )
 
 
@@ -652,6 +681,17 @@ def _required_str(payload: Mapping[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value:
         raise RuntimeError(f"{key}_required")
     return value
+
+
+def _interrupted_turn_trigger_ids(payload: Mapping[str, Any]) -> tuple[str, ...]:
+    raw = payload.get("interrupted_turn_trigger_ids")
+    if not isinstance(raw, list | tuple):
+        return ()
+    run_ids: list[str] = []
+    for item in raw:
+        if isinstance(item, str) and item.strip():
+            run_ids.append(item.strip())
+    return tuple(run_ids)
 
 
 def main() -> None:

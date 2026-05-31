@@ -148,6 +148,7 @@ class InboundRecordResult:
     message: Message
     media: tuple[InboundMedia, ...]
     outbox: OutboxRecord
+    interrupted_turns: tuple[Turn, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

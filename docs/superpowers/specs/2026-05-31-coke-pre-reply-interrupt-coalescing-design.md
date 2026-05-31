@@ -1,9 +1,9 @@
 # Coke Pre-Reply Interrupt Coalescing
 
-Status: proposed
+Status: implemented
 Created: 2026-05-31
-Updated: 2026-05-31 (aligned with `docs/ARCHITECTURE.md` as the canonical
-runtime contract before implementation planning)
+Updated: 2026-06-01 (implemented with durable interruption, async interactive
+execution, staged command close materialization, and cross-worker lock waiting)
 Scope: interactive inbound turns, same-conversation interruption, Agno invocation,
 freshness, and outbound close semantics
 Architecture reference: `docs/ARCHITECTURE.md`, section "Interactive Input
@@ -154,7 +154,8 @@ may not be interrupted quickly by `acancel_run(...)` alone.
 
 Therefore the Coke runtime must use all of these controls together:
 
-- record durable interruption intent in ConversationRuntime
+- record durable interruption intent in ConversationRuntime at inbound-record
+  time, before relying on process-local supervisor state
 - call `Agent.acancel_run(run_id)` for Agno-local cooperative cancellation
 - cancel the asyncio task awaiting `Agent.arun(...)`
 - configure provider/model timeouts for the interaction model
@@ -163,6 +164,14 @@ Therefore the Coke runtime must use all of these controls together:
 `Agent.acancel_run(...)` is a local execution aid, not the durable source of
 truth. Coke's durable input-window and freshness state remains authoritative,
 especially across worker restarts.
+
+For horizontally scaled workers, the interrupt signal must cross process
+boundaries. The recorded inbound outbox payload carries the trigger ids of
+active pre-close turns that were superseded durably. A worker that receives the
+newer inbound requests provider cancellation for those run ids before starting
+the replacement turn. If the old worker still holds the Redis conversation lock,
+the async replacement turn waits for the lock instead of marking
+`conversation_lock_unavailable` as a terminal disposition.
 
 The implementation must prove provider cancellation behavior. If the underlying
 OpenAI-compatible provider cannot abort an in-flight request when the asyncio
