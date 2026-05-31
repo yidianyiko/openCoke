@@ -8,7 +8,11 @@ import fakeredis
 
 from coke.infra.redis import RedisWorkStream
 from coke.turn.context import TurnMode, TurnTrigger
-from coke.worker.__main__ import _handle_event, _recover_open_inbound_windows
+from coke.worker.__main__ import (
+    _drain_supervisor_completions,
+    _handle_event,
+    _recover_open_inbound_windows,
+)
 from coke.worker.stream_consumer import StreamConsumer
 
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
@@ -93,6 +97,7 @@ class FakeSupervisor:
     def __init__(self) -> None:
         self.submitted = []
         self.completed = []
+        self.failures = []
 
     async def submit(self, trigger):
         self.submitted.append(trigger)
@@ -101,6 +106,11 @@ class FakeSupervisor:
         completed = list(self.completed)
         self.completed.clear()
         return completed
+
+    async def drain_failures(self):
+        failures = list(self.failures)
+        self.failures.clear()
+        return failures
 
 
 def test_reminder_lifecycle_event_is_acked_as_evidence_without_turn_or_reply(caplog):
@@ -279,6 +289,31 @@ def test_recover_open_inbound_windows_submits_synthetic_inbound_turns():
             payload={"recovered_open_window": True},
         )
     ]
+
+
+def test_drain_supervisor_completions_logs_task_failures(caplog):
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    supervisor.failures = [
+        (
+            TurnTrigger(
+                trigger_id="inbound:provider_message_1",
+                trigger_type="InboundTurn",
+                mode=TurnMode.INTERACTIVE,
+                conversation_id="conversation_1",
+                account_id="account_1",
+                payload={"causal_inbound_event_id": "provider_message_1"},
+            ),
+            RuntimeError("cleanup_failed"),
+        )
+    ]
+
+    with caplog.at_level(logging.ERROR):
+        _drain_supervisor_completions(runtime, supervisor)
+
+    assert "interactive_turn_task_failed" in caplog.text
+    assert "inbound:provider_message_1" in caplog.text
+    assert runtime.reply_pubsub.published == []
 
 
 def _consumer(stream: RedisWorkStream, acked: list[str]) -> StreamConsumer:

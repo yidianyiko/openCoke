@@ -17,6 +17,17 @@ class FakeAgent:
         return True
 
 
+class SlowCancelAgent:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def cancel(self, run_id: str) -> bool:
+        self.started.set()
+        await self.release.wait()
+        return True
+
+
 class FakeRunner:
     def __init__(self) -> None:
         self.started: list[TurnTrigger] = []
@@ -25,6 +36,20 @@ class FakeRunner:
     async def run_inbound_turn_async(self, trigger: TurnTrigger):
         self.started.append(trigger)
         await self.released.wait()
+        return f"finished:{trigger.trigger_id}"
+
+
+class CancelFailureRunner:
+    def __init__(self) -> None:
+        self.started: list[TurnTrigger] = []
+        self.released = asyncio.Event()
+
+    async def run_inbound_turn_async(self, trigger: TurnTrigger):
+        self.started.append(trigger)
+        try:
+            await self.released.wait()
+        except asyncio.CancelledError as error:
+            raise RuntimeError(f"cleanup_failed:{trigger.trigger_id}") from error
         return f"finished:{trigger.trigger_id}"
 
 
@@ -83,6 +108,57 @@ async def test_new_inbound_cancels_active_pre_close_turn():
         "inbound:1",
         "inbound:2",
     ]
+
+
+@pytest.mark.asyncio
+async def test_new_inbound_submit_does_not_wait_for_provider_cancel():
+    runner = FakeRunner()
+    agent = SlowCancelAgent()
+    supervisor = InteractiveTurnSupervisor(
+        turn_runner=runner,
+        interaction_agent=agent,
+    )
+
+    await supervisor.submit(_inbound_trigger("inbound:1", "provider:1"))
+    await asyncio.sleep(0)
+    await asyncio.wait_for(
+        supervisor.submit(_inbound_trigger("inbound:2", "provider:2")),
+        timeout=0.1,
+    )
+    await asyncio.sleep(0)
+
+    assert agent.started.is_set()
+    assert [trigger.trigger_id for trigger in runner.started] == [
+        "inbound:1",
+        "inbound:2",
+    ]
+    agent.release.set()
+    await asyncio.sleep(0)
+
+
+@pytest.mark.asyncio
+async def test_replaced_task_failure_is_observed_without_becoming_completion():
+    runner = CancelFailureRunner()
+    supervisor = InteractiveTurnSupervisor(
+        turn_runner=runner,
+        interaction_agent=FakeAgent(),
+    )
+
+    await supervisor.submit(_inbound_trigger("inbound:1", "provider:1"))
+    await asyncio.sleep(0)
+    await supervisor.submit(_inbound_trigger("inbound:2", "provider:2"))
+    await asyncio.sleep(0)
+    runner.released.set()
+    await asyncio.sleep(0)
+
+    completed = await supervisor.drain_completed()
+    failures = await supervisor.drain_failures()
+
+    assert completed == [(runner.started[-1], "finished:inbound:2")]
+    assert len(failures) == 1
+    failure_trigger, failure = failures[0]
+    assert failure_trigger == runner.started[0]
+    assert str(failure) == "cleanup_failed:inbound:1"
 
 
 @pytest.mark.asyncio

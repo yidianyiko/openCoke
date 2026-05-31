@@ -171,6 +171,7 @@ def _drain_supervisor_completions(
         supervisor.drain_completed(),
         supervisor_loop=supervisor_loop,
     )
+    _drain_supervisor_failures(supervisor, supervisor_loop=supervisor_loop)
     if not completed:
         return
     if runtime.session is not None:
@@ -181,6 +182,33 @@ def _drain_supervisor_completions(
             event_id=str(trigger.payload.get("_worker_event_id") or trigger.trigger_id),
             trigger=trigger,
             result=result,
+        )
+
+
+def _drain_supervisor_failures(
+    supervisor: Any,
+    *,
+    supervisor_loop: Any | None = None,
+) -> None:
+    drain_failures = getattr(supervisor, "drain_failures", None)
+    if not callable(drain_failures):
+        return
+    failures = _run_supervisor_coroutine(
+        drain_failures(),
+        supervisor_loop=supervisor_loop,
+    )
+    for trigger, error in failures:
+        trigger_id = getattr(trigger, "trigger_id", None)
+        conversation_id = getattr(trigger, "conversation_id", None)
+        LOGGER.error(
+            "interactive_turn_task_failed trigger_id=%s conversation_id=%s",
+            trigger_id,
+            conversation_id,
+            extra={
+                "trigger_id": trigger_id,
+                "conversation_id": conversation_id,
+            },
+            exc_info=(type(error), error, error.__traceback__),
         )
 
 

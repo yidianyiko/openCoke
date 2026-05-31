@@ -28,7 +28,10 @@ class InteractiveTurnSupervisor:
         self.interaction_agent = interaction_agent
         self.runtime_factory = runtime_factory
         self._active: dict[str, ActiveInteractiveTurn] = {}
+        self._retired: list[ActiveInteractiveTurn] = []
+        self._cancel_tasks: list[asyncio.Task[Any]] = []
         self._completed: list[tuple[TurnTrigger, Any]] = []
+        self._failures: list[tuple[TurnTrigger | None, Exception]] = []
 
     async def submit(self, trigger: TurnTrigger) -> None:
         run_id = trigger.agent_run_id or trigger.trigger_id
@@ -38,8 +41,11 @@ class InteractiveTurnSupervisor:
             if existing.task.done():
                 self._collect_completed(trigger.conversation_id, existing)
             else:
-                await self.interaction_agent.cancel(existing.run_id)
                 existing.task.cancel()
+                self._retired.append(existing)
+                self._cancel_tasks.append(
+                    asyncio.create_task(self.interaction_agent.cancel(existing.run_id))
+                )
 
         task = asyncio.create_task(self._run_trigger(trigger))
         self._active[trigger.conversation_id] = ActiveInteractiveTurn(
@@ -49,6 +55,8 @@ class InteractiveTurnSupervisor:
         )
 
     async def drain_completed(self) -> list[tuple[TurnTrigger, Any]]:
+        self._collect_done_retired()
+        self._collect_done_cancel_tasks()
         for conversation_id, active in list(self._active.items()):
             if active.task.done():
                 self._collect_completed(conversation_id, active)
@@ -56,15 +64,60 @@ class InteractiveTurnSupervisor:
         self._completed.clear()
         return completed
 
+    async def drain_failures(self) -> list[tuple[TurnTrigger | None, Exception]]:
+        self._collect_done_retired()
+        self._collect_done_cancel_tasks()
+        for conversation_id, active in list(self._active.items()):
+            if active.task.done():
+                self._collect_completed(conversation_id, active)
+        failures = list(self._failures)
+        self._failures.clear()
+        return failures
+
     def _collect_completed(
         self, conversation_id: str, active: ActiveInteractiveTurn
     ) -> None:
         self._active.pop(conversation_id, None)
+        self._collect_task_result(active, publish_completion=True)
+
+    def _collect_done_retired(self) -> None:
+        pending: list[ActiveInteractiveTurn] = []
+        for retired in self._retired:
+            if retired.task.done():
+                self._collect_task_result(retired, publish_completion=False)
+            else:
+                pending.append(retired)
+        self._retired = pending
+
+    def _collect_done_cancel_tasks(self) -> None:
+        pending: list[asyncio.Task[Any]] = []
+        for task in self._cancel_tasks:
+            if task.done():
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception as error:
+                    self._failures.append((None, error))
+            else:
+                pending.append(task)
+        self._cancel_tasks = pending
+
+    def _collect_task_result(
+        self,
+        active: ActiveInteractiveTurn,
+        *,
+        publish_completion: bool,
+    ) -> None:
         try:
             result = active.task.result()
         except asyncio.CancelledError:
             return
-        self._completed.append((active.trigger, result))
+        except Exception as error:
+            self._failures.append((active.trigger, error))
+            return
+        if publish_completion:
+            self._completed.append((active.trigger, result))
 
     async def _run_trigger(self, trigger: TurnTrigger) -> Any:
         if self.runtime_factory is None:
