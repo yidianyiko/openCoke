@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+import json
 from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -68,7 +69,7 @@ from coke.providers.linq import LinqAdapter
 from coke.providers.wechat_ecloud import WeChatECloudAdapter
 from coke.providers.wechat_personal import WeChatPersonalAdapter
 from coke.providers.whatsapp_evolution import WhatsAppEvolutionAdapter
-from coke.turn.agent import AgentToolPorts, ToolExecutionResult
+from coke.turn.agent import AgentToolPorts, DomainExecutionResult, ToolExecutionResult
 from coke.turn.agent import AgentRequest, AgentResult
 from coke.turn.focus import FocusResolver, MessageSubject
 from coke.turn.locks import ConversationLockManager, RedisLockPort
@@ -454,10 +455,30 @@ class ReminderToolAdapter:
         self.reminder_service = reminder_service
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
-        _guard_state_change(guard)
         operation = _required_str(command, "operation")
         owner = _required_str(command, "owner_account_id", default_key="account_id")
 
+        if operation == "list_reminders":
+            facts = _reminder_list_facts(
+                owner,
+                self.reminder_service.repository.list_active_reminders(owner),
+            )
+            return ToolExecutionResult(
+                ok=True,
+                facts=facts,
+                domain_result=DomainExecutionResult(
+                    domain="reminder",
+                    intent="list reminders",
+                    action="list_reminders",
+                    effect="listed",
+                    intent_fulfilled=True,
+                    visible_summary=json.dumps(facts, ensure_ascii=False),
+                    reply_contract="render_fact",
+                    privacy_notes=("Only describe reminders for this account.",),
+                ),
+            )
+
+        _guard_state_change(guard)
         if operation in {"create", "detect_and_create"}:
             result = self.reminder_service.execute_batch(
                 owner_account_id=owner,
@@ -1408,6 +1429,37 @@ def _single_item_tool_result(item: Any) -> ToolExecutionResult:
         facts=_item_fact(item),
         reason_code=item.reason,
     )
+
+
+def _reminder_list_facts(owner_account_id: str, reminders: list[Any]) -> dict[str, Any]:
+    reminder_facts = [_reminder_fact(reminder) for reminder in reminders]
+    return {
+        "owner_account_id": owner_account_id,
+        "count": len(reminder_facts),
+        "reminders": reminder_facts,
+    }
+
+
+def _reminder_fact(reminder: Any) -> dict[str, Any]:
+    return {
+        "reminder_id": reminder.id,
+        "content": reminder.content,
+        "kind": reminder.kind,
+        "next_fire_at": _iso_or_none(reminder.next_fire_at),
+        "captured_timezone": reminder.captured_timezone,
+        "duration_minutes": reminder.duration_minutes,
+        "lifecycle": reminder.lifecycle,
+        "hidden_from_calendar": reminder.hidden_from_calendar,
+        "shared_reminder_id": reminder.shared_reminder_id,
+        "created_at": _iso_or_none(reminder.created_at),
+        "updated_at": _iso_or_none(reminder.updated_at),
+    }
+
+
+def _iso_or_none(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return None
 
 
 def _friend_link_facts(link: Any) -> dict[str, Any]:

@@ -776,6 +776,7 @@ def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
     tools = factory.agent_kwargs[0]["tools"]
     assert [tool.__name__ for tool in tools] == ["reminder_tool"]
     assert "detect_and_create" in (tools[0].__doc__ or "")
+    assert "list_reminders" in (tools[0].__doc__ or "")
     assert "owner_account_id" in (tools[0].__doc__ or "")
     assert "raw_text" in (tools[0].__doc__ or "")
     result = tools[0]({"operation": "create", "content": "pay rent"})

@@ -636,6 +636,55 @@ def test_superseded_after_tool_entry_commits_no_domain_facts(harness):
     assert harness["runtime"].get_disposition(start.turn.id).disposition == "superseded"
 
 
+def test_reminder_tool_list_reminders_returns_active_count_without_write_guard():
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    reminder_service.execute_batch(
+        owner_account_id="account_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=datetime(2026, 5, 30, 12, 0, tzinfo=UTC),
+                captured_timezone="UTC",
+                duration_minutes=15,
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                captured_timezone="UTC",
+                duration_minutes=15,
+            ),
+        ],
+    )
+    adapter = ReminderToolAdapter(reminder_service)
+
+    class ReadOnlyGuard:
+        def guard_state_change(self):
+            raise AssertionError("list_reminders must not open a write guard")
+
+    result = adapter.execute(
+        {"operation": "list_reminders", "owner_account_id": "account_1"},
+        ReadOnlyGuard(),
+    )
+
+    assert result.ok is True
+    assert result.reason_code is None
+    assert result.facts["owner_account_id"] == "account_1"
+    assert result.facts["count"] == 2
+    assert [item["content"] for item in result.facts["reminders"]] == [
+        "pay rent",
+        "buy milk",
+    ]
+    assert result.domain_result is not None
+    assert result.domain_result.action == "list_reminders"
+    assert result.domain_result.intent_fulfilled is True
+
+
 def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harness):
     reminder_repository = InMemoryReminderRepository()
     reminder_service = ReminderService(
