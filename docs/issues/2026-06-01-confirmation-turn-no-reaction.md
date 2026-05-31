@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: open
+status: resolved
 surface: conversation-runtime, agent-runtime, notification-delivery
 created_at: 2026-06-01
 updated_at: 2026-06-01
@@ -58,10 +58,57 @@ persisted but not delivered.
 
 ## Current Status
 
-- Open. The incident is under repair with regression tests for waiting-message
-  idempotency, short confirmation tool availability, and serialized tool-call
-  retry guidance.
+- Resolved and deployed to production clean stack at
+  `1187295f1f89544b1bb4672c2ace35db0541518c`.
+- The user-visible interruption behavior is intentional: the first two rapid
+  questions are superseded by the later command, and only the newest open input
+  window produces the live reply.
+- The no-reaction confirmation behavior was not intentional and is fixed.
 
 ## Resolution
 
-- Pending fix commit, deployment SHA, and production smoke evidence.
+- Fixed commits:
+  - `54f756c` repaired waiting-reply idempotency, short affirmative clearing,
+    and serialized textual tool-call retry guidance.
+  - `96032b5` kept tools available for concise clarification answers.
+  - `4424f02` rejected state-changing success claims when no native tool ran.
+  - `f1aac87` carried pending shared-reminder friend clarification context.
+  - `18b0a61` kept social scheduling tools available for resolved follow-ups.
+  - `3b657ee` created resolved shared reminders directly when the original
+    Chinese title/time can be parsed.
+  - `33b43a9` asked ambiguous friend clarifications deterministically.
+  - `f86d148` avoided unnecessary tool requirements for clarification-only
+    ambiguous friend questions.
+  - `e6c38f7` moved pending shared-reminder follow-up resolution before the
+    semantic LLM so one-word confirmations cannot time out before the
+    deterministic resolver runs.
+  - `1187295` accepts an affirmative follow-up such as `是的` for the only
+    active friend when the prior clarification asked which friend.
+- Verification:
+  - `.venv/bin/python -m pytest tests/unit/coke/worker/test_waiting_reply.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/turn/test_output_protocol.py tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/conversation_runtime/test_conversation_runtime_service.py -q`
+    passed with 136 tests.
+  - `git diff --check` passed.
+  - `zsh scripts/verify-surface clean-rebuild-backend` passed with 687 tests.
+  - `./scripts/deploy-compose-to-gcp.sh` deployed
+    `1187295f1f89544b1bb4672c2ace35db0541518c`; remote `/healthz` returned
+    `{"ok":true}`.
+- Production smoke marker `server-smoke-20260531T192030Z`:
+  - Sent `我可以对好友做什么操作？`, `我可以直接添加其他好友吗`, then
+    `帮我和他约一个2029年1月1日上午八点半的晨跑活动，标题是修复验证晨跑server-smoke-20260531T192030Z`.
+  - Turns for the first two inputs were `superseded /
+    interrupted_by_newer_inbound`.
+  - Command turn replied with `好友相关操作和添加好友目前都暂不支持` and
+    `约晨跑的话，"他"是哪位好友?`.
+  - Follow-up `是的` replied `好的，已帮你和lizihao创建这个共享提醒`.
+  - Shared reminder `8c418dea-287c-46d2-a76a-522e8369c44f` was created
+    `active` for `2029-01-01 08:30:00` in `Asia/Shanghai`, then cancelled
+    during cleanup.
+- Caveat:
+  - Synthetic WeChat delivery attempts still failed with
+    `ilink_send_failed_ret_-2` because the smoke used a stale connector
+    `context_token`. The application behavior, persisted visible output, staged
+    command materialization, shared-reminder creation, and cleanup were verified
+    in Postgres.
+  - Chat cleanup first asked for confirmation and then timed out on the
+    confirmation; the marked smoke reminder was cancelled through the same
+    production domain service to avoid leaving test data active.
