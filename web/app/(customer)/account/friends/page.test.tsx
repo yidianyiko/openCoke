@@ -210,7 +210,7 @@ describe('CustomerFriendsPage', () => {
 
     findButton(container, 'Remove friend')?.click();
     await flushTicks();
-    expect(removeMock).toHaveBeenCalledWith('friendship-1');
+    expect(removeMock).toHaveBeenCalledWith('acct_3');
     expect(getLinkMock).toHaveBeenCalledTimes(2);
     expect(listFriendsMock).toHaveBeenCalledTimes(2);
   });

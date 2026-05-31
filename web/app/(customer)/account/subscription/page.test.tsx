@@ -43,13 +43,9 @@ async function flushTicks(count: number) {
 
 function makeSubscriptionSnapshot(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    accountStatus: 'normal' as const,
-    emailVerified: true,
-    subscriptionActive: false,
-    subscriptionExpiresAt: '2026-05-10T00:00:00.000Z',
-    accountAccessAllowed: false,
-    accountAccessDeniedReason: 'subscription_required' as const,
-    renewalUrl: 'https://coke.example/account/subscription',
+    account_id: 'acct_1',
+    access_allowed: false,
+    denial_reason: 'subscription_inactive',
     ...overrides,
   };
 }
@@ -65,16 +61,7 @@ describe('CustomerSubscriptionPage', () => {
     postMock.mockReset();
     searchParamsMock.mockReset();
     searchParamsMock.mockReturnValue(new URLSearchParams());
-    getMock.mockResolvedValue({
-      ok: true,
-      data: makeSubscriptionSnapshot(),
-    });
-    postMock.mockResolvedValue({
-      ok: true,
-      data: {
-        url: 'https://stripe.example/checkout/session_123',
-      },
-    });
+    getMock.mockResolvedValue(makeSubscriptionSnapshot());
     vi.spyOn(window, 'open').mockImplementation(openMock);
     window.history.replaceState({}, '', '/account/subscription');
     container = document.createElement('div');
@@ -88,7 +75,7 @@ describe('CustomerSubscriptionPage', () => {
     container.remove();
   });
 
-  it('fetches the subscription snapshot first and only starts checkout after an explicit click', async () => {
+  it('fetches the access snapshot from the clean auth endpoint without starting checkout', async () => {
     flushSync(() => {
       root.render(
         <LocaleProvider initialLocale="en">
@@ -101,25 +88,18 @@ describe('CustomerSubscriptionPage', () => {
 
     expect(container.querySelector('.customer-view.customer-view--narrow')).toBeTruthy();
     expect(container.querySelector('.customer-panel.customer-panel--narrow')).toBeTruthy();
-    expect(getMock).toHaveBeenCalledWith('/api/customer/subscription');
+    expect(getMock).toHaveBeenCalledWith('/api/auth/access-status');
     expect(postMock).not.toHaveBeenCalled();
-    expect(container.querySelector('button[type="button"].customer-action.customer-action--primary')).toBeTruthy();
+    expect(container.querySelector('button[type="button"].customer-action.customer-action--primary')).toBeFalsy();
     expect(container.textContent).toContain('Renew your access');
-
-    (container.querySelector('button[type="button"]') as HTMLButtonElement).click();
-    await flushTicks(5);
-
-    expect(postMock).toHaveBeenCalledWith('/api/customer/subscription/checkout');
-    expect(openMock).toHaveBeenCalledWith('https://stripe.example/checkout/session_123', '_self');
+    expect(openMock).not.toHaveBeenCalled();
   });
 
   it('steers email-verification blockers to the verify-email route instead of offering checkout', async () => {
     getMock.mockResolvedValueOnce({
-      ok: true,
-      data: makeSubscriptionSnapshot({
-        emailVerified: false,
-        accountAccessAllowed: false,
-        accountAccessDeniedReason: 'email_not_verified',
+      ...makeSubscriptionSnapshot({
+        access_allowed: false,
+        denial_reason: 'email_not_verified',
       }),
     });
 
@@ -141,8 +121,7 @@ describe('CustomerSubscriptionPage', () => {
 
   it('redirects unauthenticated users to the login route after the snapshot request fails', async () => {
     getMock.mockResolvedValueOnce({
-      ok: false,
-      error: 'unauthorized',
+      error: { code: 'unauthorized' },
     });
 
     flushSync(() => {
@@ -162,11 +141,9 @@ describe('CustomerSubscriptionPage', () => {
   it('renders the success state without re-triggering checkout', async () => {
     searchParamsMock.mockReturnValue(new URLSearchParams('status=success'));
     getMock.mockResolvedValueOnce({
-      ok: true,
-      data: makeSubscriptionSnapshot({
-        subscriptionActive: true,
-        accountAccessAllowed: true,
-        accountAccessDeniedReason: null,
+      ...makeSubscriptionSnapshot({
+        access_allowed: true,
+        denial_reason: null,
       }),
     });
 
@@ -182,7 +159,7 @@ describe('CustomerSubscriptionPage', () => {
 
     expect(container.querySelector('.customer-panel.customer-panel--narrow')).toBeTruthy();
     expect(container.textContent).toContain('Payment complete');
-    expect(getMock).toHaveBeenCalledWith('/api/customer/subscription');
+    expect(getMock).toHaveBeenCalledWith('/api/auth/access-status');
     expect(container.querySelector('a[href="/channels/wechat-personal"].customer-action')).toBeTruthy();
     expect(container.querySelector('a[href="/account/subscription"].customer-action')).toBeTruthy();
     expect(postMock).not.toHaveBeenCalled();
@@ -191,11 +168,9 @@ describe('CustomerSubscriptionPage', () => {
   it('keeps success-mode users on the subscription page until the renewed access is visible', async () => {
     searchParamsMock.mockReturnValue(new URLSearchParams('status=success'));
     getMock.mockResolvedValueOnce({
-      ok: true,
-      data: makeSubscriptionSnapshot({
-        subscriptionActive: false,
-        accountAccessAllowed: false,
-        accountAccessDeniedReason: 'subscription_required',
+      ...makeSubscriptionSnapshot({
+        access_allowed: false,
+        denial_reason: 'subscription_inactive',
       }),
     });
 
@@ -209,7 +184,7 @@ describe('CustomerSubscriptionPage', () => {
 
     await flushTicks(5);
 
-    expect(getMock).toHaveBeenCalledWith('/api/customer/subscription');
+    expect(getMock).toHaveBeenCalledWith('/api/auth/access-status');
     expect(container.querySelector('a[href="/channels/wechat-personal"]')).toBeFalsy();
     expect(container.querySelector('a[href="/account/subscription"]')).toBeTruthy();
     expect(postMock).not.toHaveBeenCalled();

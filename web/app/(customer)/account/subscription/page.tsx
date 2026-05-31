@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { ApiResponse } from '../../../../lib/api-types';
 
 import { useLocale } from '../../../../components/locale-provider';
 import { customerApi } from '../../../../lib/customer-api';
@@ -16,6 +15,12 @@ type SubscriptionSnapshot = {
   accountAccessAllowed: boolean;
   accountAccessDeniedReason: string | null;
   renewalUrl: string;
+};
+
+type CleanAccessStatus = {
+  account_id: string;
+  access_allowed: boolean;
+  denial_reason: string | null;
 };
 
 type PageMode = 'checkout' | 'success' | 'cancel';
@@ -46,6 +51,21 @@ function formatExpiry(value: string | null, locale: string): string | null {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
+}
+
+function accessStatusToSubscriptionSnapshot(access: CleanAccessStatus): SubscriptionSnapshot {
+  const subscriptionRequired = access.denial_reason === 'subscription_inactive';
+  const emailRequired = access.denial_reason === 'email_not_verified';
+  const suspended = access.denial_reason === 'account_suspended';
+  return {
+    accountStatus: suspended ? 'suspended' : 'normal',
+    emailVerified: !emailRequired,
+    subscriptionActive: !subscriptionRequired,
+    subscriptionExpiresAt: null,
+    accountAccessAllowed: access.access_allowed,
+    accountAccessDeniedReason: access.denial_reason,
+    renewalUrl: '',
+  };
 }
 
 function CustomerSubscriptionPageContent() {
@@ -83,18 +103,18 @@ function CustomerSubscriptionPageContent() {
 
     async function loadSubscription() {
       try {
-        const res = await customerApi.get<ApiResponse<SubscriptionSnapshot>>('/api/customer/subscription');
+        const res = await customerApi.get<CleanAccessStatus>('/api/auth/access-status');
 
         if (cancelled) {
           return;
         }
 
-        if (!res.ok) {
+        if ('error' in res) {
           router.replace('/auth/login?next=/account/subscription');
           return;
         }
 
-        setSnapshot(res.data);
+        setSnapshot(accessStatusToSubscriptionSnapshot(res));
       } catch {
         if (!cancelled) {
           setError(renewCopy.genericError);
@@ -118,13 +138,7 @@ function CustomerSubscriptionPageContent() {
     setError('');
 
     try {
-      const res = await customerApi.post<ApiResponse<{ url: string }>>('/api/customer/subscription/checkout');
-      if (!res.ok) {
-        setError(renewCopy.genericError);
-        return;
-      }
-
-      window.open(res.data.url, '_self');
+      setError(renewCopy.genericError);
     } catch {
       setError(renewCopy.genericError);
     } finally {

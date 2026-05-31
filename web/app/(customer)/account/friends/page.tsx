@@ -200,12 +200,12 @@ function CustomerFriendsPageContent() {
     }
   }
 
-  async function removeFriend(friendshipId: string) {
+  async function removeFriend(friendAccountId: string) {
     setActionPending(true);
     setError('');
     setNotice('');
     try {
-      const res = await removeCustomerFriend(friendshipId);
+      const res = await removeCustomerFriend(friendAccountId);
       if (!res.ok) {
         if (AUTH_ERRORS.has(res.error)) {
           replace(loginNextPath(inviteToken));
@@ -317,7 +317,7 @@ function CustomerFriendsPageContent() {
                     <button
                       type="button"
                       className="customer-action customer-action--secondary"
-                      onClick={() => void removeFriend(friend.id)}
+                      onClick={() => void removeFriend(friend.counterpartAccountId)}
                       disabled={actionPending}
                     >
                       {copy.removeFriend}

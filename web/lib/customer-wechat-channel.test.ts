@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('customer-wechat-channel api helpers', () => {
-  it('calls the clean channel endpoints with the stored account id', async () => {
+  it('calls the clean channel endpoints using bearer-auth ownership only', async () => {
     storeCustomerAuth({
       token: 'session_1',
       customerId: 'acct_1',
@@ -85,21 +85,13 @@ describe('customer-wechat-channel api helpers', () => {
     await disconnectCustomerWechatChannel();
     await archiveCustomerWechatChannel();
 
-    expect(customerPostSpy).toHaveBeenNthCalledWith(1, '/api/channels/wechat-personal/connect', {
-      account_id: 'acct_1',
-    });
-    expect(customerPostSpy).toHaveBeenNthCalledWith(2, '/api/channels/wechat-personal/connect', {
-      account_id: 'acct_1',
-    });
-    expect(customerPostSpy).toHaveBeenNthCalledWith(3, '/api/channels/channel_1/remove', {
-      account_id: 'acct_1',
-    });
-    expect(customerPostSpy).toHaveBeenNthCalledWith(4, '/api/channels/channel_1/remove', {
-      account_id: 'acct_1',
-    });
-    expect(customerGetSpy).toHaveBeenNthCalledWith(1, '/api/channels/status?account_id=acct_1');
-    expect(customerGetSpy).toHaveBeenNthCalledWith(2, '/api/channels/status?account_id=acct_1');
-    expect(customerGetSpy).toHaveBeenNthCalledWith(3, '/api/channels/status?account_id=acct_1');
+    expect(customerPostSpy).toHaveBeenNthCalledWith(1, '/api/channels/wechat-personal/connect');
+    expect(customerPostSpy).toHaveBeenNthCalledWith(2, '/api/channels/wechat-personal/connect');
+    expect(customerPostSpy).toHaveBeenNthCalledWith(3, '/api/channels/channel_1/remove');
+    expect(customerPostSpy).toHaveBeenNthCalledWith(4, '/api/channels/channel_1/remove');
+    expect(customerGetSpy).toHaveBeenNthCalledWith(1, '/api/channels/status');
+    expect(customerGetSpy).toHaveBeenNthCalledWith(2, '/api/channels/status');
+    expect(customerGetSpy).toHaveBeenNthCalledWith(3, '/api/channels/status');
   });
 
   it('polls a clean iLink login session for account-bound QR confirmation', async () => {
@@ -134,7 +126,7 @@ describe('customer-wechat-channel api helpers', () => {
     });
 
     expect(customerGetSpy).toHaveBeenCalledWith(
-      '/api/channels/wechat-personal/login-status?account_id=acct_1&session_id=ilink_session_1',
+      '/api/channels/wechat-personal/login-status?session_id=ilink_session_1',
     );
   });
 

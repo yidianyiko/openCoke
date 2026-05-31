@@ -38,9 +38,9 @@ interface CustomerGoogleCalendarImportStatusResult {
 }
 
 export function requestCustomerClaimEmail(
-  input: CustomerClaimRequestInput,
+  _input: CustomerClaimRequestInput,
 ): Promise<ApiResponse<CustomerClaimRequestResult>> {
-  return customerApi.post<ApiResponse<CustomerClaimRequestResult>>('/api/auth/claim/request', input);
+  return Promise.resolve({ ok: false, error: 'claim_email_flow_unavailable' });
 }
 
 export function getCustomerGoogleCalendarImportPreflight(): Promise<
@@ -50,41 +50,44 @@ export function getCustomerGoogleCalendarImportPreflight(): Promise<
 }
 
 export function getCustomerGoogleCalendarImportPreflightForHandoff(
-  handoff?: string,
+  _handoff?: string,
 ): Promise<ApiResponse<CustomerGoogleCalendarImportPreflightResult>> {
-  return customerApi.get<ApiResponse<CustomerGoogleCalendarImportPreflightResult>>(
-    handoff
-      ? `/api/customer/google-calendar-import/preflight?handoff=${encodeURIComponent(handoff)}`
-      : '/api/customer/google-calendar-import/preflight',
-  );
+  return customerApi
+    .get<{ access_allowed: boolean; denial_reason: string | null }>('/api/auth/access-status')
+    .then((access) => ({
+      ok: true,
+      data: {
+        ready: false,
+        blockedReason: access.access_allowed
+          ? 'calendar_import_browser_flow_unavailable'
+          : access.denial_reason,
+        latestRun: null,
+      },
+    }));
 }
 
 export function startCustomerGoogleCalendarImport(
-  handoff?: string,
+  _handoff?: string,
 ): Promise<
   ApiResponse<CustomerGoogleCalendarImportStartResult>
 > {
-  return customerApi.post<ApiResponse<CustomerGoogleCalendarImportStartResult>>(
-    '/api/customer/google-calendar-import/start',
-    handoff ? { handoff } : undefined,
-  );
+  return Promise.resolve({ ok: false, error: 'calendar_import_browser_flow_unavailable' });
 }
 
 export function claimCustomerCalendarImportHandoff(
-  token: string,
+  _token: string,
 ): Promise<ApiResponse<{ status: string; continue_to: string }>> {
-  return customerApi.post<ApiResponse<{ status: string; continue_to: string }>>(
-    '/api/customer/calendar-import-handoffs/claim',
-    { token },
-  );
+  return Promise.resolve({ ok: false, error: 'calendar_import_handoff_unavailable' });
 }
 
 export function getCustomerGoogleCalendarImportStatusForRun(
-  runId?: string,
+  _runId?: string,
 ): Promise<ApiResponse<CustomerGoogleCalendarImportStatusResult>> {
-  return customerApi.get<ApiResponse<CustomerGoogleCalendarImportStatusResult>>(
-    runId
-      ? `/api/customer/google-calendar-import/status?runId=${encodeURIComponent(runId)}`
-      : '/api/customer/google-calendar-import/status',
-  );
+  return Promise.resolve({
+    ok: true,
+    data: {
+      run: null,
+      latestRun: null,
+    },
+  });
 }

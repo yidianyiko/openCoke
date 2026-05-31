@@ -1,7 +1,6 @@
 import type { ApiResponse, ProductActionAvailability } from './api-types';
 import type { LocaleMessages } from './i18n';
 import { customerApi } from './customer-api';
-import { getStoredCustomerSession } from './customer-auth';
 
 type CustomerWechatChannelStatus =
   | 'missing'
@@ -77,14 +76,6 @@ function isCleanChannelError(value: unknown): value is CleanChannelError {
     'error' in value &&
     typeof (value as CleanChannelError).error?.code === 'string'
   );
-}
-
-function currentAccountId(): string | null {
-  return getStoredCustomerSession()?.customerId ?? null;
-}
-
-function accountRequired<T>(): ApiResponse<T> {
-  return { ok: false, error: 'missing_session' };
 }
 
 function cleanStatusToCustomerState(
@@ -216,48 +207,28 @@ export function createCustomerWechatChannel(): Promise<ApiResponse<CustomerWecha
 }
 
 export function connectCustomerWechatChannel(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  const accountId = currentAccountId();
-  if (!accountId) {
-    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
-  }
   return customerApi
-    .post<CleanChannelStatus | CleanChannelError>('/api/channels/wechat-personal/connect', {
-      account_id: accountId,
-    })
+    .post<CleanChannelStatus | CleanChannelError>('/api/channels/wechat-personal/connect')
     .then(cleanStatusToCustomerState);
 }
 
 export function getCustomerWechatChannelStatus(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  const accountId = currentAccountId();
-  if (!accountId) {
-    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
-  }
   return customerApi
-    .get<CleanChannelStatus | CleanChannelError>(
-      `/api/channels/status?account_id=${encodeURIComponent(accountId)}`,
-    )
+    .get<CleanChannelStatus | CleanChannelError>('/api/channels/status')
     .then(cleanStatusToCustomerState);
 }
 
 export function getCustomerWechatChannelLoginStatus(
   sessionId: string,
 ): Promise<ApiResponse<CustomerWechatChannelState>> {
-  const accountId = currentAccountId();
-  if (!accountId) {
-    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
-  }
   return customerApi
     .get<CleanChannelStatus | CleanChannelError>(
-      `/api/channels/wechat-personal/login-status?account_id=${encodeURIComponent(accountId)}&session_id=${encodeURIComponent(sessionId)}`,
+      `/api/channels/wechat-personal/login-status?session_id=${encodeURIComponent(sessionId)}`,
     )
     .then(cleanStatusToCustomerState);
 }
 
 export function disconnectCustomerWechatChannel(): Promise<ApiResponse<CustomerWechatChannelState>> {
-  const accountId = currentAccountId();
-  if (!accountId) {
-    return Promise.resolve(accountRequired<CustomerWechatChannelState>());
-  }
   return getCustomerWechatChannelStatus().then((status) => {
     if (!status.ok) {
       return status;
@@ -268,7 +239,6 @@ export function disconnectCustomerWechatChannel(): Promise<ApiResponse<CustomerW
     return customerApi
       .post<CleanChannelBody | CleanChannelError>(
         `/api/channels/${encodeURIComponent(status.data.channel_id)}/remove`,
-        { account_id: accountId },
       )
       .then(removedChannelToState);
   });

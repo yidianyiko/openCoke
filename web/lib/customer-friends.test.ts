@@ -13,7 +13,6 @@ vi.mock('./customer-api', () => ({
   customerApi: {
     get: vi.fn(),
     post: vi.fn(),
-    delete: vi.fn(),
   },
 }));
 
@@ -31,32 +30,48 @@ describe('customer friends wrappers', () => {
     expect(customerFriends).not.toHaveProperty('cancelCustomerFriendRequest');
   });
 
-  it('reads the current friend link and friends from scheduling endpoints', async () => {
-    apiMock.get.mockResolvedValue({ ok: true, data: null });
+  it('reads the current friend link and friends from clean friend endpoints', async () => {
+    apiMock.get
+      .mockResolvedValueOnce({
+        friend_link_id: 'fl_1',
+        owner_account_id: 'acct_1',
+        lifecycle: 'active',
+        public_token: 'token_1',
+        link_code: 'code_1',
+        qr_payload: 'https://example.test/f/code_1',
+      })
+      .mockResolvedValueOnce({ friends: [] });
 
     await getCustomerFriendLink();
     await listCustomerFriends();
 
-    expect(apiMock.get).toHaveBeenNthCalledWith(1, '/api/customer/scheduling/user-link');
-    expect(apiMock.get).toHaveBeenNthCalledWith(2, '/api/customer/scheduling/friends');
+    expect(apiMock.get).toHaveBeenNthCalledWith(1, '/api/friends/link');
+    expect(apiMock.get).toHaveBeenNthCalledWith(2, '/api/friends');
     expect(apiMock.get).not.toHaveBeenCalledWith('/api/customer/scheduling/friend-requests');
   });
 
   it('mutates the current friend link through reset and disable endpoints', async () => {
-    apiMock.post.mockResolvedValue({ ok: true, data: null });
+    apiMock.post.mockResolvedValue({
+      friend_link_id: 'fl_1',
+      owner_account_id: 'acct_1',
+      lifecycle: 'active',
+      public_token: 'token_1',
+      link_code: 'code_1',
+      qr_payload: 'https://example.test/f/code_1',
+    });
 
     await resetCustomerFriendLink();
     await disableCustomerFriendLink();
 
-    expect(apiMock.post).toHaveBeenNthCalledWith(1, '/api/customer/scheduling/user-link/reset');
-    expect(apiMock.post).toHaveBeenNthCalledWith(2, '/api/customer/scheduling/user-link/disable');
+    expect(apiMock.post).toHaveBeenNthCalledWith(1, '/api/friends/link/reset');
+    expect(apiMock.post).toHaveBeenNthCalledWith(2, '/api/friends/link/disable');
   });
 
-  it('removes a friendship with an encoded friendship id', async () => {
-    apiMock.delete.mockResolvedValueOnce({ ok: true, data: { id: 'fs/1', status: 'removed' } });
+  it('removes a friend with an encoded friend account id', async () => {
+    apiMock.post.mockResolvedValueOnce({ friendship_id: 'fs/1', lifecycle: 'removed' });
 
     await removeCustomerFriend('fs/1');
 
-    expect(apiMock.delete).toHaveBeenCalledWith('/api/customer/scheduling/friends/fs%2F1');
+    expect(apiMock.post).toHaveBeenCalledWith('/api/friends/fs%2F1/remove');
   });
 });
