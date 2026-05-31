@@ -565,6 +565,11 @@ def _render_context_payload(request: AgentRequest) -> dict[str, Any]:
             render_context["facts_hash"] = fact_hash
     elif isinstance(payload.get("facts"), Mapping):
         render_context["notification_facts"] = dict(payload["facts"])
+    fact_list = payload.get("notification_facts")
+    if isinstance(fact_list, list):
+        render_context["notification_facts"] = [
+            dict(fact) for fact in fact_list if isinstance(fact, Mapping)
+        ]
     if isinstance(payload.get("error_facts"), Mapping):
         render_context["error_facts"] = dict(payload["error_facts"])
     return render_context

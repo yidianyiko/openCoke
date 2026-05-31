@@ -45,6 +45,7 @@ class DeliveryRequest:
     message_type: str
     visible_text: str
     idempotency_key: str
+    message_id: str | None = None
     segments: tuple[str, ...] = ()
     context_token: str | None = None
 
@@ -371,6 +372,12 @@ class TurnRunner:
             based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
             reason_code="sync_timeout",
         )
+        waiting_message = self.conversation_runtime.record_outbound_message(
+            context.freshness_guard.turn_id,
+            WAITING_TEXT,
+            segment_index=0,
+            payload={"message_type": "waiting"},
+        )
         self.outbound_delivery.deliver(
             DeliveryRequest(
                 account_id=trigger.account_id,
@@ -379,6 +386,7 @@ class TurnRunner:
                 message_type="waiting",
                 visible_text=WAITING_TEXT,
                 idempotency_key=f"{trigger.trigger_id}:waiting",
+                message_id=waiting_message.id,
                 segments=(WAITING_TEXT,),
                 context_token=_context_token_from_trigger(trigger),
             )
@@ -443,11 +451,17 @@ class TurnRunner:
         )
         self.conversation_runtime.guard_state_change(turn_id, based_on_inbound_seq)
         visible_text = "\n".join(validated.segments)
+        outbound_messages = [
+            message
+            for message in self.conversation_runtime.outbound_messages_for_turn(turn_id)
+            if (message.segment_index or 0) > 0
+        ]
         for request in self._reply_delivery_requests(
             trigger=trigger,
             turn_id=turn_id,
             visible_text=visible_text,
             segments=validated.segments,
+            outbound_messages=outbound_messages,
         ):
             outcome = self._deliver(request)
             self._record_delivery_lifecycle(trigger, request, outcome)
@@ -500,9 +514,11 @@ class TurnRunner:
         turn_id: str,
         visible_text: str,
         segments: tuple[str, ...],
+        outbound_messages: list[Any],
     ) -> list[DeliveryRequest]:
         recipients = _recipient_account_ids(trigger)
         multiple = len(recipients) > 1
+        message_id = _first_outbound_message_id(outbound_messages)
         requests: list[DeliveryRequest] = []
         for account_id in recipients:
             idempotency_key = f"{turn_id}:reply"
@@ -516,6 +532,7 @@ class TurnRunner:
                     message_type="reply",
                     visible_text=visible_text,
                     idempotency_key=idempotency_key,
+                    message_id=message_id,
                     segments=segments,
                     context_token=_context_token_from_trigger(trigger),
                 )
@@ -621,6 +638,16 @@ def _recipient_account_ids(trigger: TurnTrigger) -> list[str]:
             if recipients:
                 return list(dict.fromkeys(recipients))
     return [trigger.account_id]
+
+
+def _first_outbound_message_id(outbound_messages: list[Any]) -> str | None:
+    if not outbound_messages:
+        return None
+    ordered = sorted(
+        outbound_messages,
+        key=lambda message: (getattr(message, "segment_index", None) or 0, message.id),
+    )
+    return ordered[0].id
 
 
 def _context_token_from_trigger(trigger: TurnTrigger) -> str | None:

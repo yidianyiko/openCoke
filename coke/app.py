@@ -76,6 +76,8 @@ def create_app(
                         if composed_runtime is not None
                         else None
                     ),
+                    reminder_service=reminder_service,
+                    social_scheduling_service=social_scheduling_service,
                     commit_callback=(
                         composed_runtime.session.commit
                         if composed_runtime is not None

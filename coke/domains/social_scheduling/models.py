@@ -137,6 +137,13 @@ class NotificationRecipient:
 
 
 @dataclass(frozen=True, slots=True)
+class UndeliveredNotificationResendTurn:
+    recipient_account_id: str
+    notification_fact_ids: list[str]
+    trigger_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class SharedReminderCreateResult:
     status: Literal[
         "created",

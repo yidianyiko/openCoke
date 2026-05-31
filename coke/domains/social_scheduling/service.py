@@ -28,6 +28,7 @@ from coke.domains.social_scheduling.models import (
     SharedReminderCancellationResult,
     SharedReminderCreateResult,
     SocialSchedulingError,
+    UndeliveredNotificationResendTurn,
 )
 from coke.domains.social_scheduling.notifications import (
     NotificationFactWriter,
@@ -522,6 +523,23 @@ class SocialSchedulingService:
             delivery_state=delivery_state,
             error_facts=error_facts,
             turn_id=turn_id,
+        )
+
+    def undelivered_notification_resend_turn(
+        self, recipient_account_id: str
+    ) -> UndeliveredNotificationResendTurn:
+        notification_fact_ids: list[str] = []
+        for fact in self.repository.list_notification_facts():
+            recipient = self.repository.get_notification_recipient(
+                fact.id,
+                recipient_account_id,
+            )
+            if recipient is not None and recipient.delivery_state == "undelivered":
+                notification_fact_ids.append(fact.id)
+        return UndeliveredNotificationResendTurn(
+            recipient_account_id=recipient_account_id,
+            notification_fact_ids=notification_fact_ids,
+            trigger_id=f"notification_undelivered:{recipient_account_id}",
         )
 
     def _establish_from_link(

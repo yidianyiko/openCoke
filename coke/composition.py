@@ -196,6 +196,7 @@ class ChannelReachabilityOutboundDelivery:
                 text=request.visible_text,
                 idempotency_key=request.idempotency_key,
                 turn_id=request.turn_id,
+                message_id=request.message_id,
                 context_token=context_token,
             )
         except ChannelReachabilityError:
@@ -214,6 +215,7 @@ class OutputLifecycleDeliveryCallbacks:
 
     def record_delivery(self, *, trigger, request, outcome) -> None:
         delivered = outcome.status in {"sent", "delivered"}
+        undelivered = _is_context_token_window_failure(outcome)
         if trigger.trigger_type == "ReminderFireTurn":
             fire_ids = _string_list(trigger.payload.get("fire_ids"))
             if fire_ids:
@@ -230,6 +232,31 @@ class OutputLifecycleDeliveryCallbacks:
                     delivered=delivered,
                 )
             return
+        if trigger.trigger_type == "UndeliveredResendTurn":
+            fire_ids = _string_list(trigger.payload.get("fire_ids"))
+            if fire_ids:
+                self.reminder_service.record_fire_delivery(
+                    fire_ids,
+                    delivered=delivered,
+                )
+            notification_fact_ids = _string_list(
+                trigger.payload.get("notification_fact_ids")
+            )
+            for fact_id in notification_fact_ids:
+                self.social_scheduling_service.record_notification_delivery(
+                    notification_fact_id=fact_id,
+                    recipient_account_id=request.account_id,
+                    delivery_state=(
+                        "delivered"
+                        if delivered
+                        else "undelivered" if undelivered else "failed"
+                    ),
+                    error_facts=(
+                        {} if delivered else {"type": "recipient_channel_unavailable"}
+                    ),
+                    turn_id=request.turn_id,
+                )
+            return
         if trigger.trigger_type == "NotificationTurn":
             fact_id = trigger.payload.get("notification_fact_id")
             if not isinstance(fact_id, str) or not fact_id:
@@ -237,7 +264,11 @@ class OutputLifecycleDeliveryCallbacks:
             self.social_scheduling_service.record_notification_delivery(
                 notification_fact_id=fact_id,
                 recipient_account_id=request.account_id,
-                delivery_state="delivered" if delivered else "failed",
+                delivery_state=(
+                    "delivered"
+                    if delivered
+                    else "undelivered" if undelivered else "failed"
+                ),
                 error_facts=(
                     {} if delivered else {"type": "recipient_channel_unavailable"}
                 ),
@@ -1313,3 +1344,15 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, str) and value:
         return [value]
     return []
+
+
+def _is_context_token_window_failure(outcome: Any) -> bool:
+    error_code = getattr(outcome, "error_code", None)
+    if not isinstance(error_code, str) or not error_code:
+        return False
+    normalized = error_code.lower()
+    return (
+        normalized == "context_token_required"
+        or "ret_-2" in normalized
+        or "invalid_context_token" in normalized
+    )

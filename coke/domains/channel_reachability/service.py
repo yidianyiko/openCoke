@@ -362,8 +362,6 @@ class ChannelReachabilityService:
             return existing
         adapter = self._require_provider(route.provider_type)
         if route.provider_type == "wechat_personal":
-            if not context_token:
-                raise ChannelReachabilityError("context_token_required")
             result = adapter.send_text(
                 route=route,
                 text=text,
@@ -377,6 +375,23 @@ class ChannelReachabilityService:
                 idempotency_key=idempotency_key,
             )
         now = self._now()
+        if (
+            route.provider_type == "wechat_personal"
+            and result.status == "failed"
+            and _is_session_expired_error(result.error_code)
+        ):
+            channel = self.repository.get_channel(route.channel_id)
+            if (
+                channel is not None
+                and channel.connection_state != "reconnection_required"
+            ):
+                self.repository.save_channel(
+                    replace(
+                        channel,
+                        connection_state="reconnection_required",
+                        updated_at=now,
+                    )
+                )
         attempt = DeliveryAttempt(
             id=self._id_factory("delivery_attempt"),
             route_id=route.id,
@@ -588,6 +603,16 @@ def _required_response_str(response: object, field: str) -> str:
             fact={"type": "invalid_provider_response", "field": field},
         )
     return value
+
+
+def _is_session_expired_error(error_code: str | None) -> bool:
+    if not error_code:
+        return False
+    normalized = error_code.lower()
+    return "errcode_-14" in normalized or normalized in {
+        "session_expired",
+        "ilink_session_expired",
+    }
 
 
 def _mask_identity(value: str) -> str:

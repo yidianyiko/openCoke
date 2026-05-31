@@ -61,6 +61,7 @@ class FakeReachabilityService:
 class FakeConversationRuntimeService:
     def __init__(self) -> None:
         self.calls = []
+        self.enqueued = []
 
     def record_inbound(
         self,
@@ -82,12 +83,63 @@ class FakeConversationRuntimeService:
                 "traceparent": traceparent,
             }
         )
+        return SimpleNamespace(
+            conversation=SimpleNamespace(id="conversation_1"),
+            message=SimpleNamespace(id="message_1", seq=1),
+        )
+
+    def enqueue_render_turn(
+        self,
+        *,
+        topic,
+        idempotency_key,
+        payload,
+        traceparent,
+    ):
+        self.enqueued.append(
+            {
+                "topic": topic,
+                "idempotency_key": idempotency_key,
+                "payload": payload,
+                "traceparent": traceparent,
+            }
+        )
+
+
+class FakeReminderService:
+    def __init__(self, fire_ids=None) -> None:
+        self.fire_ids = list(fire_ids or [])
+        self.calls = []
+
+    def undelivered_resend_turn(self, account_id):
+        self.calls.append(account_id)
+        return SimpleNamespace(
+            owner_account_id=account_id,
+            fire_ids=list(self.fire_ids),
+            trigger_id=f"reminder_undelivered:{account_id}",
+        )
+
+
+class FakeSocialSchedulingService:
+    def __init__(self, notification_fact_ids=None) -> None:
+        self.notification_fact_ids = list(notification_fact_ids or [])
+        self.calls = []
+
+    def undelivered_notification_resend_turn(self, account_id):
+        self.calls.append(account_id)
+        return SimpleNamespace(
+            recipient_account_id=account_id,
+            notification_fact_ids=list(self.notification_fact_ids),
+            trigger_id=f"notification_undelivered:{account_id}",
+        )
 
 
 def make_client(
     service=None,
     adapters=None,
     conversation_runtime_service=None,
+    reminder_service=None,
+    social_scheduling_service=None,
     commit_callback=None,
 ):
     service = service or FakeReachabilityService()
@@ -100,6 +152,8 @@ def make_client(
             service,
             adapters,
             conversation_runtime_service=conversation_runtime_service,
+            reminder_service=reminder_service,
+            social_scheduling_service=social_scheduling_service,
             commit_callback=commit_callback,
         )
     )
@@ -219,6 +273,108 @@ def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():
         }
     ]
     assert commits == ["committed"]
+
+
+def test_provider_webhook_enqueues_undelivered_resend_after_next_inbound():
+    conversation_runtime = FakeConversationRuntimeService()
+    reminder_service = FakeReminderService(fire_ids=["fire_1", "fire_2"])
+    client, _service, _adapters = make_client(
+        conversation_runtime_service=conversation_runtime,
+        reminder_service=reminder_service,
+    )
+    payload = {
+        "event": "messages.upsert",
+        "instance": "coke",
+        "data": {
+            "key": {
+                "remoteJid": "15555550123@s.whatsapp.net",
+                "fromMe": False,
+                "id": "wa_msg_1",
+            },
+            "pushName": "Alice",
+            "message": {"conversation": "hello again"},
+            "messageTimestamp": 1_700_000_000,
+        },
+    }
+
+    response = client.post(
+        "/webhooks/whatsapp/evolution",
+        json=payload,
+        headers={
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+        },
+    )
+
+    assert response.status_code == 202
+    assert reminder_service.calls == ["acct_1"]
+    assert conversation_runtime.enqueued == [
+        {
+            "topic": "turn.undelivered_resend",
+            "idempotency_key": "undelivered_resend:acct_1:wa_msg_1",
+            "payload": {
+                "trigger_id": "undelivered_resend:acct_1:wa_msg_1",
+                "trigger_type": "UndeliveredResendTurn",
+                "account_id": "acct_1",
+                "conversation_id": "conversation_1",
+                "fire_ids": ["fire_1", "fire_2"],
+                "causal_inbound_event_id": "wa_msg_1",
+                "framing": "previously_undelivered",
+            },
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+        }
+    ]
+
+
+def test_provider_webhook_enqueues_notification_resend_after_next_inbound():
+    conversation_runtime = FakeConversationRuntimeService()
+    social_service = FakeSocialSchedulingService(
+        notification_fact_ids=["notification_fact_1"]
+    )
+    client, _service, _adapters = make_client(
+        conversation_runtime_service=conversation_runtime,
+        social_scheduling_service=social_service,
+    )
+    payload = {
+        "event": "messages.upsert",
+        "instance": "coke",
+        "data": {
+            "key": {
+                "remoteJid": "15555550123@s.whatsapp.net",
+                "fromMe": False,
+                "id": "wa_msg_2",
+            },
+            "pushName": "Alice",
+            "message": {"conversation": "hello again"},
+            "messageTimestamp": 1_700_000_000,
+        },
+    }
+
+    response = client.post(
+        "/webhooks/whatsapp/evolution",
+        json=payload,
+        headers={
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+        },
+    )
+
+    assert response.status_code == 202
+    assert social_service.calls == ["acct_1"]
+    assert conversation_runtime.enqueued == [
+        {
+            "topic": "turn.undelivered_resend",
+            "idempotency_key": "undelivered_resend:acct_1:wa_msg_2",
+            "payload": {
+                "trigger_id": "undelivered_resend:acct_1:wa_msg_2",
+                "trigger_type": "UndeliveredResendTurn",
+                "account_id": "acct_1",
+                "conversation_id": "conversation_1",
+                "notification_fact_ids": ["notification_fact_1"],
+                "causal_inbound_event_id": "wa_msg_2",
+                "framing": "previously_undelivered",
+            },
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+        }
+    ]
 
 
 def test_provider_webhook_rejects_unknown_provider_with_json_error():

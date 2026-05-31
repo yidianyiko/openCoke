@@ -401,6 +401,46 @@ def test_render_notification_context_exposes_structured_facts_to_agent():
     assert "快去看看" not in reply_text
 
 
+def test_render_context_exposes_undelivered_notification_fact_list_to_agent():
+    fake_agent = FakeAgentInstance(
+        content={
+            "type": "reply",
+            "segments": ["Previously undelivered: Alice cancelled Lunch."],
+        }
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(
+        _render_request(
+            trigger_type="UndeliveredResendTurn",
+            payload={
+                "framing": "previously_undelivered",
+                "notification_facts": [
+                    {
+                        "id": "notification_fact_1",
+                        "type": "shared_reminder_cancelled",
+                        "facts": {
+                            "actor_display_name": "Alice",
+                            "title": "Lunch",
+                            "status": "cancelled",
+                        },
+                        "facts_hash": "hash_1",
+                    }
+                ],
+            },
+        )
+    )
+
+    render_context = fake_agent.calls[0]["input"].split("Trusted context:", 1)[0]
+    assert "UndeliveredResendTurn" in render_context
+    assert "previously_undelivered" in render_context
+    assert "shared_reminder_cancelled" in render_context
+    assert "Lunch" in render_context
+
+
 def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
@@ -912,6 +952,7 @@ def _render_request(
     *,
     payload: dict[str, Any] | None = None,
     trusted_facts: dict[str, Any] | None = None,
+    trigger_type: str = "NotificationTurn",
 ) -> AgentRequest:
     facts = {
         "assistant_name": "Coke",
@@ -927,7 +968,7 @@ def _render_request(
         conversation_id="conversation_1",
         account_id="account_1",
         mode=TurnMode.RENDER,
-        trigger_type="NotificationTurn",
+        trigger_type=trigger_type,
         payload=payload
         or {
             "notification_fact": {

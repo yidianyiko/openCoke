@@ -16,6 +16,8 @@ def create_provider_webhook_blueprint(
     providers,
     *,
     conversation_runtime_service=None,
+    reminder_service=None,
+    social_scheduling_service=None,
     commit_callback: Callable[[], None] | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("provider_webhooks", __name__)
@@ -56,12 +58,21 @@ def create_provider_webhook_blueprint(
         inbound_event = adapter.normalize_inbound(_json_payload())
         accepted = reachability_service.accept_provider_inbound(inbound_event)
         if conversation_runtime_service is not None:
-            conversation_runtime_service.record_inbound(
+            inbound_record = conversation_runtime_service.record_inbound(
                 account_id=accepted.account_id,
                 channel_identity_id=accepted.channel_identity_id,
                 causal_inbound_event_id=accepted.raw_event_id,
                 text=inbound_event.text,
                 payload=dict(inbound_event.payload or {}),
+                traceparent=_request_traceparent(),
+            )
+            _enqueue_undelivered_resend(
+                conversation_runtime_service=conversation_runtime_service,
+                reminder_service=reminder_service,
+                social_scheduling_service=social_scheduling_service,
+                account_id=accepted.account_id,
+                raw_event_id=accepted.raw_event_id,
+                conversation_id=inbound_record.conversation.id,
                 traceparent=_request_traceparent(),
             )
             if commit_callback is not None:
@@ -83,6 +94,59 @@ def create_provider_webhook_blueprint(
         )
 
     return blueprint
+
+
+def _enqueue_undelivered_resend(
+    *,
+    conversation_runtime_service,
+    reminder_service,
+    social_scheduling_service,
+    account_id: str,
+    raw_event_id: str,
+    conversation_id: str,
+    traceparent: str,
+) -> None:
+    resend = (
+        reminder_service.undelivered_resend_turn(account_id)
+        if reminder_service is not None
+        else None
+    )
+    fire_ids = [
+        fire_id
+        for fire_id in getattr(resend, "fire_ids", [])
+        if isinstance(fire_id, str) and fire_id
+    ]
+    notification_resend = (
+        social_scheduling_service.undelivered_notification_resend_turn(account_id)
+        if social_scheduling_service is not None
+        else None
+    )
+    notification_fact_ids = [
+        fact_id
+        for fact_id in getattr(notification_resend, "notification_fact_ids", [])
+        if isinstance(fact_id, str) and fact_id
+    ]
+    if not fire_ids and not notification_fact_ids:
+        return
+    trigger_id = f"undelivered_resend:{account_id}:{raw_event_id}"
+    payload = {
+        "trigger_id": trigger_id,
+        "trigger_type": "UndeliveredResendTurn",
+        "account_id": account_id,
+        "conversation_id": conversation_id,
+        "causal_inbound_event_id": raw_event_id,
+        "framing": "previously_undelivered",
+    }
+    if fire_ids:
+        payload["fire_ids"] = fire_ids
+    if notification_fact_ids:
+        payload["notification_fact_ids"] = notification_fact_ids
+    conversation_runtime_service.enqueue_render_turn(
+        topic="turn.undelivered_resend",
+        idempotency_key=trigger_id,
+        payload=payload,
+        traceparent=traceparent,
+    )
 
 
 def _request_traceparent() -> str:

@@ -31,6 +31,7 @@ class IlinkAdapter:
         self.start_calls = []
         self.status_calls = []
         self.send_calls = []
+        self.next_send_result = None
 
     def start_login(self, *, account_id: str):
         self.start_calls.append({"account_id": account_id})
@@ -73,6 +74,15 @@ class IlinkAdapter:
                 "context_token": context_token,
             }
         )
+        if self.next_send_result is not None:
+            return self.next_send_result
+        if context_token is None:
+            return DeliveryAttemptResult(
+                status="failed",
+                provider_message_id=None,
+                error_code="context_token_required",
+                delivered_at=None,
+            )
         return DeliveryAttemptResult(
             status="sent",
             provider_message_id="sent-1",
@@ -194,6 +204,52 @@ def test_wechat_personal_outbound_uses_context_token():
     ]
 
 
+def test_wechat_personal_missing_context_token_records_failed_attempt_with_message_link():
+    _identity, reachability, adapter, account_id = make_services()
+    pending = reachability.start_wechat_personal_connection(account_id)
+    reachability.poll_wechat_personal_login(account_id, pending.session_id)
+
+    attempt = reachability.send_text(
+        account_id,
+        "late reminder",
+        "idem-missing-context",
+        turn_id="turn_1",
+        message_id="message_1",
+        context_token=None,
+    )
+
+    assert attempt.status == "failed"
+    assert attempt.error_code == "context_token_required"
+    assert attempt.message_id == "message_1"
+    assert adapter.send_calls[-1]["context_token"] is None
+
+
+def test_wechat_personal_session_expiry_marks_channel_reconnection_required():
+    _identity, reachability, adapter, account_id = make_services()
+    pending = reachability.start_wechat_personal_connection(account_id)
+    reachability.poll_wechat_personal_login(account_id, pending.session_id)
+    channel = reachability.repository.get_active_channel(account_id)
+    adapter.next_send_result = DeliveryAttemptResult(
+        status="failed",
+        provider_message_id=None,
+        error_code="ilink_send_failed_errcode_-14",
+        delivered_at=None,
+    )
+
+    attempt = reachability.send_text(
+        account_id,
+        "late reminder",
+        "idem-session-expired",
+        context_token="ctx-stale",
+    )
+
+    assert attempt.status == "failed"
+    assert (
+        reachability.repository.get_channel(channel.id).connection_state
+        == "reconnection_required"
+    )
+
+
 def test_outbound_delivery_uses_request_context_token_before_latest_fallback():
     conversation = type(
         "ConversationContext",
@@ -227,6 +283,28 @@ def test_outbound_delivery_uses_request_context_token_before_latest_fallback():
         "idempotency_key": "idem-reply-1",
         "context_token": "ctx-trigger",
     }
+
+
+def test_outbound_delivery_records_request_message_id_on_attempt():
+    _identity, reachability, _adapter, account_id = make_services()
+    pending = reachability.start_wechat_personal_connection(account_id)
+    reachability.poll_wechat_personal_login(account_id, pending.session_id)
+    delivery = ChannelReachabilityOutboundDelivery(reachability)
+
+    attempt = delivery.deliver(
+        DeliveryRequest(
+            account_id=account_id,
+            conversation_id="conversation_1",
+            turn_id="turn_1",
+            message_id="message_1",
+            message_type="reply",
+            visible_text="hello back",
+            idempotency_key="idem-message-link",
+            context_token="ctx-trigger",
+        )
+    )
+
+    assert attempt.message_id == "message_1"
 
 
 def test_outbound_delivery_uses_latest_context_token_for_render_without_trigger_token():

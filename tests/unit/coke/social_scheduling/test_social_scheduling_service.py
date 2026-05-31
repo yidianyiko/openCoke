@@ -539,3 +539,29 @@ def test_notification_facts_store_structured_data_no_prose_and_partial_delivery_
     assert recipients["joiner"].delivery_state == "failed"
     assert recipients["joiner"].error_facts == {"type": "recipient_channel_unavailable"}
     assert "raw" not in str(recipients["joiner"].error_facts).lower()
+
+
+def test_undelivered_notification_resend_turn_returns_only_undelivered_recipient_facts():
+    service, repo, _, _ = make_service({"owner", "joiner"})
+    create_active_friendship(service, "owner", "joiner")
+    fact = repo.list_notification_facts()[0]
+    service.record_notification_delivery(
+        notification_fact_id=fact.id,
+        recipient_account_id="owner",
+        delivery_state="undelivered",
+        error_facts={"type": "recipient_channel_unavailable"},
+    )
+    service.record_notification_delivery(
+        notification_fact_id=fact.id,
+        recipient_account_id="joiner",
+        delivery_state="failed",
+        error_facts={"type": "recipient_channel_unavailable"},
+    )
+
+    resend = service.undelivered_notification_resend_turn("owner")
+
+    assert resend.notification_fact_ids == [fact.id]
+    assert (
+        service.undelivered_notification_resend_turn("joiner").notification_fact_ids
+        == []
+    )

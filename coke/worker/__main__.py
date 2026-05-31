@@ -15,7 +15,6 @@ from coke.turn.context import TurnMode, TurnTrigger
 from coke.worker.outbox_relay import OutboxRelay
 from coke.worker.stream_consumer import StreamConsumer, StreamEvent
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -98,6 +97,7 @@ def _turn_trigger_from_event(runtime: CokeRuntime, event: StreamEvent) -> TurnTr
         "turn.nightly_summary",
         "turn.proactive_fire",
         "turn.notification",
+        "turn.undelivered_resend",
     }:
         return _render_trigger(runtime, topic, payload)
     raise RuntimeError(f"unsupported_worker_topic:{topic}")
@@ -136,11 +136,15 @@ def _render_trigger(
     trigger_payload = dict(payload)
     if topic == "turn.notification":
         trigger_payload = _hydrate_notification_payload(runtime, trigger_payload)
+    if topic == "turn.undelivered_resend":
+        trigger_payload = _hydrate_undelivered_resend_payload(runtime, trigger_payload)
     account_id = _required_str(payload, "account_id")
     conversation_id = str(trigger_payload.get("conversation_id") or "")
     if not conversation_id:
-        conversation = runtime.repositories.conversation_runtime.get_conversation_by_account(
-            account_id
+        conversation = (
+            runtime.repositories.conversation_runtime.get_conversation_by_account(
+                account_id
+            )
         )
         if conversation is None:
             raise RuntimeError(f"conversation_not_found_for_account:{account_id}")
@@ -150,6 +154,7 @@ def _render_trigger(
         "turn.nightly_summary": "NightlySummaryTurn",
         "turn.proactive_fire": "ProactiveFireTurn",
         "turn.notification": "NotificationTurn",
+        "turn.undelivered_resend": "UndeliveredResendTurn",
     }[topic]
     return TurnTrigger(
         trigger_id=_required_str(payload, "trigger_id"),
@@ -187,6 +192,30 @@ def _hydrate_notification_payload(
     return payload
 
 
+def _hydrate_undelivered_resend_payload(
+    runtime: CokeRuntime,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    fact_ids = [
+        fact_id
+        for fact_id in payload.get("notification_fact_ids", [])
+        if isinstance(fact_id, str) and fact_id
+    ]
+    if not fact_ids:
+        return payload
+    repository = getattr(runtime.repositories, "social_scheduling", None)
+    if repository is None or not hasattr(repository, "list_notification_facts"):
+        return payload
+    facts_by_id = {fact.id: fact for fact in repository.list_notification_facts()}
+    hydrated = dict(payload)
+    hydrated["notification_facts"] = [
+        _notification_fact_payload(facts_by_id[fact_id])
+        for fact_id in fact_ids
+        if fact_id in facts_by_id
+    ]
+    return hydrated
+
+
 def _notification_fact_payload(fact: Any) -> dict[str, Any]:
     return {
         "id": getattr(fact, "id", None),
@@ -201,18 +230,28 @@ def _notification_fact_payload(fact: Any) -> dict[str, Any]:
 
 
 def _conversation_row(runtime: CokeRuntime, conversation_id: str) -> Mapping[str, Any]:
-    row = runtime.session.execute(
-        sa.select(schema.conversation).where(schema.conversation.c.id == conversation_id)
-    ).mappings().one_or_none()
+    row = (
+        runtime.session.execute(
+            sa.select(schema.conversation).where(
+                schema.conversation.c.id == conversation_id
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
     if row is None:
         raise RuntimeError(f"conversation_not_found:{conversation_id}")
     return dict(row)
 
 
 def _message_row(runtime: CokeRuntime, message_id: str) -> Mapping[str, Any]:
-    row = runtime.session.execute(
-        sa.select(schema.message).where(schema.message.c.id == message_id)
-    ).mappings().one_or_none()
+    row = (
+        runtime.session.execute(
+            sa.select(schema.message).where(schema.message.c.id == message_id)
+        )
+        .mappings()
+        .one_or_none()
+    )
     if row is None:
         raise RuntimeError(f"message_not_found:{message_id}")
     return dict(row)

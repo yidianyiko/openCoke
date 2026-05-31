@@ -262,9 +262,63 @@ class ConversationRuntimeService:
         self._require_turn(turn_id)
         return self.repository.outbound_messages_for_turn(turn_id)
 
+    def record_outbound_message(
+        self,
+        turn_id: str,
+        text: str,
+        *,
+        segment_index: int,
+        payload: Mapping[str, Any] | None = None,
+    ) -> Message:
+        turn = self._require_turn(turn_id)
+        now = self._now()
+        message = Message(
+            id=self._id_factory("message"),
+            conversation_id=turn.conversation_id,
+            turn_id=turn.id,
+            direction="outbound",
+            segment_index=segment_index,
+            seq=None,
+            channel_identity_id=None,
+            causal_inbound_event_id=None,
+            text=text,
+            payload=dict(payload or {}),
+            facts_hash=None,
+            created_at=now,
+            updated_at=now,
+        )
+        self.repository.add_outbound_message(message)
+        return message
+
     def latest_context_token(self, conversation_id: str) -> str | None:
         self._require_conversation(conversation_id)
         return self.repository.latest_inbound_context_token(conversation_id)
+
+    def enqueue_render_turn(
+        self,
+        *,
+        topic: str,
+        idempotency_key: str,
+        payload: Mapping[str, Any],
+        traceparent: str,
+    ) -> OutboxRecord:
+        now = self._now()
+        outbox = OutboxRecord(
+            id=self._id_factory("outbox"),
+            topic=topic,
+            idempotency_key=idempotency_key,
+            payload=dict(payload),
+            traceparent=traceparent,
+            status="pending",
+            created_at=now,
+            published_at=None,
+            processed_at=None,
+            acked_at=None,
+            retry_count=0,
+            last_error=None,
+        )
+        self.repository.add_outbox(outbox)
+        return outbox
 
     def _ensure_fresh(self, turn: Turn, based_on_inbound_seq: int | None) -> None:
         if turn.based_on_inbound_seq != based_on_inbound_seq:

@@ -89,3 +89,71 @@ def test_notification_render_trigger_hydrates_structured_facts_from_repository()
     assert "text" not in hydrated["facts"]
     assert "payload" not in hydrated["facts"]
     assert "prose" not in hydrated["facts"]
+
+
+def test_undelivered_resend_event_maps_to_render_turn():
+    runtime = FakeRuntime(FakeSocialSchedulingRepository([]))
+
+    trigger = _turn_trigger_from_event(
+        runtime,
+        StreamEvent(
+            event_id="event_2",
+            topic="turn.undelivered_resend",
+            idempotency_key="undelivered_resend:acct_1:wa_msg_1",
+            traceparent="traceparent",
+            payload={
+                "trigger_id": "undelivered_resend:acct_1:wa_msg_1",
+                "account_id": "acct_1",
+                "conversation_id": "conversation_1",
+                "fire_ids": ["fire_1", "fire_2"],
+                "framing": "previously_undelivered",
+            },
+            stream_message_id="1-1",
+        ),
+    )
+
+    assert trigger.trigger_type == "UndeliveredResendTurn"
+    assert trigger.payload["fire_ids"] == ["fire_1", "fire_2"]
+
+
+def test_undelivered_resend_event_hydrates_notification_facts():
+    fact = FakeNotificationFact(
+        id="notification_fact_1",
+        type="shared_reminder_cancelled",
+        actor_account_id="creator_1",
+        object_type="shared_reminder",
+        object_id="shared_1",
+        status="cancelled",
+        facts={
+            "actor_display_name": "Alice",
+            "title": "Lunch",
+            "time": "2026-06-01T12:00:00",
+            "timezone": "Asia/Tokyo",
+            "duration_minutes": 45,
+            "status": "cancelled",
+        },
+        facts_hash="hash_1",
+    )
+    runtime = FakeRuntime(FakeSocialSchedulingRepository([fact]))
+
+    trigger = _turn_trigger_from_event(
+        runtime,
+        StreamEvent(
+            event_id="event_3",
+            topic="turn.undelivered_resend",
+            idempotency_key="undelivered_resend:acct_1:wa_msg_2",
+            traceparent="traceparent",
+            payload={
+                "trigger_id": "undelivered_resend:acct_1:wa_msg_2",
+                "account_id": "acct_1",
+                "conversation_id": "conversation_1",
+                "notification_fact_ids": ["notification_fact_1"],
+                "framing": "previously_undelivered",
+            },
+            stream_message_id="1-2",
+        ),
+    )
+
+    assert trigger.trigger_type == "UndeliveredResendTurn"
+    assert trigger.payload["notification_facts"][0]["id"] == "notification_fact_1"
+    assert trigger.payload["notification_facts"][0]["facts"]["title"] == "Lunch"

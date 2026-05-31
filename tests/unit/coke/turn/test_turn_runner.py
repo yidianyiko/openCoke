@@ -518,6 +518,28 @@ def test_render_delivery_failure_updates_output_class_lifecycle(harness):
     ]
 
 
+def test_render_delivery_request_links_committed_outbound_message_id(harness):
+    result = harness["runner"].run_render_turn(
+        TurnTrigger(
+            trigger_id="notification:fact-1",
+            trigger_type="NotificationTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={
+                "notification_fact_id": "fact_1",
+                "recipient_account_ids": ["account_1"],
+            },
+        )
+    )
+
+    outbound = harness["runtime"].outbound_messages_for_turn(result.turn_id)
+
+    assert result.disposition == "replied"
+    assert len(outbound) == 1
+    assert harness["delivery"].deliveries[-1].message_id == outbound[0].id
+
+
 def test_denied_access_gate_yields_access_denied_turn_rendered_in_constrained_mode(
     harness,
 ):
