@@ -68,14 +68,16 @@ def run_worker_loop(
     consumer.ensure_group()
     supervisor_loop = _SupervisorLoop()
     supervisor_loop.start()
-    supervisor = InteractiveTurnSupervisor(
-        turn_runner=runtime.turn_runner,
-        interaction_agent=runtime.turn_runner.interaction_agent,
-        runtime_factory=interactive_runtime_factory,
-    )
-    _recover_open_inbound_windows(runtime, supervisor, supervisor_loop=supervisor_loop)
-    attempts = 0
     try:
+        supervisor = InteractiveTurnSupervisor(
+            turn_runner=runtime.turn_runner,
+            interaction_agent=runtime.turn_runner.interaction_agent,
+            runtime_factory=interactive_runtime_factory,
+        )
+        _recover_open_inbound_windows(
+            runtime, supervisor, supervisor_loop=supervisor_loop
+        )
+        attempts = 0
         while iterations is None or attempts < iterations:
             try:
                 count = consumer.reclaim_pending_once(
@@ -242,7 +244,7 @@ def _drain_supervisor_failures(
         )
         retry_trigger = _retry_trigger_for_supervisor_failure(trigger, source)
         if retry_trigger is not None:
-            _submit_interactive_trigger(
+            _submit_interactive_trigger_if_idle(
                 supervisor,
                 retry_trigger,
                 supervisor_loop=supervisor_loop,
@@ -276,6 +278,22 @@ def _retry_trigger_for_supervisor_failure(
     payload = dict(trigger.payload)
     payload["_worker_retry_count"] = retry_count + 1
     return replace(trigger, payload=payload)
+
+
+def _submit_interactive_trigger_if_idle(
+    supervisor: Any,
+    trigger: TurnTrigger,
+    *,
+    supervisor_loop: Any | None = None,
+) -> bool:
+    submit_if_idle = getattr(supervisor, "submit_if_idle", None)
+    if not callable(submit_if_idle):
+        return False
+    return bool(
+        _run_supervisor_coroutine(
+            submit_if_idle(trigger), supervisor_loop=supervisor_loop
+        )
+    )
 
 
 def _worker_retry_count(payload: Mapping[str, Any]) -> int:

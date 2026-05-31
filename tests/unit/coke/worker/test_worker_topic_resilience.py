@@ -107,11 +107,19 @@ class FakeRuntime:
 class FakeSupervisor:
     def __init__(self) -> None:
         self.submitted = []
+        self.idle_submitted = []
+        self.idle_accept = True
         self.completed = []
         self.failures = []
 
     async def submit(self, trigger):
         self.submitted.append(trigger)
+
+    async def submit_if_idle(self, trigger):
+        if not self.idle_accept:
+            return False
+        self.idle_submitted.append(trigger)
+        return True
 
     async def drain_completed(self):
         completed = list(self.completed)
@@ -395,11 +403,41 @@ def test_drain_supervisor_failures_resubmits_failed_turn_once(caplog):
     with caplog.at_level(logging.ERROR):
         _drain_supervisor_completions(runtime, supervisor)
 
-    assert [submitted.trigger_id for submitted in supervisor.submitted] == [
+    assert supervisor.submitted == []
+    assert [submitted.trigger_id for submitted in supervisor.idle_submitted] == [
         "inbound:provider_message_1"
     ]
-    assert supervisor.submitted[0].payload["_worker_retry_count"] == 1
+    assert supervisor.idle_submitted[0].payload["_worker_retry_count"] == 1
     assert "interactive_turn_task_failed" in caplog.text
+
+
+def test_drain_supervisor_failures_does_not_retry_over_active_turn():
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    supervisor.idle_accept = False
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider_message_1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id="conversation_1",
+        account_id="account_1",
+        payload={
+            "_worker_event_id": "outbox_inbound_1",
+            "causal_inbound_event_id": "provider_message_1",
+        },
+    )
+    supervisor.failures = [
+        SimpleNamespace(
+            trigger=trigger,
+            error=RuntimeError("agent_failed"),
+            source="turn_task",
+        )
+    ]
+
+    _drain_supervisor_completions(runtime, supervisor)
+
+    assert supervisor.submitted == []
+    assert supervisor.idle_submitted == []
 
 
 def test_drain_supervisor_failures_does_not_resubmit_provider_cancel_failure():
@@ -424,6 +462,46 @@ def test_drain_supervisor_failures_does_not_resubmit_provider_cancel_failure():
     _drain_supervisor_completions(runtime, supervisor)
 
     assert supervisor.submitted == []
+    assert supervisor.idle_submitted == []
+
+
+def test_worker_stops_supervisor_loop_when_recovery_fails(monkeypatch):
+    class FakeWorkStream:
+        def ensure_group(self) -> None:
+            pass
+
+    class RecordingSupervisorLoop:
+        started = False
+        stopped = False
+
+        def start(self) -> None:
+            RecordingSupervisorLoop.started = True
+
+        def stop(self) -> None:
+            RecordingSupervisorLoop.stopped = True
+
+    runtime = FakeRuntime()
+    runtime.work_stream = FakeWorkStream()
+    runtime.interactive_runtime_factory = lambda: runtime
+    settings = SimpleNamespace(
+        work_stream_name="coke.work",
+        work_group_name="workers",
+        work_consumer_name="worker-1",
+        worker_block_ms=1,
+        worker_reclaim_idle_ms=1,
+    )
+
+    def fail_recovery(*_args, **_kwargs):
+        raise RuntimeError("recovery_failed")
+
+    monkeypatch.setattr(worker_main, "_SupervisorLoop", RecordingSupervisorLoop)
+    monkeypatch.setattr(worker_main, "_recover_open_inbound_windows", fail_recovery)
+
+    with pytest.raises(RuntimeError, match="recovery_failed"):
+        worker_main.run_worker_loop(settings=settings, runtime=runtime, iterations=0)
+
+    assert RecordingSupervisorLoop.started is True
+    assert RecordingSupervisorLoop.stopped is True
 
 
 def test_drain_supervisor_completions_requeues_when_reply_publish_fails():

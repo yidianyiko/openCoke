@@ -204,6 +204,40 @@ async def test_provider_cancel_failure_is_reported_with_cancelled_trigger():
 
 
 @pytest.mark.asyncio
+async def test_idle_retry_submission_does_not_cancel_newer_active_turn():
+    runner = CancelFailureRunner()
+    agent = FakeAgent()
+    supervisor = InteractiveTurnSupervisor(
+        turn_runner=runner,
+        interaction_agent=agent,
+    )
+
+    failed = _inbound_trigger("inbound:1", "provider:1")
+    newer = _inbound_trigger("inbound:2", "provider:2")
+    await supervisor.submit(failed)
+    await asyncio.sleep(0)
+    await supervisor.submit(newer)
+    await asyncio.sleep(0)
+
+    failures = await supervisor.drain_failures()
+    accepted = await supervisor.submit_if_idle(failed)
+    runner.released.set()
+    await asyncio.sleep(0)
+    completed = await supervisor.drain_completed()
+
+    assert accepted is False
+    assert agent.cancelled == ["inbound:1"]
+    assert [trigger.trigger_id for trigger in runner.started] == [
+        "inbound:1",
+        "inbound:2",
+    ]
+    assert len(failures) == 1
+    assert [(trigger.trigger_id, result) for trigger, result in completed] == [
+        ("inbound:2", "finished:inbound:2")
+    ]
+
+
+@pytest.mark.asyncio
 async def test_post_close_running_turn_is_detached_without_provider_cancel():
     runner = PostCloseRunner()
     agent = FakeAgent()

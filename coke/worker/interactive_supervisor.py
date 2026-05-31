@@ -100,6 +100,22 @@ class InteractiveTurnSupervisor:
             lifecycle=lifecycle,
         )
 
+    async def submit_if_idle(self, trigger: TurnTrigger) -> bool:
+        self._collect_done_retired()
+        self._collect_done_cancel_tasks()
+        existing = self._active.get(trigger.conversation_id)
+        if existing is not None:
+            if not existing.task.done():
+                return False
+            self._collect_completed(trigger.conversation_id, existing)
+        if any(
+            completed_trigger.conversation_id == trigger.conversation_id
+            for completed_trigger, _result in self._completed
+        ):
+            return False
+        await self.submit(trigger)
+        return True
+
     async def drain_completed(self) -> list[tuple[TurnTrigger, Any]]:
         self._collect_done_retired()
         self._collect_done_cancel_tasks()
