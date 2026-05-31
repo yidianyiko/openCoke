@@ -1545,13 +1545,16 @@ def _validate_social_scheduling_staged_write(
                 int(command["duration_minutes"])
         elif operation == "detect_and_create_shared_reminder":
             _required_str(command, "creator_account_id", default_key="account_id")
-            _list_value(
+            receiver_account_ids = _list_value(
                 command,
                 "receiver_account_ids",
                 aliases=("participant_account_ids", "participants"),
             )
+            if not receiver_account_ids:
+                return _tool_validation_error("needs_participants")
             _required_str(command, "raw_text")
-            _optional_context(command.get("context"))
+            if _optional_context(command.get("context")) is None:
+                return _tool_validation_error("needs_context")
             if command.get("duration_minutes") is not None:
                 int(command["duration_minutes"])
         elif operation == "cancel_shared_reminder":

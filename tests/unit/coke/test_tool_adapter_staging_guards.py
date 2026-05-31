@@ -130,6 +130,26 @@ def test_staging_guard_rejects_unsupported_write_operations(
             "shared_reminder_id_required",
         ),
         (
+            SocialSchedulingToolAdapter(object()),
+            {
+                "operation": "detect_and_create_shared_reminder",
+                "creator_account_id": "account_1",
+                "raw_text": "remind us tomorrow",
+                "context": {"source": "unit"},
+            },
+            "needs_participants",
+        ),
+        (
+            SocialSchedulingToolAdapter(object()),
+            {
+                "operation": "detect_and_create_shared_reminder",
+                "creator_account_id": "account_1",
+                "receiver_account_ids": ["account_2"],
+                "raw_text": "remind us tomorrow",
+            },
+            "needs_context",
+        ),
+        (
             CalendarImportToolAdapter(object()),
             {
                 "operation": "import_google_calendar",
