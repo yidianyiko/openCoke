@@ -71,3 +71,21 @@ def test_output_protocol_reports_serialized_tool_call_guidance_for_retry():
         serialized_tool_call.retry_guidance
         == "serialized_tool_call_output_requires_native_tool_call"
     )
+
+
+def test_output_protocol_reports_state_change_without_tool_guidance_for_retry():
+    validator = OutputProtocolValidator()
+
+    state_change_claim = validator.validate_first_answer(
+        {
+            "type": "invalid_output_protocol",
+            "reason": "state_change_reply_without_tool_call",
+        }
+    )
+
+    assert state_change_claim.valid is False
+    assert state_change_claim.reason_code == "invalid_output_protocol"
+    assert (
+        state_change_claim.retry_guidance
+        == "state_change_reply_requires_native_tool_call"
+    )

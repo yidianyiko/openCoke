@@ -32,6 +32,11 @@ class OutputProtocolValidator:
             return self._invalid(
                 "serialized_tool_call_output_requires_native_tool_call"
             )
+        if (
+            output.get("type") == "invalid_output_protocol"
+            and output.get("reason") == "state_change_reply_without_tool_call"
+        ):
+            return self._invalid("state_change_reply_requires_native_tool_call")
 
         output_type = output.get("type")
         if output_type == "reply":

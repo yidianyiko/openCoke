@@ -202,6 +202,33 @@ def test_serialized_tool_call_content_is_classified_for_protocol_retry():
     assert result.timed_out is False
 
 
+def test_state_change_reply_without_tool_call_is_classified_for_protocol_retry():
+    fake_agent = FakeAgentInstance(
+        content={
+            "type": "reply",
+            "segments": ["好的，正在帮你和lizihao创建这个晨跑共享提醒，稍等~"],
+        }
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="lizihao",
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    assert result.output == {
+        "type": "invalid_output_protocol",
+        "reason": "state_change_reply_without_tool_call",
+    }
+    assert result.timed_out is False
+
+
 def test_fenced_json_agno_response_maps_to_agent_result():
     fake_agent = FakeAgentInstance(
         content='```json\n{"type":"reply","segments":["ok"]}\n```'
@@ -720,6 +747,32 @@ def test_protocol_retry_instruction_warns_against_serialized_tool_markup():
     output_contract = _block_text(prompt, "output_contract")
     assert "Specific protocol violation: serialized tool-call markup" in output_contract
     assert "Use the native tool call channel" in output_contract
+
+
+def test_protocol_retry_instruction_warns_against_state_change_without_tool_call():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            trusted_facts={
+                "protocol_retry": {
+                    "reason_code": "invalid_output_protocol",
+                    "attempt": 2,
+                    "guidance": "state_change_reply_requires_native_tool_call",
+                }
+            },
+        )
+    )
+
+    prompt = fake_agent.calls[0]["input"]
+    output_contract = _block_text(prompt, "output_contract")
+    assert "claimed a state-changing scheduling action" in output_contract
+    assert "Call social_scheduling_tool" in output_contract
 
 
 def test_agent_instructions_name_real_social_scheduling_operations():

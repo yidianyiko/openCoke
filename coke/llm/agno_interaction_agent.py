@@ -700,6 +700,13 @@ def _enforce_tool_reply_contracts(
     tool_events: list[dict[str, Any]],
     request: AgentRequest,
 ) -> AgentResult:
+    if _state_change_reply_without_tool_call(result, tool_events, request):
+        return AgentResult.completed(
+            {
+                "type": "invalid_output_protocol",
+                "reason": "state_change_reply_without_tool_call",
+            }
+        )
     reminder_list = _latest_render_reminder_list_event(tool_events)
     if reminder_list is None or _reminder_list_reply_is_complete(result, reminder_list):
         return result
@@ -708,6 +715,46 @@ def _enforce_tool_reply_contracts(
             "type": "reply",
             "segments": [_render_reminder_list_reply(reminder_list, request)],
         }
+    )
+
+
+def _state_change_reply_without_tool_call(
+    result: AgentResult,
+    tool_events: list[dict[str, Any]],
+    request: AgentRequest,
+) -> bool:
+    if tool_events:
+        return False
+    if "social_scheduling" not in request.tool_profile.tool_names:
+        return False
+    output = result.output
+    if not isinstance(output, Mapping) or output.get("type") != "reply":
+        return False
+    segments = output.get("segments")
+    if not isinstance(segments, list):
+        return False
+    text = " ".join(segment for segment in segments if isinstance(segment, str))
+    normalized = text.casefold()
+    action_terms = (
+        "共享提醒",
+        "提醒",
+        "晨跑",
+        "shared reminder",
+        "reminder",
+    )
+    claim_terms = (
+        "正在帮你",
+        "已创建",
+        "已经创建",
+        "创建好了",
+        "设置好了",
+        "will create",
+        "creating",
+        "created",
+        "set up",
+    )
+    return any(term in normalized for term in action_terms) and any(
+        term in normalized for term in claim_terms
     )
 
 
@@ -1176,6 +1223,13 @@ def _output_contract_block(request: AgentRequest) -> str:
             ):
                 lines.append(
                     "Specific protocol violation: serialized tool-call markup was emitted as text. Use the native tool call channel for domain actions, then return one final Coke JSON protocol object."
+                )
+            if (
+                protocol_retry.get("guidance")
+                == "state_change_reply_requires_native_tool_call"
+            ):
+                lines.append(
+                    "Specific protocol violation: the previous reply claimed a state-changing scheduling action without a native tool call. Call social_scheduling_tool for the requested shared-reminder work, then return one final Coke JSON protocol object grounded in the tool result."
                 )
     return "\n".join(lines)
 
