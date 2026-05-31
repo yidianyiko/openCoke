@@ -143,6 +143,36 @@ def test_context_token_window_failure_marks_notification_recipient_undelivered()
     assert recipient.error_facts == {"type": "recipient_channel_unavailable"}
 
 
+def test_notification_render_failure_marks_recipient_failed():
+    reminder_service = make_reminder_service()
+    social_service, repo = make_social_service()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+    )
+
+    callbacks.record_render_failure(
+        trigger=SimpleNamespace(
+            trigger_type="NotificationTurn",
+            account_id="acct_1",
+            payload={
+                "notification_fact_id": "notification_fact_1",
+                "recipient_account_ids": ["acct_1"],
+            },
+        ),
+        turn_id="turn_1",
+        reason_code="notification_requires_visible_reply",
+    )
+
+    recipient = repo.get_notification_recipient("notification_fact_1", "acct_1")
+    assert recipient.delivery_state == "failed"
+    assert recipient.turn_id == "turn_1"
+    assert recipient.error_facts == {
+        "type": "notification_render_failed",
+        "reason_code": "notification_requires_visible_reply",
+    }
+
+
 def test_undelivered_resend_delivery_updates_notification_recipient():
     reminder_service = make_reminder_service()
     social_service, repo = make_social_service()

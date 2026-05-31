@@ -24,6 +24,7 @@ from coke.turn.semantic_interpreter import (
 )
 
 WAITING_TEXT = "Still working on it."
+NOTIFICATION_VISIBLE_REPLY_REQUIRED = "notification_requires_visible_reply"
 
 
 class OutboundDeliveryPort(Protocol):
@@ -249,6 +250,7 @@ class TurnRunner:
                 reason_code=disposition.reason_code,
             )
         validated = self.output_protocol.validate_first_answer(result.output)
+        validated = _validate_for_trigger(trigger, validated)
         return self._record_validated_output(
             turn_id=state.turn_id,
             trigger=trigger,
@@ -367,6 +369,7 @@ class TurnRunner:
         if agent_result.timed_out:
             return self._record_pending_async(trigger, context, agent_result)
         validated = self.output_protocol.validate_first_answer(agent_result.output)
+        validated = _validate_for_trigger(trigger, validated)
         if not validated.valid:
             agent_result = self.interaction_agent.invoke(
                 _protocol_retry_request(agent_request, validated)
@@ -374,6 +377,7 @@ class TurnRunner:
             if agent_result.timed_out:
                 return self._record_pending_async(trigger, context, agent_result)
             validated = self.output_protocol.validate_first_answer(agent_result.output)
+            validated = _validate_for_trigger(trigger, validated)
         return self._record_validated_output(
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
@@ -454,6 +458,11 @@ class TurnRunner:
             disposition = self.conversation_runtime.mark_failed(
                 turn_id=turn_id,
                 reason_code=validated.reason_code or "invalid_output_protocol",
+            )
+            self._record_render_failure_lifecycle(
+                trigger,
+                turn_id,
+                disposition.reason_code or "invalid_output_protocol",
             )
             return self._result_from_disposition(
                 turn_id=turn_id,
@@ -599,6 +608,19 @@ class TurnRunner:
             outcome=outcome,
         )
 
+    def _record_render_failure_lifecycle(
+        self,
+        trigger: TurnTrigger,
+        turn_id: str,
+        reason_code: str,
+    ) -> None:
+        if self.delivery_lifecycle is None:
+            return
+        recorder = getattr(self.delivery_lifecycle, "record_render_failure", None)
+        if not callable(recorder):
+            return
+        recorder(trigger=trigger, turn_id=turn_id, reason_code=reason_code)
+
     def _conversation_runtime_error_result(
         self,
         turn_id: str,
@@ -656,6 +678,27 @@ def _protocol_retry_request(
             },
         },
     )
+
+
+def _validate_for_trigger(
+    trigger: TurnTrigger,
+    validated: ValidatedOutput,
+) -> ValidatedOutput:
+    if (
+        trigger.trigger_type == "NotificationTurn"
+        and validated.valid
+        and validated.kind == "no_reply"
+    ):
+        return ValidatedOutput(
+            valid=False,
+            kind=None,
+            reason_code=NOTIFICATION_VISIBLE_REPLY_REQUIRED,
+            retry_guidance=(
+                "NotificationTurn must render a visible reply from notification "
+                "facts; no_reply is not allowed."
+            ),
+        )
+    return validated
 
 
 def _trusted_facts_for_agent(

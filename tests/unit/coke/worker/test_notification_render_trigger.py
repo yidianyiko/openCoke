@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from coke.worker.__main__ import _turn_trigger_from_event
+from coke.worker.__main__ import _handle_event, _turn_trigger_from_event
 from coke.worker.stream_consumer import StreamEvent
 
 
@@ -35,6 +35,52 @@ class FakeRepositories:
 class FakeRuntime:
     def __init__(self, social_scheduling) -> None:
         self.repositories = FakeRepositories(social_scheduling)
+
+
+class FakeConversationRuntimeRepository:
+    def get_conversation_by_account(self, account_id: str):
+        return type("Conversation", (), {"id": f"conversation:{account_id}"})()
+
+
+class FakeSession:
+    def __init__(self) -> None:
+        self.commits = 0
+
+    def commit(self) -> None:
+        self.commits += 1
+
+
+class RecordingTurnRunner:
+    def __init__(self) -> None:
+        self.triggers = []
+
+    def run_render_turn(self, trigger):
+        self.triggers.append(trigger)
+        return type(
+            "TurnResult",
+            (),
+            {
+                "turn_id": f"turn:{trigger.account_id}",
+                "disposition": "replied",
+                "reason_code": "reply_ready",
+                "visible_text": "rendered",
+            },
+        )()
+
+
+class WorkerRuntime:
+    def __init__(self, social_scheduling) -> None:
+        self.repositories = type(
+            "Repositories",
+            (),
+            {
+                "social_scheduling": social_scheduling,
+                "conversation_runtime": FakeConversationRuntimeRepository(),
+            },
+        )()
+        self.turn_runner = RecordingTurnRunner()
+        self.session = FakeSession()
+        self.reply_pubsub = None
 
 
 def test_notification_render_trigger_hydrates_structured_facts_from_repository():
@@ -89,6 +135,69 @@ def test_notification_render_trigger_hydrates_structured_facts_from_repository()
     assert "text" not in hydrated["facts"]
     assert "payload" not in hydrated["facts"]
     assert "prose" not in hydrated["facts"]
+
+
+def test_notification_event_fans_out_to_recipient_scoped_render_turns():
+    fact = FakeNotificationFact(
+        id="notification_fact_1",
+        type="shared_reminder_created",
+        actor_account_id="creator_1",
+        object_type="shared_reminder",
+        object_id="shared_1",
+        status="created",
+        facts={
+            "actor_display_name": "Alice",
+            "title": "Lunch",
+            "time": "2026-06-01T12:00:00",
+            "timezone": "Asia/Tokyo",
+            "duration_minutes": 45,
+            "status": "created",
+        },
+        facts_hash="hash_1",
+    )
+    runtime = WorkerRuntime(FakeSocialSchedulingRepository([fact]))
+
+    _handle_event(
+        runtime,
+        StreamEvent(
+            event_id="event_1",
+            topic="turn.notification",
+            idempotency_key="notification:1",
+            traceparent="traceparent",
+            payload={
+                "trigger_id": "notification:notification_fact_1",
+                "notification_fact_id": "notification_fact_1",
+                "account_id": "creator_1",
+                "recipient_account_ids": ["creator_1", "receiver_1"],
+                "object_type": "shared_reminder",
+                "object_id": "shared_1",
+                "facts_hash": "hash_1",
+            },
+            stream_message_id="1-0",
+        ),
+    )
+
+    triggers = runtime.turn_runner.triggers
+    assert [trigger.account_id for trigger in triggers] == [
+        "creator_1",
+        "receiver_1",
+    ]
+    assert [trigger.conversation_id for trigger in triggers] == [
+        "conversation:creator_1",
+        "conversation:receiver_1",
+    ]
+    assert [trigger.trigger_id for trigger in triggers] == [
+        "notification:notification_fact_1:creator_1",
+        "notification:notification_fact_1:receiver_1",
+    ]
+    assert [trigger.payload["recipient_account_ids"] for trigger in triggers] == [
+        ["creator_1"],
+        ["receiver_1"],
+    ]
+    assert all(
+        trigger.payload["notification_fact"]["facts"]["title"] == "Lunch"
+        for trigger in triggers
+    )
 
 
 def test_undelivered_resend_event_maps_to_render_turn():

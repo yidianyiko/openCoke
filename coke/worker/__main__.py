@@ -80,25 +80,28 @@ def run_worker_loop(
 def _handle_event(runtime: CokeRuntime, event: StreamEvent) -> None:
     if _handle_non_turn_event(event):
         return
-    trigger = _turn_trigger_from_event(runtime, event)
-    if trigger.mode == TurnMode.RENDER:
-        result = runtime.turn_runner.run_render_turn(trigger)
-    else:
-        result = runtime.turn_runner.run_inbound_turn(trigger)
+    results: list[tuple[TurnTrigger, Any]] = []
+    for trigger in _turn_triggers_from_event(runtime, event):
+        if trigger.mode == TurnMode.RENDER:
+            result = runtime.turn_runner.run_render_turn(trigger)
+        else:
+            result = runtime.turn_runner.run_inbound_turn(trigger)
+        results.append((trigger, result))
     runtime.session.commit()
     if runtime.reply_pubsub is not None:
-        causal_id = trigger.payload.get("causal_inbound_event_id")
-        if isinstance(causal_id, str) and causal_id:
-            runtime.reply_pubsub.publish_reply(
-                causal_id,
-                {
-                    "event_id": event.event_id,
-                    "turn_id": result.turn_id,
-                    "disposition": result.disposition,
-                    "reason_code": result.reason_code,
-                    "visible_text": result.visible_text,
-                },
-            )
+        for trigger, result in results:
+            causal_id = trigger.payload.get("causal_inbound_event_id")
+            if isinstance(causal_id, str) and causal_id:
+                runtime.reply_pubsub.publish_reply(
+                    causal_id,
+                    {
+                        "event_id": event.event_id,
+                        "turn_id": result.turn_id,
+                        "disposition": result.disposition,
+                        "reason_code": result.reason_code,
+                        "visible_text": result.visible_text,
+                    },
+                )
 
 
 def _handle_non_turn_event(event: StreamEvent) -> bool:
@@ -124,12 +127,21 @@ def _handle_non_turn_event(event: StreamEvent) -> bool:
 
 
 def _turn_trigger_from_event(runtime: CokeRuntime, event: StreamEvent) -> TurnTrigger:
+    return _turn_triggers_from_event(runtime, event)[0]
+
+
+def _turn_triggers_from_event(
+    runtime: CokeRuntime, event: StreamEvent
+) -> list[TurnTrigger]:
     topic = event.topic
     payload = dict(event.payload)
     if topic == "turn.inbound":
-        return _inbound_trigger(runtime, payload)
+        return [_inbound_trigger(runtime, payload)]
     if topic in RENDER_TURN_TOPICS:
-        return _render_trigger(runtime, topic, payload)
+        return [
+            _render_trigger(runtime, topic, render_payload)
+            for render_payload in _render_payloads(runtime, topic, payload)
+        ]
     raise RuntimeError(f"unsupported_worker_topic:{topic}")
 
 
@@ -196,6 +208,32 @@ def _render_trigger(
     )
 
 
+def _render_payloads(
+    runtime: CokeRuntime,
+    topic: str,
+    payload: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    trigger_payload = dict(payload)
+    if topic != "turn.notification":
+        return [trigger_payload]
+
+    trigger_payload = _hydrate_notification_payload(runtime, trigger_payload)
+    recipient_ids = _unique_strings(trigger_payload.get("recipient_account_ids"))
+    if len(recipient_ids) <= 1:
+        return [trigger_payload]
+
+    base_trigger_id = _required_str(trigger_payload, "trigger_id")
+    payloads: list[dict[str, Any]] = []
+    for recipient_id in recipient_ids:
+        recipient_payload = dict(trigger_payload)
+        recipient_payload["account_id"] = recipient_id
+        recipient_payload["recipient_account_ids"] = [recipient_id]
+        recipient_payload["trigger_id"] = f"{base_trigger_id}:{recipient_id}"
+        recipient_payload.pop("conversation_id", None)
+        payloads.append(recipient_payload)
+    return payloads
+
+
 def _hydrate_notification_payload(
     runtime: CokeRuntime,
     payload: dict[str, Any],
@@ -257,6 +295,12 @@ def _notification_fact_payload(fact: Any) -> dict[str, Any]:
         "facts": dict(getattr(fact, "facts", {}) or {}),
         "facts_hash": getattr(fact, "facts_hash", None),
     }
+
+
+def _unique_strings(value: Any) -> list[str]:
+    if not isinstance(value, list | tuple):
+        return []
+    return list(dict.fromkeys(item for item in value if isinstance(item, str) and item))
 
 
 def _conversation_row(runtime: CokeRuntime, conversation_id: str) -> Mapping[str, Any]:

@@ -658,9 +658,10 @@ def test_render_notification_context_exposes_structured_facts_to_agent():
             ],
         }
     )
+    factory = FakeAgentFactory(fake_agent)
     agent = AgnoInteractionAgent(
         model=object(),
-        agent_factory=FakeAgentFactory(fake_agent),
+        agent_factory=factory,
     )
 
     result = agent.invoke(
@@ -690,6 +691,11 @@ def test_render_notification_context_exposes_structured_facts_to_agent():
     assert "2026-06-01T12:00:00" in _block_text(prompt, "domain_result")
     assert "Asia/Tokyo" in _block_text(prompt, "domain_result")
     assert "45" in _block_text(prompt, "domain_result")
+    output_contract = _block_text(prompt, "output_contract")
+    assert "NotificationTurn must render a visible reply" in output_contract
+    assert "Valid no-reply" not in output_contract
+    system_message = factory.agent_kwargs[0]["system_message"]
+    assert '{"type":"no_reply"' not in system_message
     reply_text = "".join(result.output["segments"])
     assert "Lunch" in reply_text
     assert "2026-06-01T12:00:00" in reply_text

@@ -276,6 +276,27 @@ class OutputLifecycleDeliveryCallbacks:
                 turn_id=request.turn_id,
             )
 
+    def record_render_failure(self, *, trigger, turn_id: str, reason_code: str) -> None:
+        if trigger.trigger_type != "NotificationTurn":
+            return
+        fact_id = trigger.payload.get("notification_fact_id")
+        if not isinstance(fact_id, str) or not fact_id:
+            return
+        recipient_ids = _string_list(trigger.payload.get("recipient_account_ids"))
+        if not recipient_ids:
+            recipient_ids = [trigger.account_id]
+        for recipient_id in recipient_ids:
+            self.social_scheduling_service.record_notification_delivery(
+                notification_fact_id=fact_id,
+                recipient_account_id=recipient_id,
+                delivery_state="failed",
+                error_facts={
+                    "type": "notification_render_failed",
+                    "reason_code": reason_code,
+                },
+                turn_id=turn_id,
+            )
+
 
 class IdentityReachabilityAdapter:
     def __init__(self, identity_access: IdentityAccessService) -> None:

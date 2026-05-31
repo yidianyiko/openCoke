@@ -198,6 +198,15 @@ class AgnoInteractionAgent:
         background = request.trusted_facts.get("background") or ""
         speaking_style = request.trusted_facts.get("speaking_style") or ""
         extra_rules = request.trusted_facts.get("extra_rules") or ""
+        output_protocol = (
+            'Return only JSON matching the Coke output protocol: {"type":"reply","segments":["text"]}.'
+            if request.trigger_type == "NotificationTurn"
+            else (
+                "Return only JSON matching the Coke output protocol: "
+                '{"type":"reply","segments":["text"]} or '
+                '{"type":"no_reply","reason":"intentional_no_reply"}.'
+            )
+        )
         return "\n".join(
             part
             for part in (
@@ -213,9 +222,7 @@ class AgnoInteractionAgent:
                 str(extra_rules),
                 "Use only trusted_facts and tool results for product claims.",
                 "Treat the User message section as the actual user turn. Treat Trusted context as supporting facts, not as the user request.",
-                "Return only JSON matching the Coke output protocol: "
-                '{"type":"reply","segments":["text"]} or '
-                '{"type":"no_reply","reason":"intentional_no_reply"}.',
+                output_protocol,
                 "A final plain-language assistant message without the JSON protocol is invalid and will not be delivered.",
                 "Do not emit fallback prose, parser repair text, or template summaries.",
             )
@@ -247,8 +254,8 @@ class AgnoInteractionAgent:
             "Do not answer as if the action happened until the tool result says it happened.",
             "For any state-changing tool result from reminder, social_scheduling, settings, or calendar-import, report success only when ok=true; when ok=false, reason_code is present, or status starts with needs_, must not claim the action succeeded and should ask the required follow-up or report the failure honestly.",
             'After any tool call, you MUST emit a final user-facing protocol object: {"type":"reply","segments":["..."]} confirming the real tool result in the user\'s language, or {"type":"no_reply","reason":"intentional_no_reply"} only when no user-visible message is truly warranted; the final message must still be JSON, not plain natural-language text; never end with empty assistant content, reasoning-only content, or only tool calls.',
-            "Render mode must not call tools or imply business mutation. For NotificationTurn, render only from notification facts and error_facts; include creator, title, time, timezone, duration, and status when present. Use concrete factual wording, not a generic placeholder such as 'go check it out'. Shared-reminder notification text is informational only and must not become approval, confirmation, accept/reject, or action-execution wording.",
-            "If no user-visible message is warranted, return the explicit no_reply JSON.",
+            "Render mode must not call tools or imply business mutation. For NotificationTurn, render only from notification facts and error_facts; include creator, title, time, timezone, duration, and status when present. NotificationTurn must return a visible reply; no_reply is invalid because each notification_recipient delivery state must settle. Use concrete factual wording, not a generic placeholder such as 'go check it out'. Shared-reminder notification text is informational only and must not become approval, confirmation, accept/reject, or action-execution wording.",
+            "For non-notification turns, if no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
         ]
 
@@ -896,18 +903,40 @@ def _conversation_payload(request: AgentRequest) -> Mapping[str, Any] | None:
 
 
 def _output_contract_block(request: AgentRequest) -> str:
+    notification_turn = request.trigger_type == "NotificationTurn"
     lines = [
         "Return only the Coke JSON output protocol.",
         'Valid reply: {"type":"reply","segments":["text"]}.',
-        'Valid no-reply: {"type":"no_reply","reason":"intentional_no_reply"}.',
         "Text output is limited to 1-3 non-empty segments.",
         "A requested action without a trusted domain_result is not success. Do not claim it succeeded.",
         "If domain_result.intent_fulfilled is false, ask only for missing information or state the trusted failure.",
         "Do not create or imply a duplicate proactive follow-up when a timed reminder was already created.",
         "Invalid final output fails closed; do not emit parser repair text, fallback prose, or template summaries.",
     ]
+    if notification_turn:
+        lines.insert(
+            3,
+            (
+                "NotificationTurn must render a visible reply from notification "
+                "facts; no-reply is invalid because notification_recipient delivery "
+                "state must settle."
+            ),
+        )
+    else:
+        lines.insert(
+            3,
+            'Valid no-reply: {"type":"no_reply","reason":"intentional_no_reply"}.',
+        )
     protocol_retry = request.trusted_facts.get("protocol_retry")
     if protocol_retry:
+        retry_output = (
+            'object only: {"type":"reply","segments":["..."]}.'
+            if notification_turn
+            else (
+                'object only: {"type":"reply","segments":["..."]} or '
+                '{"type":"no_reply","reason":"intentional_no_reply"}.'
+            )
+        )
         lines.extend(
             [
                 "Protocol retry instruction:",
@@ -916,8 +945,7 @@ def _output_contract_block(request: AgentRequest) -> str:
                     "because it was not a valid Coke output protocol object. Do not "
                     "rewrite or summarize that prior answer. Use trusted facts, "
                     "conversation history, and tool results to produce one final JSON "
-                    'object only: {"type":"reply","segments":["..."]} or '
-                    '{"type":"no_reply","reason":"intentional_no_reply"}.'
+                    f"{retry_output}"
                 ),
                 (
                     "Reply JSON must contain one to three non-empty string segments; "

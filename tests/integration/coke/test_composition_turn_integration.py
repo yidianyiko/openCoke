@@ -442,6 +442,148 @@ def test_notification_render_writes_per_recipient_delivery_state(composed):
     }
 
 
+def test_notification_render_retries_no_reply_and_delivers_recipients(composed):
+    runtime, _semantic, _agent, outbound, identity = composed
+    inbound = _record_inbound(runtime, identity, "provider-message-8", "seed")
+    friend_identity = (
+        runtime.identity_access_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="sender-3",
+        )
+    )
+    runtime.identity_access_service.observe_usable_channel(friend_identity.account.id)
+    link = runtime.social_scheduling_service.get_or_create_friend_link(
+        identity.account.id
+    )
+    runtime.social_scheduling_service.establish_friendship_from_token(
+        friend_identity.account.id,
+        link.public_token,
+    )
+    fact = runtime.repositories.social_scheduling.list_notification_facts()[0]
+
+    class RetryNotificationAgent:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def invoke(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return AgentResult.completed(
+                    {"type": "no_reply", "reason": "intentional_no_reply"}
+                )
+            return AgentResult.completed(
+                {"type": "reply", "segments": ["friendship created"]}
+            )
+
+        def complete_async(self, task_id: str):
+            raise AssertionError("notification render should not be async")
+
+    retry_agent = RetryNotificationAgent()
+    runtime.turn_runner.interaction_agent = retry_agent
+
+    result = runtime.turn_runner.run_render_turn(
+        TurnTrigger(
+            trigger_id=f"notification:{fact.id}",
+            trigger_type="NotificationTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=inbound.conversation.id,
+            account_id=identity.account.id,
+            payload={
+                "notification_fact_id": fact.id,
+                "recipient_account_ids": [
+                    identity.account.id,
+                    friend_identity.account.id,
+                ],
+                "facts": fact.facts,
+            },
+        )
+    )
+
+    recipients = {
+        recipient.recipient_account_id: recipient
+        for recipient in runtime.repositories.social_scheduling.list_notification_recipients(
+            fact.id
+        )
+    }
+    assert result.disposition == "replied"
+    assert len(retry_agent.requests) == 2
+    assert (
+        retry_agent.requests[1].trusted_facts["protocol_retry"]["reason_code"]
+        == "notification_requires_visible_reply"
+    )
+    assert recipients[identity.account.id].delivery_state == "delivered"
+    assert recipients[friend_identity.account.id].delivery_state == "delivered"
+    assert {request.account_id for request in outbound.requests[-2:]} == {
+        identity.account.id,
+        friend_identity.account.id,
+    }
+
+
+def test_notification_render_persistent_no_reply_fails_recipient_state(composed):
+    runtime, _semantic, _agent, outbound, identity = composed
+    inbound = _record_inbound(runtime, identity, "provider-message-9", "seed")
+    friend_identity = (
+        runtime.identity_access_service.resolve_or_create_channel_identity(
+            provider_type="whatsapp_evolution",
+            provider_subject="sender-4",
+        )
+    )
+    runtime.identity_access_service.observe_usable_channel(friend_identity.account.id)
+    link = runtime.social_scheduling_service.get_or_create_friend_link(
+        identity.account.id
+    )
+    runtime.social_scheduling_service.establish_friendship_from_token(
+        friend_identity.account.id,
+        link.public_token,
+    )
+    fact = runtime.repositories.social_scheduling.list_notification_facts()[0]
+
+    class NoReplyNotificationAgent:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def invoke(self, request):
+            self.requests.append(request)
+            return AgentResult.completed(
+                {"type": "no_reply", "reason": "intentional_no_reply"}
+            )
+
+        def complete_async(self, task_id: str):
+            raise AssertionError("notification render should not be async")
+
+    no_reply_agent = NoReplyNotificationAgent()
+    runtime.turn_runner.interaction_agent = no_reply_agent
+
+    result = runtime.turn_runner.run_render_turn(
+        TurnTrigger(
+            trigger_id=f"notification:{fact.id}",
+            trigger_type="NotificationTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=inbound.conversation.id,
+            account_id=identity.account.id,
+            payload={
+                "notification_fact_id": fact.id,
+                "recipient_account_ids": [identity.account.id],
+                "facts": fact.facts,
+            },
+        )
+    )
+
+    recipient = runtime.repositories.social_scheduling.get_notification_recipient(
+        fact.id, identity.account.id
+    )
+    assert result.disposition == "failed"
+    assert result.reason_code == "notification_requires_visible_reply"
+    assert len(no_reply_agent.requests) == 2
+    assert recipient.delivery_state == "failed"
+    assert recipient.turn_id == result.turn_id
+    assert recipient.error_facts == {
+        "type": "notification_render_failed",
+        "reason_code": "notification_requires_visible_reply",
+    }
+    assert outbound.requests == []
+
+
 def test_create_app_accepts_composed_runtime(composed):
     from coke.app import create_app
 
