@@ -10,13 +10,15 @@
 
 ---
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 **Status Date:** 2026-05-31
 
 **Resume Note:** Prior deployment stopped on live `alembic check` because
 APScheduler jobstore objects were visible to Alembic. Current `main` includes
 `coke/alembic_filters.py`, and this final attempt must prove both live
 `alembic upgrade head` and live `alembic check` before recreating app services.
+Tasks 5-7 below preserve that stopped attempt as historical evidence. Task 8
+is the completed final coordinated deploy path.
 
 ### Task 1: Web Customer API Auth And Route Alignment
 
@@ -289,20 +291,20 @@ git add scripts/deploy-compose-to-gcp.sh tests/unit/coke/deploy/test_clean_compo
 git commit -m "fix: require alembic check in clean deploy"
 ```
 
-- [ ] **Step 5: Capture fresh rollback snapshot and predeploy state**
+- [x] **Step 5: Capture fresh rollback snapshot and predeploy state**
 
 On `gcp-coke`, create `/home/whoami/coke-clean-rollback-<UTC>.tgz` from
 `/home/whoami/coke-clean` while preserving `.env`, and record current source
 commit/image ids, `docker ps`, clean compose `ps`, API health, connector
 `/healthz`, and the two real account channel/delivery-route rows.
 
-- [ ] **Step 6: Sync current main to remote without touching secrets**
+- [x] **Step 6: Sync current main to remote without touching secrets**
 
 Sync current `main` sources to `/home/whoami/coke-clean`, excluding `.git`,
 `.venv`, `.env`, `node_modules`, `.next`, and `__pycache__`. Preserve the remote
 `/home/whoami/coke-clean/.env`.
 
-- [ ] **Step 7: Run live Alembic upgrade and check**
+- [x] **Step 7: Run live Alembic upgrade and check**
 
 Run both commands via the clean compose `coke-migrate` service against live
 Postgres:
@@ -315,7 +317,7 @@ docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.
 Expected: both exit 0. If either fails, classify with `systematic-debugging`,
 stop before service recreation, and preserve product data.
 
-- [ ] **Step 8: Migrate only the two live credentials in place**
+- [x] **Step 8: Migrate only the two live credentials in place**
 
 Run:
 
@@ -330,32 +332,32 @@ because live `/api/friends` and notification rendering require the clean
 identity profile contract. Verify no account/channel/channel_identity rows were
 recreated.
 
-- [ ] **Step 9: Recreate only clean app services**
+- [x] **Step 9: Recreate only clean app services**
 
 Recreate `coke-api`, `coke-worker`, `coke-scheduler`, `coke-outbox-relay`, and
 `coke-web` from the new image/source. Do not restart or reconfigure
 `evolution-*` or `wechat-personal-connector`.
 
-- [ ] **Step 10: Verify service health and restart stability**
+- [x] **Step 10: Verify service health and restart stability**
 
 Confirm `/healthz=200`, clean compose service health, restart counts are zero,
 and recent logs do not show crash loops or connector disconnects.
 
-- [ ] **Step 11: Live login and bearer-auth verification**
+- [x] **Step 11: Live login and bearer-auth verification**
 
 Login `olivers@coke.keep4oforever.com` and
 `lizihao@coke.keep4oforever.com` through `/api/auth/login` using the web
 `password` field. Verify a customer route returns 401 without bearer token and
 200 with bearer token.
 
-- [ ] **Step 12: Verify both real WeChat sessions are preserved**
+- [x] **Step 12: Verify both real WeChat sessions are preserved**
 
 Use the two session tokens to call channel status and verify
 `connection_state=connected` for both account ids. Also verify connector
 `/healthz` still reports `connected_session_count=2`. If any status is not
 connected, stop and report that a human WeChat re-scan is required.
 
-- [ ] **Step 13: Live behavior spot-checks**
+- [x] **Step 13: Live behavior spot-checks**
 
 Drive authenticated/live-safe checks for:
 
@@ -367,8 +369,50 @@ Drive authenticated/live-safe checks for:
 Clean up marked future reminders/shared reminders through product APIs or domain
 commands; do not delete unmarked user data.
 
-- [ ] **Step 14: Close plan**
+- [x] **Step 14: Close plan**
 
 After local pytest and live verification pass, set `Plan Status` to `complete`,
 mark completed checkboxes, record final evidence, and commit the plan closeout if
 it changed after the deploy-script commit.
+
+Evidence:
+- Fresh rollback snapshot: `/home/whoami/coke-clean-rollback-20260531T051954Z.tgz`
+  (`snapshot_bytes=138069477`). Predeploy API `/healthz` returned `{"ok":true}`;
+  connector `/healthz` returned `connected_session_count=2`; both real channel
+  rows were `connection_state=connected` with active delivery routes.
+- Source sync preserved `/home/whoami/coke-clean/.env` and excluded `.git`,
+  `.venv`, `.env`, `node_modules`, `.next`, `__pycache__`, and root-owned web
+  package-cache content.
+- Live Alembic through `coke-migrate`: `alembic upgrade head` exited 0 and
+  `alembic check` exited 0 with `No new upgrade operations detected.` after
+  rebuilding the migration image containing `coke/alembic_filters.py`.
+- Credential/profile migration: first scoped credential run updated the two
+  preserved rows in place; after the clean API exposed missing profile rows,
+  the idempotent rerun reported `credential_migration updated=0 skipped=2
+  profiles_created=2 profiles_skipped=0 missing=-`. No account, channel, or
+  channel-identity rows were recreated.
+- Recreated only clean app services: `coke-api`, `coke-worker`,
+  `coke-scheduler`, `coke-outbox-relay`, and `coke-web`. Final service state:
+  API health 200; all five clean app services `status=running`; API health
+  `healthy`; restart counts 0.
+- Final API/auth verification: both olivers and lizihao login calls returned
+  HTTP 200 with session tokens; `/api/channels/status` returned HTTP 401 without
+  bearer and HTTP 200 with bearer; both channel statuses remained
+  `connection_state=connected`; connector `/healthz` remained
+  `connected_session_count=2`.
+- Live behavior smoke marker `final-deploy-actor-20260531T054732Z`: `明天中午`
+  personal reminder stored `2026-06-01T12:00:00+09:00` (`2026-06-01T03:00:00Z`)
+  and was future/tomorrow-noon; shared reminder row
+  `e7c4bcf21a794a57b151be005ea3bea8` was `active` on create and the reply did
+  not contain `等确认`; notification fact
+  `bc438965883341a3bc3868cce9bc2840` carried creator/title/time facts; rendered
+  notification text included `olivers`, title, and time; two delivery attempts
+  were `sent` with non-null `message_id`; the marked personal reminder was
+  deleted and the marked shared reminder was cancelled.
+- Local verification after fixes:
+  `/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/deploy
+  tests/unit/coke/social_scheduling/test_social_scheduling_service.py::test_group_shared_reminder_creation_is_one_object_with_participant_projections
+  tests/unit/coke/social_scheduling/test_social_scheduling_service.py::test_notification_facts_store_structured_data_no_prose_and_partial_delivery_state
+  tests/unit/coke/llm/test_interaction_agent.py::test_render_notification_context_exposes_structured_facts_to_agent
+  -v` -> `13 passed in 2.89s`.
+- `git diff --check` exited 0.
