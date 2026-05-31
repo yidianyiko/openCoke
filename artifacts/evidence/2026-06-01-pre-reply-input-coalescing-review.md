@@ -37,4 +37,3 @@ Branch: feature/pre-reply-input-coalescing
   - Result: suggested `clean-rebuild-docs clean-rebuild-backend repo-os-docs`
 - `zsh scripts/review-trigger --base main`
   - Result: `human_review_required: no`
-
