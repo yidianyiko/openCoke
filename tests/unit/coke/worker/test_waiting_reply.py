@@ -64,6 +64,7 @@ def test_waiting_reply_dispatches_after_budget_and_final_reply_can_still_close()
     assert disposition.reason_code == "waiting_timer_elapsed"
     assert delivery.requests[0].visible_text == WAITING_TEXT
     assert delivery.requests[0].context_token == "ctx_1"
+    assert delivery.requests[0].idempotency_key == f"{turn.id}:waiting"
 
     final = service.commit_reply(
         turn.id,

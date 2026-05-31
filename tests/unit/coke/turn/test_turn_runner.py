@@ -736,6 +736,42 @@ def test_required_clarification_is_passed_as_trusted_agent_instruction(harness):
     assert request.context.semantic_decision.intent_action == "create_reminder"
 
 
+def test_short_affirmative_missing_context_keeps_interactive_tools(harness):
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="chit_chat",
+        intent_action="chit_chat",
+        ambiguity="missing_context",
+        required_clarification="ask_context",
+        language_hint="zh",
+    )
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "是的"},
+    )
+
+    result = harness["runner"].run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    assert "required_clarification" not in request.trusted_facts
+    assert request.context.semantic_decision == SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="chit_chat",
+        intent_action="chit_chat",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+    )
+    assert request.tool_profile.intent_tools_enabled is True
+    assert request.tool_profile.tool_names == ("reminder",)
+
+
 def test_single_reminder_focus_clears_reference_clarification_for_update(harness):
     harness["runner"].focus_resolver = FocusResolver(
         StaticFocusRepository(
@@ -1646,6 +1682,9 @@ def test_timeout_yields_waiting_text_pending_async_then_transitions_to_replied(
     assert pending.async_task_id == "async-1"
     assert harness["delivery"].deliveries[0].message_type == "waiting"
     assert harness["delivery"].deliveries[0].visible_text == "我还在处理，稍等一下。"
+    assert harness["delivery"].deliveries[0].idempotency_key == (
+        f"{pending.turn_id}:waiting"
+    )
     assert final.disposition == "replied"
     assert final.visible_text == "final answer"
     assert harness["runtime"].get_disposition(final.turn_id).disposition == "replied"

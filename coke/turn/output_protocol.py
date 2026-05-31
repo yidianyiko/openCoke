@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
-
 OutputKind = Literal["reply", "no_reply"]
 
 
@@ -20,9 +19,19 @@ class OutputProtocolValidator:
     def __init__(self) -> None:
         self.rewrite_invocations = 0
 
-    def validate_first_answer(self, output: Mapping[str, Any] | None) -> ValidatedOutput:
+    def validate_first_answer(
+        self, output: Mapping[str, Any] | None
+    ) -> ValidatedOutput:
         if not isinstance(output, Mapping):
             return self._invalid()
+
+        if (
+            output.get("type") == "invalid_output_protocol"
+            and output.get("reason") == "serialized_tool_call_output"
+        ):
+            return self._invalid(
+                "serialized_tool_call_output_requires_native_tool_call"
+            )
 
         output_type = output.get("type")
         if output_type == "reply":

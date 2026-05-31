@@ -181,6 +181,27 @@ def test_malformed_agno_response_is_not_rewritten_to_prose():
     assert result.timed_out is False
 
 
+def test_serialized_tool_call_content_is_classified_for_protocol_retry():
+    fake_agent = FakeAgentInstance(
+        content=(
+            '<tool_call>social_scheduling_tool({"operation": '
+            '"detect_and_create_shared_reminder"})</arg_value>'
+        )
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(_request(memory_enabled=True))
+
+    assert result.output == {
+        "type": "invalid_output_protocol",
+        "reason": "serialized_tool_call_output",
+    }
+    assert result.timed_out is False
+
+
 def test_fenced_json_agno_response_maps_to_agent_result():
     fake_agent = FakeAgentInstance(
         content='```json\n{"type":"reply","segments":["ok"]}\n```'
@@ -673,6 +694,32 @@ def test_protocol_retry_instruction_includes_specific_violation_guidance():
         "Specific protocol violation: "
         "reply_segments_must_contain_1_to_3_non_empty_strings."
     ) in _block_text(prompt, "output_contract")
+
+
+def test_protocol_retry_instruction_warns_against_serialized_tool_markup():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            trusted_facts={
+                "protocol_retry": {
+                    "reason_code": "invalid_output_protocol",
+                    "attempt": 2,
+                    "guidance": "serialized_tool_call_output_requires_native_tool_call",
+                }
+            },
+        )
+    )
+
+    prompt = fake_agent.calls[0]["input"]
+    output_contract = _block_text(prompt, "output_contract")
+    assert "Specific protocol violation: serialized tool-call markup" in output_contract
+    assert "Use the native tool call channel" in output_contract
 
 
 def test_agent_instructions_name_real_social_scheduling_operations():

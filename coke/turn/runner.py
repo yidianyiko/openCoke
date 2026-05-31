@@ -228,6 +228,9 @@ class TurnRunner:
             semantic_decision = _clear_reference_clarification_with_single_focus(
                 semantic_decision, focus_subject
             )
+            semantic_decision = _clear_context_clarification_for_short_affirmative(
+                semantic_decision, trigger
+            )
             semantic_decision = _require_agent_visibility_for_inbound_no_reply(
                 semantic_decision
             )
@@ -315,9 +318,7 @@ class TurnRunner:
                     current_input_messages=start.input_messages,
                 )
 
-            lock = await self._acquire_conversation_lock_async(
-                trigger.conversation_id
-            )
+            lock = await self._acquire_conversation_lock_async(trigger.conversation_id)
 
             try:
                 freshness_guard = FreshnessGuard(
@@ -338,6 +339,9 @@ class TurnRunner:
                 )
                 semantic_decision = _clear_reference_clarification_with_single_focus(
                     semantic_decision, focus_subject
+                )
+                semantic_decision = _clear_context_clarification_for_short_affirmative(
+                    semantic_decision, trigger
                 )
                 semantic_decision = _require_agent_visibility_for_inbound_no_reply(
                     semantic_decision
@@ -810,7 +814,7 @@ class TurnRunner:
                 turn_id=context.freshness_guard.turn_id,
                 message_type="waiting",
                 visible_text=WAITING_TEXT,
-                idempotency_key=f"{trigger.trigger_id}:waiting",
+                idempotency_key=f"{context.freshness_guard.turn_id}:waiting",
                 message_id=waiting_message.id,
                 segments=(WAITING_TEXT,),
                 context_token=_context_token_from_trigger(trigger),
@@ -1219,6 +1223,49 @@ def _clear_reference_clarification_with_single_focus(
     if decision.ambiguity not in REFERENCE_AMBIGUITIES:
         return decision
     return replace(decision, ambiguity="clear", required_clarification="none")
+
+
+SHORT_AFFIRMATIVE_TEXTS = {
+    "yes",
+    "y",
+    "yeah",
+    "yep",
+    "ok",
+    "okay",
+    "sure",
+    "confirm",
+    "confirmed",
+    "是",
+    "是的",
+    "对",
+    "对的",
+    "嗯",
+    "好",
+    "好的",
+    "可以",
+    "确认",
+}
+
+
+def _clear_context_clarification_for_short_affirmative(
+    decision: SemanticDecision,
+    trigger: TurnTrigger,
+) -> SemanticDecision:
+    if decision.required_clarification != "ask_context":
+        return decision
+    if decision.ambiguity != "missing_context":
+        return decision
+    if not _is_short_affirmative_payload(trigger.payload):
+        return decision
+    return replace(decision, ambiguity="clear", required_clarification="none")
+
+
+def _is_short_affirmative_payload(payload: Mapping[str, Any]) -> bool:
+    text = str(payload.get("text") or payload.get("input") or "").strip()
+    if not text:
+        return False
+    normalized = text.casefold().strip(" \t\r\n.!?。！？~～")
+    return normalized in SHORT_AFFIRMATIVE_TEXTS
 
 
 def _require_agent_visibility_for_inbound_no_reply(

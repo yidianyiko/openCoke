@@ -85,7 +85,7 @@ class WaitingReplyDispatcher:
                     turn_id=candidate.turn_id,
                     message_type="waiting",
                     visible_text=WAITING_TEXT,
-                    idempotency_key=f"{candidate.trigger_id}:waiting",
+                    idempotency_key=f"{candidate.turn_id}:waiting",
                     message_id=waiting_message.id,
                     segments=(WAITING_TEXT,),
                     context_token=self.conversation_runtime.latest_context_token(

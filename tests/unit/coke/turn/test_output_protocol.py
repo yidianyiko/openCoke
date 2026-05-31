@@ -53,3 +53,21 @@ def test_output_protocol_reports_segment_count_guidance_for_retry():
         too_many_segments.retry_guidance
         == "reply_segments_must_contain_1_to_3_non_empty_strings"
     )
+
+
+def test_output_protocol_reports_serialized_tool_call_guidance_for_retry():
+    validator = OutputProtocolValidator()
+
+    serialized_tool_call = validator.validate_first_answer(
+        {
+            "type": "invalid_output_protocol",
+            "reason": "serialized_tool_call_output",
+        }
+    )
+
+    assert serialized_tool_call.valid is False
+    assert serialized_tool_call.reason_code == "invalid_output_protocol"
+    assert (
+        serialized_tool_call.retry_guidance
+        == "serialized_tool_call_output_requires_native_tool_call"
+    )

@@ -672,6 +672,11 @@ def _mapping_or_none(content: Any) -> Mapping[str, Any] | None:
     if isinstance(content, Mapping):
         return content
     if isinstance(content, str):
+        if _looks_like_serialized_tool_call(content):
+            return {
+                "type": "invalid_output_protocol",
+                "reason": "serialized_tool_call_output",
+            }
         content = _json_text(content)
         try:
             parsed = json.loads(content)
@@ -921,6 +926,13 @@ def _current_input_block(request: AgentRequest) -> str:
                 "instruction: These are adjacent user messages in the current "
                 "open input window. Answer the combined intent in sequence order."
             ),
+            (
+                "short_confirmation_instruction: If the current user message is "
+                "a short confirmation such as yes/ok/是的/好的, resolve it "
+                "against the immediately preceding assistant clarification in "
+                "conversation history. If there is no specific pending action, "
+                "ask what they are confirming; do not invent an action."
+            ),
         ]
         for message in messages:
             lines.extend(
@@ -1157,6 +1169,13 @@ def _output_contract_block(request: AgentRequest) -> str:
         )
         if isinstance(protocol_retry, Mapping) and protocol_retry.get("guidance"):
             lines.append(f"Specific protocol violation: {protocol_retry['guidance']}.")
+            if (
+                protocol_retry.get("guidance")
+                == "serialized_tool_call_output_requires_native_tool_call"
+            ):
+                lines.append(
+                    "Specific protocol violation: serialized tool-call markup was emitted as text. Use the native tool call channel for domain actions, then return one final Coke JSON protocol object."
+                )
     return "\n".join(lines)
 
 
@@ -1296,6 +1315,21 @@ def _json_text(content: str) -> str:
     if start != -1 and end != -1 and end > start:
         return stripped[start : end + 1]
     return stripped
+
+
+def _looks_like_serialized_tool_call(content: str) -> bool:
+    lowered = content.casefold()
+    return any(
+        marker in lowered
+        for marker in (
+            "<tool_call",
+            "</tool_call",
+            "<minimax:tool_call",
+            "<invoke name=",
+            "</arg_value>",
+            "_model_supplied_args",
+        )
+    )
 
 
 def _jsonable_context(context: Any) -> Any:
