@@ -230,7 +230,9 @@ instead of silently changing the selected time.
 
 Desktop:
 
-- The timeline uses a fixed left time gutter and seven flexible day columns.
+- The timeline uses seven flexible day columns, with each hour slot showing its
+  own time label. Per-day labels keep the visible time axis accurate when only
+  some days need an outside-visible-hours strip.
 - The timeline scrolls horizontally if the viewport cannot support seven
   columns without cramped text.
 - Hour rows have stable height so cards and empty slots do not shift layout.
