@@ -81,8 +81,8 @@ it('loads active reminders for the selected Monday-Sunday week and shows a calen
   expect(container.textContent).toContain('Reminder calendar');
   expect(container.textContent).toContain('May 11 - May 17, 2026');
   expect(container.textContent).toContain('5 active this week');
-  expect(container.textContent).toContain('4 remaining today');
-  expect(container.textContent).toContain('Next: Wed 09:05 - Standup prep');
+  expect(container.textContent).toContain('0 remaining today');
+  expect(container.textContent).toContain('Next: Thu 06:15 - DST local check');
 });
 ```
 

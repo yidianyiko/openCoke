@@ -103,18 +103,15 @@ function nowLocalTime(now: Date): string {
 
 function summarizeWeek(reminders: CustomerReminder[], now: Date): WeekSummary {
   const today = toLocalDate(now);
-  const visibleReminders = reminders.filter(
-    (reminder) => !isOutsideVisibleHours(reminder, VISIBLE_START_HOUR, VISIBLE_END_HOUR),
-  );
-  const upcoming = [...visibleReminders]
+  const currentTime = nowLocalTime(now);
+  const upcoming = [...reminders]
+    .filter((reminder) => reminder.localDate > today || (reminder.localDate === today && reminder.localTime >= currentTime))
     .sort((a, b) => a.localDate.localeCompare(b.localDate) || compareReminders(a, b));
-  const effectiveToday =
-    upcoming.length > 0 && today > upcoming[0].localDate ? upcoming[0].localDate : today;
 
   return {
     total: reminders.length,
-    remainingToday: upcoming.filter((reminder) => reminder.localDate >= effectiveToday).length,
-    nextReminder: upcoming.find((reminder) => reminder.localDate >= effectiveToday) ?? null,
+    remainingToday: reminders.filter((reminder) => reminder.localDate === today && reminder.localTime >= currentTime).length,
+    nextReminder: upcoming[0] ?? null,
   };
 }
 
