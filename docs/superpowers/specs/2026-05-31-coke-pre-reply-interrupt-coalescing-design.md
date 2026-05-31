@@ -2,8 +2,12 @@
 
 Status: proposed
 Created: 2026-05-31
+Updated: 2026-05-31 (aligned with `docs/ARCHITECTURE.md` as the canonical
+runtime contract before implementation planning)
 Scope: interactive inbound turns, same-conversation interruption, Agno invocation,
 freshness, and outbound close semantics
+Architecture reference: `docs/ARCHITECTURE.md`, section "Interactive Input
+Windows And Pre-Reply Interruption"
 
 ## 1. Problem
 

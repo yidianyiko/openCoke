@@ -79,6 +79,51 @@ Interactive mode exposes domain tools and may mutate product state through
 domain services. Render mode receives already-trusted structured facts and has no
 business mutation tools.
 
+### Interactive Input Windows And Pre-Reply Interruption
+
+Interactive inbound turns are ordered by conversation input windows, not by a
+single inbound message. `conversation.latest_inbound_seq` is the highest inbound
+sequence recorded for the conversation. `conversation.last_closed_inbound_seq`
+is the highest inbound sequence already covered by a durable close decision. An
+interactive turn claims:
+
+```text
+input_from_seq = conversation.last_closed_inbound_seq + 1
+input_to_seq   = conversation.latest_inbound_seq
+```
+
+The current input presented to the Interaction Agent is the ordered set of
+inbound messages in `[input_from_seq, input_to_seq]`. Agno session history may
+remain enabled, but it is not the source of truth for the current user input.
+
+If a newer inbound message arrives in the same conversation before the active
+turn has persisted its close decision, the open input window extends. The active
+turn becomes `superseded`, its Agno run is cancelled, and a replacement turn is
+scheduled from the unchanged `last_closed_inbound_seq + 1` through the new
+`latest_inbound_seq`. The older user message is not discarded; the replacement
+turn processes the old and new messages together in sequence order.
+
+The close boundary is close-result persistence, not provider delivery. A close
+decision is `replied`, product-approved terminal `no_reply`, or
+`pending_async_reply` with visible waiting text. The close transaction must
+atomically verify that no newer inbound has arrived for the claimed window,
+materialize staged interactive commands, persist the close result, and advance
+`last_closed_inbound_seq` to the turn's `input_to_seq`.
+
+Interactive state-changing tools must stage commands before the close boundary.
+They may validate intent, read state, and create turn-local drafts, but they
+must not activate reminders, shared-reminder proposals, notifications, or
+external adapter effects until the fresh close transaction materializes the
+staged commands. This avoids leaving wrong durable side effects when a user sends
+a correction before receiving the first agent-visible reply.
+
+The worker tier must observe new inbound while an interactive Agno run is still
+active. Interactive execution is therefore supervised per conversation. The
+supervisor records durable interruption intent, calls
+`Agent.acancel_run(run_id)`, cancels the asyncio task awaiting `Agent.arun(...)`,
+and relies on ConversationRuntime freshness checks as the final authority. Agno
+cancellation is a local execution aid, not durable correctness.
+
 ## Bounded Contexts
 
 IdentityAccess owns account identity, access gate, activation, sessions,
