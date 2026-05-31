@@ -578,16 +578,6 @@ def test_drain_supervisor_completions_publishes_coalesced_reply_to_latest_waiter
 
     assert runtime.reply_pubsub.published == [
         (
-            "provider_message_2",
-            {
-                "event_id": "outbox_inbound_1",
-                "turn_id": "turn_1",
-                "disposition": "replied",
-                "reason_code": "reply_ready",
-                "visible_text": "ok",
-            },
-        ),
-        (
             "provider_message_1",
             {
                 "event_id": "outbox_inbound_1",
@@ -597,7 +587,49 @@ def test_drain_supervisor_completions_publishes_coalesced_reply_to_latest_waiter
                 "visible_text": None,
             },
         ),
+        (
+            "provider_message_2",
+            {
+                "event_id": "outbox_inbound_1",
+                "turn_id": "turn_1",
+                "disposition": "replied",
+                "reason_code": "reply_ready",
+                "visible_text": "ok",
+            },
+        ),
     ]
+
+
+def test_drain_supervisor_completions_requeues_before_visible_when_coalesced_publish_fails():
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider_message_1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id="conversation_1",
+        account_id="account_1",
+        payload={
+            "_worker_event_id": "outbox_inbound_1",
+            "causal_inbound_event_id": "provider_message_1",
+        },
+    )
+    result = SimpleNamespace(
+        turn_id="turn_1",
+        disposition="replied",
+        reason_code="reply_ready",
+        visible_text="ok",
+        latest_causal_inbound_event_id="provider_message_2",
+        coalesced_causal_inbound_event_ids=("provider_message_1",),
+    )
+    supervisor.completed = [(trigger, result)]
+    runtime.reply_pubsub.fail_next = True
+
+    with pytest.raises(RuntimeError, match="redis_publish_failed"):
+        _drain_supervisor_completions(runtime, supervisor)
+
+    assert supervisor.completed == [(trigger, result)]
+    assert runtime.reply_pubsub.published == []
 
 
 def _consumer(stream: RedisWorkStream, acked: list[str]) -> StreamConsumer:

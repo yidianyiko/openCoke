@@ -321,16 +321,6 @@ def _publish_reply(
     )
     if not isinstance(causal_id, str) or not causal_id:
         return
-    runtime.reply_pubsub.publish_reply(
-        causal_id,
-        {
-            "event_id": event_id,
-            "turn_id": result.turn_id,
-            "disposition": result.disposition,
-            "reason_code": result.reason_code,
-            "visible_text": result.visible_text,
-        },
-    )
     published_coalesced_ids: set[str] = set()
     for coalesced_id in getattr(result, "coalesced_causal_inbound_event_ids", ()):
         if (
@@ -351,6 +341,16 @@ def _publish_reply(
                 "visible_text": None,
             },
         )
+    runtime.reply_pubsub.publish_reply(
+        causal_id,
+        {
+            "event_id": event_id,
+            "turn_id": result.turn_id,
+            "disposition": result.disposition,
+            "reason_code": result.reason_code,
+            "visible_text": result.visible_text,
+        },
+    )
 
 
 def _submit_interactive_trigger(
