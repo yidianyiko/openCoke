@@ -27,6 +27,12 @@ class RetiredInteractiveTurn:
     publish_completion: bool
 
 
+@dataclass(slots=True)
+class ProviderCancelTask:
+    active: ActiveInteractiveTurn
+    task: asyncio.Task[Any]
+
+
 class InteractiveTurnSupervisor:
     def __init__(
         self,
@@ -42,7 +48,7 @@ class InteractiveTurnSupervisor:
         self.runtime_factory = runtime_factory
         self._active: dict[str, ActiveInteractiveTurn] = {}
         self._retired: list[RetiredInteractiveTurn] = []
-        self._cancel_tasks: list[asyncio.Task[Any]] = []
+        self._cancel_tasks: list[ProviderCancelTask] = []
         self._completed: list[tuple[TurnTrigger, Any]] = []
         self._failures: list[tuple[TurnTrigger | None, Exception]] = []
 
@@ -63,7 +69,12 @@ class InteractiveTurnSupervisor:
                     RetiredInteractiveTurn(existing, publish_completion=False)
                 )
                 self._cancel_tasks.append(
-                    asyncio.create_task(self.interaction_agent.cancel(existing.run_id))
+                    ProviderCancelTask(
+                        existing,
+                        asyncio.create_task(
+                            self.interaction_agent.cancel(existing.run_id)
+                        ),
+                    )
                 )
 
         lifecycle = InteractiveTurnLifecycle()
@@ -84,6 +95,9 @@ class InteractiveTurnSupervisor:
         completed = list(self._completed)
         self._completed.clear()
         return completed
+
+    async def restore_completed(self, completed: list[tuple[TurnTrigger, Any]]) -> None:
+        self._completed = list(completed) + self._completed
 
     async def drain_failures(self) -> list[tuple[TurnTrigger | None, Exception]]:
         self._collect_done_retired()
@@ -114,17 +128,17 @@ class InteractiveTurnSupervisor:
         self._retired = pending
 
     def _collect_done_cancel_tasks(self) -> None:
-        pending: list[asyncio.Task[Any]] = []
-        for task in self._cancel_tasks:
-            if task.done():
+        pending: list[ProviderCancelTask] = []
+        for cancel_task in self._cancel_tasks:
+            if cancel_task.task.done():
                 try:
-                    task.result()
+                    cancel_task.task.result()
                 except asyncio.CancelledError:
                     pass
                 except Exception as error:
-                    self._failures.append((None, error))
+                    self._failures.append((cancel_task.active.trigger, error))
             else:
-                pending.append(task)
+                pending.append(cancel_task)
         self._cancel_tasks = pending
 
     def _collect_task_result(

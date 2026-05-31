@@ -69,7 +69,7 @@ def run_worker_loop(
     supervisor = InteractiveTurnSupervisor(
         turn_runner=runtime.turn_runner,
         interaction_agent=runtime.turn_runner.interaction_agent,
-        runtime_factory=runtime.interactive_runtime_factory,
+        runtime_factory=_require_interactive_runtime_factory(runtime),
     )
     _recover_open_inbound_windows(runtime, supervisor, supervisor_loop=supervisor_loop)
     attempts = 0
@@ -174,15 +174,42 @@ def _drain_supervisor_completions(
     _drain_supervisor_failures(supervisor, supervisor_loop=supervisor_loop)
     if not completed:
         return
-    if runtime.session is not None:
-        runtime.session.commit()
-    for trigger, result in completed:
-        _publish_reply(
-            runtime,
-            event_id=str(trigger.payload.get("_worker_event_id") or trigger.trigger_id),
-            trigger=trigger,
-            result=result,
+    remaining = list(completed)
+    try:
+        if runtime.session is not None:
+            runtime.session.commit()
+        for trigger, result in completed:
+            _publish_reply(
+                runtime,
+                event_id=str(
+                    trigger.payload.get("_worker_event_id") or trigger.trigger_id
+                ),
+                trigger=trigger,
+                result=result,
+            )
+            remaining.pop(0)
+    except Exception:
+        _restore_supervisor_completions(
+            supervisor,
+            remaining,
+            supervisor_loop=supervisor_loop,
         )
+        raise
+
+
+def _restore_supervisor_completions(
+    supervisor: Any,
+    completed: list[tuple[TurnTrigger, Any]],
+    *,
+    supervisor_loop: Any | None = None,
+) -> None:
+    restore_completed = getattr(supervisor, "restore_completed", None)
+    if not completed or not callable(restore_completed):
+        return
+    _run_supervisor_coroutine(
+        restore_completed(completed),
+        supervisor_loop=supervisor_loop,
+    )
 
 
 def _drain_supervisor_failures(
@@ -258,6 +285,13 @@ def _with_worker_event_id(trigger: TurnTrigger, event_id: str) -> TurnTrigger:
     payload = dict(trigger.payload)
     payload["_worker_event_id"] = event_id
     return replace(trigger, payload=payload)
+
+
+def _require_interactive_runtime_factory(runtime: CokeRuntime) -> Any:
+    factory = runtime.interactive_runtime_factory
+    if factory is None:
+        raise RuntimeError("runtime is missing interactive runtime factory")
+    return factory
 
 
 class _SupervisorLoop:

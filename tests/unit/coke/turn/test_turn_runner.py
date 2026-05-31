@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime
 from itertools import count
@@ -379,6 +380,73 @@ async def test_async_inbound_turn_uses_async_interaction_agent_path(harness):
     assert result.disposition == "replied"
     assert agent.invocations == 1
     assert agent.requests[-1].run_id == "agent-run:provider-message-1"
+
+
+@pytest.mark.asyncio
+async def test_cancelled_async_inbound_turn_records_superseded_disposition(harness):
+    class BlockingAgent(FakeAgent):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.requests = []
+
+        def invoke(self, request):
+            raise AssertionError("async cancellation test must not call invoke")
+
+        async def ainvoke(self, request):
+            self.requests.append(request)
+            self.started.set()
+            await asyncio.Event().wait()
+            return self.next_result
+
+    agent = BlockingAgent()
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-cancelled",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=agent,
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+        close_boundary_committer=lambda: None,
+    )
+    task = asyncio.create_task(runner.run_inbound_turn_async(harness["trigger"]))
+    await agent.started.wait()
+    harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="second",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    turn_id = agent.requests[-1].turn_id
+    disposition = harness["runtime"].get_disposition(turn_id)
+    turn = harness["repository"].get_turn(turn_id)
+    assert disposition.disposition == "superseded"
+    assert disposition.reason_code == "interrupted_by_newer_inbound"
+    assert turn is not None
+    assert turn.completed_at is not None
+    assert turn.superseded_by_inbound_seq == 2
+    assert (
+        harness["repository"].active_interactive_turns(
+            harness["trigger"].conversation_id
+        )
+        == []
+    )
 
 
 def test_inbound_reply_delivery_carries_trigger_context_token(harness):

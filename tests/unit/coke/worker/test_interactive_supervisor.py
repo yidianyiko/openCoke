@@ -29,6 +29,12 @@ class SlowCancelAgent:
         return True
 
 
+class FailingCancelAgent(FakeAgent):
+    async def cancel(self, run_id: str) -> bool:
+        self.cancelled.append(run_id)
+        raise RuntimeError(f"cancel_failed:{run_id}")
+
+
 class FakeRunner:
     def __init__(self) -> None:
         self.started: list[TurnTrigger] = []
@@ -172,6 +178,29 @@ async def test_replaced_task_failure_is_observed_without_becoming_completion():
     failure_trigger, failure = failures[0]
     assert failure_trigger == runner.started[0]
     assert str(failure) == "cleanup_failed:inbound:1"
+
+
+@pytest.mark.asyncio
+async def test_provider_cancel_failure_is_reported_with_cancelled_trigger():
+    runner = FakeRunner()
+    agent = FailingCancelAgent()
+    supervisor = InteractiveTurnSupervisor(
+        turn_runner=runner,
+        interaction_agent=agent,
+    )
+
+    await supervisor.submit(_inbound_trigger("inbound:1", "provider:1"))
+    await asyncio.sleep(0)
+    await supervisor.submit(_inbound_trigger("inbound:2", "provider:2"))
+    await asyncio.sleep(0)
+
+    failures = await supervisor.drain_failures()
+
+    assert agent.cancelled == ["inbound:1"]
+    assert len(failures) == 1
+    failure_trigger, failure = failures[0]
+    assert failure_trigger == runner.started[0]
+    assert str(failure) == "cancel_failed:inbound:1"
 
 
 @pytest.mark.asyncio

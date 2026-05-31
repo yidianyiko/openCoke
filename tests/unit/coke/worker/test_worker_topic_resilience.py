@@ -5,12 +5,14 @@ from types import SimpleNamespace
 from typing import Any
 
 import fakeredis
+import pytest
 
 from coke.infra.redis import RedisWorkStream
 from coke.turn.context import TurnMode, TurnTrigger
 from coke.worker.__main__ import (
     _drain_supervisor_completions,
     _handle_event,
+    _require_interactive_runtime_factory,
     _recover_open_inbound_windows,
 )
 from coke.worker.stream_consumer import StreamConsumer
@@ -81,8 +83,12 @@ class FakeTurnRunner:
 class FakeReplyPubSub:
     def __init__(self) -> None:
         self.published = []
+        self.fail_next = False
 
     def publish_reply(self, causal_id: str, payload: dict[str, Any]) -> None:
+        if self.fail_next:
+            self.fail_next = False
+            raise RuntimeError("redis_publish_failed")
         self.published.append((causal_id, payload))
 
 
@@ -106,6 +112,9 @@ class FakeSupervisor:
         completed = list(self.completed)
         self.completed.clear()
         return completed
+
+    async def restore_completed(self, completed):
+        self.completed = list(completed) + self.completed
 
     async def drain_failures(self):
         failures = list(self.failures)
@@ -314,6 +323,59 @@ def test_drain_supervisor_completions_logs_task_failures(caplog):
     assert "interactive_turn_task_failed" in caplog.text
     assert "inbound:provider_message_1" in caplog.text
     assert runtime.reply_pubsub.published == []
+
+
+def test_worker_requires_interactive_runtime_factory_for_supervised_turns():
+    with pytest.raises(RuntimeError, match="interactive runtime factory"):
+        _require_interactive_runtime_factory(
+            SimpleNamespace(interactive_runtime_factory=None)
+        )
+
+
+def test_drain_supervisor_completions_requeues_when_reply_publish_fails():
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider_message_1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id="conversation_1",
+        account_id="account_1",
+        payload={
+            "_worker_event_id": "outbox_inbound_1",
+            "causal_inbound_event_id": "provider_message_1",
+        },
+    )
+    result = SimpleNamespace(
+        turn_id="turn_1",
+        disposition="replied",
+        reason_code="reply_ready",
+        visible_text="ok",
+    )
+    supervisor.completed = [(trigger, result)]
+    runtime.reply_pubsub.fail_next = True
+
+    with pytest.raises(RuntimeError, match="redis_publish_failed"):
+        _drain_supervisor_completions(runtime, supervisor)
+
+    assert supervisor.completed == [(trigger, result)]
+    assert runtime.reply_pubsub.published == []
+
+    _drain_supervisor_completions(runtime, supervisor)
+
+    assert supervisor.completed == []
+    assert runtime.reply_pubsub.published == [
+        (
+            "provider_message_1",
+            {
+                "event_id": "outbox_inbound_1",
+                "turn_id": "turn_1",
+                "disposition": "replied",
+                "reason_code": "reply_ready",
+                "visible_text": "ok",
+            },
+        )
+    ]
 
 
 def _consumer(stream: RedisWorkStream, acked: list[str]) -> StreamConsumer:

@@ -294,6 +294,17 @@ class ConversationRuntimeService:
         self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
         return disposition
 
+    def mark_superseded(
+        self,
+        turn_id: str,
+        reason_code: str = "interrupted_by_newer_inbound",
+    ) -> OutputDisposition:
+        turn = self._require_turn(turn_id)
+        existing = self.repository.get_disposition(turn_id)
+        if existing is not None:
+            return existing
+        return self._record_superseded(turn, reason_code)
+
     def guard_state_change(self, turn_id: str) -> None:
         turn = self._require_turn(turn_id)
         self._ensure_turn_can_close(turn)
