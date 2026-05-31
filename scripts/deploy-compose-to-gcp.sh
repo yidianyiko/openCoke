@@ -334,6 +334,10 @@ recreate_services() {
   compose up -d --build --no-deps --force-recreate "$@"
 }
 
+record_deployed_sha() {
+  printf '%s\n' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"
+}
+
 compose up -d postgres redis
 case "$DEPLOY_TIER" in
   backend|full)
@@ -363,7 +367,7 @@ for _ in $(seq 1 60); do
     && curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login" >/dev/null; then
     curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"
     printf '\n'
-    printf '%s\n' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"
+    record_deployed_sha
     exit 0
   fi
   sleep 2
@@ -372,6 +376,7 @@ done
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml ps
 curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"
 curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"
+record_deployed_sha
 REMOTE_DEPLOY
 
 log "clean deploy health checks passed"

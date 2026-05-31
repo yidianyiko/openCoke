@@ -100,6 +100,8 @@ def test_deploy_script_tracks_last_deployed_sha_for_differential_plan() -> None:
     assert 'LOCAL_SHA="$(git -C "$LOCAL_ROOT" rev-parse HEAD)"' in script
     assert 'git -C "$LOCAL_ROOT" diff --name-only' in script
     assert 'printf \'%s\\n\' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"' in script
+    assert "record_deployed_sha()" in script
+    assert script.count("record_deployed_sha") >= 3
 
 
 def test_deploy_script_backend_only_plan_skips_coke_web_recreate() -> None:
