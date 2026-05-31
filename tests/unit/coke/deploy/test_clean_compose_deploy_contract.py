@@ -130,6 +130,15 @@ def test_deploy_script_recreates_coke_web_only_for_web_or_full_plan() -> None:
     assert 'force-recreate coke-web' not in script
 
 
+def test_deploy_script_fails_if_selected_service_list_is_empty() -> None:
+    script = DEPLOY_SCRIPT.read_text()
+
+    assert "require_services()" in script
+    assert 'require_services "backend" "${BACKEND_DEPLOY_SERVICES[@]}"' in script
+    assert 'require_services "web" "${WEB_DEPLOY_SERVICES[@]}"' in script
+    assert "would skip a required recreate" in script
+
+
 def test_deploy_script_noops_when_no_relevant_paths_changed() -> None:
     script = DEPLOY_SCRIPT.read_text()
 

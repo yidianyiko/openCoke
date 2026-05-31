@@ -341,6 +341,16 @@ recreate_services() {
   compose up -d --build --no-deps --force-recreate "$@"
 }
 
+require_services() {
+  local label="$1"
+  shift
+  if [[ "$#" != "0" ]]; then
+    return
+  fi
+  echo "${label} deploy tier would skip a required recreate because the service list is empty" >&2
+  exit 1
+}
+
 record_deployed_sha() {
   printf '%s\n' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"
 }
@@ -348,6 +358,7 @@ record_deployed_sha() {
 compose up -d postgres redis
 case "$DEPLOY_TIER" in
   backend|full)
+    require_services "backend" "${BACKEND_DEPLOY_SERVICES[@]}"
     compose build coke-migrate
     compose run --rm coke-migrate alembic upgrade head
     compose run --rm coke-migrate alembic check
@@ -365,6 +376,7 @@ esac
 
 case "$DEPLOY_TIER" in
   web|full)
+    require_services "web" "${WEB_DEPLOY_SERVICES[@]}"
     recreate_services "${WEB_DEPLOY_SERVICES[@]}"
     ;;
 esac
