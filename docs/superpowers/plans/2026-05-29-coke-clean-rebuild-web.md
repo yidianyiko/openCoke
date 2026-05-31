@@ -1,4 +1,162 @@
-# Coke Clean Rebuild: Web Personal-WeChat QR Repair
+# Coke Clean Rebuild: G-007 Route/Web Path Parity Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Fix G-007 by exposing the missing canonical Python API route families and repointing the thin Next.js client away from stale route paths.
+
+**Architecture:** Flask blueprints remain HTTP adapters over existing domain/service ports. Customer-scoped routes authenticate through `coke/api/auth_helpers.py`; internal routes use a shared static internal key and call injected runtime ports for delivery callbacks and reply pub/sub. The web client only calls canonical Python API route families from `docs/product-specs/FEATURE_TREE.md`.
+
+**Tech Stack:** Flask blueprints, Python dataclass/service fakes in pytest, Next.js App Router client components, TypeScript helpers, Vitest/jsdom, pnpm.
+
+---
+
+Plan Status: complete
+
+## File Structure
+
+- Create: `coke/api/account_routes.py` - session-authenticated account identity, access status, and activation read routes over `IdentityAccessService`.
+- Create: `coke/api/subscription_routes.py` - session-authenticated subscription/access status and checkout-link surfacing over `IdentityAccessService` account access reads.
+- Create: `coke/api/internal_routes.py` - internal delivery callback and reply-wait routes over injected delivery-callback and reply-pubsub ports.
+- Modify: `coke/api/claim_routes.py` - add the canonical `/api/claim/login-url/redeem` route so the web claim page uses `/api/claim/*`.
+- Modify: `coke/app.py` - add optional service kwargs and additive blueprint registration for account, subscription, and internal routes.
+- Create: `tests/unit/coke/identity_access/test_account_routes.py` - focused account route tests with fakes.
+- Create: `tests/unit/coke/identity_access/test_subscription_routes.py` - focused subscription route tests with fakes.
+- Create: `tests/unit/coke/test_internal_routes.py` - focused internal route tests with fakes.
+- Modify: `tests/unit/coke/identity_access/test_auth_routes.py` - verify claim login-url route parity through the existing claim blueprint/app registration.
+- Modify: `web/lib/customer-auth.ts` and `web/lib/customer-auth.test.ts` - repoint current-user/profile hydration to `/api/account/*`.
+- Modify: `web/app/(customer)/account/subscription/page.tsx` and test - repoint status/checkout behavior to `/api/subscription/*`.
+- Modify: `web/lib/customer-google-calendar-import.ts` - use `/api/account/access-status` for preflight and keep browser-only unavailable behavior until a real calendar auth start API exists.
+- Modify: `web/app/(customer)/auth/claim/page.tsx` and test - call `/api/claim/login-url/redeem`.
+- Modify: `docs/fitness/ownership-registry.yaml` - register ownership for the new API route files.
+- Modify: this plan file - track TDD and verification status.
+
+## Task 1: Backend Route Tests And Blueprints
+
+- [x] **Step 1: Write failing backend route tests**
+
+  Add tests asserting:
+
+  ```python
+  # tests/unit/coke/identity_access/test_account_routes.py
+  client.get("/api/account/current-user", headers={"Authorization": "Bearer session_token"})
+  client.get("/api/account/access-status", headers={"Authorization": "Bearer session_token"})
+  client.get("/api/account/activation", headers={"Authorization": "Bearer session_token"})
+
+  # tests/unit/coke/identity_access/test_subscription_routes.py
+  client.get("/api/subscription/status", headers={"Authorization": "Bearer session_token"})
+  client.post("/api/subscription/checkout-link", headers={"Authorization": "Bearer session_token"})
+
+  # tests/unit/coke/test_internal_routes.py
+  client.post("/internal/outbound/delivery-callback", headers={"Authorization": "Bearer internal-key"})
+  client.get("/internal/reply-wait/inbound-1", headers={"Authorization": "Bearer internal-key"})
+  ```
+
+- [x] **Step 2: Run backend route tests and confirm RED**
+
+  Run:
+
+  ```bash
+  /data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/identity_access/test_account_routes.py tests/unit/coke/identity_access/test_subscription_routes.py tests/unit/coke/test_internal_routes.py -q
+  ```
+
+  Expected: tests fail with missing modules/routes.
+
+- [x] **Step 3: Implement backend blueprints and app registration**
+
+  Implement only these adapters:
+
+  ```python
+  app.register_blueprint(create_account_blueprint(identity_access_service))
+  app.register_blueprint(create_subscription_blueprint(identity_access_service))
+  app.register_blueprint(create_internal_blueprint(delivery_callback_service, reply_pubsub, internal_api_key))
+  ```
+
+  The route implementations call the injected services/ports directly, validate request shape, and return JSON. Do not add schema, fallback prose, or legacy aliases.
+
+- [x] **Step 4: Run backend route tests and confirm GREEN**
+
+  Run the same focused pytest command. Expected: all focused backend route tests pass.
+
+## Task 2: Web Canonical Path Repointing
+
+- [x] **Step 5: Write failing web path tests**
+
+  Update tests to expect:
+
+  ```ts
+  customerApi.get('/api/account/current-user');
+  customerApi.get('/api/account/access-status');
+  customerApi.get('/api/subscription/status');
+  customerApi.post('/api/subscription/checkout-link');
+  customerApi.post('/api/claim/login-url/redeem', expect.any(Object));
+  ```
+
+- [x] **Step 6: Run focused web tests and confirm RED**
+
+  Run:
+
+  ```bash
+  cd web && pnpm test -- --run web/lib/customer-auth.test.ts web/app/\(customer\)/account/subscription/page.test.tsx web/app/\(customer\)/auth/claim/page.test.tsx
+  ```
+
+  Expected: tests fail on the old `/api/auth/*` and `/api/auth/claim` calls.
+
+- [x] **Step 7: Implement web path changes**
+
+  Repoint the thin client to canonical paths, keep `customerApi` authorization behavior unchanged, and avoid moving business rules into web components.
+
+- [x] **Step 8: Run focused web tests and confirm GREEN**
+
+  Run the same focused web test command. Expected: all focused web tests pass.
+
+## Task 3: Full Verification, Grep Proof, And Commit
+
+- [x] **Step 9: Run required backend verification**
+
+  Run:
+
+  ```bash
+  /data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+  ```
+
+  Expected: all unit tests pass.
+
+- [x] **Step 10: Run required web verification**
+
+  Run:
+
+  ```bash
+  cd web && pnpm test
+  cd web && pnpm build
+  ```
+
+  Expected: web tests and build pass.
+
+- [x] **Step 11: Run grep-clean proof**
+
+  Run:
+
+  ```bash
+  rg -n "/api/customer/subscription|/api/customer/google-calendar-import|/api/customer/agent-instance|/api/auth/claim|/api/auth/access-status|/api/auth/current-user" web
+  ```
+
+  Expected: no matches.
+
+- [x] **Step 12: Run diff checks and commit**
+
+  Run:
+
+  ```bash
+  git diff --check
+  git add coke/api/account_routes.py coke/api/subscription_routes.py coke/api/internal_routes.py coke/api/claim_routes.py coke/app.py tests/unit/coke/identity_access/test_account_routes.py tests/unit/coke/identity_access/test_subscription_routes.py tests/unit/coke/test_internal_routes.py tests/unit/coke/identity_access/test_auth_routes.py web/lib/customer-auth.ts web/lib/customer-auth.test.ts web/app/\(customer\)/account/subscription/page.tsx web/app/\(customer\)/account/subscription/page.test.tsx web/lib/customer-google-calendar-import.ts web/app/\(customer\)/auth/claim/page.tsx web/app/\(customer\)/auth/claim/page.test.tsx docs/fitness/ownership-registry.yaml docs/superpowers/plans/2026-05-29-coke-clean-rebuild-web.md
+  git commit -m "fix: align web with canonical api routes"
+  ```
+
+  Expected: one coherent commit on `fix/p1-routes`.
+
+---
+
+# Historical Note: Web Personal-WeChat QR Repair
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +168,7 @@
 
 ---
 
-Plan Status: in_progress (web fix deployed; live `login-status` poll is blocked by provider timeout)
+Historical Status: in_progress (web fix deployed; live `login-status` poll is blocked by provider timeout)
 
 ## Current Repair Scope
 

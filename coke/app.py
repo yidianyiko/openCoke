@@ -15,10 +15,15 @@ def create_app(
     settings_service=None,
     provider_adapters=None,
     composed_runtime=None,
+    delivery_callback_service=None,
+    reply_pubsub=None,
+    internal_api_key: str | None = None,
 ) -> Flask:
     app = Flask(__name__)
     app.config["COKE_SETTINGS"] = settings
     app.config["APP_ENV"] = settings.app_env
+    if internal_api_key is not None:
+        app.config["COKE_INTERNAL_API_KEY"] = internal_api_key
     if composed_runtime is not None:
         app.config["COKE_RUNTIME"] = composed_runtime
         identity_access_service = (
@@ -45,14 +50,24 @@ def create_app(
             "provider_adapters",
             None,
         )
+        delivery_callback_service = delivery_callback_service or getattr(
+            composed_runtime,
+            "delivery_callback_service",
+            None,
+        )
+        reply_pubsub = reply_pubsub or getattr(composed_runtime, "reply_pubsub", None)
         _register_session_lifecycle(app, getattr(composed_runtime, "session", None))
 
     if identity_access_service is not None:
+        from coke.api.account_routes import create_account_blueprint
         from coke.api.auth_routes import create_auth_blueprint
         from coke.api.claim_routes import create_claim_blueprint
+        from coke.api.subscription_routes import create_subscription_blueprint
 
+        app.register_blueprint(create_account_blueprint(identity_access_service))
         app.register_blueprint(create_auth_blueprint(identity_access_service))
         app.register_blueprint(create_claim_blueprint(identity_access_service))
+        app.register_blueprint(create_subscription_blueprint(identity_access_service))
 
     if channel_reachability_service is not None:
         if identity_access_service is not None:
@@ -122,6 +137,21 @@ def create_app(
             create_calendar_import_blueprint(
                 calendar_import_service,
                 identity_access_service,
+            )
+        )
+
+    if (
+        delivery_callback_service is not None
+        or reply_pubsub is not None
+        or internal_api_key is not None
+    ):
+        from coke.api.internal_routes import create_internal_blueprint
+
+        app.register_blueprint(
+            create_internal_blueprint(
+                delivery_callback_service=delivery_callback_service,
+                reply_pubsub=reply_pubsub,
+                internal_api_key=internal_api_key,
             )
         )
 

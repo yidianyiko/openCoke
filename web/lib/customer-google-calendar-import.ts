@@ -53,7 +53,7 @@ export function getCustomerGoogleCalendarImportPreflightForHandoff(
   _handoff?: string,
 ): Promise<ApiResponse<CustomerGoogleCalendarImportPreflightResult>> {
   return customerApi
-    .get<{ access_allowed: boolean; denial_reason: string | null }>('/api/auth/access-status')
+    .get<{ access_allowed: boolean; denial_reason: string | null }>('/api/account/access-status')
     .then((access) => ({
       ok: true,
       data: {

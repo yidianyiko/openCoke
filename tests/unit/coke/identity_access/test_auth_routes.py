@@ -452,6 +452,29 @@ def test_login_url_landing_calls_service():
     )
 
 
+def test_claim_login_url_redeem_route_uses_canonical_claim_namespace():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/claim/login-url/redeem",
+        json={"token": "login_token", "browser_session": "browser_1"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "account_id": "acct_1",
+        "session_token": "session_token",
+        "continuation": {"next": "/channels"},
+    }
+    assert service.calls[-1] == (
+        "redeem_login_url",
+        {
+            "token": "login_token",
+            "browser_session": "browser_1",
+        },
+    )
+
+
 def test_claim_code_issue_and_redeem_routes_call_service():
     client, service = make_client()
 

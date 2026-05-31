@@ -132,7 +132,7 @@ describe('CustomerCalendarImportPage', () => {
       ok: true,
       data: {
         ready: false,
-        blockedReason: 'subscription_required',
+        blockedReason: 'subscription_inactive',
         latestRun: null,
       },
     });

@@ -302,13 +302,13 @@ export function getCustomerProfile(): Promise<ApiResponse<CustomerProfile>> {
     return Promise.resolve(errorResponse<CustomerProfile>('missing_session'));
   }
   return customerApi
-    .get<CleanCurrentUser | CleanAuthError>('/api/auth/current-user')
+    .get<CleanCurrentUser | CleanAuthError>('/api/account/current-user')
     .then((currentUser) => {
       if (isCleanAuthError(currentUser)) {
         return errorResponse<CustomerProfile>(currentUser.error.code);
       }
       return customerApi
-        .get<CleanAccessStatus | CleanAuthError>('/api/auth/access-status')
+        .get<CleanAccessStatus | CleanAuthError>('/api/account/access-status')
         .then((access) => {
           if (isCleanAuthError(access)) {
             return errorResponse<CustomerProfile>(access.error.code);
