@@ -221,3 +221,78 @@ and 30 lines. It began:
 
 Delivery attempt `d3e3a69e-d021-46c7-b355-e0f0866a4e5c` sent through
 `wechat_personal` with provider id `coke-1780237015724-d10ffa2b6afa`.
+
+## Follow-up Timezone Display Contract
+
+The runtime guard fixed count-only replies by rendering every returned
+reminder, but the first production smoke still exposed internal UTC timestamps.
+The timezone display follow-up shifts display formatting into the
+`list_reminders` tool result so the interaction layer can render trusted,
+display-ready facts instead of converting raw timestamps itself.
+
+```text
+.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py::test_reminder_tool_list_reminders_returns_active_count_without_write_guard -q
+.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py::test_reminder_list_instructions_require_full_list_not_count_only tests/unit/coke/llm/test_interaction_agent.py::test_reminder_list_tool_result_overrides_count_only_final_reply tests/unit/coke/llm/test_interaction_agent.py::test_reminder_list_tool_result_overrides_raw_utc_final_reply -q
+.venv/bin/python -m pytest tests/integration/coke/test_composition_turn_integration.py::test_inbound_reminder_count_uses_tool_result_for_visible_reply -q
+```
+
+Result: focused tool, interaction-agent, and composition checks passed.
+
+```text
+.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/llm/test_interaction_agent.py tests/integration/coke/test_composition_turn_integration.py -q
+.venv/bin/python -m pytest tests/unit/coke -q
+git diff --check
+zsh scripts/check
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+zsh scripts/verify-surface clean-rebuild-backend repo-os-docs
+```
+
+Result: affected set passed with 84 tests in 2.22s; full unit passed with
+591 tests in 17.58s; whitespace and repo structure checks passed; verification
+suggestion was `clean-rebuild-backend repo-os-docs`; risk report returned
+`human_review_required: no`; `verify-surface` passed both suggested surfaces.
+
+```text
+RSYNC_RSH='ssh -o ProxyCommand=none -o KexAlgorithms=curve25519-sha256' \
+bash -c 'ssh() { command ssh -o ProxyCommand=none -o KexAlgorithms=curve25519-sha256 "$@"; }; export -f ssh; scripts/deploy-compose-to-gcp.sh'
+```
+
+Result: deployed `69fe8ca7cd45195382132d0802cdb4c600465ac5`; clean deploy
+health checks passed. Remote `.deployed-sha` returned
+`69fe8ca7cd45195382132d0802cdb4c600465ac5`.
+
+```text
+docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.yml ps coke-api coke-worker coke-outbox-relay coke-scheduler
+docker inspect -f "{{.Name}} created={{.Created}} started={{.State.StartedAt}}" coke-clean-coke-worker-1 coke-clean-coke-api-1 coke-clean-coke-outbox-relay-1 coke-clean-coke-scheduler-1
+```
+
+Result: production showed deployed SHA
+`69fe8ca7cd45195382132d0802cdb4c600465ac5`; `coke-api` was healthy, and
+worker, outbox relay, and scheduler were up. The new containers started at
+2026-05-31 14:40:48 UTC.
+
+The real user sent `现在我一共有几个提醒？` at 2026-05-31 14:27:15 UTC and
+received a UTC-formatted list at 14:28:12 UTC. Because that was before the
+14:40:48 UTC container start for `69fe8ca7cd45195382132d0802cdb4c600465ac5`,
+that reply came from the pre-timezone-display deployment. A new live webhook
+smoke was intentionally skipped because the real user had just sent
+`删除所有的提醒` and another reminder query; injecting another test message into
+that active conversation would have been user-visible noise.
+
+```text
+runtime.adapters.reminder_tool.execute(
+    {
+        'operation': 'list_reminders',
+        'account_id': '635d3bdc-1b02-4a08-acf4-9940b91a9de5',
+        'captured_timezone': 'Asia/Shanghai',
+    },
+    object(),
+)
+```
+
+Result: production direct tool check returned `ok=True`, `reason_code=None`,
+`count=22`, `display_timezone=Asia/Shanghai`,
+`first_next_fire_at=2026-05-31T07:00:00+00:00`,
+`first_display_time_label=2026-05-31 15:00 Asia/Shanghai`, and
+`first_display_line=1. 一起喝水 (2026-05-31 15:00 Asia/Shanghai)`.
