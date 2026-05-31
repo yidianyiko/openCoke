@@ -126,6 +126,8 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
         "-f docker-compose.clean.yml up -d --build"
     ) in script
     assert "alembic upgrade head" in script
+    assert "alembic check" in script
+    assert script.index("alembic upgrade head") < script.index("alembic check")
     assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"' in script
     lowered = script.lower()
     for legacy_term in (

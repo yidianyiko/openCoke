@@ -10,8 +10,13 @@
 
 ---
 
-**Plan Status:** blocked
+**Plan Status:** in_progress
 **Status Date:** 2026-05-31
+
+**Resume Note:** Prior deployment stopped on live `alembic check` because
+APScheduler jobstore objects were visible to Alembic. Current `main` includes
+`coke/alembic_filters.py`, and this final attempt must prove both live
+`alembic upgrade head` and live `alembic check` before recreating app services.
 
 ### Task 1: Web Customer API Auth And Route Alignment
 
@@ -231,3 +236,134 @@ Use authenticated `/api/settings` calls to update and re-read a low-risk timezon
 - [ ] **Step 5: Close the plan**
 
 When all verification passes, set `Plan Status` to `complete` and record the final evidence in this file before the final report.
+
+### Task 8: Final Coordinated Deploy After Alembic Filter Fix
+
+**Files:**
+- Modify: `scripts/deploy-compose-to-gcp.sh`
+- Modify: `tests/unit/coke/deploy/test_clean_compose_deploy_contract.py`
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-coordinated-redeploy.md`
+- Remote read/write: `/home/whoami/coke-clean`
+
+- [x] **Step 1: Write failing deploy-script test for Alembic check**
+
+Add a focused assertion to `tests/unit/coke/deploy/test_clean_compose_deploy_contract.py` proving the clean deploy script runs `alembic check` through the same `coke-migrate` Docker Compose path after `alembic upgrade head`.
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/deploy/test_clean_compose_deploy_contract.py::test_deploy_script_targets_clean_project_without_legacy_gateway_logic -v
+```
+
+Expected before implementation: FAIL because `scripts/deploy-compose-to-gcp.sh` runs `alembic upgrade head` but does not run `alembic check`.
+
+- [x] **Step 2: Implement minimal deploy-script check**
+
+Update the dry-run text and real remote deploy block so the script runs:
+
+```bash
+docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic upgrade head
+docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic check
+```
+
+Do not add legacy stack, connector, or Evolution service control.
+
+- [x] **Step 3: Verify deploy-script tests pass**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/deploy -v
+```
+
+Expected after implementation: all deploy unit tests pass.
+
+- [x] **Step 4: Commit local deploy-script and plan work**
+
+Run:
+
+```bash
+git add scripts/deploy-compose-to-gcp.sh tests/unit/coke/deploy/test_clean_compose_deploy_contract.py docs/superpowers/plans/2026-05-29-coke-clean-rebuild-coordinated-redeploy.md
+git commit -m "fix: require alembic check in clean deploy"
+```
+
+- [ ] **Step 5: Capture fresh rollback snapshot and predeploy state**
+
+On `gcp-coke`, create `/home/whoami/coke-clean-rollback-<UTC>.tgz` from
+`/home/whoami/coke-clean` while preserving `.env`, and record current source
+commit/image ids, `docker ps`, clean compose `ps`, API health, connector
+`/healthz`, and the two real account channel/delivery-route rows.
+
+- [ ] **Step 6: Sync current main to remote without touching secrets**
+
+Sync current `main` sources to `/home/whoami/coke-clean`, excluding `.git`,
+`.venv`, `.env`, `node_modules`, `.next`, and `__pycache__`. Preserve the remote
+`/home/whoami/coke-clean/.env`.
+
+- [ ] **Step 7: Run live Alembic upgrade and check**
+
+Run both commands via the clean compose `coke-migrate` service against live
+Postgres:
+
+```bash
+docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic upgrade head
+docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic check
+```
+
+Expected: both exit 0. If either fails, classify with `systematic-debugging`,
+stop before service recreation, and preserve product data.
+
+- [ ] **Step 8: Migrate only the two live credentials in place**
+
+Run:
+
+```bash
+docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate python scripts/ops/migrate_coke_clean_credentials.py
+```
+
+Expected: `credential_migration updated=2 skipped=0 missing=-` or an
+idempotent `updated=0 skipped=2 missing=-` if already migrated. Verify no
+account/channel/channel_identity rows were recreated.
+
+- [ ] **Step 9: Recreate only clean app services**
+
+Recreate `coke-api`, `coke-worker`, `coke-scheduler`, `coke-outbox-relay`, and
+`coke-web` from the new image/source. Do not restart or reconfigure
+`evolution-*` or `wechat-personal-connector`.
+
+- [ ] **Step 10: Verify service health and restart stability**
+
+Confirm `/healthz=200`, clean compose service health, restart counts are zero,
+and recent logs do not show crash loops or connector disconnects.
+
+- [ ] **Step 11: Live login and bearer-auth verification**
+
+Login `olivers@coke.keep4oforever.com` and
+`lizihao@coke.keep4oforever.com` through `/api/auth/login` using the web
+`password` field. Verify a customer route returns 401 without bearer token and
+200 with bearer token.
+
+- [ ] **Step 12: Verify both real WeChat sessions are preserved**
+
+Use the two session tokens to call channel status and verify
+`connection_state=connected` for both account ids. Also verify connector
+`/healthz` still reports `connected_session_count=2`. If any status is not
+connected, stop and report that a human WeChat re-scan is required.
+
+- [ ] **Step 13: Live behavior spot-checks**
+
+Drive authenticated/live-safe checks for:
+
+1. A `明天中午` personal reminder stores a future local time and does not fire immediately.
+2. A shared-reminder create reply does not say `等确认` and the DB row is `active`.
+3. A notification fact renders from creator/title/time facts if a fresh notification is produced.
+4. New delivery-attempt rows carry `message_id`.
+
+Clean up marked future reminders/shared reminders through product APIs or domain
+commands; do not delete unmarked user data.
+
+- [ ] **Step 14: Close plan**
+
+After local pytest and live verification pass, set `Plan Status` to `complete`,
+mark completed checkboxes, record final evidence, and commit the plan closeout if
+it changed after the deploy-script commit.

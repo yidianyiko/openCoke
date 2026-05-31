@@ -79,7 +79,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   )
   log "dry run: would write ${REMOTE_ROOT}/.env from existing clean env and ${REMOTE_OLD_ROOT}/.env without printing secrets"
   log "dry run: would run docker compose -p \"$PROJECT_NAME\" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --build"
-  log "dry run: would run alembic upgrade head and curl -fsS \"http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz\""
+  log "dry run: would run alembic upgrade head, alembic check, and curl -fsS \"http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz\""
   log "dry run: would curl -fsS \"http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login\""
   exit 0
 fi
@@ -216,6 +216,7 @@ export COKE_WEB_PORT="$COKE_CLEAN_WEB_PORT"
 
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --build
 docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic upgrade head
+docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic check
 
 for _ in $(seq 1 60); do
   if curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz" >/dev/null \
