@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
+from datetime import UTC, datetime
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
@@ -97,6 +100,8 @@ class TurnRunner:
         focus_resolver: FocusResolver | None = None,
         reference_resolver: ReferenceResolver | None = None,
         delivery_lifecycle: DeliveryLifecyclePort | None = None,
+        now: Callable[[], datetime] | None = None,
+        account_timezone: Callable[[str], str | None] | None = None,
     ) -> None:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
@@ -111,6 +116,8 @@ class TurnRunner:
         self.context_assembler = context_assembler or ContextAssembler()
         self.focus_resolver = focus_resolver or FocusResolver()
         self.reference_resolver = reference_resolver or ReferenceResolver()
+        self._now = now or (lambda: datetime.now(UTC))
+        self._account_timezone = account_timezone
         self._async_states: dict[str, _AsyncState] = {}
 
     def run_inbound_turn(self, trigger: TurnTrigger) -> TurnRunResult:
@@ -170,6 +177,8 @@ class TurnRunner:
                 gate.trust_facts,
                 trigger=trigger,
                 semantic_decision=semantic_decision,
+                now=self._now,
+                account_timezone=self._account_timezone,
             )
             context = self.context_assembler.build(
                 trigger=trigger,
@@ -303,19 +312,23 @@ class TurnRunner:
                 turn_id=start.turn.id,
                 based_on_inbound_seq=start.turn.based_on_inbound_seq,
             )
+            trusted_facts = _trusted_facts_for_agent(
+                gate.trust_facts,
+                trigger=trigger,
+                semantic_decision=None,
+                now=self._now,
+                account_timezone=self._account_timezone,
+            )
             context = self.context_assembler.build(
                 trigger=trigger,
-                trusted_facts={
-                    **dict(gate.trust_facts),
-                    "turn_source": _turn_source_for_trigger(trigger),
-                },
+                trusted_facts=trusted_facts,
                 semantic_decision=None,
                 focus_subject=None,
                 reference_resolution=None,
                 memory_context=None,
                 freshness_guard=freshness_guard,
                 tool_profile=ToolProfile.render(constrained=constrained),
-                turn_source=_turn_source_for_trigger(trigger),
+                turn_source=trusted_facts["turn_source"],
             )
             return self._invoke_agent_and_record(
                 trigger, context, semantic_decision=None
@@ -644,20 +657,82 @@ def _trusted_facts_for_agent(
     trust_facts: dict[str, Any],
     *,
     trigger: TurnTrigger,
-    semantic_decision: SemanticDecision,
+    semantic_decision: SemanticDecision | None,
+    now: Callable[[], datetime],
+    account_timezone: Callable[[str], str | None] | None = None,
 ) -> dict[str, Any]:
     facts = {
         **dict(trust_facts),
         "turn_source": _turn_source_for_trigger(trigger),
-        "semantic_decision": _semantic_decision_fact(semantic_decision),
     }
-    if semantic_decision.required_clarification != "none":
+    facts.update(
+        _current_time_facts(
+            facts,
+            trigger=trigger,
+            now=now,
+            account_timezone=account_timezone,
+        )
+    )
+    if semantic_decision is not None:
+        facts["semantic_decision"] = _semantic_decision_fact(semantic_decision)
+    if (
+        semantic_decision is not None
+        and semantic_decision.required_clarification != "none"
+    ):
         facts["required_clarification"] = {
             "signal": semantic_decision.required_clarification,
             "ambiguity": semantic_decision.ambiguity,
             "instruction": "Ask exactly this clarification before any domain action.",
         }
     return facts
+
+
+def _current_time_facts(
+    facts: dict[str, Any],
+    *,
+    trigger: TurnTrigger,
+    now: Callable[[], datetime],
+    account_timezone: Callable[[str], str | None] | None,
+) -> dict[str, str]:
+    timezone_name, timezone = _timezone_for_agent(
+        facts,
+        trigger=trigger,
+        account_timezone=account_timezone,
+    )
+    current = now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=UTC)
+    return {
+        "default_timezone": timezone_name,
+        "current_time": current.astimezone(timezone).isoformat(),
+    }
+
+
+def _timezone_for_agent(
+    facts: dict[str, Any],
+    *,
+    trigger: TurnTrigger,
+    account_timezone: Callable[[str], str | None] | None,
+) -> tuple[str, ZoneInfo | Any]:
+    for candidate in (
+        facts.get("default_timezone"),
+        trigger.payload.get("default_timezone"),
+        trigger.payload.get("timezone"),
+    ):
+        if isinstance(candidate, str) and candidate.strip():
+            return _zoneinfo_or_utc(candidate.strip())
+    if account_timezone is not None:
+        candidate = account_timezone(trigger.account_id)
+        if isinstance(candidate, str) and candidate.strip():
+            return _zoneinfo_or_utc(candidate.strip())
+    return "UTC", UTC
+
+
+def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo | Any]:
+    try:
+        return timezone_name, ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return "UTC", UTC
 
 
 def _semantic_decision_fact(decision: SemanticDecision) -> dict[str, Any]:

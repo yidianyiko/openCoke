@@ -988,6 +988,10 @@ def compose_coke_runtime(
             reminder_service=reminder_service,
             social_scheduling_service=social_scheduling_service,
         ),
+        now=now,
+        account_timezone=lambda account_id: _account_default_timezone(
+            identity_access_service, account_id
+        ),
     )
     return CokeRuntime(
         repositories=repositories,
@@ -1349,6 +1353,13 @@ def _settings_view_facts(view: SettingsView) -> dict[str, Any]:
         "agent_settings": agent_settings,
         "user_profile": user_profile,
     }
+
+
+def _account_default_timezone(
+    identity_access_service: IdentityAccessService, account_id: str
+) -> str:
+    account = identity_access_service.repository.get_account(account_id)
+    return account.default_timezone if account is not None else "UTC"
 
 
 def _settings_update_fields(command: Mapping[str, Any]) -> dict[str, Any]:

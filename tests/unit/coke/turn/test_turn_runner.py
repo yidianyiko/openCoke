@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+import coke.llm.agno_interaction_agent as agno_agent_module
 from coke.composition import ReminderToolAdapter
 from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.repository import (
@@ -26,6 +27,14 @@ from coke.turn.semantic_interpreter import SemanticDecision
 
 NOW = datetime(2026, 5, 30, 10, 0, tzinfo=UTC)
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+
+class MutableClock:
+    def __init__(self, value: datetime) -> None:
+        self.value = value
+
+    def now(self) -> datetime:
+        return self.value
 
 
 def id_factory():
@@ -75,11 +84,16 @@ class FakeGatePort:
     def __init__(self) -> None:
         self.allowed = True
         self.activation_guidance_required = False
+        self.trust_facts: dict[str, Any] = {}
+        self.account_timezone = "UTC"
 
     def evaluate(self, trigger: TurnTrigger) -> GateDecision:
         if self.allowed:
             return GateDecision.allowed(
-                trust_facts={"account_id": trigger.account_id},
+                trust_facts={
+                    "account_id": trigger.account_id,
+                    **dict(self.trust_facts),
+                },
                 activation_guidance_required=self.activation_guidance_required,
             )
         return GateDecision.denied(
@@ -183,10 +197,11 @@ class FakeDeliveryLifecycle:
 
 @pytest.fixture
 def harness():
-    repository = InMemoryConversationRuntimeRepository(now=lambda: NOW)
+    clock = MutableClock(NOW)
+    repository = InMemoryConversationRuntimeRepository(now=clock.now)
     runtime = ConversationRuntimeService(
         repository=repository,
-        now=lambda: NOW,
+        now=clock.now,
         id_factory=id_factory(),
     )
     inbound = runtime.record_inbound(
@@ -217,6 +232,8 @@ def harness():
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=delivery,
         tool_ports=AgentToolPorts(reminder_tool=reminder_tool),
+        now=clock.now,
+        account_timezone=lambda _account_id: gate_port.account_timezone,
     )
     trigger = TurnTrigger(
         trigger_id="inbound:provider:message-1",
@@ -238,6 +255,7 @@ def harness():
         "delivery": delivery,
         "runner": runner,
         "trigger": trigger,
+        "clock": clock,
     }
 
 
@@ -649,6 +667,82 @@ def test_render_turn_context_contains_source_framing_for_system_trigger(harness)
             "title as if the user said it."
         ),
     }
+
+
+def test_inbound_agent_trusted_facts_include_account_local_current_time_and_prompt_environment(
+    harness,
+):
+    harness["clock"].value = datetime(2026, 5, 31, 6, 2, tzinfo=UTC)
+    harness["gate_port"].trust_facts["default_timezone"] = "Asia/Shanghai"
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["default_timezone"] == "Asia/Shanghai"
+    assert request.trusted_facts["current_time"] == "2026-05-31T14:02:00+08:00"
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+    assert '<trusted_block name="environment">' in rendered
+    assert '"default_timezone": "Asia/Shanghai"' in rendered
+    assert '"current_time": "2026-05-31T14:02:00+08:00"' in rendered
+
+
+def test_each_inbound_turn_uses_fresh_current_time(harness):
+    harness["gate_port"].trust_facts["default_timezone"] = "Asia/Shanghai"
+    harness["clock"].value = datetime(2026, 5, 31, 6, 2, tzinfo=UTC)
+
+    harness["runner"].run_inbound_turn(harness["trigger"])
+
+    harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="second",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    harness["clock"].value = datetime(2026, 5, 31, 6, 7, tzinfo=UTC)
+    second_trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-2",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "second"},
+    )
+
+    harness["runner"].run_inbound_turn(second_trigger)
+
+    assert harness["agent"].requests[-2].trusted_facts["current_time"] == (
+        "2026-05-31T14:02:00+08:00"
+    )
+    assert harness["agent"].requests[-1].trusted_facts["current_time"] == (
+        "2026-05-31T14:07:00+08:00"
+    )
+
+
+def test_render_turn_trusted_facts_include_account_local_current_time(harness):
+    harness["clock"].value = datetime(2026, 5, 31, 6, 2, tzinfo=UTC)
+    harness["gate_port"].account_timezone = "Asia/Shanghai"
+
+    result = harness["runner"].run_render_turn(
+        TurnTrigger(
+            trigger_id="reminder_fire:account_1:2026-05-31T06:02:00+00:00",
+            trigger_type="ReminderFireTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={"fire_ids": ["fire_1"]},
+        )
+    )
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["default_timezone"] == "Asia/Shanghai"
+    assert request.trusted_facts["current_time"] == "2026-05-31T14:02:00+08:00"
 
 
 def test_timeout_yields_waiting_text_pending_async_then_transitions_to_replied(

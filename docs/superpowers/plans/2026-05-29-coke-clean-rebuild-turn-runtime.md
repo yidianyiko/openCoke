@@ -10,12 +10,13 @@
 
 ---
 
-**Plan Status:** complete
+**Plan Status:** in_progress
 **Status Date:** 2026-05-31
 **Freshness Check:** Checked against current `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md` Task 7 and architecture-watch notes, requirements §5.4, target architecture §1/§3.3/§4/§9 invariants, `coke/schema.py`, Task 6 conversation runtime, and existing domain layering patterns.
 **Verification Note:** Turn implementation and backend unit surface pass. The routed `repo-os-docs` check is blocked by existing ownership-registry references to removed legacy `memo-runtime` and nested `gateway` files; that cleanup is outside Task 7's allowed file scope.
 **Live Debugging Addendum (2026-05-30):** The local live stack showed real GLM-5.1 Interaction Agent turns failing before reminder creation because fenced JSON was rejected and the actual inbound text was buried inside a JSON context blob. Live verification also exposed an Agno `kwargs` tool-argument wrapper and a detector prompt-shape issue for non-recurring reminders. This addendum keeps the fix inside the turn-runtime/Interaction Agent + detector/tool boundary: strict output validation remains unchanged, reminder field extraction remains inside the reminder tool, and no fallback prose or regex intent routing is added.
 **Notification Render Bugfix Addendum (2026-05-31):** Live testing found two product-prose regressions inside the turn-runtime/Interaction Agent boundary: shared-reminder creation replies described a receiver confirmation step, and `NotificationTurn` render mode produced generic placeholder copy even when notification facts contained the creator/title/time/timezone/duration. This addendum keeps the single-prose-producer invariant: the Interaction Agent still generates final text, render mode still has no mutation tools, and the runtime only injects trusted structured facts.
+**Current-Time Prompt Addendum (2026-05-31):** The reminder detector already receives authoritative account-local `now`; this task only injects fresh account-local `current_time` into Interaction Agent trusted facts for interactive and render turns so the existing prompt environment block can render it. Do not change time parsing, detector behavior, schemas, fallback prose, routing, or domain contracts.
 
 **Source Specs:**
 - `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
@@ -460,3 +461,205 @@ Run:
 git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-turn-runtime.md coke/turn tests/unit/coke/turn
 git commit -m "feat: implement clean turn orchestration"
 ```
+
+## Task 6: Inject Account-Local Current Time Into Interaction Agent Prompt
+
+**Files:**
+- Modify: `coke/turn/runner.py`
+- Modify: `coke/composition.py`
+- Modify: `tests/unit/coke/turn/test_turn_runner.py`
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-turn-runtime.md`
+
+- [x] **Step 1: Write failing tests for interactive, dynamic, and render trusted facts**
+
+In `tests/unit/coke/turn/test_turn_runner.py`, add a mutable clock, let `FakeGatePort` expose `default_timezone`, and add tests with fixed UTC instants that must render as account-local ISO strings:
+
+```python
+class MutableClock:
+    def __init__(self, value: datetime) -> None:
+        self.value = value
+
+    def now(self) -> datetime:
+        return self.value
+
+
+def test_inbound_agent_trusted_facts_include_account_local_current_time_and_prompt_environment(harness):
+    harness["clock"].value = datetime(2026, 5, 31, 6, 2, tzinfo=UTC)
+    harness["gate_port"].trust_facts["default_timezone"] = "Asia/Shanghai"
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["default_timezone"] == "Asia/Shanghai"
+    assert request.trusted_facts["current_time"] == "2026-05-31T14:02:00+08:00"
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+    assert '<trusted_block name="environment">' in rendered
+    assert '"default_timezone": "Asia/Shanghai"' in rendered
+    assert '"current_time": "2026-05-31T14:02:00+08:00"' in rendered
+
+
+def test_each_inbound_turn_uses_fresh_current_time(harness):
+    harness["gate_port"].trust_facts["default_timezone"] = "Asia/Shanghai"
+    harness["clock"].value = datetime(2026, 5, 31, 6, 2, tzinfo=UTC)
+    harness["runner"].run_inbound_turn(harness["trigger"])
+
+    harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="second",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    harness["clock"].value = datetime(2026, 5, 31, 6, 7, tzinfo=UTC)
+    second_trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-2",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "second"},
+    )
+    harness["runner"].run_inbound_turn(second_trigger)
+
+    assert harness["agent"].requests[-2].trusted_facts["current_time"] == (
+        "2026-05-31T14:02:00+08:00"
+    )
+    assert harness["agent"].requests[-1].trusted_facts["current_time"] == (
+        "2026-05-31T14:07:00+08:00"
+    )
+
+
+def test_render_turn_trusted_facts_include_account_local_current_time(harness):
+    harness["clock"].value = datetime(2026, 5, 31, 6, 2, tzinfo=UTC)
+
+    result = harness["runner"].run_render_turn(
+        TurnTrigger(
+            trigger_id="reminder_fire:account_1:2026-05-31T06:02:00+00:00",
+            trigger_type="ReminderFireTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={"fire_ids": ["fire_1"]},
+        )
+    )
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["default_timezone"] == "Asia/Shanghai"
+    assert request.trusted_facts["current_time"] == "2026-05-31T14:02:00+08:00"
+```
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py -q
+```
+
+Expected before implementation: failures show `current_time` is missing from trusted facts and the prompt environment block.
+
+- [x] **Step 2: Implement fresh account-local time facts in the runner**
+
+In `coke/turn/runner.py`, inject the composition clock and optional account-timezone resolver:
+
+```python
+from collections.abc import Callable
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+class TurnRunner:
+    def __init__(..., now: Callable[[], datetime] | None = None,
+                 account_timezone: Callable[[str], str | None] | None = None) -> None:
+        self._now = now or (lambda: datetime.now(UTC))
+        self._account_timezone = account_timezone
+
+def _trusted_facts_for_agent(..., now: Callable[[], datetime],
+                             account_timezone: Callable[[str], str | None] | None = None,
+                             semantic_decision: SemanticDecision | None = None) -> dict[str, Any]:
+    facts = {**dict(trust_facts), "turn_source": _turn_source_for_trigger(trigger)}
+    facts.update(_current_time_facts(facts, trigger=trigger, now=now, account_timezone=account_timezone))
+    if semantic_decision is not None:
+        facts["semantic_decision"] = _semantic_decision_fact(semantic_decision)
+```
+
+Use `_trusted_facts_for_agent(...)` for both `run_inbound_turn` and `_run_render_with_gate`. `_current_time_facts` must choose `default_timezone` from trusted facts, payload, account resolver, then `UTC`; convert `now()` to that timezone; return `{"default_timezone": timezone_name, "current_time": local_now.isoformat()}`. If `now()` is naive, treat it as UTC. Invalid timezone names fall back to `UTC`.
+
+- [x] **Step 3: Pass the composition clock and account timezone resolver**
+
+In `coke/composition.py`, pass the existing runtime `now` callable into `TurnRunner` and provide an account timezone resolver from IdentityAccess:
+
+```python
+turn_runner = TurnRunner(
+    ...,
+    now=now,
+    account_timezone=lambda account_id: _account_default_timezone(
+        identity_access_service, account_id
+    ),
+)
+
+
+def _account_default_timezone(
+    identity_access_service: IdentityAccessService, account_id: str
+) -> str:
+    account = identity_access_service.repository.get_account(account_id)
+    return account.default_timezone if account is not None else "UTC"
+```
+
+- [x] **Step 4: Verify focused tests pass**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py -q
+```
+
+Expected after implementation: turn-runner tests pass, including the different-now proof and render-turn proof.
+
+- [x] **Step 5: Run required local verification**
+
+Run from the worktree root:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
+
+Expected: unit and integration tests pass; verification routing and risk report complete. `review-trigger` is non-blocking.
+
+- [ ] **Step 6: Commit the local fix**
+
+After local verification passes, commit:
+
+```bash
+git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-turn-runtime.md coke/turn/runner.py coke/composition.py tests/unit/coke/turn/test_turn_runner.py
+git commit -m "fix: inject current time into agent environment"
+```
+
+- [ ] **Step 7: Redeploy and live-verify gcp-coke coke-clean**
+
+Before deploy, take a rollback snapshot and preserve `coke-clean/.env`, connected accounts, connected channels, and `evolution-*` / connector state. Redeploy current `main` non-disruptively using `docs/deploy.md`: run alembic upgrade head, deployment checks, restart only Coke clean services, and do not recreate accounts or channels.
+
+On the box, verify:
+
+```bash
+curl -fsS http://127.0.0.1:8000/api/auth/me
+curl -fsS http://127.0.0.1:8000/api/channels
+```
+
+Drive one inbound turn through the existing connected channel, then inspect `ai.agno_sessions` or the available debug/store path for the latest Interaction Agent prompt. Expected: the prompt contains `<trusted_block name="environment">` with non-empty `current_time` and `default_timezone`, both channels are still `connected`, and connector `session_count=2`.
+
+- [ ] **Step 8: Mark plan complete**
+
+After verification and live proof pass, set:
+
+```markdown
+**Plan Status:** complete
+```
+
+Commit the final plan checkbox update if it was not included in the fix commit.
