@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from coke.turn.context import TurnTrigger
@@ -31,6 +31,8 @@ class InteractiveTurnSupervisor:
         self._completed: list[tuple[TurnTrigger, Any]] = []
 
     async def submit(self, trigger: TurnTrigger) -> None:
+        run_id = trigger.agent_run_id or trigger.trigger_id
+        trigger = replace(trigger, agent_run_id=run_id)
         existing = self._active.get(trigger.conversation_id)
         if existing is not None:
             if existing.task.done():
@@ -43,7 +45,7 @@ class InteractiveTurnSupervisor:
         self._active[trigger.conversation_id] = ActiveInteractiveTurn(
             trigger=trigger,
             task=task,
-            run_id=trigger.trigger_id,
+            run_id=run_id,
         )
 
     async def drain_completed(self) -> list[tuple[TurnTrigger, Any]]:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from itertools import count
 from types import SimpleNamespace
@@ -371,11 +372,13 @@ async def test_async_inbound_turn_uses_async_interaction_agent_path(harness):
         account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
     )
 
-    result = await runner.run_inbound_turn_async(harness["trigger"])
+    trigger = replace(harness["trigger"], agent_run_id="agent-run:provider-message-1")
+
+    result = await runner.run_inbound_turn_async(trigger)
 
     assert result.disposition == "replied"
     assert agent.invocations == 1
-    assert agent.requests[-1].run_id == result.turn_id
+    assert agent.requests[-1].run_id == "agent-run:provider-message-1"
 
 
 def test_inbound_reply_delivery_carries_trigger_context_token(harness):

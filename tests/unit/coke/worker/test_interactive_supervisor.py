@@ -79,6 +79,10 @@ async def test_new_inbound_cancels_active_pre_close_turn():
         "inbound:1",
         "inbound:2",
     ]
+    assert [trigger.agent_run_id for trigger in runner.started] == [
+        "inbound:1",
+        "inbound:2",
+    ]
 
 
 @pytest.mark.asyncio
@@ -99,7 +103,9 @@ async def test_drain_completed_returns_finished_turns_and_drops_cancelled_tasks(
     runner.released.set()
     await asyncio.sleep(0)
 
-    assert await supervisor.drain_completed() == [(second, "finished:inbound:2")]
+    assert await supervisor.drain_completed() == [
+        (runner.started[-1], "finished:inbound:2")
+    ]
     assert await supervisor.drain_completed() == []
 
 

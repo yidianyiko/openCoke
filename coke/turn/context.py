@@ -28,6 +28,7 @@ class TurnTrigger:
     account_id: str
     payload: dict[str, Any]
     channel_identity_id: str | None = None
+    agent_run_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -566,7 +566,10 @@ class TurnRunner:
             current_input_messages=tuple(
                 current_input_messages or getattr(context, "current_input_messages", ())
             ),
-            run_id=context.freshness_guard.turn_id,
+            run_id=_agent_run_id_for_trigger(
+                trigger,
+                fallback=context.freshness_guard.turn_id,
+            ),
         )
         agent_result = self.interaction_agent.invoke(agent_request)
         if agent_result.timed_out:
@@ -609,7 +612,10 @@ class TurnRunner:
             current_input_messages=tuple(
                 current_input_messages or getattr(context, "current_input_messages", ())
             ),
-            run_id=context.freshness_guard.turn_id,
+            run_id=_agent_run_id_for_trigger(
+                trigger,
+                fallback=context.freshness_guard.turn_id,
+            ),
         )
         agent_result = await self.interaction_agent.ainvoke(agent_request)
         if agent_result.timed_out:
@@ -944,6 +950,11 @@ def _protocol_retry_request(
             },
         },
     )
+
+
+def _agent_run_id_for_trigger(trigger: TurnTrigger, *, fallback: str) -> str:
+    value = trigger.agent_run_id
+    return value if isinstance(value, str) and value else fallback
 
 
 def _validate_for_trigger(
