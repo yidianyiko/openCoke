@@ -928,10 +928,11 @@ def _current_input_block(request: AgentRequest) -> str:
             ),
             (
                 "short_confirmation_instruction: If the current user message is "
-                "a short confirmation such as yes/ok/是的/好的, resolve it "
-                "against the immediately preceding assistant clarification in "
-                "conversation history. If there is no specific pending action, "
-                "ask what they are confirming; do not invent an action."
+                "a short confirmation or concise clarification answer such as "
+                "yes/ok/是的/好的/a friend name/a time, resolve it against the "
+                "immediately preceding assistant clarification in conversation "
+                "history. If there is no specific pending action, ask what they "
+                "are confirming; do not invent an action."
             ),
         ]
         for message in messages:

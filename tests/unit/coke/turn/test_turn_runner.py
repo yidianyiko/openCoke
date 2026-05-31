@@ -772,6 +772,42 @@ def test_short_affirmative_missing_context_keeps_interactive_tools(harness):
     assert request.tool_profile.tool_names == ("reminder",)
 
 
+def test_concise_clarification_answer_keeps_interactive_tools(harness):
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="friend_op",
+        intent_action="none",
+        ambiguity="missing_context",
+        required_clarification="ask_context",
+        language_hint="zh",
+    )
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "lizihao"},
+    )
+
+    result = harness["runner"].run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    assert "required_clarification" not in request.trusted_facts
+    assert request.context.semantic_decision == SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="friend_op",
+        intent_action="none",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+    )
+    assert request.tool_profile.intent_tools_enabled is True
+    assert request.tool_profile.tool_names == ("reminder",)
+
+
 def test_single_reminder_focus_clears_reference_clarification_for_update(harness):
     harness["runner"].focus_resolver = FocusResolver(
         StaticFocusRepository(

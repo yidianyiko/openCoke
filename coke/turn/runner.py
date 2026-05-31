@@ -228,7 +228,7 @@ class TurnRunner:
             semantic_decision = _clear_reference_clarification_with_single_focus(
                 semantic_decision, focus_subject
             )
-            semantic_decision = _clear_context_clarification_for_short_affirmative(
+            semantic_decision = _clear_context_clarification_for_followup_answer(
                 semantic_decision, trigger
             )
             semantic_decision = _require_agent_visibility_for_inbound_no_reply(
@@ -340,7 +340,7 @@ class TurnRunner:
                 semantic_decision = _clear_reference_clarification_with_single_focus(
                     semantic_decision, focus_subject
                 )
-                semantic_decision = _clear_context_clarification_for_short_affirmative(
+                semantic_decision = _clear_context_clarification_for_followup_answer(
                     semantic_decision, trigger
                 )
                 semantic_decision = _require_agent_visibility_for_inbound_no_reply(
@@ -1247,7 +1247,7 @@ SHORT_AFFIRMATIVE_TEXTS = {
 }
 
 
-def _clear_context_clarification_for_short_affirmative(
+def _clear_context_clarification_for_followup_answer(
     decision: SemanticDecision,
     trigger: TurnTrigger,
 ) -> SemanticDecision:
@@ -1255,17 +1255,21 @@ def _clear_context_clarification_for_short_affirmative(
         return decision
     if decision.ambiguity != "missing_context":
         return decision
-    if not _is_short_affirmative_payload(trigger.payload):
+    if not _is_concise_followup_answer_payload(trigger.payload):
         return decision
     return replace(decision, ambiguity="clear", required_clarification="none")
 
 
-def _is_short_affirmative_payload(payload: Mapping[str, Any]) -> bool:
+def _is_concise_followup_answer_payload(payload: Mapping[str, Any]) -> bool:
     text = str(payload.get("text") or payload.get("input") or "").strip()
     if not text:
         return False
     normalized = text.casefold().strip(" \t\r\n.!?。！？~～")
-    return normalized in SHORT_AFFIRMATIVE_TEXTS
+    if normalized in SHORT_AFFIRMATIVE_TEXTS:
+        return True
+    if any(mark in text for mark in ("?", "？")):
+        return False
+    return len(text) <= 40 and len(text.split()) <= 4
 
 
 def _require_agent_visibility_for_inbound_no_reply(
