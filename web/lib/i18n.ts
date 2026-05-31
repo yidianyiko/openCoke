@@ -639,7 +639,7 @@ export const messages: MessagesCatalog = {
       claim: {
         eyebrow: 'Shared channel access',
         title: 'Claim your customer account',
-        description: 'Set a password to activate the account that was pre-provisioned from your first inbound message.',
+        description: 'Use the secure claim link to activate the account that was pre-provisioned from your first inbound message.',
         tokenLabel: 'Claim token',
         tokenPlaceholder: 'Paste the claim token from your email',
         passwordLabel: 'New password',
@@ -1078,7 +1078,7 @@ export const messages: MessagesCatalog = {
       claim: {
         eyebrow: '共享通道访问',
         title: '认领你的客户账号',
-        description: '为首次入站消息自动预建的账号设置密码，完成激活。',
+        description: '使用安全认领链接激活首次入站消息自动预建的账号。',
         tokenLabel: '认领令牌',
         tokenPlaceholder: '粘贴邮件中的认领令牌',
         passwordLabel: '新密码',

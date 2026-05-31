@@ -40,14 +40,8 @@ describe('ClaimPage', () => {
 
   const waitForEffects = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-  function setInputValue(selector: string, value: string) {
-    const input = container.querySelector(selector) as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    setter?.call(input, value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
   beforeEach(() => {
+    localStorage.clear();
     pushMock.mockReset();
     vi.mocked(customerApi.post).mockReset();
     vi.mocked(storeCustomerAuth).mockReset();
@@ -85,8 +79,8 @@ describe('ClaimPage', () => {
     expect(container.querySelector('.auth-submit')).toBeTruthy();
     expect(container.querySelector('.auth-linkrow')).toBeTruthy();
     expect(container.querySelector('.auth-input#token')).toBeTruthy();
-    expect(container.querySelector('.auth-input#password')).toBeTruthy();
-    expect(container.querySelector('.auth-input#confirmPassword')).toBeTruthy();
+    expect(container.querySelector('.auth-input#password')).toBeFalsy();
+    expect(container.querySelector('.auth-input#confirmPassword')).toBeFalsy();
     expect(container.querySelector('a[href="/auth/login"]')).toBeTruthy();
     expect(container.textContent).toContain('Claim your customer account');
     expect(container.textContent).toContain('Activate account');
@@ -96,37 +90,28 @@ describe('ClaimPage', () => {
 
   it('stores the customer auth payload and routes to the primary customer channel after a successful claim', async () => {
     vi.mocked(customerApi.post).mockResolvedValueOnce({
-      ok: true,
-      data: {
-        token: 'customer-token',
-        customerId: 'ck_1',
-        identityId: 'idt_1',
-        email: 'alice@example.com',
-        claimStatus: 'active',
-        membershipRole: 'owner',
-        continueTo: '/account/calendar-import',
-      },
+      account_id: 'acct_1',
+      session_token: 'session_1',
+      continuation: { next: '/account/calendar-import' },
     });
 
     renderPage();
 
     await waitForEffects();
 
-    setInputValue('#password', 'password-123');
-    setInputValue('#confirmPassword', 'password-123');
     container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitForEffects();
 
-    expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith('/api/auth/claim', {
+    expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith('/api/claim/login-url/redeem', {
       token: 'claim-token-123',
-      password: 'password-123',
+      browser_session: expect.any(String),
     });
     expect(vi.mocked(storeCustomerAuth)).toHaveBeenCalledWith({
-      token: 'customer-token',
-      customerId: 'ck_1',
-      identityId: 'idt_1',
-      email: 'alice@example.com',
+      token: 'session_1',
+      customerId: 'acct_1',
+      identityId: 'acct_1',
+      email: '',
       claimStatus: 'active',
       membershipRole: 'owner',
       continueTo: '/account/calendar-import',
@@ -136,23 +121,15 @@ describe('ClaimPage', () => {
 
   it('falls back to the customer channel when the claim response does not include a continuation target', async () => {
     vi.mocked(customerApi.post).mockResolvedValueOnce({
-      ok: true,
-      data: {
-        token: 'customer-token',
-        customerId: 'ck_1',
-        identityId: 'idt_1',
-        email: 'alice@example.com',
-        claimStatus: 'active',
-        membershipRole: 'owner',
-      },
+      account_id: 'acct_1',
+      session_token: 'session_1',
+      continuation: {},
     });
 
     renderPage();
 
     await waitForEffects();
 
-    setInputValue('#password', 'password-123');
-    setInputValue('#confirmPassword', 'password-123');
     container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitForEffects();
@@ -162,24 +139,15 @@ describe('ClaimPage', () => {
 
   it('falls back to the customer channel when the server returns a malformed protocol-relative continuation target', async () => {
     vi.mocked(customerApi.post).mockResolvedValueOnce({
-      ok: true,
-      data: {
-        token: 'customer-token',
-        customerId: 'ck_1',
-        identityId: 'idt_1',
-        email: 'alice@example.com',
-        claimStatus: 'active',
-        membershipRole: 'owner',
-        continueTo: '/\\/evil.com',
-      },
+      account_id: 'acct_1',
+      session_token: 'session_1',
+      continuation: { next: '/\\/evil.com' },
     });
 
     renderPage();
 
     await waitForEffects();
 
-    setInputValue('#password', 'password-123');
-    setInputValue('#confirmPassword', 'password-123');
     container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitForEffects();
@@ -189,16 +157,13 @@ describe('ClaimPage', () => {
 
   it('shows the invalid-or-expired token error without routing', async () => {
     vi.mocked(customerApi.post).mockResolvedValueOnce({
-      ok: false,
-      error: 'invalid_or_expired_token',
+      error: { code: 'artifact_expired' },
     });
 
     renderPage();
 
     await waitForEffects();
 
-    setInputValue('#password', 'password-123');
-    setInputValue('#confirmPassword', 'password-123');
     container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitForEffects();
@@ -209,23 +174,21 @@ describe('ClaimPage', () => {
     expect(vi.mocked(storeCustomerAuth)).not.toHaveBeenCalled();
   });
 
-  it('shows the duplicate-email conflict copy when the claimed email already exists', async () => {
+  it('shows generic copy for non-token claim route errors', async () => {
     vi.mocked(customerApi.post).mockResolvedValueOnce({
-      ok: false,
-      error: 'email_already_exists',
+      error: { code: 'browser_session_mismatch' },
     });
 
     renderPage();
 
     await waitForEffects();
 
-    setInputValue('#password', 'password-123');
-    setInputValue('#confirmPassword', 'password-123');
     container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitForEffects();
 
-    expect(container.textContent).toContain('That email address is already in use.');
+    expect(container.querySelector('.auth-alert--error')).toBeTruthy();
+    expect(container.textContent).not.toContain('This claim link is invalid or has expired.');
     expect(pushMock).not.toHaveBeenCalled();
   });
 });

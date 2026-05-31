@@ -82,6 +82,21 @@ def create_claim_blueprint(identity_service) -> Blueprint:
             }
         )
 
+    @blueprint.post("/login-url/redeem")
+    def redeem_login_url():
+        payload = _json_payload()
+        redeemed = identity_service.redeem_login_url(
+            token=_body_field(payload, "token"),
+            browser_session=_body_field(payload, "browser_session"),
+        )
+        return jsonify(
+            {
+                "account_id": redeemed.account_id,
+                "session_token": redeemed.session.token,
+                "continuation": redeemed.continuation,
+            }
+        )
+
     @blueprint.post("/pairing-code")
     def issue_pairing_code():
         account_id = require_customer_account_id(identity_service, IdentityAccessError)

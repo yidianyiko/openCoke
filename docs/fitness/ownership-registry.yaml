@@ -15,6 +15,8 @@ systems:
   - repo-os
 
 routes:
+  - path: coke/api/account_routes.py
+    owner: identity-access
   - path: coke/api/auth_routes.py
     owner: identity-access
   - path: coke/api/calendar_import_routes.py
@@ -26,6 +28,9 @@ routes:
     owner: identity-access
   - path: coke/api/friend_routes.py
     owner: social-scheduling
+  - path: coke/api/internal_routes.py
+    owner: conversation-runtime
+    secondary_owner: provider-adapters
   - path: coke/api/provider_webhooks.py
     owner: provider-adapters
     secondary_owner: channel-reachability
@@ -36,6 +41,8 @@ routes:
     secondary_owner: reminder
   - path: coke/api/settings_routes.py
     owner: settings
+  - path: coke/api/subscription_routes.py
+    owner: identity-access
 
 contracts:
   - path: coke/app.py
