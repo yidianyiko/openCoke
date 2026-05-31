@@ -133,8 +133,11 @@ def _render_trigger(
     topic: str,
     payload: Mapping[str, Any],
 ) -> TurnTrigger:
+    trigger_payload = dict(payload)
+    if topic == "turn.notification":
+        trigger_payload = _hydrate_notification_payload(runtime, trigger_payload)
     account_id = _required_str(payload, "account_id")
-    conversation_id = str(payload.get("conversation_id") or "")
+    conversation_id = str(trigger_payload.get("conversation_id") or "")
     if not conversation_id:
         conversation = runtime.repositories.conversation_runtime.get_conversation_by_account(
             account_id
@@ -154,8 +157,47 @@ def _render_trigger(
         mode=TurnMode.RENDER,
         conversation_id=conversation_id,
         account_id=account_id,
-        payload=dict(payload),
+        payload=trigger_payload,
     )
+
+
+def _hydrate_notification_payload(
+    runtime: CokeRuntime,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    fact_id = payload.get("notification_fact_id")
+    if not isinstance(fact_id, str) or not fact_id:
+        return payload
+    repository = getattr(runtime.repositories, "social_scheduling", None)
+    if repository is None or not hasattr(repository, "list_notification_facts"):
+        return payload
+    for fact in repository.list_notification_facts():
+        if getattr(fact, "id", None) != fact_id:
+            continue
+        expected_hash = payload.get("facts_hash")
+        if (
+            isinstance(expected_hash, str)
+            and expected_hash
+            and getattr(fact, "facts_hash", None) != expected_hash
+        ):
+            return payload
+        hydrated = dict(payload)
+        hydrated["notification_fact"] = _notification_fact_payload(fact)
+        return hydrated
+    return payload
+
+
+def _notification_fact_payload(fact: Any) -> dict[str, Any]:
+    return {
+        "id": getattr(fact, "id", None),
+        "type": getattr(fact, "type", None),
+        "actor_account_id": getattr(fact, "actor_account_id", None),
+        "object_type": getattr(fact, "object_type", None),
+        "object_id": getattr(fact, "object_id", None),
+        "status": getattr(fact, "status", None),
+        "facts": dict(getattr(fact, "facts", {}) or {}),
+        "facts_hash": getattr(fact, "facts_hash", None),
+    }
 
 
 def _conversation_row(runtime: CokeRuntime, conversation_id: str) -> Mapping[str, Any]:
