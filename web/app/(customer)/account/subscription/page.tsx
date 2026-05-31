@@ -14,13 +14,28 @@ type SubscriptionSnapshot = {
   subscriptionExpiresAt: string | null;
   accountAccessAllowed: boolean;
   accountAccessDeniedReason: string | null;
-  renewalUrl: string;
+  checkoutUrl: string | null;
 };
 
-type CleanAccessStatus = {
+type CleanSubscriptionStatus = {
   account_id: string;
+  subscription_state: string;
   access_allowed: boolean;
   denial_reason: string | null;
+  checkout_url: string | null;
+};
+
+type CleanCheckoutLink = {
+  account_id: string;
+  available: boolean;
+  checkout_url: string | null;
+  denial_reason: string | null;
+};
+
+type CleanRouteError = {
+  error: {
+    code: string;
+  };
 };
 
 type PageMode = 'checkout' | 'success' | 'cancel';
@@ -53,18 +68,26 @@ function formatExpiry(value: string | null, locale: string): string | null {
   }).format(date);
 }
 
-function accessStatusToSubscriptionSnapshot(access: CleanAccessStatus): SubscriptionSnapshot {
-  const subscriptionRequired = access.denial_reason === 'subscription_inactive';
-  const emailRequired = access.denial_reason === 'email_not_verified';
-  const suspended = access.denial_reason === 'account_suspended';
+function isCleanRouteError(value: unknown): value is CleanRouteError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as CleanRouteError).error?.code === 'string'
+  );
+}
+
+function subscriptionStatusToSnapshot(access: CleanSubscriptionStatus): SubscriptionSnapshot {
+  const emailRequired = access.denial_reason === 'email_verification_required';
+  const suspended = access.denial_reason === 'suspended';
   return {
     accountStatus: suspended ? 'suspended' : 'normal',
     emailVerified: !emailRequired,
-    subscriptionActive: !subscriptionRequired,
+    subscriptionActive: access.subscription_state === 'active',
     subscriptionExpiresAt: null,
     accountAccessAllowed: access.access_allowed,
     accountAccessDeniedReason: access.denial_reason,
-    renewalUrl: '',
+    checkoutUrl: access.checkout_url,
   };
 }
 
@@ -103,18 +126,18 @@ function CustomerSubscriptionPageContent() {
 
     async function loadSubscription() {
       try {
-        const res = await customerApi.get<CleanAccessStatus>('/api/auth/access-status');
+        const res = await customerApi.get<CleanSubscriptionStatus | CleanRouteError>('/api/subscription/status');
 
         if (cancelled) {
           return;
         }
 
-        if ('error' in res) {
+        if (isCleanRouteError(res)) {
           router.replace('/auth/login?next=/account/subscription');
           return;
         }
 
-        setSnapshot(accessStatusToSubscriptionSnapshot(res));
+        setSnapshot(subscriptionStatusToSnapshot(res));
       } catch {
         if (!cancelled) {
           setError(renewCopy.genericError);
@@ -138,7 +161,23 @@ function CustomerSubscriptionPageContent() {
     setError('');
 
     try {
-      setError(renewCopy.genericError);
+      const res = await customerApi.post<CleanCheckoutLink | CleanRouteError>('/api/subscription/checkout-link');
+
+      if (isCleanRouteError(res)) {
+        if (res.error.code === 'unauthorized') {
+          router.replace('/auth/login?next=/account/subscription');
+          return;
+        }
+        setError(renewCopy.genericError);
+        return;
+      }
+
+      if (!res.available || !res.checkout_url) {
+        setError(renewCopy.genericError);
+        return;
+      }
+
+      window.open(res.checkout_url, '_self');
     } catch {
       setError(renewCopy.genericError);
     } finally {
@@ -202,8 +241,9 @@ function CustomerSubscriptionPageContent() {
   const needsRenewal = snapshot?.subscriptionActive !== true;
   const canStartCheckout =
     needsRenewal &&
-    (snapshot?.accountAccessAllowed === true || snapshot?.accountAccessDeniedReason === 'subscription_required');
-  const mustVerifyEmail = snapshot?.accountAccessDeniedReason === 'email_not_verified';
+    Boolean(snapshot?.checkoutUrl) &&
+    snapshot?.accountAccessDeniedReason === 'subscription_inactive';
+  const mustVerifyEmail = snapshot?.accountAccessDeniedReason === 'email_verification_required';
 
   return (
     <section className={pageClassName}>

@@ -217,7 +217,7 @@ describe('customer auth storage', () => {
         subscription_expires_at: null,
       },
     });
-    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(1, '/api/auth/current-user');
-    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(2, '/api/auth/access-status');
+    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(1, '/api/account/current-user');
+    expect(vi.mocked(customerApi.get)).toHaveBeenNthCalledWith(2, '/api/account/access-status');
   });
 });

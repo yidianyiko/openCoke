@@ -5,7 +5,7 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from itertools import count
 from types import SimpleNamespace
 from typing import Any
@@ -326,7 +326,7 @@ def harness():
     }
 
 
-def test_intentional_no_reply_skips_interaction_agent(harness):
+def test_semantic_intentional_no_reply_still_reaches_interaction_agent(harness):
     harness["semantic"].next_decision = SemanticDecision(
         reply_necessity="intentional_no_reply",
         intent_family="chit_chat",
@@ -338,12 +338,35 @@ def test_intentional_no_reply_skips_interaction_agent(harness):
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 
+    assert result.disposition == "replied"
+    assert result.visible_text == "hello"
+    assert harness["agent"].invocations == 1
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["semantic_decision"]["reply_necessity"] == (
+        "reply_needed"
+    )
+    disposition = harness["runtime"].get_disposition(result.turn_id)
+    assert disposition.disposition == "replied"
+
+
+def test_interaction_agent_can_still_intentionally_no_reply(harness):
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="intentional_no_reply",
+        intent_family="chit_chat",
+        intent_action="chit_chat",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="en",
+    )
+    harness["agent"].next_result = AgentResult.completed(
+        {"type": "no_reply", "reason": "intentional_no_reply"}
+    )
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
     assert result.disposition == "no_reply"
     assert result.reason_code == "intentional_no_reply"
-    assert result.visible_text is None
-    assert harness["agent"].invocations == 0
-    disposition = harness["runtime"].get_disposition(result.turn_id)
-    assert disposition.disposition == "no_reply"
+    assert harness["agent"].invocations == 1
 
 
 @pytest.mark.asyncio
@@ -625,6 +648,38 @@ def test_inbound_turn_sends_ordered_input_window_to_agent(harness):
     assert [message.text for message in request.current_input_messages] == [
         "hello",
         "second",
+    ]
+
+
+def test_reply_segments_deliver_as_separate_ordered_messages(harness):
+    harness["agent"].next_result = AgentResult.completed(
+        {"type": "reply", "segments": ["先这样", "明天再看"]}
+    )
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "先这样\n明天再看"
+    assert [request.visible_text for request in harness["delivery"].deliveries] == [
+        "先这样",
+        "明天再看",
+    ]
+    assert [request.segments for request in harness["delivery"].deliveries] == [
+        ("先这样",),
+        ("明天再看",),
+    ]
+    assert [request.idempotency_key for request in harness["delivery"].deliveries] == [
+        f"{result.turn_id}:reply:1",
+        f"{result.turn_id}:reply:2",
+    ]
+    outbound_messages = [
+        message
+        for message in harness["runtime"].outbound_messages_for_turn(result.turn_id)
+        if (message.segment_index or 0) > 0
+    ]
+    assert [request.message_id for request in harness["delivery"].deliveries] == [
+        outbound_messages[0].id,
+        outbound_messages[1].id,
     ]
 
 
@@ -1033,6 +1088,169 @@ def test_superseded_interactive_turn_leaves_no_active_reminder(harness):
     assert [command.status for command in staged] == ["superseded"]
 
 
+def test_reminder_tool_list_reminders_returns_active_count_without_write_guard():
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    reminder_service.execute_batch(
+        owner_account_id="account_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=datetime(2026, 5, 30, 12, 0, tzinfo=UTC),
+                captured_timezone="Asia/Shanghai",
+                duration_minutes=15,
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                captured_timezone="Asia/Shanghai",
+                duration_minutes=15,
+            ),
+        ],
+    )
+    adapter = ReminderToolAdapter(reminder_service)
+
+    class ReadOnlyGuard:
+        def guard_state_change(self):
+            raise AssertionError("list_reminders must not open a write guard")
+
+    result = adapter.execute(
+        {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Shanghai",
+        },
+        ReadOnlyGuard(),
+    )
+
+    assert result.ok is True
+    assert result.reason_code is None
+    assert result.facts["owner_account_id"] == "account_1"
+    assert result.facts["display_timezone"] == "Asia/Shanghai"
+    assert result.facts["count"] == 2
+    assert [item["content"] for item in result.facts["reminders"]] == [
+        "pay rent",
+        "buy milk",
+    ]
+    assert result.facts["reminders"][0]["next_fire_at"] == ("2026-05-30T12:00:00+00:00")
+    assert result.facts["reminders"][0]["display_time_label"] == (
+        "2026-05-30 20:00 Asia/Shanghai"
+    )
+    assert result.facts["display_lines"] == [
+        "1. pay rent (2026-05-30 20:00 Asia/Shanghai)",
+        "2. buy milk (unscheduled)",
+    ]
+    assert result.domain_result is not None
+    assert result.domain_result.action == "list_reminders"
+    assert result.domain_result.intent_fulfilled is True
+    assert result.domain_result.reply_contract == "render_reminder_list"
+    assert "Active reminder count: 2." in result.domain_result.visible_summary
+    assert "1. pay rent (2026-05-30 20:00 Asia/Shanghai)" in (
+        result.domain_result.visible_summary
+    )
+
+
+def test_reminder_tool_list_reminders_accepts_keyword_kind_and_time_filters():
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    reminder_service.execute_batch(
+        owner_account_id="account_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="call mom",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="call dentist",
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                trigger_time=NOW + timedelta(days=1),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+    adapter = ReminderToolAdapter(reminder_service)
+
+    result = adapter.execute(
+        {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "keyword": "call",
+            "kind": "timed",
+            "trigger_after": NOW.isoformat(),
+            "trigger_before": (NOW + timedelta(hours=2)).isoformat(),
+            "captured_timezone": "UTC",
+        },
+        object(),
+    )
+
+    assert result.ok is True
+    assert result.facts["count"] == 1
+    assert result.facts["reminders"][0]["content"] == "call mom"
+
+
+def test_reminder_tool_complete_reminder_accepts_unambiguous_keyword():
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    reminder_service.execute_batch(
+        owner_account_id="account_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+    adapter = ReminderToolAdapter(reminder_service)
+
+    class WriteGuard:
+        def guard_state_change(self):
+            return None
+
+    result = adapter.execute(
+        {
+            "operation": "complete_reminder",
+            "owner_account_id": "account_1",
+            "keyword": "rent",
+        },
+        WriteGuard(),
+    )
+
+    assert result.ok is True
+    assert result.facts["state"] == "succeeded"
+    assert [
+        reminder.content
+        for reminder in reminder_repository.list_active_reminders("account_1")
+    ] == ["buy milk"]
+
+
 def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harness):
     reminder_repository = InMemoryReminderRepository()
     reminder_service = ReminderService(
@@ -1427,7 +1645,7 @@ def test_timeout_yields_waiting_text_pending_async_then_transitions_to_replied(
     assert pending.disposition == "pending_async_reply"
     assert pending.async_task_id == "async-1"
     assert harness["delivery"].deliveries[0].message_type == "waiting"
-    assert harness["delivery"].deliveries[0].visible_text == "Still working on it."
+    assert harness["delivery"].deliveries[0].visible_text == "我还在处理，稍等一下。"
     assert final.disposition == "replied"
     assert final.visible_text == "final answer"
     assert harness["runtime"].get_disposition(final.turn_id).disposition == "replied"

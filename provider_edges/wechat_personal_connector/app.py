@@ -24,6 +24,7 @@ class ConnectorConfig:
     api_key: str | None = None
     webhook_url: str = ""
     webhook_api_key: str | None = None
+    webhook_inbound_secret: str | None = None
     ilink_base_url: str = DEFAULT_ILINK_BASE_URL
     poll_interval_seconds: float = 2.0
 
@@ -164,6 +165,7 @@ def config_from_env() -> ConnectorConfig:
         api_key=os.getenv("WECHAT_CONNECTOR_API_KEY"),
         webhook_url=os.getenv("WECHAT_CONNECTOR_WEBHOOK_URL", ""),
         webhook_api_key=os.getenv("WECHAT_CONNECTOR_WEBHOOK_API_KEY"),
+        webhook_inbound_secret=os.getenv("COKE_WEBHOOK_INBOUND_SECRET"),
         ilink_base_url=os.getenv("WEIXIN_PERSONAL_BASE_URL", DEFAULT_ILINK_BASE_URL),
         poll_interval_seconds=float(os.getenv("WECHAT_CONNECTOR_POLL_SECONDS", "2.0")),
     )
@@ -248,7 +250,12 @@ def create_app(
         text = str(body.get("text") or "").strip()
         if not account_id or not to_user_id or not context_token or not text:
             return jsonify({"error": "invalid_payload"}), 400
-        session = _connected_session_for_account(connector_state.snapshot(), account_id)
+        session_entry = _connected_session_entry_for_account(
+            connector_state.snapshot(), account_id
+        )
+        if session_entry is None:
+            return jsonify({"error": "wechat_not_connected"}), 409
+        session_id, session = session_entry
         base_url = str(session.get("base_url") or "").strip()
         token = str(session.get("token") or "").strip()
         if not base_url or not token:
@@ -275,6 +282,16 @@ def create_app(
                 break
             _log_ilink_send_failure(app, provider_failure, attempt=attempt)
             if attempt == max_attempts or not _is_ret_minus_two(provider_failure):
+                if _is_session_expired_failure(provider_failure):
+                    connector_state.update_session(
+                        session_id,
+                        {
+                            "status": "expired",
+                            "token": "",
+                            "cursor": "",
+                            "context_tokens": {},
+                        },
+                    )
                 return (
                     jsonify(
                         {
@@ -535,6 +552,10 @@ def _is_ret_minus_two(failure: dict[str, Any]) -> bool:
     return failure.get("ret") == -2 or failure.get("errcode") == -2
 
 
+def _is_session_expired_failure(failure: dict[str, Any]) -> bool:
+    return failure.get("ret") == -14 or failure.get("errcode") == -14
+
+
 def _nonzero_number(value: Any) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool) and value != 0
 
@@ -542,8 +563,7 @@ def _nonzero_number(value: Any) -> bool:
 def _is_session_expired_error(error: BaseException) -> bool:
     if not isinstance(error, IlinkAPIError):
         return False
-    response = error.response
-    return response.get("ret") == -14 or response.get("errcode") == -14
+    return _is_session_expired_failure(error.response)
 
 
 def _retry_backoff_active(session: dict[str, Any]) -> bool:
@@ -588,9 +608,12 @@ def _authorized(config: ConnectorConfig) -> bool:
 
 
 def _webhook_headers(config: ConnectorConfig) -> dict[str, str]:
-    if not config.webhook_api_key:
-        return {}
-    return {"X-API-Key": config.webhook_api_key}
+    headers: dict[str, str] = {}
+    if config.webhook_api_key:
+        headers["X-API-Key"] = config.webhook_api_key
+    if config.webhook_inbound_secret:
+        headers["X-Coke-Webhook-Secret"] = config.webhook_inbound_secret
+    return headers
 
 
 def _sessions(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -619,10 +642,19 @@ def _session_by_id(snapshot: dict[str, Any], session_id: str) -> dict[str, Any] 
 def _connected_session_for_account(
     snapshot: dict[str, Any], account_id: str
 ) -> dict[str, Any]:
-    for session in _connected_sessions(snapshot).values():
+    entry = _connected_session_entry_for_account(snapshot, account_id)
+    if entry is None:
+        return {}
+    return entry[1]
+
+
+def _connected_session_entry_for_account(
+    snapshot: dict[str, Any], account_id: str
+) -> tuple[str, dict[str, Any]] | None:
+    for session_id, session in _connected_sessions(snapshot).items():
         if session.get("account_id") == account_id:
-            return session
-    return {}
+            return session_id, session
+    return None
 
 
 def _session_public_view(session_id: str, session: dict[str, Any]) -> dict[str, Any]:

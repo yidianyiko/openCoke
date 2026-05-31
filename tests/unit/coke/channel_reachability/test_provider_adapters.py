@@ -806,3 +806,32 @@ def test_wechat_personal_login_status_timeout_returns_pending_status():
         "connector_status": "timeout",
         "retryable": True,
     }
+
+
+def test_wechat_personal_login_status_remote_disconnect_returns_pending_status():
+    request = httpx.Request(
+        "GET",
+        "https://connector.example/login/status?account_id=acct_1&session_id=session_1",
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.RemoteProtocolError(
+            "Server disconnected without sending a response.",
+            request=request,
+        )
+
+    adapter = WeChatPersonalAdapter(
+        endpoint_url="https://connector.example/send",
+        api_key="wx-secret",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    status = adapter.poll_login_status(account_id="acct_1", session_id="session_1")
+
+    assert status == {
+        "account_id": "acct_1",
+        "session_id": "session_1",
+        "status": "waiting_for_scan",
+        "connector_status": "timeout",
+        "retryable": True,
+    }

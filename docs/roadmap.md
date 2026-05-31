@@ -4,7 +4,7 @@ Last updated: 2026-05-29
 
 This document is the primary product and platform direction view for the Coke
 clean rebuild. The requirements source is
-`docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`;
+`docs/product-requirements/current.md`;
 the target architecture source is
 `docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md`.
 

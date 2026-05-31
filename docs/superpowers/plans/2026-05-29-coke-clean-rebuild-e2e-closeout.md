@@ -8,7 +8,29 @@
 
 **Tech Stack:** Docker Compose on `gcp-coke`, nginx, Postgres 17, Redis 7.2, Flask/Gunicorn clean API, Next.js web client, pytest.
 
-**Plan Status:** blocked
+**Plan Status:** complete
+
+**Closeout Reconciliation (2026-05-31, leader review):** The only open item from
+the Task 12 P1/P2 deploy was a mis-specified verification criterion, not a
+product defect. The dispatch asked internal routes to return "401 without
+internal creds"; live behavior is `503 internal_auth_not_configured` because
+`COKE_INTERNAL_API_KEY` is intentionally unset. That is the correct fail-closed
+contract: with no key configured the route refuses unauthenticated internal
+calls (503) rather than exposing them; with a key configured it returns
+401/403 on missing/bad bearer. `/internal/outbound/delivery-callback` and
+`/internal/reply-wait/<id>` have **no current live consumer** (no web caller, no
+connector/Evolution caller — verified by grep across `web/` and
+`provider_edges/`); they are parity endpoints that remain dormant and secure
+until a consumer and `COKE_INTERNAL_API_KEY` are introduced together. All
+user-visible rebuild contract paths are deployed and live-verified at SHA
+`d5ef1d0f` (independent leader re-verification: `/healthz=200`, web
+`/auth/login=200`, alembic `No new upgrade operations`, both logins 200, four
+`wechat_personal` channels + one `whatsapp_evolution` channel `connected`,
+connector `connected_session_count=2`, worker error count 0,
+`COKE_WEBHOOK_INBOUND_SECRET` unset/transition mode, real-account inbound →
+`replied` + `sent`). Future activation note: to enable the internal routes set
+the same `COKE_INTERNAL_API_KEY` on the API and every internal caller before
+relying on them.
 
 **Verification Evidence:**
 - Remote old-stack teardown: `docker compose -p coke down -v --remove-orphans`; final `docker ps` showed only `coke-clean-*` and `evolution-*`.
@@ -97,6 +119,167 @@ Code fixes added after the initial Step 0 commit:
 - Make the Postgres social-scheduling repository treat invalid UUID-shaped
   account/shared-reminder IDs as not found before querying, so model-supplied
   display names fail closed rather than poisoning the worker transaction.
+
+**P1/P2 Differential Deploy Addendum (2026-05-31):** Deploy current `main`
+commit `d5ef1d0f` to `gcp-coke` `coke-clean` using
+`scripts/deploy-compose-to-gcp.sh`, preserve existing Postgres state and
+personal-WeChat connector sessions, leave `COKE_WEBHOOK_INBOUND_SECRET` unset
+for transition mode, redeploy the personal-WeChat connector for source parity,
+and verify the live API, web, auth, channel/session, route, webhook-transition,
+reply-path, Alembic, logs, and deployed-sha evidence.
+
+**P1/P2 Deploy Evidence (2026-05-31T11:10Z):**
+- Deploy script: `scripts/deploy-compose-to-gcp.sh` from local
+  `d5ef1d0f401bd85217013eb037dd09f28bd028a1`; previous deployed marker was
+  `24dcafb4346b1be2cbecea8bbfd1b1ebb8e2e8ad`; script classified tier `full`.
+- Backend services recreated by the script: `coke-api`, `coke-worker`,
+  `coke-scheduler`, and `coke-outbox-relay`. Alembic upgrade ran and
+  `alembic check` reported `No new upgrade operations detected.`
+- Web rebuild deviation: the script completed but `coke-web` still showed
+  3-hour uptime, so it was manually force-recreated with the same clean compose
+  files. Next build completed successfully and `/auth/login` returned HTTP 200.
+- Connector redeploy: `provider_edges/wechat_personal_connector` was rsynced
+  manually because the deploy script allowlist does not include `provider_edges/`.
+  The first compose attempt used the directory default project name and created
+  empty duplicate artifacts; those duplicate container/network/volume artifacts
+  were removed. The correct `wechat-personal-connector` project was then
+  force-recreated, preserving `wechat-personal-connector_wechat_personal_state`.
+- Health/restart evidence: `/healthz=200`, `/auth/login=200`, connector
+  `/healthz={"connected":true,"connected_session_count":2,"ok":true,"status":"connected"}`;
+  restart counts were `0` for `coke-api`, `coke-worker`, `coke-scheduler`,
+  `coke-outbox-relay`, `coke-web`, and `wechat-personal-connector`.
+- Secret guardrail: `COKE_WEBHOOK_INBOUND_SECRET` count was `0` inside both
+  `coke-api` and the connector containers.
+- Credential/auth evidence: live DB shows `olivers@coke.keep4oforever.com` and
+  `lizihao@coke.keep4oforever.com` password hashes start with `$argon2i`;
+  `/api/auth/login` returned 200 for both; auth'd `/api/account/current-user`
+  and `/api/subscription/status` returned 200 for both.
+- Channel/session evidence: target active channels remained connected and active:
+  olivers `o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat`, lizihao
+  `o9cq802Y5W-kzfSNDAL4gUrWK_OQ@im.wechat`; connector connected session count
+  remained `2`.
+- Route evidence: `/api/claim/login-url/redeem` returned 400 to an empty POST,
+  proving the route exists. `/internal/outbound/delivery-callback` and
+  `/internal/reply-wait/<id>` returned 503, not 404, because
+  `COKE_INTERNAL_API_KEY` is not configured.
+- Verification-criterion reconciliation (leader, 2026-05-31): the dispatch's
+  "401 without internal creds" was a mis-specified criterion. Live `503
+  internal_auth_not_configured` is the correct fail-closed contract when
+  `COKE_INTERNAL_API_KEY` is unset, and these routes have no current live
+  consumer. Reclassified as not-a-defect; see the Closeout Reconciliation note
+  at the top of this plan. Not blocking.
+- Webhook/reply evidence: connector-shaped personal-WeChat inbound without a
+  secret header was accepted in transition mode using marker
+  `codex-p1p2-live-20260531T110613Z` and hyphenless connector account id
+  `ae02ff016fcd4d39a189e51c8c8a31e6`; the resulting turn was
+  `replied`, delivery attempt was `sent`, and the reply text included the marker.
+- Probe note: earlier webhook probes using SQL-style hyphenated account ids or no
+  account id failed with `channel_identity_already_bound` /
+  `identity_pairing_required`; those were invalid probe shapes for this live
+  connector path, whose account ids are normalized without hyphens.
+- Worker/API log scan after deploy had no `unsupported_worker_topic`,
+  `Traceback`, `ERROR`, `Exception`, or crash-loop matches.
+- Deployed marker: `/home/whoami/coke-clean/.deployed-sha` is
+  `d5ef1d0f401bd85217013eb037dd09f28bd028a1`.
+- Local verification: `/data/projects/coke/.venv/bin/python -m pytest
+  tests/unit/coke/deploy/test_clean_compose_deploy_contract.py
+  tests/unit/coke/channel_reachability/test_provider_webhooks.py -q` returned
+  `25 passed in 0.99s`.
+
+### Task 12: P1/P2 Differential Deploy And Live Verification
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-e2e-closeout.md`
+- Read/run: `scripts/deploy-compose-to-gcp.sh`
+- Remote deploy: `/home/whoami/coke-clean`
+- Remote connector deploy: `/home/whoami/coke-clean/provider_edges/wechat_personal_connector`
+
+- [x] **Step 1: Confirm local deployment baseline**
+
+Run:
+
+```bash
+git status --short --branch
+git log --oneline -5 --decorate
+scripts/deploy-compose-to-gcp.sh --dry-run
+```
+
+Expected: current branch is `main`, local HEAD is `d5ef1d0f`, dry-run reports a
+backend+web deploy tier for the P1/P2 diff, and the plan file is the only local
+task edit before deploy.
+
+- [x] **Step 2: Run differential clean-stack deploy**
+
+Run:
+
+```bash
+scripts/deploy-compose-to-gcp.sh
+```
+
+Expected: the script preserves remote Postgres/Redis volumes, runs Alembic
+upgrade and check, rebuilds/recreates backend services plus `coke-web`, waits
+for `/healthz` and `/auth/login`, and writes `/home/whoami/coke-clean/.deployed-sha`.
+
+- [x] **Step 3: Redeploy personal-WeChat connector without session reset**
+
+Run a connector compose rebuild/recreate using the existing external
+`wechat_personal_state` volume. Do not run `docker compose down -v`, do not
+delete connector volumes, and do not touch account/channel/channel_identity
+rows.
+
+Expected: connector `/healthz` reports `connected_session_count=2`.
+
+- [x] **Step 4: Verify clean runtime health and migrations**
+
+Run remote checks for `/healthz=200`, `/auth/login=200`, `docker compose ps`,
+restart counts, `alembic check`, worker logs without `unsupported_worker_topic`,
+and no crash loops.
+
+Expected: clean API/web are healthy, all clean service restart counts are `0`,
+and Alembic reports no new upgrade operations.
+
+- [ ] **Step 5: Verify auth, channels, sessions, and new route presence**
+
+Run auth'd login checks for `olivers` and `lizihao`, query both channel rows for
+`connection_state='connected'`, query connector `/healthz`, and call:
+
+```text
+GET /api/account/current-user
+GET /api/subscription/status
+POST /internal/outbound/delivery-callback
+GET /internal/reply-wait/<id>
+POST /api/claim/login-url/redeem
+```
+
+Expected: both logins return HTTP 200, both channels remain connected,
+connector connected session count is `2`, auth'd account/subscription routes
+return 200, internal routes return 401 without internal credentials rather than
+404, and claim redeem route exists.
+
+- [x] **Step 6: Verify webhook transition mode and reply path**
+
+Confirm `COKE_WEBHOOK_INBOUND_SECRET` is absent from clean API and connector
+runtime environments. Post a connector-shaped personal-WeChat inbound with no
+secret header to `/webhooks/wechat/personal`.
+
+Expected: webhook is accepted in transition mode. A simple inbound through the
+same real account context produces a `turn` with disposition `replied`, an
+outbound `message`, and a `delivery_attempt.status='sent'`. If the proof path
+requires a real human WeChat re-scan or fresh manual WeChat input, stop and
+report that blocker instead of recreating sessions.
+
+- [ ] **Step 7: Record evidence, set plan complete, and commit**
+
+Update this plan with the deploy tier, web rebuild status, Alembic result,
+health, login, route, webhook, reply-path, deployed-sha, and
+`COKE_WEBHOOK_INBOUND_SECRET` evidence. Then run:
+
+```bash
+git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-e2e-closeout.md
+git commit -m "docs: record p1 p2 clean deploy evidence"
+```
+
+Expected: the commit contains only this plan evidence update.
 
 ---
 

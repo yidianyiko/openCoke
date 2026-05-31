@@ -2,7 +2,7 @@
 
 This document describes the clean-rebuild target architecture for Coke. The
 requirements source of truth is
-`docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`;
+`docs/product-requirements/current.md`;
 the technical target is
 `docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md`.
 If this document and those specs disagree, treat the settled specs as the
@@ -70,14 +70,29 @@ Turn execution has one spine:
    reply.
 7. Record exactly one turn disposition:
    `replied | no_reply | pending_async_reply | failed | superseded`.
-8. Persist outbound messages with deterministic segment ids and provider
-   idempotency keys.
-9. Deliver through the current channel route and record delivery attempts.
+8. Persist outbound messages with deterministic segment ids.
+9. Deliver through the current channel route with provider idempotency keys and
+   record delivery attempts.
 10. Update output-class-specific lifecycle state from delivery callbacks.
 
 Interactive mode exposes domain tools and may mutate product state through
 domain services. Render mode receives already-trusted structured facts and has no
 business mutation tools.
+
+Structured reply output may contain one to three text segments. Each segment is
+persisted as its own outbound message. For message-style channels such as
+personal WeChat and shared WhatsApp, each persisted segment is delivered as a
+separate ordered visible message with its own message id, idempotency key, and
+provider delivery evidence. Aggregated newline-joined text is only an internal
+turn summary and must not be used as the provider-visible payload for segmented
+replies.
+
+For inbound user turns, no-reply is an Interaction Agent output decision after
+the full trusted context is assembled. Semantic interpretation may carry a
+reply-necessity signal, but it must not close an inbound user turn before the
+Interaction Agent has seen product-notification, reminder, focus, and memory
+context. This keeps intentional no-reply observable without making the
+pre-agent classifier stricter than the chat workflow.
 
 ### Interactive Input Windows And Pre-Reply Interruption
 
@@ -114,6 +129,14 @@ decision is `replied`, product-approved terminal `no_reply`, or
 atomically verify that no newer inbound has arrived for the claimed window,
 materialize staged interactive commands, persist the close result, and advance
 `last_closed_inbound_seq` to the turn's `input_to_seq`.
+
+Runtime-owned waiting text is emitted independently of the blocked Interaction
+Agent call. `coke-outbox-relay` scans active inbound turns and, after
+`COKE_WAITING_REPLY_AFTER_SECONDS` (default 20 seconds), persists
+`pending_async_reply`, records a segment `0` waiting message, and delivers that
+waiting text through the same channel route. The original worker turn keeps
+running; when the Interaction Agent eventually returns, the same turn may still
+transition from `pending_async_reply` to `replied` or `failed`.
 
 Interactive state-changing tools must stage commands before the close boundary.
 They may validate intent, read state, and create turn-local drafts, but they
@@ -235,6 +258,10 @@ conversation `context_token`.
   cancel the whole group; completion affects only that participant's projection.
 - Product notifications are structured facts rendered by The Turn. Notifications
   are informational and never approval or action-execution workflows.
+- Shared-reminder creation sends the invitation notification to receivers. The
+  creator receives the original interactive creation reply, then receives a
+  separate structured delivery-confirmed notification when a receiver's
+  invitation notification is delivered.
 - Calendar import is one-time import into Coke-owned reminders with
   occurrence-grain dedupe.
 

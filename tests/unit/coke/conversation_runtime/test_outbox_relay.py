@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import fakeredis
 
+from coke.config import Settings
 from coke.domains.conversation_runtime.models import OutboxRecord
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
 )
+from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.infra.redis import RedisWorkStream
-from coke.worker.outbox_relay import OutboxRelay
+from coke.worker.outbox_relay import OutboxRelay, run_outbox_relay_loop
 from coke.worker.stream_consumer import StreamConsumer
 
-
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
+PAST = datetime(2026, 5, 29, 11, 0, tzinfo=UTC)
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
@@ -109,3 +112,85 @@ def test_stream_consumer_handles_event_and_acks_durable_outbox_row():
     assert handled == ["outbox_1"]
     assert repository.outbox_by_id["outbox_1"].status == "processed"
     assert redis.xpending("coke.work", "workers")["pending"] == 0
+
+
+def test_outbox_relay_loop_dispatches_due_waiting_reply_before_sleep():
+    repository = InMemoryConversationRuntimeRepository(now=lambda: PAST)
+    service = ConversationRuntimeService(
+        repository=repository,
+        now=lambda: PAST,
+        id_factory=_id_factory(),
+    )
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_1",
+        causal_inbound_event_id="provider:message-1",
+        text="how many reminders?",
+        payload={"context_token": "ctx_1"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    ).turn
+    delivery = _RecordingDelivery()
+    runtime = SimpleNamespace(
+        repositories=SimpleNamespace(conversation_runtime=repository),
+        conversation_runtime_service=service,
+        turn_runner=SimpleNamespace(outbound_delivery=delivery),
+        work_stream=RedisWorkStream(
+            fakeredis.FakeRedis(decode_responses=True),
+            stream_name="coke.work",
+            group_name="workers",
+        ),
+        session=_RecordingSession(),
+    )
+
+    run_outbox_relay_loop(
+        Settings(
+            database_url="postgresql://unused",
+            redis_url="redis://unused",
+            app_env="test",
+            outbox_relay_poll_interval_s=0,
+            waiting_reply_after_seconds=20,
+        ),
+        runtime=runtime,
+        iterations=1,
+    )
+
+    assert service.get_disposition(turn.id).disposition == "pending_async_reply"
+    assert delivery.requests[0].message_type == "waiting"
+    assert runtime.session.commits == 1
+
+
+def _id_factory():
+    counter = 0
+
+    def next_id(prefix: str) -> str:
+        nonlocal counter
+        counter += 1
+        return f"{prefix}_{counter}"
+
+    return next_id
+
+
+class _RecordingDelivery:
+    def __init__(self) -> None:
+        self.requests = []
+
+    def deliver(self, request):
+        self.requests.append(request)
+
+
+class _RecordingSession:
+    def __init__(self) -> None:
+        self.commits = 0
+        self.rollbacks = 0
+
+    def commit(self) -> None:
+        self.commits += 1
+
+    def rollback(self) -> None:
+        self.rollbacks += 1

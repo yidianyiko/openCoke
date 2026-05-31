@@ -56,6 +56,8 @@ class NotificationFactWriter:
         recipients: Iterable[str],
         idempotency_key: str,
     ) -> NotificationFact:
+        recipient_list = sorted(set(recipients))
+        facts = {**dict(facts), "delivery_recipients": recipient_list}
         assert_structured_facts(facts)
         canonical_facts = {
             "type": notification_type,
@@ -79,7 +81,7 @@ class NotificationFactWriter:
             created_at=self._now(),
         )
         self.repository.add_notification_fact(fact)
-        for account_id in sorted(set(recipients)):
+        for account_id in recipient_list:
             self.repository.add_notification_recipient(
                 NotificationRecipient(
                     id=self._id_factory("notification_recipient"),

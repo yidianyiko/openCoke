@@ -110,6 +110,15 @@ class StagedCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class WaitingReplyCandidate:
+    turn_id: str
+    trigger_id: str
+    conversation_id: str
+    account_id: str
+    input_to_seq: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class OutputDisposition:
     id: str
     turn_id: str

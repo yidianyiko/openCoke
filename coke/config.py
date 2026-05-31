@@ -52,7 +52,9 @@ class Settings:
     outbox_relay_poll_interval_s: float = 1.0
     worker_block_ms: int = 1000
     worker_reclaim_idle_ms: int = 60_000
+    waiting_reply_after_seconds: int = 20
     scheduler_interval_s: int = 60
+    webhook_inbound_secret: str | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -139,7 +141,11 @@ class Settings:
             worker_reclaim_idle_ms=_positive_int(
                 source, "COKE_WORKER_RECLAIM_IDLE_MS", 60_000
             ),
+            waiting_reply_after_seconds=_positive_int(
+                source, "COKE_WAITING_REPLY_AFTER_SECONDS", 20
+            ),
             scheduler_interval_s=_positive_int(source, "COKE_SCHEDULER_INTERVAL_S", 60),
+            webhook_inbound_secret=_optional(source, "COKE_WEBHOOK_INBOUND_SECRET"),
         )
 
 

@@ -10,6 +10,7 @@ import yaml
 from provider_edges.wechat_personal_connector.app import (
     ConnectorConfig,
     ConnectorState,
+    config_from_env,
     create_app,
     poll_once,
     _poll_login_status_once,
@@ -403,6 +404,84 @@ def test_send_endpoint_retries_transient_ret_minus_two_and_logs_body(state, capl
     assert '"ret": -2' in caplog.text
 
 
+def test_send_expires_session_on_session_timeout(state):
+    ilink = FakeIlinkClient()
+    ilink.send_response = {
+        "message_id": "client-id-1",
+        "provider_response": {"errcode": -14, "errmsg": "session timeout"},
+    }
+    app = create_app(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().post(
+        "/send",
+        json={
+            "account_id": "acct_1",
+            "to": "wxid_alice",
+            "context_token": "ctx-1",
+            "text": "hello",
+        },
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert response.status_code == 502
+    assert response.get_json() == {
+        "error": "ilink_send_failed",
+        "ilink": {"errcode": -14, "errmsg": "session timeout"},
+    }
+    session = state.snapshot()["sessions"]["session-1"]
+    assert session["status"] == "expired"
+    assert session["token"] == ""
+    assert session["cursor"] == ""
+    assert session["context_tokens"] == {}
+    health = app.test_client().get("/healthz")
+    assert health.status_code == 200
+    assert health.get_json()["connected"] is False
+    assert health.get_json()["connected_session_count"] == 0
+
+
+def test_send_does_not_expire_session_on_ret_minus_two(state):
+    ilink = FakeIlinkClient()
+    ilink.send_response = {
+        "message_id": "client-id-1",
+        "provider_response": {"ret": -2, "errmsg": "invalid context_token"},
+    }
+    app = create_app(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().post(
+        "/send",
+        json={
+            "account_id": "acct_1",
+            "to": "wxid_alice",
+            "context_token": "ctx-bad",
+            "text": "hello",
+        },
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert response.status_code == 502
+    session = state.snapshot()["sessions"]["session-1"]
+    assert session["status"] == "connected"
+    assert session["token"] == "bot-token"
+    assert session["cursor"] == "cursor-0"
+    assert session["context_tokens"] == {"wxid_alice": "ctx-0"}
+
+
 def test_send_endpoint_requires_configured_api_key(state):
     app = create_app(
         ConnectorConfig(
@@ -453,6 +532,7 @@ def test_poll_once_posts_account_bound_payload_and_context_token(state):
             api_key="connector-key",
             webhook_url="http://coke-api/webhooks/wechat/personal",
             webhook_api_key="clean-webhook-key",
+            webhook_inbound_secret="clean-webhook-secret",
         ),
         state=state,
         ilink_client=ilink,
@@ -470,13 +550,32 @@ def test_poll_once_posts_account_bound_payload_and_context_token(state):
                 "text": "pairing_abc123",
                 "context_token": "ctx-1",
             },
-            "headers": {"X-API-Key": "clean-webhook-key"},
+            "headers": {
+                "X-API-Key": "clean-webhook-key",
+                "X-Coke-Webhook-Secret": "clean-webhook-secret",
+            },
             "timeout": 10.0,
         }
     ]
     session = json.loads(state.path.read_text())["sessions"]["session-1"]
     assert session["cursor"] == "cursor-1"
     assert session["context_tokens"] == {"wxid_alice": "ctx-1"}
+
+
+def test_config_from_env_reads_webhook_inbound_secret(monkeypatch):
+    monkeypatch.setenv("WECHAT_CONNECTOR_API_KEY", "connector-key")
+    monkeypatch.setenv(
+        "WECHAT_CONNECTOR_WEBHOOK_URL", "http://coke-api/webhooks/wechat/personal"
+    )
+    monkeypatch.setenv("WECHAT_CONNECTOR_WEBHOOK_API_KEY", "legacy-webhook-key")
+    monkeypatch.setenv("COKE_WEBHOOK_INBOUND_SECRET", "clean-webhook-secret")
+
+    config = config_from_env()
+
+    assert config.api_key == "connector-key"
+    assert config.webhook_url == "http://coke-api/webhooks/wechat/personal"
+    assert config.webhook_api_key == "legacy-webhook-key"
+    assert config.webhook_inbound_secret == "clean-webhook-secret"
 
 
 def test_poll_once_records_session_error_and_continues_other_sessions(tmp_path):
@@ -614,4 +713,14 @@ def test_connector_compose_joins_clean_runtime_network_for_webhooks():
     assert compose["networks"]["coke_clean"] == {
         "external": True,
         "name": "${WECHAT_CONNECTOR_COKE_NETWORK:-coke-clean_default}",
+    }
+
+
+def test_compose_provides_inbound_defaults():
+    compose = yaml.safe_load(CONNECTOR_COMPOSE.read_text())
+    service = compose["services"]["wechat-personal-connector"]
+
+    assert service["environment"] == {
+        "WECHAT_CONNECTOR_WEBHOOK_URL": "${WECHAT_CONNECTOR_WEBHOOK_URL:-http://coke-api:8000/webhooks/wechat/personal}",
+        "WECHAT_CONNECTOR_AUTOSTART_POLL": "${WECHAT_CONNECTOR_AUTOSTART_POLL:-1}",
     }

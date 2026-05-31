@@ -114,7 +114,7 @@ def test_shared_reminder_persists_projection_reminders_notification_and_outbox(
     assert outbox is not None
     assert outbox["topic"] == "turn.notification"
     assert outbox["payload"]["notification_fact_id"] == str(fact["id"]).replace("-", "")
-    assert outbox["payload"]["recipient_account_ids"] == [ACCOUNT_A, ACCOUNT_B]
+    assert outbox["payload"]["recipient_account_ids"] == [ACCOUNT_B]
 
 
 def test_notification_fact_fk_failure_is_not_reported_as_duplicate_idempotency(

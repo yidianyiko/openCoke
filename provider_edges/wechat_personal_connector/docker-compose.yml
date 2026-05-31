@@ -6,6 +6,9 @@ services:
     restart: unless-stopped
     env_file:
       - ../../.env
+    environment:
+      WECHAT_CONNECTOR_WEBHOOK_URL: ${WECHAT_CONNECTOR_WEBHOOK_URL:-http://coke-api:8000/webhooks/wechat/personal}
+      WECHAT_CONNECTOR_AUTOSTART_POLL: ${WECHAT_CONNECTOR_AUTOSTART_POLL:-1}
     ports:
       - "${WECHAT_CONNECTOR_BIND:-0.0.0.0}:${WECHAT_CONNECTOR_PORT:-8095}:8095"
     volumes:

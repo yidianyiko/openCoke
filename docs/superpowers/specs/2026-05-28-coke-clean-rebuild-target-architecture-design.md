@@ -1,6 +1,6 @@
 # Coke Clean-Rebuild Target Architecture
 
-Status: proposed (rewritten from first principles)
+Status: implemented (clean rebuild complete + deployed/live-verified on gcp-coke at SHA d5ef1d0f, 2026-05-31)
 Created: 2026-05-28
 Updated: 2026-05-29 (full first-principles rewrite: The Turn as the unifying
 runtime abstraction; data model derived from requirement invariants as six
@@ -46,7 +46,7 @@ the nightly summary bound to the owner's global timezone. Then architect-review
 round 9 (no HIGH/MEDIUM remained): added Reminder-domain calendar-page command
 endpoints for page-based create/schedule/edit)
 Scope: whole-runtime target architecture for a destructive rebuild
-Companion: `2026-05-28-coke-requirements-user-journey-matrix-design.md` is the
+Companion: `docs/product-requirements/current.md` is the
 authoritative product-requirements / user-journey constraint. This document is
 the prescriptive technical target and must serve those journeys, not
 architectural aesthetics. Where the two disagree, the requirements matrix wins

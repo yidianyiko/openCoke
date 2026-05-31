@@ -74,21 +74,21 @@ function getBlockedState(blockedReason: string | null | undefined): {
         ctaHref: '/channels/wechat-personal',
         ctaLabel: 'Open customer channels',
       };
-    case 'subscription_required':
+    case 'subscription_inactive':
       return {
         title: 'Subscription required',
         description: 'Renew your subscription before importing Google Calendar.',
         ctaHref: '/account/subscription',
         ctaLabel: 'Manage subscription',
       };
-    case 'email_not_verified':
+    case 'email_verification_required':
       return {
         title: 'Email verification required',
         description: 'Verify your email before importing Google Calendar.',
         ctaHref: '/account/subscription',
         ctaLabel: 'Review account access',
       };
-    case 'account_suspended':
+    case 'suspended':
       return {
         title: 'Account access is suspended',
         description: 'This customer account is suspended. Review your account status before importing Google Calendar.',

@@ -19,6 +19,7 @@ Then add the smallest task-specific slice:
 
 - Runtime or boundary work: `docs/ARCHITECTURE.md` and
   `docs/design-docs/coke-working-contract.md`.
+- Product requirements: `docs/product-requirements/current.md`.
 - Product/API/route discovery: `docs/product-specs/FEATURE_TREE.md`, then
   `docs/roadmap.md` only when product direction matters.
 - Verification routing: start with `zsh scripts/suggest-verification --base
@@ -42,7 +43,7 @@ Then add the smallest task-specific slice:
 - Repo-OS map: `docs/design-docs/index.md`; collaboration contract:
   `docs/design-docs/human-ai-working-contract.md`; Coke work surfaces:
   `docs/design-docs/coke-working-contract.md`; ADRs: `docs/adr/`.
-- Current runtime truth: `docs/ARCHITECTURE.md`
+- Product requirements: `docs/product-requirements/current.md`; current runtime truth: `docs/ARCHITECTURE.md`
   (`docs/architecture.md` is a compatibility symlink); product direction:
   `docs/roadmap.md`; deployment/bridge operations: `docs/deploy.md`,
   `docs/clawscale_bridge.md`.
@@ -64,6 +65,9 @@ Then add the smallest task-specific slice:
   lifecycle subdirectories under `docs/superpowers/plans/`.
 - Put local issue, incident, one-off repair, and historical runbook records in
   `docs/issues/`, not as loose top-level docs.
+- Keep current product requirements in `docs/product-requirements/current.md`.
+  Do not put implementation status, legacy comparisons, or gap analysis in the
+  requirements baseline.
 - Keep route and API discoverability in `docs/product-specs/FEATURE_TREE.md`.
 - Keep release workflow in `docs/release-guide.md` and the release closeout
   checklist in `docs/RELEASE_CHECKLIST.md`.

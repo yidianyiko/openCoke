@@ -192,6 +192,88 @@ def test_inbound_reminder_create_runs_real_domains_and_records_replied(composed)
     assert outbound.requests[-1].visible_text == "created it"
 
 
+def test_inbound_reminder_count_uses_tool_result_for_visible_reply(composed):
+    runtime, semantic, _agent, outbound, identity = composed
+    runtime.reminder_service.execute_batch(
+        owner_account_id=identity.account.id,
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+                duration_minutes=15,
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                captured_timezone="UTC",
+                duration_minutes=15,
+            ),
+        ],
+    )
+    semantic.next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="reminder_op",
+        intent_action="list_reminders",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+    )
+
+    class ReminderCountAgent:
+        def __init__(self) -> None:
+            self.tool_result = None
+
+        def invoke(self, request):
+            self.tool_result = request.tool_profile.reminder_tool.execute(
+                {
+                    "operation": "list_reminders",
+                    "account_id": request.account_id,
+                    "captured_timezone": "Asia/Shanghai",
+                },
+                request.freshness_guard,
+            )
+            count = self.tool_result.facts["count"]
+            lines = "\n".join(self.tool_result.facts["display_lines"])
+            return AgentResult.completed(
+                {
+                    "type": "reply",
+                    "segments": [f"你现在一共有 {count} 个提醒：\n{lines}"],
+                }
+            )
+
+        def complete_async(self, task_id: str):
+            raise AssertionError("reminder count should complete synchronously")
+
+    agent = ReminderCountAgent()
+    runtime.turn_runner.interaction_agent = agent
+    inbound = _record_inbound(
+        runtime,
+        identity,
+        "provider-message-count",
+        "现在我一共有几个提醒？",
+    )
+
+    result = runtime.turn_runner.run_inbound_turn(
+        _trigger(
+            inbound,
+            identity,
+            "provider-message-count",
+            "现在我一共有几个提醒？",
+        )
+    )
+
+    assert result.disposition == "replied"
+    assert agent.tool_result.ok is True
+    assert agent.tool_result.facts["count"] == 2
+    assert outbound.requests[-1].visible_text == (
+        "你现在一共有 2 个提醒：\n"
+        "1. pay rent (2026-05-30 21:00 Asia/Shanghai)\n"
+        "2. buy milk (unscheduled)"
+    )
+
+
 def test_followup_reminder_edit_receives_recent_created_reminder_focus(composed):
     runtime, _semantic, agent, outbound, identity = composed
     create_inbound = _record_inbound(
@@ -257,7 +339,9 @@ def test_followup_reminder_edit_receives_recent_created_reminder_focus(composed)
     assert outbound.requests[-1].visible_text == "updated duration"
 
 
-def test_intentional_no_reply_skips_agent_and_creates_no_reminder(composed):
+def test_semantic_intentional_no_reply_reaches_agent_and_creates_no_reminder(
+    composed,
+):
     runtime, semantic, agent, outbound, identity = composed
     inbound = _record_inbound(runtime, identity, "provider-message-2", "thanks")
     semantic.next_decision = SemanticDecision(
@@ -265,6 +349,7 @@ def test_intentional_no_reply_skips_agent_and_creates_no_reminder(composed):
         intent_family="chit_chat",
         language_hint="en",
     )
+    agent.output = {"type": "no_reply", "reason": "intentional_no_reply"}
 
     result = runtime.turn_runner.run_inbound_turn(
         _trigger(inbound, identity, "provider-message-2", "thanks")
@@ -272,7 +357,7 @@ def test_intentional_no_reply_skips_agent_and_creates_no_reminder(composed):
 
     assert result.disposition == "no_reply"
     assert result.reason_code == "intentional_no_reply"
-    assert agent.invocations == 0
+    assert agent.invocations == 1
     assert outbound.requests == []
     assert (
         runtime.repositories.reminder.list_active_reminders(identity.account.id) == []

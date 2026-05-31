@@ -30,6 +30,22 @@ The standalone ClawScale bridge is superseded. ClawScale remains only as the
   `/internal/outbound/delivery-callback` and
   `/internal/reply-wait/:causal_inbound_event_id`.
 
+## Provider Webhook Authentication
+
+`coke-api` accepts unauthenticated provider webhooks only while
+`COKE_WEBHOOK_INBOUND_SECRET` is unset. Once the variable is set, every provider
+webhook must present the same shared secret before Coke reads the JSON payload.
+
+- WeChat personal connector: set `COKE_WEBHOOK_INBOUND_SECRET` in the connector
+  environment; it sends `X-Coke-Webhook-Secret: <secret>`.
+- Evolution/WhatsApp: configure the webhook request to send either
+  `X-Webhook-Secret: <secret>` or `Authorization: Bearer <secret>` to
+  `/webhooks/whatsapp/evolution`.
+- Coke API: set the same `COKE_WEBHOOK_INBOUND_SECRET` value on `coke-api`.
+
+Do not enable the API secret until the connector and Evolution side are updated
+with the same value.
+
 ## State And Restart Semantics
 
 - Postgres is durable product, runtime, outbox, Agno, and pgvector state.

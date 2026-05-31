@@ -10,9 +10,21 @@
 
 ---
 
-**Plan Status:** implementation-complete (deploy/runtime-readiness pending)
-**Status Date:** 2026-05-30
+**Plan Status:** complete (deployed + live-verified on gcp-coke at SHA d5ef1d0f, 2026-05-31)
+**Status Date:** 2026-05-31
 **Freshness Check:** Verify against current `main`, `docs/ARCHITECTURE.md`, the requirements matrix, the target architecture spec, and touched code before execution.
+
+**Deploy + live-verification closeout (2026-05-31):** Implementation, the
+runtime-readiness cutover, the selective legacy-prompt migration, and the P1/P2
+security/route-parity backlog are all merged to `main` and deployed to
+`gcp-coke` (`coke-clean`) at SHA `d5ef1d0f`. Live leader re-verification:
+`/healthz=200`, web `/auth/login=200`, alembic `No new upgrade operations`,
+`olivers`/`lizihao` logins 200, `wechat_personal` + `whatsapp_evolution`
+channels `connected`, connector `connected_session_count=2`, worker error
+count 0, webhook in transition mode (`COKE_WEBHOOK_INBOUND_SECRET` unset),
+real-account inbound → `replied` + `sent`. Differential deploy + rollback-snapshot
+removal are live. See [[2026-05-29-coke-clean-rebuild-e2e-closeout]] and
+[[2026-05-30-coke-runtime-readiness]] for evidence.
 
 **Completion evidence (2026-05-30):** All 13 tasks implemented and merged to `main`. Six bounded-context domains (IdentityAccess, ChannelReachability, ConversationRuntime, Reminder, SocialScheduling, CalendarImport), the Turn orchestration, and an integration composition root are in `coke/`. All legacy surfaces deleted with zero leftover (old Python runtime, both submodules, Mongo/pymongo, ClawScale bridge, TypeScript Gateway API; web extracted to `web/` as `@coke/web`). Verification: `tests/unit/coke` + `tests/integration/coke` = 318 passed; `zsh scripts/check` green; no-legacy-import guard passing.
 

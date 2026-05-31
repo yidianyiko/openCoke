@@ -4,13 +4,81 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { ApiResponse } from '../../../../lib/api-types';
 import { useLocale } from '../../../../components/locale-provider';
 import { customerApi } from '../../../../lib/customer-api';
 import { storeCustomerAuth, type CustomerAuthResult } from '../../../../lib/customer-auth';
 
+const CLAIM_BROWSER_SESSION_KEY = 'customer_claim_browser_session';
+
+type CleanClaimRedemption = {
+  account_id: string;
+  session_token: string;
+  continuation?: {
+    next?: unknown;
+  };
+};
+
+type CleanRouteError = {
+  error: {
+    code: string;
+  };
+};
+
 function isSafeInternalPath(next: string | undefined): next is string {
   return typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\');
+}
+
+function isCleanRouteError(value: unknown): value is CleanRouteError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as CleanRouteError).error?.code === 'string'
+  );
+}
+
+function getStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function createBrowserSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `browser_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function getClaimBrowserSession(): string {
+  const storage = getStorage();
+  const existing = storage?.getItem(CLAIM_BROWSER_SESSION_KEY);
+  if (existing) {
+    return existing;
+  }
+
+  const next = createBrowserSessionId();
+  storage?.setItem(CLAIM_BROWSER_SESSION_KEY, next);
+  return next;
+}
+
+function customerAuthFromClaim(result: CleanClaimRedemption): CustomerAuthResult {
+  const next = typeof result.continuation?.next === 'string' ? result.continuation.next : undefined;
+  return {
+    token: result.session_token,
+    customerId: result.account_id,
+    identityId: result.account_id,
+    email: '',
+    claimStatus: 'active',
+    membershipRole: 'owner',
+    continueTo: isSafeInternalPath(next) ? next : undefined,
+  };
 }
 
 export default function ClaimPage() {
@@ -18,8 +86,6 @@ export default function ClaimPage() {
   const copy = messages.customerPages.claim;
   const router = useRouter();
   const [token, setToken] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -42,32 +108,28 @@ export default function ClaimPage() {
     event.preventDefault();
     setError('');
 
-    if (password !== confirmPassword) {
-      setError(copy.mismatchError);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const res = await customerApi.post<ApiResponse<CustomerAuthResult>>('/api/auth/claim', {
+      const res = await customerApi.post<CleanClaimRedemption | CleanRouteError>('/api/claim/login-url/redeem', {
         token,
-        password,
+        browser_session: getClaimBrowserSession(),
       });
 
-      if (!res.ok) {
+      if (isCleanRouteError(res)) {
         setError(
-          res.error === 'invalid_or_expired_token'
+          ['artifact_not_found', 'artifact_expired', 'artifact_consumed', 'artifact_wrong_type'].includes(
+            res.error.code,
+          )
             ? copy.invalidOrExpiredError
-            : res.error === 'email_already_exists'
-              ? copy.emailAlreadyExistsError
-              : copy.genericError,
+            : copy.genericError,
         );
         return;
       }
 
-      storeCustomerAuth(res.data);
-      router.push(isSafeInternalPath(res.data.continueTo) ? res.data.continueTo : '/channels/wechat-personal');
+      const auth = customerAuthFromClaim(res);
+      storeCustomerAuth(auth);
+      router.push(auth.continueTo ?? '/channels/wechat-personal');
     } catch {
       setError(copy.genericError);
     } finally {
@@ -94,36 +156,6 @@ export default function ClaimPage() {
             value={token}
             onChange={(event) => setToken(event.target.value)}
             placeholder={copy.tokenPlaceholder}
-            required
-          />
-        </div>
-
-        <div className="auth-field">
-          <label htmlFor="password" className="auth-label">
-            {copy.passwordLabel}
-          </label>
-          <input
-            id="password"
-            type="password"
-            className="auth-input"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            minLength={8}
-            required
-          />
-        </div>
-
-        <div className="auth-field">
-          <label htmlFor="confirmPassword" className="auth-label">
-            {copy.confirmPasswordLabel}
-          </label>
-          <input
-            id="confirmPassword"
-            type="password"
-            className="auth-input"
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            minLength={8}
             required
           />
         </div>

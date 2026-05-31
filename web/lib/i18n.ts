@@ -273,6 +273,7 @@ type CustomerPagesMessages = {
     errorCard: {
       eyebrow: string;
       fallbackDescription: string;
+      disconnectDescription: string;
     };
     nextSteps: {
       title: string;
@@ -639,7 +640,7 @@ export const messages: MessagesCatalog = {
       claim: {
         eyebrow: 'Shared channel access',
         title: 'Claim your customer account',
-        description: 'Set a password to activate the account that was pre-provisioned from your first inbound message.',
+        description: 'Use the secure claim link to activate the account that was pre-provisioned from your first inbound message.',
         tokenLabel: 'Claim token',
         tokenPlaceholder: 'Paste the claim token from your email',
         passwordLabel: 'New password',
@@ -766,6 +767,7 @@ export const messages: MessagesCatalog = {
         errorCard: {
           eyebrow: 'Connection error',
           fallbackDescription: 'The last connect attempt failed. Retry or archive this channel.',
+          disconnectDescription: 'Could not disconnect your WeChat channel. It is still connected.',
         },
         nextSteps: {
           title: 'What you can do next',
@@ -1078,7 +1080,7 @@ export const messages: MessagesCatalog = {
       claim: {
         eyebrow: '共享通道访问',
         title: '认领你的客户账号',
-        description: '为首次入站消息自动预建的账号设置密码，完成激活。',
+        description: '使用安全认领链接激活首次入站消息自动预建的账号。',
         tokenLabel: '认领令牌',
         tokenPlaceholder: '粘贴邮件中的认领令牌',
         passwordLabel: '新密码',
@@ -1199,6 +1201,7 @@ export const messages: MessagesCatalog = {
         errorCard: {
           eyebrow: '连接异常',
           fallbackDescription: '上一次连接尝试失败了。你可以重试，或归档这个通道。',
+          disconnectDescription: '暂时无法断开你的微信通道。当前通道仍然保持连接。',
         },
         nextSteps: {
           title: '接下来可以做什么',

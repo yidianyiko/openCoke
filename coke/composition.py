@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+import json
 from typing import Any
 from uuid import uuid4
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.config import ConfigurationError, Settings
 from coke.domains.calendar_import.google import GoogleCalendarClientPort
@@ -68,7 +69,7 @@ from coke.providers.linq import LinqAdapter
 from coke.providers.wechat_ecloud import WeChatECloudAdapter
 from coke.providers.wechat_personal import WeChatPersonalAdapter
 from coke.providers.whatsapp_evolution import WhatsAppEvolutionAdapter
-from coke.turn.agent import AgentToolPorts, ToolExecutionResult
+from coke.turn.agent import AgentToolPorts, DomainExecutionResult, ToolExecutionResult
 from coke.turn.agent import AgentRequest, AgentResult
 from coke.turn.focus import FocusResolver, MessageSubject
 from coke.turn.locks import ConversationLockManager, RedisLockPort
@@ -314,6 +315,28 @@ class IdentityReachabilityAdapter:
         return self.identity_access.repository.has_usable_channel(account_id)
 
 
+class DeferredFriendLinkCompletionAdapter:
+    def __init__(
+        self,
+        *,
+        identity_access: IdentityAccessService,
+        social_scheduling: SocialSchedulingService,
+    ) -> None:
+        self.identity_access = identity_access
+        self.social_scheduling = social_scheduling
+
+    def complete_pending_for_account(self, account_id: str) -> None:
+        for (
+            friend_link_id
+        ) in self.identity_access.consume_deferred_friend_link_continuations(
+            account_id
+        ):
+            self.social_scheduling.complete_deferred_friend_link(
+                joiner_account_id=account_id,
+                friend_link_id=friend_link_id,
+            )
+
+
 class ReminderAvailabilityAdapter:
     def __init__(self, reminder_repository: Any) -> None:
         self.reminder_repository = reminder_repository
@@ -441,7 +464,9 @@ class ReminderToolAdapter:
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
-        if _guard_can_stage(guard):
+        if operation not in {"list_reminders", "filter_reminders"} and _guard_can_stage(
+            guard
+        ):
             preflight_error = _validate_reminder_staged_write(command, operation)
             if preflight_error is not None:
                 return preflight_error
@@ -464,10 +489,43 @@ class ReminderToolAdapter:
     def execute_without_staging(
         self, command: Mapping[str, Any], guard: Any
     ) -> ToolExecutionResult:
-        _guard_state_change(guard)
         operation = _required_str(command, "operation")
         owner = _required_str(command, "owner_account_id", default_key="account_id")
 
+        if operation in {"list_reminders", "filter_reminders"}:
+            display_timezone = str(
+                command.get("display_timezone")
+                or command.get("captured_timezone")
+                or "UTC"
+            )
+            facts = _reminder_list_facts(
+                owner,
+                self.reminder_service.filter_reminders(
+                    owner_account_id=owner,
+                    keyword=_optional_non_empty_str(command.get("keyword")),
+                    lifecycle=_reminder_lifecycle_filter(command),
+                    kind=_reminder_kind_filter(command),
+                    trigger_after=_optional_datetime(command.get("trigger_after")),
+                    trigger_before=_optional_datetime(command.get("trigger_before")),
+                ),
+                display_timezone=display_timezone,
+            )
+            return ToolExecutionResult(
+                ok=True,
+                facts=facts,
+                domain_result=DomainExecutionResult(
+                    domain="reminder",
+                    intent="list reminders",
+                    action=operation,
+                    effect="listed",
+                    intent_fulfilled=True,
+                    visible_summary=_reminder_list_visible_summary(facts),
+                    reply_contract="render_reminder_list",
+                    privacy_notes=("Only describe reminders for this account.",),
+                ),
+            )
+
+        _guard_state_change(guard)
         if operation in {"create", "detect_and_create"}:
             result = self.reminder_service.execute_batch(
                 owner_account_id=owner,
@@ -539,15 +597,27 @@ class ReminderToolAdapter:
             return _single_item_tool_result(result)
 
         if operation == "update_reminder":
-            result = self.reminder_service.update_reminder(
-                owner_account_id=owner,
-                reminder_id=_required_str(command, "reminder_id"),
-                content=command.get("content"),
-                trigger_time=_optional_datetime(command.get("trigger_time")),
-                captured_timezone=command.get("captured_timezone"),
-                duration_minutes=command.get("duration_minutes"),
-                commit_guard=_guard_commit_guard(guard),
-            )
+            keyword = _optional_non_empty_str(command.get("keyword"))
+            if keyword and not command.get("reminder_id"):
+                result = self.reminder_service.update_reminder_by_keyword(
+                    owner_account_id=owner,
+                    keyword=keyword,
+                    content=command.get("content"),
+                    trigger_time=_optional_datetime(command.get("trigger_time")),
+                    captured_timezone=command.get("captured_timezone"),
+                    duration_minutes=command.get("duration_minutes"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
+            else:
+                result = self.reminder_service.update_reminder(
+                    owner_account_id=owner,
+                    reminder_id=_required_str(command, "reminder_id"),
+                    content=command.get("content"),
+                    trigger_time=_optional_datetime(command.get("trigger_time")),
+                    captured_timezone=command.get("captured_timezone"),
+                    duration_minutes=command.get("duration_minutes"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
             return _single_item_tool_result(result)
 
         if operation == "clear_trigger_time":
@@ -559,19 +629,35 @@ class ReminderToolAdapter:
             return _single_item_tool_result(result)
 
         if operation == "complete_reminder":
-            result = self.reminder_service.complete_reminder(
-                owner_account_id=owner,
-                reminder_id=_required_str(command, "reminder_id"),
-                commit_guard=_guard_commit_guard(guard),
-            )
+            keyword = _optional_non_empty_str(command.get("keyword"))
+            if keyword and not command.get("reminder_id"):
+                result = self.reminder_service.complete_reminder_by_keyword(
+                    owner_account_id=owner,
+                    keyword=keyword,
+                    commit_guard=_guard_commit_guard(guard),
+                )
+            else:
+                result = self.reminder_service.complete_reminder(
+                    owner_account_id=owner,
+                    reminder_id=_required_str(command, "reminder_id"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
             return _single_item_tool_result(result)
 
         if operation == "delete_reminder":
-            result = self.reminder_service.delete_reminder(
-                owner_account_id=owner,
-                reminder_id=_required_str(command, "reminder_id"),
-                commit_guard=_guard_commit_guard(guard),
-            )
+            keyword = _optional_non_empty_str(command.get("keyword"))
+            if keyword and not command.get("reminder_id"):
+                result = self.reminder_service.delete_reminder_by_keyword(
+                    owner_account_id=owner,
+                    keyword=keyword,
+                    commit_guard=_guard_commit_guard(guard),
+                )
+            else:
+                result = self.reminder_service.delete_reminder(
+                    owner_account_id=owner,
+                    reminder_id=_required_str(command, "reminder_id"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
             return _single_item_tool_result(result)
 
         return ToolExecutionResult(
@@ -818,8 +904,8 @@ class SocialSchedulingToolAdapter:
                 facts=error.fact or {},
                 reason_code=error.code,
             )
-        except ValueError as error:
-            reason_code = str(error) or "social_scheduling_write_failed"
+        except ValueError:
+            reason_code = "social_scheduling_write_failed"
             return ToolExecutionResult(
                 ok=False,
                 facts={"type": reason_code},
@@ -1056,8 +1142,8 @@ class SettingsToolAdapter:
                 facts=error.fact or {"type": error.code},
                 reason_code=error.code,
             )
-        except ValueError as error:
-            reason_code = str(error) or "settings_write_failed"
+        except ValueError:
+            reason_code = "settings_write_failed"
             return ToolExecutionResult(
                 ok=False,
                 facts={"type": reason_code},
@@ -1146,6 +1232,12 @@ def compose_coke_runtime(
         id_factory=id_factory,
         display_name_resolver=identity_access_service.get_display_name,
     )
+    channel_reachability_service.set_deferred_friend_link_completion(
+        DeferredFriendLinkCompletionAdapter(
+            identity_access=identity_access_service,
+            social_scheduling=social_scheduling_service,
+        )
+    )
     reminder_service = ReminderService(
         repository=repositories.reminder,
         detector=reminder_detector,
@@ -1160,6 +1252,7 @@ def compose_coke_runtime(
         repository=repositories.calendar_import,
         google_client=google_calendar_client or EmptyGoogleCalendarClient(),
         reminder_service=reminder_service,
+        access_gate=identity_access_service,
         now=now,
         id_factory=id_factory,
     )
@@ -1753,6 +1846,37 @@ def _optional_datetime(value: Any) -> datetime | None:
     raise ValueError("invalid_datetime")
 
 
+def _optional_non_empty_str(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _reminder_lifecycle_filter(command: Mapping[str, Any]) -> str | None:
+    value = command.get("lifecycle", command.get("status", "active"))
+    if value is None or value == "all":
+        return None
+    if value in {"active", "completed", "deleted"}:
+        return str(value)
+    raise ValueError("invalid_reminder_lifecycle")
+
+
+def _reminder_kind_filter(command: Mapping[str, Any]) -> str | None:
+    value = command.get("kind", command.get("reminder_type"))
+    if value is None or value == "all":
+        return None
+    if value in {
+        "timed",
+        "no_trigger_time",
+        "recurring",
+        "proactive",
+        "shared_projection",
+    }:
+        return str(value)
+    raise ValueError("invalid_reminder_kind")
+
+
 def _list_value(
     command: Mapping[str, Any],
     key: str,
@@ -1843,6 +1967,79 @@ def _single_item_tool_result(item: Any) -> ToolExecutionResult:
         facts=_item_fact(item),
         reason_code=item.reason,
     )
+
+
+def _reminder_list_facts(
+    owner_account_id: str, reminders: list[Any], *, display_timezone: str = "UTC"
+) -> dict[str, Any]:
+    zone_name, zone = _display_zone(display_timezone)
+    reminder_facts = [
+        _reminder_fact(reminder, zone_name=zone_name, zone=zone)
+        for reminder in reminders
+    ]
+    return {
+        "owner_account_id": owner_account_id,
+        "display_timezone": zone_name,
+        "count": len(reminder_facts),
+        "reminders": reminder_facts,
+        "display_lines": [
+            _reminder_display_line(index, reminder)
+            for index, reminder in enumerate(reminder_facts, start=1)
+        ],
+    }
+
+
+def _reminder_fact(reminder: Any, *, zone_name: str, zone: ZoneInfo) -> dict[str, Any]:
+    return {
+        "reminder_id": reminder.id,
+        "content": reminder.content,
+        "kind": reminder.kind,
+        "next_fire_at": _iso_or_none(reminder.next_fire_at),
+        "display_timezone": zone_name,
+        "display_time_label": _display_time_label(
+            reminder.next_fire_at, zone_name, zone
+        ),
+        "captured_timezone": reminder.captured_timezone,
+        "duration_minutes": reminder.duration_minutes,
+        "lifecycle": reminder.lifecycle,
+        "hidden_from_calendar": reminder.hidden_from_calendar,
+        "shared_reminder_id": reminder.shared_reminder_id,
+        "created_at": _iso_or_none(reminder.created_at),
+        "updated_at": _iso_or_none(reminder.updated_at),
+    }
+
+
+def _iso_or_none(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return None
+
+
+def _display_zone(timezone_name: str) -> tuple[str, ZoneInfo]:
+    try:
+        return timezone_name, ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return "UTC", ZoneInfo("UTC")
+
+
+def _display_time_label(value: Any, timezone_name: str, zone: ZoneInfo) -> str | None:
+    if not isinstance(value, datetime):
+        return None
+    return f"{value.astimezone(zone):%Y-%m-%d %H:%M} {timezone_name}"
+
+
+def _reminder_display_line(index: int, reminder: Mapping[str, Any]) -> str:
+    time_label = reminder.get("display_time_label") or "unscheduled"
+    return f"{index}. {reminder.get('content', '')} ({time_label})"
+
+
+def _reminder_list_visible_summary(facts: Mapping[str, Any]) -> str:
+    count = facts.get("count", 0)
+    lines = [f"Active reminder count: {count}."]
+    display_lines = facts.get("display_lines")
+    if isinstance(display_lines, list):
+        lines.extend(str(line) for line in display_lines)
+    return "\n".join(lines)
 
 
 def _friend_link_facts(link: Any) -> dict[str, Any]:

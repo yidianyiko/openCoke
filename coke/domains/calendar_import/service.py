@@ -11,7 +11,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy.orm import Session
 
 from coke import schema
-from coke.domains._pg import db_id, insert_row, json_value, many, one_or_none, update_row
+from coke.domains._pg import (
+    db_id,
+    insert_row,
+    json_value,
+    many,
+    one_or_none,
+    update_row,
+)
 from coke.domains.calendar_import.google import GoogleCalendarClientPort
 from coke.domains.calendar_import.models import (
     CalendarAuthorizationState,
@@ -24,6 +31,10 @@ from coke.domains.calendar_import.models import (
     CalendarSourceEvent,
 )
 from coke.domains.reminder.models import ReminderBatchItem
+
+
+class AccessGatePort(Protocol):
+    def check_access_for_action(self, account_id: str, action: str): ...
 
 
 class CalendarImportRepository(Protocol):
@@ -186,13 +197,17 @@ class PostgresCalendarImportRepository:
                 self.session,
                 schema.calendar_import_item,
                 schema.calendar_import_item.c.run_id == run_id,
-                order_by=(schema.calendar_import_item.c.created_at, schema.calendar_import_item.c.id),
+                order_by=(
+                    schema.calendar_import_item.c.created_at,
+                    schema.calendar_import_item.c.id,
+                ),
             )
         ]
 
     def save_authorization_state(self, state: CalendarAuthorizationState) -> None:
         artifact_id = uuid5(
-            NAMESPACE_URL, f"calendar_authorization:{state.account_id}:{state.auth_handle}"
+            NAMESPACE_URL,
+            f"calendar_authorization:{state.account_id}:{state.auth_handle}",
         ).hex
         values = {
             "id": artifact_id,
@@ -265,12 +280,14 @@ class CalendarImportService:
         repository: CalendarImportRepository,
         google_client: GoogleCalendarClientPort,
         reminder_service,
+        access_gate: AccessGatePort | None = None,
         now: Callable[[], datetime] | None = None,
         id_factory: Callable[[str], str] | None = None,
     ) -> None:
         self.repository = repository
         self.google_client = google_client
         self.reminder_service = reminder_service
+        self.access_gate = access_gate
         self._now = now or (lambda: datetime.now(UTC))
         self._id_factory = id_factory or (lambda prefix: uuid4().hex)
 
@@ -287,6 +304,7 @@ class CalendarImportService:
         self._require_aware_datetime(visible_start, "visible_start")
         self._require_aware_datetime(visible_end, "visible_end")
         self._require_timezone(captured_timezone)
+        self._require_access_allowed(account_id)
         self._require_active_authorization(account_id, auth_handle)
         if visible_end < visible_start:
             raise CalendarImportError("invalid_visible_window")
@@ -560,6 +578,23 @@ class CalendarImportService:
                     "type": "calendar_authorization_inactive",
                     "state": state.state,
                 },
+            )
+
+    def _require_access_allowed(self, account_id: str) -> None:
+        if self.access_gate is None:
+            raise CalendarImportError(
+                "access_gate_unavailable",
+                fact={"type": "access_gate_unavailable"},
+            )
+        decision = self.access_gate.check_access_for_action(
+            account_id,
+            "calendar_import",
+        )
+        if not getattr(decision, "allowed", False):
+            raise CalendarImportError(
+                "access_denied",
+                fact=getattr(decision, "fact", None)
+                or {"type": "account_access_denied", "account_id": account_id},
             )
 
     def _require_timezone(self, value: str) -> None:

@@ -22,6 +22,7 @@ from coke.domains.reminder.models import (
     ReminderFireGroup,
     ReminderItemResult,
     ReminderKind,
+    ReminderLifecycle,
     ReminderOutboxEvent,
     TimeValidationState,
     UndeliveredResendTurn,
@@ -69,8 +70,13 @@ class ReminderService:
                     )
                 )
             except ValueError as error:
+                reason = _safe_write_error_reason(error)
                 results.append(
-                    ReminderItemResult(state="failed", reason=str(error), fact={})
+                    ReminderItemResult(
+                        state="failed",
+                        reason=reason,
+                        fact={"type": reason},
+                    )
                 )
         return ReminderBatchResult(owner_account_id=owner_account_id, items=results)
 
@@ -319,6 +325,135 @@ class ReminderService:
             commit_guard=commit_guard,
         )
         return ReminderItemResult(state="succeeded", reminder_id=reminder.id)
+
+    def filter_reminders(
+        self,
+        owner_account_id: str,
+        keyword: str | None = None,
+        lifecycle: ReminderLifecycle | None = "active",
+        kind: ReminderKind | None = None,
+        trigger_after: datetime | None = None,
+        trigger_before: datetime | None = None,
+    ) -> list[Reminder]:
+        reminders = self.repository.list_reminders(owner_account_id)
+        keyword_value = _normalized_keyword(keyword)
+        matches: list[Reminder] = []
+        for reminder in reminders:
+            if lifecycle is not None and reminder.lifecycle != lifecycle:
+                continue
+            if kind is not None and reminder.kind != kind:
+                continue
+            if keyword_value and keyword_value not in reminder.content.casefold():
+                continue
+            if trigger_after is not None and (
+                reminder.next_fire_at is None or reminder.next_fire_at < trigger_after
+            ):
+                continue
+            if trigger_before is not None and (
+                reminder.next_fire_at is None or reminder.next_fire_at > trigger_before
+            ):
+                continue
+            matches.append(reminder)
+        return matches
+
+    def complete_reminder_by_keyword(
+        self,
+        owner_account_id: str,
+        keyword: str,
+        commit_guard: CommitGuard = None,
+    ) -> ReminderItemResult:
+        matched = self._single_user_mutable_keyword_match(owner_account_id, keyword)
+        if matched.state != "succeeded" or matched.reminder_id is None:
+            return matched
+        return self.complete_reminder(
+            owner_account_id,
+            matched.reminder_id,
+            commit_guard=commit_guard,
+        )
+
+    def delete_reminder_by_keyword(
+        self,
+        owner_account_id: str,
+        keyword: str,
+        commit_guard: CommitGuard = None,
+    ) -> ReminderItemResult:
+        matched = self._single_user_mutable_keyword_match(owner_account_id, keyword)
+        if matched.state != "succeeded" or matched.reminder_id is None:
+            return matched
+        return self.delete_reminder(
+            owner_account_id,
+            matched.reminder_id,
+            commit_guard=commit_guard,
+        )
+
+    def update_reminder_by_keyword(
+        self,
+        owner_account_id: str,
+        keyword: str,
+        *,
+        content: str | None = None,
+        trigger_time: datetime | None = None,
+        captured_timezone: str | None = None,
+        duration_minutes: Any | None = None,
+        commit_guard: CommitGuard = None,
+    ) -> ReminderItemResult:
+        matched = self._single_user_mutable_keyword_match(owner_account_id, keyword)
+        if matched.state != "succeeded" or matched.reminder_id is None:
+            return matched
+        return self.update_reminder(
+            owner_account_id,
+            matched.reminder_id,
+            content=content,
+            trigger_time=trigger_time,
+            captured_timezone=captured_timezone,
+            duration_minutes=duration_minutes,
+            commit_guard=commit_guard,
+        )
+
+    def _single_user_mutable_keyword_match(
+        self,
+        owner_account_id: str,
+        keyword: str,
+    ) -> ReminderItemResult:
+        if not _normalized_keyword(keyword):
+            return ReminderItemResult(
+                state="needs-follow-up",
+                reason="keyword_required",
+            )
+        matches = [
+            reminder
+            for reminder in self.filter_reminders(
+                owner_account_id=owner_account_id,
+                keyword=keyword,
+                lifecycle="active",
+            )
+            if reminder.kind not in {"proactive", "shared_projection"}
+        ]
+        if len(matches) == 1:
+            return ReminderItemResult(
+                state="succeeded",
+                reminder_id=matches[0].id,
+                fact={
+                    "match_count": 1,
+                    "matched": _reminder_candidate_fact(matches[0]),
+                },
+            )
+        if not matches:
+            return ReminderItemResult(
+                state="needs-follow-up",
+                reason="no_matching_reminder",
+                fact={"match_count": 0},
+            )
+        return ReminderItemResult(
+            state="needs-follow-up",
+            reason="ambiguous_reminder_reference",
+            fact={
+                "match_count": len(matches),
+                "candidates": [
+                    _reminder_candidate_fact(reminder) for reminder in matches
+                ],
+            },
+        )
 
     def claim_due_fire(
         self,
@@ -787,6 +922,35 @@ class ReminderService:
 
 def _content_hash(content: str) -> str:
     return sha256(content.strip().lower().encode("utf-8")).hexdigest()
+
+
+def _normalized_keyword(keyword: str | None) -> str:
+    if keyword is None:
+        return ""
+    return keyword.strip().casefold()
+
+
+def _reminder_candidate_fact(reminder: Reminder) -> dict[str, Any]:
+    return {
+        "reminder_id": reminder.id,
+        "content": reminder.content,
+        "kind": reminder.kind,
+        "next_fire_at": (
+            reminder.next_fire_at.isoformat()
+            if reminder.next_fire_at is not None
+            else None
+        ),
+    }
+
+
+def _safe_write_error_reason(error: ValueError) -> str:
+    reason = str(error)
+    if reason in {
+        "duplicate_reminder_outbox_id",
+        "duplicate_reminder_outbox_idempotency",
+    }:
+        return reason
+    return "reminder_write_failed"
 
 
 def _duration_minutes(value: Any) -> int:

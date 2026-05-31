@@ -237,7 +237,7 @@ def test_commit_guard_blocks_shared_reminder_and_notification_fact():
 
 
 def test_group_shared_reminder_creation_is_one_object_with_participant_projections():
-    service, _, _, _ = make_service({"creator", "bob", "carol"})
+    service, repo, _, _ = make_service({"creator", "bob", "carol"})
     service.display_name_resolver = lambda account_id: {
         "bob": "Bob Chen",
         "carol": "Carol Wu",
@@ -275,6 +275,17 @@ def test_group_shared_reminder_creation_is_one_object_with_participant_projectio
         "carol",
         "creator",
     ]
+    assert created.notification_facts[0].facts["delivery_recipients"] == [
+        "bob",
+        "carol",
+    ]
+    created_recipients = {
+        recipient.recipient_account_id
+        for recipient in repo.list_notification_recipients(
+            created.notification_facts[0].id
+        )
+    }
+    assert created_recipients == {"bob", "carol"}
 
     duplicate = service.create_shared_reminder(
         creator_account_id="creator",
@@ -655,6 +666,53 @@ def test_notification_facts_store_structured_data_no_prose_and_partial_delivery_
     assert recipients["joiner"].delivery_state == "failed"
     assert recipients["joiner"].error_facts == {"type": "recipient_channel_unavailable"}
     assert "raw" not in str(recipients["joiner"].error_facts).lower()
+
+
+def test_shared_reminder_receiver_delivery_creates_creator_visible_receipt():
+    service, repo, _, _ = make_service({"creator", "friend"})
+    service.display_name_resolver = lambda account_id: {
+        "creator": "Creator Name",
+        "friend": "Friend Name",
+    }[account_id]
+    create_active_friendship(service, "creator", "friend")
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="brunch",
+        local_trigger_at=datetime(2026, 6, 3, 10, 30),
+        captured_timezone="Asia/Tokyo",
+        duration_minutes=45,
+        context={"source": "agent"},
+    )
+    created_fact = created.notification_facts[0]
+
+    service.record_notification_delivery(
+        notification_fact_id=created_fact.id,
+        recipient_account_id="friend",
+        delivery_state="delivered",
+        error_facts={},
+        turn_id="receiver_turn",
+    )
+
+    facts = repo.list_notification_facts()
+    assert [fact.type for fact in facts] == [
+        "friendship_created",
+        "shared_reminder_created",
+        "shared_reminder_delivery_confirmed",
+    ]
+    receipt = facts[-1]
+    assert receipt.actor_account_id == "friend"
+    assert receipt.object_id == created.shared_reminder.id
+    assert receipt.facts["creator_account_id"] == "creator"
+    assert receipt.facts["recipient_account_id"] == "friend"
+    assert receipt.facts["recipient_display_name"] == "Friend Name"
+    assert receipt.facts["title"] == "brunch"
+    assert receipt.facts["delivery_state"] == "delivered"
+    assert receipt.facts["delivery_recipients"] == ["creator"]
+    receipt_recipients = repo.list_notification_recipients(receipt.id)
+    assert [recipient.recipient_account_id for recipient in receipt_recipients] == [
+        "creator"
+    ]
 
 
 def test_undelivered_notification_resend_turn_returns_only_undelivered_recipient_facts():

@@ -32,6 +32,8 @@ _LIST_TOOL_FIELDS = frozenset(
     }
 )
 _REMINDER_OP_ALIASES = {
+    "list": "list_reminders",
+    "count": "list_reminders",
     "complete": "complete_reminder",
     "done": "complete_reminder",
     "delete": "delete_reminder",
@@ -68,8 +70,9 @@ class CokeVoicePolicy:
         return "\n".join(
             [
                 f"Speak like Coke as a {self.role_texture}: concise, direct, and warm when useful.",
-                f"Use {self.normal_segment_limit}; match the user's language and rough message length.",
-                "Avoid generic closers such as 还有什么可以帮您吗.",
+                f"Use {self.normal_segment_limit} as short message-channel segments; match the user's language and rough message length.",
+                "Avoid generic closers and generic customer-service openings such as 您好 or 还有什么可以帮您吗.",
+                "Do not end ordinary final statement segments with . or 。; keep ? or ! only when the sentence needs it.",
                 "Do not expose internal tools, agents, logs, or architecture.",
                 "do not invent facts or times; use trusted facts and domain_result for product state.",
                 (
@@ -143,7 +146,7 @@ class AgnoInteractionAgent:
     def _run_request(
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
-        agent = self._build_agent(request)
+        agent, tool_events = self._build_agent(request)
         try:
             run_output = agent.run(
                 _agent_input(request),
@@ -151,12 +154,13 @@ class AgnoInteractionAgent:
             )
         except TimeoutError:
             return self._timeout_result(request, store_timeout=store_timeout)
-        return _agent_result_from_content(getattr(run_output, "content", None))
+        result = _agent_result_from_content(getattr(run_output, "content", None))
+        return _enforce_tool_reply_contracts(result, tool_events, request)
 
     async def _arun_request(
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
-        agent = self._build_agent(request)
+        agent, tool_events = self._build_agent(request)
         try:
             run_output = await agent.arun(
                 _agent_input(request),
@@ -167,11 +171,13 @@ class AgnoInteractionAgent:
             )
         except TimeoutError:
             return self._timeout_result(request, store_timeout=store_timeout)
-        return _agent_result_from_content(getattr(run_output, "content", None))
+        result = _agent_result_from_content(getattr(run_output, "content", None))
+        return _enforce_tool_reply_contracts(result, tool_events, request)
 
     def _build_agent(self, request: AgentRequest):
         long_term_enabled = bool(request.trusted_facts.get("memory_enabled", True))
-        return self.agent_factory(
+        tool_events: list[dict[str, Any]] = []
+        agent = self.agent_factory(
             model=self.model,
             db=self.db,
             memory_manager=self._memory_manager(long_term_enabled),
@@ -181,12 +187,13 @@ class AgnoInteractionAgent:
             add_memories_to_context=long_term_enabled,
             add_history_to_context=True,
             add_session_state_to_context=False,
-            tools=self._tools(request),
+            tools=self._tools(request, tool_events=tool_events),
             system_message=self._system_message(request),
             instructions=self._instructions(),
             use_json_mode=True,
             parse_response=False,
         )
+        return agent, tool_events
 
     def _run_kwargs(
         self,
@@ -229,12 +236,14 @@ class AgnoInteractionAgent:
             long_term_enabled=long_term_enabled,
         )
 
-    def _tools(self, request: AgentRequest) -> list[Callable]:
+    def _tools(
+        self, request: AgentRequest, *, tool_events: list[dict[str, Any]] | None = None
+    ) -> list[Callable]:
         tools: list[Callable] = []
         for name in request.tool_profile.tool_names:
             port = getattr(request.tool_profile, f"{name}_tool")
             if port is not None:
-                tools.append(_tool_callable(name, port, request))
+                tools.append(_tool_callable(name, port, request, tool_events))
         return tools
 
     def _system_message(self, request: AgentRequest) -> str:
@@ -281,7 +290,8 @@ class AgnoInteractionAgent:
             "Call tools for state-changing domain work instead of claiming the action happened.",
             "For reminder, scheduling, friendship, settings, or calendar-import requests, call the matching tool before replying.",
             "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
-            "For reminder content or duration edits, call reminder_tool with operation=update_reminder, owner_account_id from trusted_facts.account_id, reminder_id from trusted context, and content and/or duration_minutes. Do not call reschedule_reminder for duration-only edits.",
+            "For reminder list, count, search, or filter requests, call reminder_tool with operation=list_reminders and owner_account_id from trusted_facts.account_id before answering. Pass keyword, status/lifecycle, kind/reminder_type, trigger_after, and trigger_before when the user asks for those filters. When it succeeds, answer with the total count and list every returned active reminder using display_lines or display_time_label from the tool facts; include each reminder's content and local display time, and label reminders without display_time_label as unscheduled/no set time in the user's language. Do not answer with only the count, do not expose raw UTC next_fire_at as the user-visible time when display_time_label is present, and do not say the full list is unavailable unless the tool result fails.",
+            "For reminder content or duration edits, call reminder_tool with operation=update_reminder, owner_account_id from trusted_facts.account_id, reminder_id from trusted context, and content and/or duration_minutes. If the user identifies the target only by keyword, pass keyword instead of reminder_id; if the tool returns ambiguous_reminder_reference, ask the user to choose. Do not call reschedule_reminder for duration-only edits.",
             "If the focus block has subject_type='reminder' with exactly one object_id, use that object_id as reminder_id for follow-up edits to that reminder instead of asking which reminder.",
             "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
             "For adding a friend from an invite code or link token, call social_scheduling_tool with operation=establish_friendship_from_token, joiner_account_id from trusted_facts.account_id, and link_code or public_token from the User message.",
@@ -303,6 +313,7 @@ class AgnoInteractionAgent:
             "Render mode must not call tools or imply business mutation. For NotificationTurn, render only from notification facts and error_facts; include creator, title, time, timezone, duration, and status when present. NotificationTurn must return a visible reply; no_reply is invalid because each notification_recipient delivery state must settle. Use concrete factual wording, not a generic placeholder such as 'go check it out'. Shared-reminder notification text is informational only and must not become approval, confirmation, accept/reject, or action-execution wording.",
             "For non-notification turns, if no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
+            "Use short message-channel segments. Avoid generic customer-service openings or closers. Do not end ordinary final statement segments with . or 。.",
         ]
 
     def _input_payload(self, request: AgentRequest) -> dict[str, Any]:
@@ -321,6 +332,7 @@ def _tool_callable(
     name: str,
     port: StateChangingToolPort,
     request: AgentRequest,
+    tool_events: list[dict[str, Any]] | None = None,
 ) -> Callable[..., dict]:
     def tool(command: dict | None = None, **kwargs) -> dict:
         try:
@@ -354,12 +366,15 @@ def _tool_callable(
             facts=result.facts,
             reason_code=result.reason_code,
         )
-        return {
+        payload = {
             "ok": result.ok,
             "facts": dict(result.facts),
             "reason_code": result.reason_code,
             "domain_result": _jsonable(domain_result),
         }
+        if tool_events is not None:
+            tool_events.append(payload)
+        return payload
 
     tool.__name__ = f"{name}_tool"
     tool.__doc__ = _tool_doc(name)
@@ -375,13 +390,25 @@ def _tool_doc(name: str) -> str:
             "the exact User message, captured_timezone set to "
             "trusted_facts.default_timezone, and entry_point='conversation'. "
             "For content or duration edits, call operation='update_reminder' "
-            "with reminder_id plus content and/or duration_minutes; when the "
+            "with reminder_id plus content and/or duration_minutes; if the user "
+            "identifies the target by content, pass keyword instead of "
+            "reminder_id and ask for clarification when the tool reports "
+            "ambiguous_reminder_reference; when the "
             "trusted focus block contains one reminder object_id, use it as "
             "reminder_id for follow-up edits. For time edits, call "
             "operation='reschedule_reminder' with reminder_id "
             "and trigger_time. For completion, call operation='complete_reminder' "
-            "with reminder_id. For cancellation/deletion, call "
-            "operation='delete_reminder' with reminder_id."
+            "with reminder_id or keyword. For cancellation/deletion, call "
+            "operation='delete_reminder' with reminder_id or keyword. For "
+            "reminder list, count, search, or filter requests, call "
+            "operation='list_reminders' with owner_account_id set to "
+            "trusted_facts.account_id; optional filters are keyword, "
+            "status/lifecycle, kind/reminder_type, trigger_after, and "
+            "trigger_before. The result includes count, reminder facts, local "
+            "display_time_label values, and display_lines. The "
+            "final reply for a successful list_reminders result must include "
+            "the total count and every returned active reminder; count-only "
+            "answers are incomplete."
         )
     if name == "social_scheduling":
         return (
@@ -661,6 +688,96 @@ def _agent_result_from_content(content: Any) -> AgentResult:
     if isinstance(content, str) and not content.strip():
         return AgentResult.completed(None, blank_output=True)
     return AgentResult.completed(_mapping_or_none(content))
+
+
+def _enforce_tool_reply_contracts(
+    result: AgentResult,
+    tool_events: list[dict[str, Any]],
+    request: AgentRequest,
+) -> AgentResult:
+    reminder_list = _latest_render_reminder_list_event(tool_events)
+    if reminder_list is None or _reminder_list_reply_is_complete(result, reminder_list):
+        return result
+    return AgentResult.completed(
+        {
+            "type": "reply",
+            "segments": [_render_reminder_list_reply(reminder_list, request)],
+        }
+    )
+
+
+def _latest_render_reminder_list_event(
+    tool_events: list[dict[str, Any]],
+) -> Mapping[str, Any] | None:
+    for event in reversed(tool_events):
+        domain_result = event.get("domain_result")
+        if (
+            event.get("ok") is True
+            and isinstance(domain_result, Mapping)
+            and domain_result.get("reply_contract") == "render_reminder_list"
+        ):
+            facts = event.get("facts")
+            if isinstance(facts, Mapping):
+                return facts
+    return None
+
+
+def _reminder_list_reply_is_complete(
+    result: AgentResult, facts: Mapping[str, Any]
+) -> bool:
+    output = result.output
+    if not isinstance(output, Mapping) or output.get("type") != "reply":
+        return False
+    segments = output.get("segments")
+    if not isinstance(segments, list):
+        return False
+    text = "\n".join(segment for segment in segments if isinstance(segment, str))
+    reminders = facts.get("reminders")
+    if not isinstance(reminders, list):
+        return False
+    for reminder in reminders:
+        if not isinstance(reminder, Mapping):
+            return False
+        content = str(reminder.get("content") or "").strip()
+        if content and content not in text:
+            return False
+        display_time_label = str(reminder.get("display_time_label") or "").strip()
+        if display_time_label and display_time_label not in text:
+            return False
+    return True
+
+
+def _render_reminder_list_reply(facts: Mapping[str, Any], request: AgentRequest) -> str:
+    count = facts.get("count", 0)
+    chinese = _looks_chinese(_user_text(request))
+    if chinese:
+        lines = [f"你现在一共有 {count} 个提醒："]
+    else:
+        lines = [f"You currently have {count} reminders:"]
+
+    reminders = facts.get("reminders")
+    if isinstance(reminders, list):
+        for index, reminder in enumerate(reminders, start=1):
+            if isinstance(reminder, Mapping):
+                lines.append(_render_reminder_list_line(index, reminder, chinese))
+    return "\n".join(lines)
+
+
+def _render_reminder_list_line(
+    index: int, reminder: Mapping[str, Any], chinese: bool
+) -> str:
+    content = str(reminder.get("content") or "").strip()
+    time_value = reminder.get("display_time_label") or reminder.get("next_fire_at")
+    time_label = (
+        str(time_value) if time_value else ("未设定时间" if chinese else "unscheduled")
+    )
+    if chinese:
+        return f"{index}. {content}（{time_label}）"
+    return f"{index}. {content} ({time_label})"
+
+
+def _looks_chinese(text: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in text)
 
 
 def build_prompt_blocks(request: AgentRequest) -> tuple[PromptBlock, ...]:
@@ -1001,6 +1118,16 @@ def _output_contract_block(request: AgentRequest) -> str:
         lines.insert(
             3,
             'Valid no-reply: {"type":"no_reply","reason":"intentional_no_reply"}.',
+        )
+        lines.insert(
+            4,
+            (
+                "Use no-reply only for meaningless content, natural conversation "
+                "endings, or explicit no-disturb requests. Do not use no-reply "
+                "for post-notification acknowledgements, delivery/status "
+                "questions, challenges, or short replies that refer to a recent "
+                "product notification."
+            ),
         )
     protocol_retry = request.trusted_facts.get("protocol_retry")
     if protocol_retry:

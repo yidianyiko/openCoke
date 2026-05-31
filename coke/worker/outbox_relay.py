@@ -9,6 +9,7 @@ from typing import Any, Protocol
 from coke.composition import CokeRuntime, build_runtime_from_settings
 from coke.config import Settings
 from coke.domains.conversation_runtime.models import OutboxRecord
+from coke.worker.waiting_reply import WaitingReplyDispatcher
 
 LOGGER = logging.getLogger(__name__)
 
@@ -86,9 +87,15 @@ def run_outbox_relay_loop(
         redis_stream=runtime.work_stream,
         stream_name=settings.work_stream_name,
     )
+    waiting_dispatcher = WaitingReplyDispatcher(
+        conversation_runtime=runtime.conversation_runtime_service,
+        outbound_delivery=runtime.turn_runner.outbound_delivery,
+        delay_seconds=settings.waiting_reply_after_seconds,
+    )
     handled = 0
     while iterations is None or handled < iterations:
         try:
+            waiting_dispatcher.dispatch_due(limit=limit)
             published = relay.publish_unprocessed(limit=limit)
             runtime.session.commit()
             handled += 1

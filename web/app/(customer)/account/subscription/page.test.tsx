@@ -44,8 +44,10 @@ async function flushTicks(count: number) {
 function makeSubscriptionSnapshot(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     account_id: 'acct_1',
+    subscription_state: 'inactive',
     access_allowed: false,
     denial_reason: 'subscription_inactive',
+    checkout_url: 'https://checkout.example/session_1',
     ...overrides,
   };
 }
@@ -75,7 +77,7 @@ describe('CustomerSubscriptionPage', () => {
     container.remove();
   });
 
-  it('fetches the access snapshot from the clean auth endpoint without starting checkout', async () => {
+  it('fetches subscription status from the canonical endpoint and starts checkout through the checkout-link route', async () => {
     flushSync(() => {
       root.render(
         <LocaleProvider initialLocale="en">
@@ -88,18 +90,31 @@ describe('CustomerSubscriptionPage', () => {
 
     expect(container.querySelector('.customer-view.customer-view--narrow')).toBeTruthy();
     expect(container.querySelector('.customer-panel.customer-panel--narrow')).toBeTruthy();
-    expect(getMock).toHaveBeenCalledWith('/api/auth/access-status');
+    expect(getMock).toHaveBeenCalledWith('/api/subscription/status');
     expect(postMock).not.toHaveBeenCalled();
-    expect(container.querySelector('button[type="button"].customer-action.customer-action--primary')).toBeFalsy();
+    postMock.mockResolvedValueOnce({
+      account_id: 'acct_1',
+      available: true,
+      checkout_url: 'https://checkout.example/session_2',
+      denial_reason: 'subscription_inactive',
+    });
+    container
+      .querySelector('button[type="button"].customer-action.customer-action--primary')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    await flushTicks(2);
+
+    expect(postMock).toHaveBeenCalledWith('/api/subscription/checkout-link');
+    expect(openMock).toHaveBeenCalledWith('https://checkout.example/session_2', '_self');
     expect(container.textContent).toContain('Renew your access');
-    expect(openMock).not.toHaveBeenCalled();
   });
 
   it('steers email-verification blockers to the verify-email route instead of offering checkout', async () => {
     getMock.mockResolvedValueOnce({
       ...makeSubscriptionSnapshot({
         access_allowed: false,
-        denial_reason: 'email_not_verified',
+        denial_reason: 'email_verification_required',
+        checkout_url: null,
       }),
     });
 
@@ -142,8 +157,10 @@ describe('CustomerSubscriptionPage', () => {
     searchParamsMock.mockReturnValue(new URLSearchParams('status=success'));
     getMock.mockResolvedValueOnce({
       ...makeSubscriptionSnapshot({
+        subscription_state: 'active',
         access_allowed: true,
         denial_reason: null,
+        checkout_url: null,
       }),
     });
 
@@ -159,7 +176,7 @@ describe('CustomerSubscriptionPage', () => {
 
     expect(container.querySelector('.customer-panel.customer-panel--narrow')).toBeTruthy();
     expect(container.textContent).toContain('Payment complete');
-    expect(getMock).toHaveBeenCalledWith('/api/auth/access-status');
+    expect(getMock).toHaveBeenCalledWith('/api/subscription/status');
     expect(container.querySelector('a[href="/channels/wechat-personal"].customer-action')).toBeTruthy();
     expect(container.querySelector('a[href="/account/subscription"].customer-action')).toBeTruthy();
     expect(postMock).not.toHaveBeenCalled();
@@ -184,7 +201,7 @@ describe('CustomerSubscriptionPage', () => {
 
     await flushTicks(5);
 
-    expect(getMock).toHaveBeenCalledWith('/api/auth/access-status');
+    expect(getMock).toHaveBeenCalledWith('/api/subscription/status');
     expect(container.querySelector('a[href="/channels/wechat-personal"]')).toBeFalsy();
     expect(container.querySelector('a[href="/account/subscription"]')).toBeTruthy();
     expect(postMock).not.toHaveBeenCalled();

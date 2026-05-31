@@ -1,7 +1,7 @@
 # Coke Runtime-Readiness + gcp-coke Cutover Plan
 
-**Plan Status:** complete (deployed + real-account E2E verified on gcp-coke)
-**Status Date:** 2026-05-30
+**Plan Status:** complete (deployed + real-account E2E verified on gcp-coke; re-confirmed live at SHA d5ef1d0f)
+**Status Date:** 2026-05-31
 **Source specs:** `2026-05-28-coke-clean-rebuild-target-architecture-design.md` (§2 system shape, §5 bus/outbox, §6 access gate, §7 channels, §8 scheduler, §11 Agno), `2026-05-28-coke-requirements-user-journey-matrix-design.md`.
 
 **Goal:** Make the implementation-complete `coke/` rebuild actually RUN against real

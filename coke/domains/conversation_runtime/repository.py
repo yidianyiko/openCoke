@@ -26,6 +26,7 @@ from coke.domains.conversation_runtime.models import (
     OutputDisposition,
     StagedCommand,
     Turn,
+    WaitingReplyCandidate,
 )
 
 
@@ -61,6 +62,10 @@ class ConversationRuntimeRepository(Protocol):
     def latest_turn_ids(self, conversation_id: str, limit: int = 10) -> list[str]: ...
 
     def active_interactive_turns(self, conversation_id: str) -> list[Turn]: ...
+
+    def waiting_reply_candidates(
+        self, *, cutoff: datetime, limit: int = 25
+    ) -> list[WaitingReplyCandidate]: ...
 
     def add_turn(self, turn: Turn) -> None: ...
 
@@ -254,6 +259,36 @@ class InMemoryConversationRuntimeRepository:
         ]
         turns.sort(key=lambda turn: (turn.started_at, turn.created_at, turn.id))
         return turns
+
+    def waiting_reply_candidates(
+        self, *, cutoff: datetime, limit: int = 25
+    ) -> list[WaitingReplyCandidate]:
+        candidates: list[WaitingReplyCandidate] = []
+        for turn in sorted(
+            self.turns_by_id.values(),
+            key=lambda item: (item.started_at, item.created_at, item.id),
+        ):
+            if len(candidates) >= limit:
+                break
+            if turn.mode != "interactive" or turn.trigger_type != "InboundTurn":
+                continue
+            if turn.completed_at is not None or turn.started_at > cutoff:
+                continue
+            if turn.id in self.dispositions_by_turn_id:
+                continue
+            conversation = self.conversations_by_id.get(turn.conversation_id)
+            if conversation is None:
+                continue
+            candidates.append(
+                WaitingReplyCandidate(
+                    turn_id=turn.id,
+                    trigger_id=turn.trigger_id,
+                    conversation_id=turn.conversation_id,
+                    account_id=conversation.account_id,
+                    input_to_seq=turn.input_to_seq,
+                )
+            )
+        return candidates
 
     def add_turn(self, turn: Turn) -> None:
         if turn.id in self.turns_by_id:
@@ -603,6 +638,51 @@ class PostgresConversationRuntimeRepository:
             )
         )
         return [_turn(dict(row)) for row in self.session.execute(statement).mappings()]
+
+    def waiting_reply_candidates(
+        self, *, cutoff: datetime, limit: int = 25
+    ) -> list[WaitingReplyCandidate]:
+        statement = (
+            sa.select(
+                schema.turn.c.id.label("turn_id"),
+                schema.turn.c.trigger_id,
+                schema.turn.c.conversation_id,
+                schema.conversation.c.account_id,
+                schema.turn.c.input_to_seq,
+            )
+            .select_from(
+                schema.turn.join(
+                    schema.conversation,
+                    schema.conversation.c.id == schema.turn.c.conversation_id,
+                ).outerjoin(
+                    schema.output_disposition,
+                    schema.output_disposition.c.turn_id == schema.turn.c.id,
+                )
+            )
+            .where(
+                schema.turn.c.mode == "interactive",
+                schema.turn.c.trigger_type == "InboundTurn",
+                schema.turn.c.completed_at.is_(None),
+                schema.turn.c.started_at <= cutoff,
+                schema.output_disposition.c.id.is_(None),
+            )
+            .order_by(
+                schema.turn.c.started_at,
+                schema.turn.c.created_at,
+                schema.turn.c.id,
+            )
+            .limit(max(1, limit))
+        )
+        return [
+            WaitingReplyCandidate(
+                turn_id=db_id(row["turn_id"]),
+                trigger_id=row["trigger_id"],
+                conversation_id=db_id(row["conversation_id"]),
+                account_id=db_id(row["account_id"]),
+                input_to_seq=row["input_to_seq"],
+            )
+            for row in self.session.execute(statement).mappings()
+        ]
 
     def add_turn(self, turn: Turn) -> None:
         if self.get_conversation(turn.conversation_id) is None:
