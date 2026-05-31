@@ -560,13 +560,7 @@ export default function CustomerRemindersPage() {
         ) : null}
         {error ? <p className="customer-inline-note customer-inline-note--error">{error}</p> : null}
 
-        <div className="customer-reminder-timeline" aria-label="Selected week reminder timeline">
-          <div className="customer-reminder-time-gutter" aria-hidden="true">
-            <div className="customer-reminder-time-gutter__spacer" />
-            {hourSlots.map((hour) => (
-              <span key={hour}>{formatHour(hour)}</span>
-            ))}
-          </div>
+        <div className="customer-reminder-timeline" role="region" aria-label="Selected week reminder timeline">
           <div className="customer-reminder-days">
             {days.map((day) => {
               const localDate = toLocalDate(day);
@@ -605,6 +599,9 @@ export default function CustomerRemindersPage() {
                           className="customer-reminder-hour"
                           data-testid={`slot-${localDate}-${String(hour).padStart(2, '0')}`}
                         >
+                          <span className="customer-reminder-hour__label" aria-hidden="true">
+                            {formatHour(hour)}
+                          </span>
                           <button
                             type="button"
                             className="customer-reminder-slot-button"
