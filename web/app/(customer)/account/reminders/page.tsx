@@ -577,24 +577,30 @@ export default function CustomerRemindersPage() {
                     <strong>{day.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
                     <span>{day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                   </div>
-                  {dayBuckets.outside.length > 0 ? (
-                    <div className="customer-reminder-outside" data-testid={`outside-${localDate}`}>
-                      <span className="customer-reminder-outside__label">Outside visible hours</span>
-                      {dayBuckets.outside.slice(0, MAX_OUTSIDE_HOURS_ITEMS).map((reminder) => (
-                        <ReminderCalendarItem
-                          key={reminder.id}
-                          reminder={reminder}
-                          onEdit={() => setDrawer({ mode: 'edit', reminder })}
-                          onAction={runAction}
-                        />
-                      ))}
-                      {dayBuckets.outside.length > MAX_OUTSIDE_HOURS_ITEMS ? (
-                        <p className="customer-reminder-outside__more">
-                          +{dayBuckets.outside.length - MAX_OUTSIDE_HOURS_ITEMS} more outside visible hours
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  <div
+                    className={`customer-reminder-outside${dayBuckets.outside.length === 0 ? ' customer-reminder-outside--empty' : ''}`}
+                    data-testid={dayBuckets.outside.length > 0 ? `outside-${localDate}` : undefined}
+                    aria-hidden={dayBuckets.outside.length === 0 ? 'true' : undefined}
+                  >
+                    {dayBuckets.outside.length > 0 ? (
+                      <>
+                        <span className="customer-reminder-outside__label">Outside visible hours</span>
+                        {dayBuckets.outside.slice(0, MAX_OUTSIDE_HOURS_ITEMS).map((reminder) => (
+                          <ReminderCalendarItem
+                            key={reminder.id}
+                            reminder={reminder}
+                            onEdit={() => setDrawer({ mode: 'edit', reminder })}
+                            onAction={runAction}
+                          />
+                        ))}
+                        {dayBuckets.outside.length > MAX_OUTSIDE_HOURS_ITEMS ? (
+                          <p className="customer-reminder-outside__more">
+                            +{dayBuckets.outside.length - MAX_OUTSIDE_HOURS_ITEMS} more outside visible hours
+                          </p>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
                   <div className="customer-reminder-day__hours">
                     {hourSlots.map((hour) => {
                       const slotReminders = dayBuckets.byHour.get(hour) ?? [];
