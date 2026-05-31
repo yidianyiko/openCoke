@@ -163,6 +163,8 @@ describe('CustomerRemindersPage', () => {
       states: ['active'],
     });
     expect(container.textContent).toContain('May 18 - May 24, 2026');
+    expect(container.textContent).toContain('0 active this week');
+    expect(container.textContent).toContain('No upcoming reminders this week');
 
     const todayButton = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Today');
     todayButton?.click();
@@ -174,6 +176,7 @@ describe('CustomerRemindersPage', () => {
       states: ['active'],
     });
     expect(container.textContent).toContain('May 11 - May 17, 2026');
+    expect(container.textContent).toContain('5 active this week');
   });
 
   it('ignores stale reminder list responses after the selected week changes', async () => {
@@ -350,14 +353,21 @@ describe('CustomerRemindersPage', () => {
       durationMinutes: 60,
     });
 
-    const completeButton = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Complete');
+    const reminderCard = [...container.querySelectorAll('.customer-reminder-card')].find((card) =>
+      card.textContent?.includes('Pay rent'),
+    ) as HTMLElement | undefined;
+    const completeButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Complete',
+    );
     completeButton?.click();
-    const cancelButton = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Cancel');
+    const cancelButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Cancel',
+    );
     cancelButton?.click();
     await flushTicks(3);
 
-    expect(completeMock).toHaveBeenCalledWith('rem-3');
-    expect(cancelMock).toHaveBeenCalledWith('rem-3');
+    expect(completeMock).toHaveBeenCalledWith('rem-1');
+    expect(cancelMock).toHaveBeenCalledWith('rem-1');
   });
 
   it('keeps nested lifecycle actions accessible without opening the edit drawer by click or keyboard', async () => {
@@ -396,11 +406,16 @@ describe('CustomerRemindersPage', () => {
     renderPage();
     await flushTicks(3);
 
-    const completeButton = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Complete');
+    const reminderCard = [...container.querySelectorAll('.customer-reminder-card')].find((card) =>
+      card.textContent?.includes('Pay rent'),
+    ) as HTMLElement | undefined;
+    const completeButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Complete',
+    );
     completeButton?.click();
     await flushTicks(3);
 
-    expect(completeMock).toHaveBeenCalledWith('rem-3');
+    expect(completeMock).toHaveBeenCalledWith('rem-1');
     expect(container.textContent).toContain('Unable to complete this reminder right now.');
   });
 
@@ -408,7 +423,10 @@ describe('CustomerRemindersPage', () => {
     renderPage();
     await flushTicks(3);
 
-    const editButton = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Edit');
+    const reminderCard = [...container.querySelectorAll('.customer-reminder-card')].find((card) =>
+      card.textContent?.includes('Pay rent'),
+    ) as HTMLElement | undefined;
+    const editButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find((button) => button.textContent === 'Edit');
     editButton?.click();
     await flushTicks(1);
 
@@ -421,7 +439,7 @@ describe('CustomerRemindersPage', () => {
     );
     drawerCompleteButton?.click();
     await flushTicks(3);
-    expect(completeMock).toHaveBeenCalledWith('rem-3');
+    expect(completeMock).toHaveBeenCalledWith('rem-1');
 
     editButton?.click();
     await flushTicks(1);
@@ -431,6 +449,6 @@ describe('CustomerRemindersPage', () => {
     );
     drawerCancelButton?.click();
     await flushTicks(3);
-    expect(cancelMock).toHaveBeenCalledWith('rem-3');
+    expect(cancelMock).toHaveBeenCalledWith('rem-1');
   });
 });

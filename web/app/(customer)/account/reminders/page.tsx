@@ -338,7 +338,8 @@ export default function CustomerRemindersPage() {
     }
     return map;
   }, [days, reminders]);
-  const summary = useMemo(() => summarizeWeek(reminders, new Date()), [reminders]);
+  const selectedWeekReminders = useMemo(() => Array.from(grouped.values()).flat(), [grouped]);
+  const summary = useMemo(() => summarizeWeek(selectedWeekReminders, new Date()), [selectedWeekReminders]);
 
   const loadWeek = useCallback(async () => {
     const requestId = listRequestIdRef.current + 1;
