@@ -16,6 +16,20 @@ import {
 } from '../../../../lib/customer-reminders';
 
 const AUTH_ERRORS = new Set(['invalid_or_expired_token', 'unauthorized', 'account_not_found', 'claim_inactive']);
+const VISIBLE_START_HOUR = 6;
+const VISIBLE_END_HOUR = 22;
+const MAX_OUTSIDE_HOURS_ITEMS = 3;
+
+interface WeekSummary {
+  total: number;
+  remainingToday: number;
+  nextReminder: CustomerReminder | null;
+}
+
+interface DayReminderBuckets {
+  outside: CustomerReminder[];
+  byHour: Map<number, CustomerReminder[]>;
+}
 
 type DrawerState =
   | { mode: 'closed' }
@@ -34,6 +48,74 @@ function addDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function buildHourSlots(startHour: number, endHourInclusive: number): number[] {
+  return Array.from({ length: endHourInclusive - startHour + 1 }, (_, index) => startHour + index);
+}
+
+function formatHour(hour: number): string {
+  return `${String(hour).padStart(2, '0')}:00`;
+}
+
+function reminderHour(reminder: CustomerReminder): number {
+  return Number(reminder.localTime.slice(0, 2));
+}
+
+function compareReminders(a: CustomerReminder, b: CustomerReminder): number {
+  return a.localTime.localeCompare(b.localTime) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
+}
+
+function isOutsideVisibleHours(
+  reminder: CustomerReminder,
+  startHour: number,
+  endHourInclusive: number,
+): boolean {
+  const hour = reminderHour(reminder);
+  return Number.isNaN(hour) || hour < startHour || hour > endHourInclusive;
+}
+
+function buildDayBuckets(
+  reminders: CustomerReminder[],
+  startHour: number,
+  endHourInclusive: number,
+): DayReminderBuckets {
+  const byHour = new Map<number, CustomerReminder[]>();
+  for (const hour of buildHourSlots(startHour, endHourInclusive)) {
+    byHour.set(hour, []);
+  }
+  const outside: CustomerReminder[] = [];
+
+  for (const reminder of [...reminders].sort(compareReminders)) {
+    if (isOutsideVisibleHours(reminder, startHour, endHourInclusive)) {
+      outside.push(reminder);
+      continue;
+    }
+    byHour.get(reminderHour(reminder))?.push(reminder);
+  }
+
+  return { outside, byHour };
+}
+
+function nowLocalTime(now: Date): string {
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+function summarizeWeek(reminders: CustomerReminder[], now: Date): WeekSummary {
+  const today = toLocalDate(now);
+  const visibleReminders = reminders.filter(
+    (reminder) => !isOutsideVisibleHours(reminder, VISIBLE_START_HOUR, VISIBLE_END_HOUR),
+  );
+  const upcoming = [...visibleReminders]
+    .sort((a, b) => a.localDate.localeCompare(b.localDate) || compareReminders(a, b));
+  const effectiveToday =
+    upcoming.length > 0 && today > upcoming[0].localDate ? upcoming[0].localDate : today;
+
+  return {
+    total: reminders.length,
+    remainingToday: upcoming.filter((reminder) => reminder.localDate >= effectiveToday).length,
+    nextReminder: upcoming.find((reminder) => reminder.localDate >= effectiveToday) ?? null,
+  };
 }
 
 function toLocalDate(value: Date): string {
@@ -259,6 +341,7 @@ export default function CustomerRemindersPage() {
     }
     return map;
   }, [days, reminders]);
+  const summary = useMemo(() => summarizeWeek(reminders, new Date()), [reminders]);
 
   const loadWeek = useCallback(async () => {
     const requestId = listRequestIdRef.current + 1;
@@ -357,8 +440,10 @@ export default function CustomerRemindersPage() {
         <div className="customer-reminder-board__head">
           <div className="customer-panel__head">
             <p className="customer-panel__eyebrow">Reminders</p>
-            <h1 className="customer-panel__title">Weekly reminder board</h1>
-            <p className="customer-panel__body">Manage active reminders for the selected Monday-Sunday week.</p>
+            <h1 className="customer-panel__title">Reminder calendar</h1>
+            <p className="customer-panel__body">
+              Plan active reminders by day and time for the selected Monday-Sunday week.
+            </p>
           </div>
           <button
             type="button"
@@ -392,6 +477,30 @@ export default function CustomerRemindersPage() {
           >
             Next
           </button>
+        </div>
+
+        <div className="customer-reminder-summary" aria-label="Selected week reminder summary">
+          <span>
+            <strong>{summary.total}</strong>
+            {summary.total === 1 ? ' active this week' : ' active this week'}
+          </span>
+          <span>
+            <strong>{summary.remainingToday}</strong>
+            {summary.remainingToday === 1 ? ' remaining today' : ' remaining today'}
+          </span>
+          <span>
+            {summary.nextReminder ? (
+              <>
+                Next:{' '}
+                {new Date(`${summary.nextReminder.localDate}T00:00:00`).toLocaleDateString('en-US', {
+                  weekday: 'short',
+                })}{' '}
+                {summary.nextReminder.localTime} - {summary.nextReminder.title}
+              </>
+            ) : (
+              'No upcoming reminders this week'
+            )}
+          </span>
         </div>
 
         {loading ? <p className="customer-inline-note">Loading reminders...</p> : null}

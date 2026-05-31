@@ -93,8 +93,17 @@ describe('CustomerRemindersPage', () => {
       ok: true,
       data: {
         reminders: [
-          makeReminder({ durationMinutes: 60 }),
+          makeReminder({ durationMinutes: 60, localTime: '09:30' }),
           makeReminder({ id: 'rem-2', title: 'Call mom', localDate: '2026-05-15', localTime: '20:00' }),
+          makeReminder({ id: 'rem-3', title: 'Early flight', localDate: '2026-05-13', localTime: '05:45' }),
+          makeReminder({ id: 'rem-4', title: 'Standup prep', localDate: '2026-05-13', localTime: '09:05' }),
+          makeReminder({
+            id: 'rem-5',
+            title: 'DST local check',
+            localDate: '2026-05-14',
+            localTime: '06:15',
+            timezone: 'America/Los_Angeles',
+          }),
         ],
       },
     });
@@ -123,7 +132,7 @@ describe('CustomerRemindersPage', () => {
     container.remove();
   });
 
-  it('loads active reminders for the selected Monday-Sunday week and groups them by local date', async () => {
+  it('loads active reminders for the selected Monday-Sunday week and shows a calendar summary', async () => {
     renderPage();
     await flushTicks(3);
 
@@ -132,11 +141,11 @@ describe('CustomerRemindersPage', () => {
       to: '2026-05-17',
       states: ['active'],
     });
+    expect(container.textContent).toContain('Reminder calendar');
     expect(container.textContent).toContain('May 11 - May 17, 2026');
-    expect(container.textContent).toContain('Wed');
-    expect(container.textContent).toContain('Pay rent');
-    expect(container.textContent).toContain('Fri');
-    expect(container.textContent).toContain('Call mom');
+    expect(container.textContent).toContain('5 active this week');
+    expect(container.textContent).toContain('4 remaining today');
+    expect(container.textContent).toContain('Next: Wed 09:05 - Standup prep');
   });
 
   it('resets the selected week to the current week from the Today control', async () => {
@@ -347,8 +356,8 @@ describe('CustomerRemindersPage', () => {
     cancelButton?.click();
     await flushTicks(3);
 
-    expect(completeMock).toHaveBeenCalledWith('rem-1');
-    expect(cancelMock).toHaveBeenCalledWith('rem-1');
+    expect(completeMock).toHaveBeenCalledWith('rem-3');
+    expect(cancelMock).toHaveBeenCalledWith('rem-3');
   });
 
   it('keeps nested lifecycle actions accessible without opening the edit drawer by click or keyboard', async () => {
@@ -391,7 +400,7 @@ describe('CustomerRemindersPage', () => {
     completeButton?.click();
     await flushTicks(3);
 
-    expect(completeMock).toHaveBeenCalledWith('rem-1');
+    expect(completeMock).toHaveBeenCalledWith('rem-3');
     expect(container.textContent).toContain('Unable to complete this reminder right now.');
   });
 
@@ -412,7 +421,7 @@ describe('CustomerRemindersPage', () => {
     );
     drawerCompleteButton?.click();
     await flushTicks(3);
-    expect(completeMock).toHaveBeenCalledWith('rem-1');
+    expect(completeMock).toHaveBeenCalledWith('rem-3');
 
     editButton?.click();
     await flushTicks(1);
@@ -422,6 +431,6 @@ describe('CustomerRemindersPage', () => {
     );
     drawerCancelButton?.click();
     await flushTicks(3);
-    expect(cancelMock).toHaveBeenCalledWith('rem-1');
+    expect(cancelMock).toHaveBeenCalledWith('rem-3');
   });
 });
