@@ -123,6 +123,7 @@ class CokeRuntime:
     redis_client: Any | None = None
     work_stream: Any | None = None
     reply_pubsub: Any | None = None
+    interactive_runtime_factory: Callable[[], "CokeRuntime"] | None = None
 
 
 class EmptyGoogleCalendarClient(GoogleCalendarClientPort):
@@ -1267,15 +1268,7 @@ def build_runtime_from_settings(
         channel_prefix=settings.reply_channel_prefix,
     )
     provider_adapters = _provider_adapters_from_settings(settings, now=now)
-    repositories = CokeRepositories(
-        identity_access=PostgresIdentityAccessRepository(session),
-        channel_reachability=PostgresChannelReachabilityRepository(session),
-        conversation_runtime=PostgresConversationRuntimeRepository(session),
-        reminder=PostgresReminderRepository(session),
-        social_scheduling=PostgresSocialSchedulingRepository(session),
-        calendar_import=PostgresCalendarImportRepository(session),
-        settings=PostgresSettingsRepository(session),
-    )
+    repositories = _postgres_repositories(session)
     semantic_interpreter, interaction_agent, reminder_detector = _llm_from_settings(
         settings
     )
@@ -1283,6 +1276,56 @@ def build_runtime_from_settings(
         calendar_id=settings.google_calendar_id,
         now=now,
     )
+
+    def interactive_runtime_factory() -> CokeRuntime:
+        child_session = session_factory()
+        child_repositories = _postgres_repositories(child_session)
+        child_runtime = compose_coke_runtime(
+            semantic_interpreter=semantic_interpreter,
+            interaction_agent=interaction_agent,
+            redis_client=redis_lock,
+            outbound_delivery=_DeferredOutboundDelivery(),
+            reminder_detector=reminder_detector,
+            memory_port=None,
+            google_calendar_client=google_calendar_client,
+            provider_adapters=provider_adapters,
+            repositories=child_repositories,
+            now=now,
+            id_factory=id_factory,
+            lock_ttl_ms=settings.lock_ttl_ms,
+            claim_boundary_committer=child_session.commit,
+            close_boundary_committer=child_session.commit,
+        )
+        object.__setattr__(
+            child_runtime.turn_runner,
+            "outbound_delivery",
+            ChannelReachabilityOutboundDelivery(
+                child_runtime.channel_reachability_service,
+                conversation_runtime=child_runtime.conversation_runtime_service,
+            ),
+        )
+        return CokeRuntime(
+            repositories=child_runtime.repositories,
+            identity_access_service=child_runtime.identity_access_service,
+            channel_reachability_service=child_runtime.channel_reachability_service,
+            conversation_runtime_service=child_runtime.conversation_runtime_service,
+            reminder_service=child_runtime.reminder_service,
+            social_scheduling_service=child_runtime.social_scheduling_service,
+            calendar_import_service=child_runtime.calendar_import_service,
+            settings_service=child_runtime.settings_service,
+            adapters=child_runtime.adapters,
+            tool_ports=child_runtime.tool_ports,
+            pre_llm_gate=child_runtime.pre_llm_gate,
+            lock_manager=child_runtime.lock_manager,
+            turn_runner=child_runtime.turn_runner,
+            provider_adapters=provider_adapters,
+            engine=engine,
+            session_factory=session_factory,
+            session=child_session,
+            redis_client=redis_client,
+            reply_pubsub=reply_pubsub,
+        )
+
     runtime = compose_coke_runtime(
         semantic_interpreter=semantic_interpreter,
         interaction_agent=interaction_agent,
@@ -1328,6 +1371,19 @@ def build_runtime_from_settings(
         redis_client=redis_client,
         work_stream=work_stream,
         reply_pubsub=reply_pubsub,
+        interactive_runtime_factory=interactive_runtime_factory,
+    )
+
+
+def _postgres_repositories(session: Any) -> CokeRepositories:
+    return CokeRepositories(
+        identity_access=PostgresIdentityAccessRepository(session),
+        channel_reachability=PostgresChannelReachabilityRepository(session),
+        conversation_runtime=PostgresConversationRuntimeRepository(session),
+        reminder=PostgresReminderRepository(session),
+        social_scheduling=PostgresSocialSchedulingRepository(session),
+        calendar_import=PostgresCalendarImportRepository(session),
+        settings=PostgresSettingsRepository(session),
     )
 
 

@@ -83,6 +83,17 @@ class WorkerRuntime:
         self.reply_pubsub = None
 
 
+class RecordingSupervisor:
+    def __init__(self) -> None:
+        self.submitted = []
+
+    async def submit(self, trigger):
+        self.submitted.append(trigger)
+
+    async def drain_completed(self):
+        return []
+
+
 def test_notification_render_trigger_hydrates_structured_facts_from_repository():
     fact = FakeNotificationFact(
         id="notification_fact_1",
@@ -156,6 +167,7 @@ def test_notification_event_fans_out_to_recipient_scoped_render_turns():
         facts_hash="hash_1",
     )
     runtime = WorkerRuntime(FakeSocialSchedulingRepository([fact]))
+    supervisor = RecordingSupervisor()
 
     _handle_event(
         runtime,
@@ -175,9 +187,11 @@ def test_notification_event_fans_out_to_recipient_scoped_render_turns():
             },
             stream_message_id="1-0",
         ),
+        supervisor=supervisor,
     )
 
     triggers = runtime.turn_runner.triggers
+    assert supervisor.submitted == []
     assert [trigger.account_id for trigger in triggers] == [
         "creator_1",
         "receiver_1",

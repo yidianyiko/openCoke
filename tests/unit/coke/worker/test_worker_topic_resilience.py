@@ -7,7 +7,8 @@ from typing import Any
 import fakeredis
 
 from coke.infra.redis import RedisWorkStream
-from coke.worker.__main__ import _handle_event
+from coke.turn.context import TurnMode, TurnTrigger
+from coke.worker.__main__ import _handle_event, _recover_open_inbound_windows
 from coke.worker.stream_consumer import StreamConsumer
 
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
@@ -88,6 +89,20 @@ class FakeRuntime:
         self.reply_pubsub = FakeReplyPubSub()
 
 
+class FakeSupervisor:
+    def __init__(self) -> None:
+        self.submitted = []
+        self.completed = []
+
+    async def submit(self, trigger):
+        self.submitted.append(trigger)
+
+    async def drain_completed(self):
+        completed = list(self.completed)
+        self.completed.clear()
+        return completed
+
+
 def test_reminder_lifecycle_event_is_acked_as_evidence_without_turn_or_reply(caplog):
     redis = fakeredis.FakeRedis(decode_responses=True)
     stream = RedisWorkStream(redis, stream_name="coke.work", group_name="workers")
@@ -159,6 +174,40 @@ def test_unknown_topic_is_warned_acked_and_following_inbound_still_processes(cap
     assert "unknown_worker_topic_skipped" in caplog.text
 
 
+def test_inbound_event_submits_to_supervisor_and_acks_without_running_turn():
+    redis = fakeredis.FakeRedis(decode_responses=True)
+    stream = RedisWorkStream(redis, stream_name="coke.work", group_name="workers")
+    stream.ensure_group()
+    stream.publish_event(
+        event_id="outbox_inbound_1",
+        topic="turn.inbound",
+        idempotency_key="inbound:1",
+        traceparent=TRACEPARENT,
+        payload={
+            "trigger_id": "inbound:provider_message_1",
+            "conversation_id": "conversation_1",
+            "message_id": "message_1",
+        },
+    )
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    acked: list[str] = []
+    consumer = _consumer(stream, acked)
+
+    count = consumer.poll_once(
+        lambda event: _handle_event(runtime, event, supervisor=supervisor)
+    )
+
+    assert count == 1
+    assert acked == ["outbox_inbound_1"]
+    assert runtime.session.commits == 1
+    assert runtime.turn_runner.inbound_triggers == []
+    assert [trigger.trigger_id for trigger in supervisor.submitted] == [
+        "inbound:provider_message_1"
+    ]
+    assert redis.xpending("coke.work", "workers")["pending"] == 0
+
+
 def test_covered_inbound_event_publishes_terminal_no_visible_result_and_acks():
     redis = fakeredis.FakeRedis(decode_responses=True)
     stream = RedisWorkStream(redis, stream_name="coke.work", group_name="workers")
@@ -199,6 +248,35 @@ def test_covered_inbound_event_publishes_terminal_no_visible_result_and_acks():
                 "reason_code": "input_window_already_closed",
                 "visible_text": None,
             },
+        )
+    ]
+
+
+def test_recover_open_inbound_windows_submits_synthetic_inbound_turns():
+    runtime = FakeRuntime()
+    runtime.repositories = SimpleNamespace(
+        conversation_runtime=SimpleNamespace(
+            list_open_inbound_conversations=lambda: [
+                SimpleNamespace(
+                    id="conversation_1",
+                    account_id="account_1",
+                    latest_inbound_seq=3,
+                )
+            ]
+        )
+    )
+    supervisor = FakeSupervisor()
+
+    _recover_open_inbound_windows(runtime, supervisor)
+
+    assert supervisor.submitted == [
+        TurnTrigger(
+            trigger_id="recover:conversation_1:3",
+            trigger_type="InboundTurn",
+            mode=TurnMode.INTERACTIVE,
+            conversation_id="conversation_1",
+            account_id="account_1",
+            payload={"recovered_open_window": True},
         )
     ]
 

@@ -37,6 +37,8 @@ class ConversationRuntimeRepository(Protocol):
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None: ...
 
+    def list_open_inbound_conversations(self) -> list[Conversation]: ...
+
     def add_conversation(self, conversation: Conversation) -> None: ...
 
     def save_conversation(self, conversation: Conversation) -> None: ...
@@ -126,6 +128,15 @@ class InMemoryConversationRuntimeRepository:
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None:
         return self.conversations_by_account.get(account_id)
+
+    def list_open_inbound_conversations(self) -> list[Conversation]:
+        conversations = [
+            conversation
+            for conversation in self.conversations_by_id.values()
+            if conversation.latest_inbound_seq > conversation.last_closed_inbound_seq
+        ]
+        conversations.sort(key=lambda conversation: conversation.id)
+        return conversations
 
     def add_conversation(self, conversation: Conversation) -> None:
         if conversation.id in self.conversations_by_id:
@@ -273,10 +284,7 @@ class InMemoryConversationRuntimeRepository:
             if idempotency_owner is not None:
                 raise ConversationRuntimeError("duplicate_staged_command_idempotency")
         else:
-            if (
-                idempotency_owner is not None
-                and idempotency_owner.id != command.id
-            ):
+            if idempotency_owner is not None and idempotency_owner.id != command.id:
                 raise ConversationRuntimeError("duplicate_staged_command_idempotency")
             if existing.idempotency_key != command.idempotency_key:
                 self.staged_commands_by_idempotency_key.pop(
@@ -429,6 +437,17 @@ class PostgresConversationRuntimeRepository:
             schema.conversation.c.account_id == account_id,
         )
         return _conversation(row) if row else None
+
+    def list_open_inbound_conversations(self) -> list[Conversation]:
+        rows = self.session.execute(
+            sa.select(schema.conversation)
+            .where(
+                schema.conversation.c.latest_inbound_seq
+                > schema.conversation.c.last_closed_inbound_seq
+            )
+            .order_by(schema.conversation.c.id)
+        ).mappings()
+        return [_conversation(dict(row)) for row in rows]
 
     def add_conversation(self, conversation: Conversation) -> None:
         insert_row(

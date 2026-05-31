@@ -245,6 +245,125 @@ class TurnRunner:
         finally:
             lock.release()
 
+    async def run_inbound_turn_async(self, trigger: TurnTrigger) -> TurnRunResult:
+        try:
+            start = self.conversation_runtime.start_turn(
+                conversation_id=trigger.conversation_id,
+                trigger_id=trigger.trigger_id,
+                trigger_type=trigger.trigger_type,
+                mode=TurnMode.INTERACTIVE.value,
+            )
+        except ConversationRuntimeError as error:
+            if error.code == "no_open_inbound_window":
+                return self._result_from_disposition(
+                    turn_id=trigger.trigger_id,
+                    trigger=trigger,
+                    disposition="superseded",
+                    reason_code="input_window_already_closed",
+                )
+            raise
+        self._commit_claim_boundary()
+        replay_result = self._replayed_result(start.replayed, start.turn.id, trigger)
+        if replay_result is not None:
+            return replay_result
+        gate = self.pre_llm_gate.evaluate(trigger)
+        if not gate.permitted:
+            return self._run_access_denied_turn(
+                trigger=trigger,
+                gate=gate,
+                turn_id=start.turn.id,
+                input_from_seq=start.turn.input_from_seq,
+                input_to_seq=start.turn.input_to_seq,
+            )
+
+        lock = self.lock_manager.acquire(trigger.conversation_id)
+        if lock is None:
+            disposition = self.conversation_runtime.mark_failed(
+                start.turn.id, "conversation_lock_unavailable"
+            )
+            return self._result_from_disposition(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+
+        try:
+            freshness_guard = FreshnessGuard(
+                conversation_runtime=self.conversation_runtime,
+                turn_id=start.turn.id,
+                input_from_seq=start.turn.input_from_seq,
+                input_to_seq=start.turn.input_to_seq,
+            )
+            focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
+            semantic_decision = self.semantic_interpreter.interpret(
+                SemanticInterpreterRequest(
+                    account_id=trigger.account_id,
+                    conversation_id=trigger.conversation_id,
+                    payload=dict(trigger.payload),
+                    trusted_facts=gate.trust_facts,
+                    focus_subject=focus_subject,
+                )
+            )
+            semantic_decision = _clear_reference_clarification_with_single_focus(
+                semantic_decision, focus_subject
+            )
+            if semantic_decision.reply_necessity == "intentional_no_reply":
+                disposition = self.conversation_runtime.commit_no_reply(
+                    turn_id=start.turn.id,
+                    reason_code="intentional_no_reply",
+                    materialize_staged_command=self._materialize_staged_command,
+                )
+                self._commit_close_boundary()
+                return self._result_from_disposition(
+                    turn_id=start.turn.id,
+                    trigger=trigger,
+                    disposition=disposition.disposition,
+                    reason_code=disposition.reason_code,
+                )
+
+            trusted_facts = _trusted_facts_for_agent(
+                gate.trust_facts,
+                trigger=trigger,
+                semantic_decision=semantic_decision,
+                now=self._now,
+                account_timezone=self._account_timezone,
+            )
+            context = self.context_assembler.build(
+                trigger=trigger,
+                trusted_facts=trusted_facts,
+                semantic_decision=semantic_decision,
+                focus_subject=focus_subject,
+                reference_resolution=self.reference_resolver.resolve_all([]),
+                memory_context=self.memory_manager.load(
+                    account_id=trigger.account_id,
+                    conversation_id=trigger.conversation_id,
+                    long_term_enabled=bool(
+                        gate.trust_facts.get("memory_enabled", True)
+                    ),
+                ),
+                freshness_guard=freshness_guard,
+                tool_profile=(
+                    ToolProfile.clarification()
+                    if semantic_decision.required_clarification != "none"
+                    else ToolProfile.interactive(self.tool_ports)
+                ),
+                onboarding_guidance_required=gate.activation_guidance_required,
+                turn_source=trusted_facts["turn_source"],
+                current_input_messages=start.input_messages,
+            )
+            return await self._invoke_agent_and_record_async(
+                trigger,
+                context,
+                semantic_decision,
+            )
+        except ConversationRuntimeError as error:
+            return self._conversation_runtime_error_result(
+                start.turn.id, trigger, error
+            )
+        finally:
+            lock.release()
+
     def run_render_turn(self, trigger: TurnTrigger) -> TurnRunResult:
         gate = GateDecision.allowed(trust_facts={"account_id": trigger.account_id})
         return self._run_render_with_gate(
@@ -456,6 +575,49 @@ class TurnRunner:
         validated = _validate_for_trigger(trigger, validated)
         if not validated.valid:
             agent_result = self.interaction_agent.invoke(
+                _protocol_retry_request(agent_request, validated)
+            )
+            if agent_result.timed_out:
+                return self._record_pending_async(trigger, context, agent_result)
+            validated = self.output_protocol.validate_first_answer(agent_result.output)
+            validated = _validate_for_trigger(trigger, validated)
+        return self._record_validated_output(
+            turn_id=context.freshness_guard.turn_id,
+            trigger=trigger,
+            validated=validated,
+        )
+
+    async def _invoke_agent_and_record_async(
+        self,
+        trigger: TurnTrigger,
+        context: Any,
+        semantic_decision: SemanticDecision | None,
+        *,
+        current_input_messages: tuple[Any, ...] = (),
+    ) -> TurnRunResult:
+        agent_request = AgentRequest(
+            turn_id=context.freshness_guard.turn_id,
+            conversation_id=trigger.conversation_id,
+            account_id=trigger.account_id,
+            mode=trigger.mode,
+            trigger_type=trigger.trigger_type,
+            payload=trigger.payload,
+            trusted_facts=context.trusted_facts,
+            tool_profile=context.tool_profile,
+            freshness_guard=context.freshness_guard,
+            context=context,
+            current_input_messages=tuple(
+                current_input_messages or getattr(context, "current_input_messages", ())
+            ),
+            run_id=context.freshness_guard.turn_id,
+        )
+        agent_result = await self.interaction_agent.ainvoke(agent_request)
+        if agent_result.timed_out:
+            return self._record_pending_async(trigger, context, agent_result)
+        validated = self.output_protocol.validate_first_answer(agent_result.output)
+        validated = _validate_for_trigger(trigger, validated)
+        if not validated.valid:
+            agent_result = await self.interaction_agent.ainvoke(
                 _protocol_retry_request(agent_request, validated)
             )
             if agent_result.timed_out:

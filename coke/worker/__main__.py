@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Mapping
+from dataclasses import replace
+from threading import Thread
 from typing import Any
 
 import sqlalchemy as sa
@@ -12,6 +15,7 @@ from coke.composition import CokeRuntime, build_runtime_from_settings
 from coke.config import Settings
 from coke.domains._pg import db_id
 from coke.turn.context import TurnMode, TurnTrigger
+from coke.worker.interactive_supervisor import InteractiveTurnSupervisor
 from coke.worker.outbox_relay import OutboxRelay
 from coke.worker.stream_consumer import StreamConsumer, StreamEvent
 
@@ -60,48 +64,208 @@ def run_worker_loop(
         block_ms=settings.worker_block_ms,
     )
     consumer.ensure_group()
+    supervisor_loop = _SupervisorLoop()
+    supervisor_loop.start()
+    supervisor = InteractiveTurnSupervisor(
+        turn_runner=runtime.turn_runner,
+        interaction_agent=runtime.turn_runner.interaction_agent,
+        runtime_factory=runtime.interactive_runtime_factory,
+    )
+    _recover_open_inbound_windows(runtime, supervisor, supervisor_loop=supervisor_loop)
     attempts = 0
-    while iterations is None or attempts < iterations:
-        try:
-            count = consumer.reclaim_pending_once(
-                lambda event: _handle_event(runtime, event),
-                min_idle_ms=settings.worker_reclaim_idle_ms,
-            )
-            if count == 0:
-                count = consumer.poll_once(lambda event: _handle_event(runtime, event))
-            attempts += 1
-        except Exception:
-            runtime.session.rollback()
-            LOGGER.exception("worker loop iteration failed")
-            time.sleep(1.0)
-            attempts += 1
+    try:
+        while iterations is None or attempts < iterations:
+            try:
+                count = consumer.reclaim_pending_once(
+                    lambda event: _handle_event(
+                        runtime,
+                        event,
+                        supervisor=supervisor,
+                        supervisor_loop=supervisor_loop,
+                    ),
+                    min_idle_ms=settings.worker_reclaim_idle_ms,
+                )
+                if count == 0:
+                    count = consumer.poll_once(
+                        lambda event: _handle_event(
+                            runtime,
+                            event,
+                            supervisor=supervisor,
+                            supervisor_loop=supervisor_loop,
+                        )
+                    )
+                _drain_supervisor_completions(
+                    runtime, supervisor, supervisor_loop=supervisor_loop
+                )
+                attempts += 1
+            except Exception:
+                runtime.session.rollback()
+                LOGGER.exception("worker loop iteration failed")
+                time.sleep(1.0)
+                attempts += 1
+    finally:
+        supervisor_loop.stop()
 
 
-def _handle_event(runtime: CokeRuntime, event: StreamEvent) -> None:
+def _handle_event(
+    runtime: CokeRuntime,
+    event: StreamEvent,
+    *,
+    supervisor: Any | None = None,
+    supervisor_loop: Any | None = None,
+) -> None:
     if _handle_non_turn_event(event):
         return
     results: list[tuple[TurnTrigger, Any]] = []
     for trigger in _turn_triggers_from_event(runtime, event):
+        if trigger.mode == TurnMode.INTERACTIVE and supervisor is not None:
+            _submit_interactive_trigger(
+                supervisor,
+                _with_worker_event_id(trigger, event.event_id),
+                supervisor_loop=supervisor_loop,
+            )
+            continue
         if trigger.mode == TurnMode.RENDER:
             result = runtime.turn_runner.run_render_turn(trigger)
         else:
             result = runtime.turn_runner.run_inbound_turn(trigger)
         results.append((trigger, result))
     runtime.session.commit()
-    if runtime.reply_pubsub is not None:
-        for trigger, result in results:
-            causal_id = trigger.payload.get("causal_inbound_event_id")
-            if isinstance(causal_id, str) and causal_id:
-                runtime.reply_pubsub.publish_reply(
-                    causal_id,
-                    {
-                        "event_id": event.event_id,
-                        "turn_id": result.turn_id,
-                        "disposition": result.disposition,
-                        "reason_code": result.reason_code,
-                        "visible_text": result.visible_text,
-                    },
-                )
+    for trigger, result in results:
+        _publish_reply(runtime, event_id=event.event_id, trigger=trigger, result=result)
+
+
+def _recover_open_inbound_windows(
+    runtime: CokeRuntime,
+    supervisor: Any,
+    *,
+    supervisor_loop: Any | None = None,
+) -> None:
+    repository = runtime.repositories.conversation_runtime
+    list_open = getattr(repository, "list_open_inbound_conversations", None)
+    if not callable(list_open):
+        return
+    for conversation in list_open():
+        trigger = TurnTrigger(
+            trigger_id=(f"recover:{conversation.id}:{conversation.latest_inbound_seq}"),
+            trigger_type="InboundTurn",
+            mode=TurnMode.INTERACTIVE,
+            conversation_id=conversation.id,
+            account_id=conversation.account_id,
+            payload={"recovered_open_window": True},
+        )
+        _submit_interactive_trigger(
+            supervisor,
+            trigger,
+            supervisor_loop=supervisor_loop,
+        )
+
+
+def _drain_supervisor_completions(
+    runtime: CokeRuntime,
+    supervisor: Any,
+    *,
+    supervisor_loop: Any | None = None,
+) -> None:
+    completed = _run_supervisor_coroutine(
+        supervisor.drain_completed(),
+        supervisor_loop=supervisor_loop,
+    )
+    if not completed:
+        return
+    if runtime.session is not None:
+        runtime.session.commit()
+    for trigger, result in completed:
+        _publish_reply(
+            runtime,
+            event_id=str(trigger.payload.get("_worker_event_id") or trigger.trigger_id),
+            trigger=trigger,
+            result=result,
+        )
+
+
+def _publish_reply(
+    runtime: CokeRuntime,
+    *,
+    event_id: str,
+    trigger: TurnTrigger,
+    result: Any,
+) -> None:
+    if runtime.reply_pubsub is None:
+        return
+    causal_id = trigger.payload.get("causal_inbound_event_id")
+    if not isinstance(causal_id, str) or not causal_id:
+        return
+    runtime.reply_pubsub.publish_reply(
+        causal_id,
+        {
+            "event_id": event_id,
+            "turn_id": result.turn_id,
+            "disposition": result.disposition,
+            "reason_code": result.reason_code,
+            "visible_text": result.visible_text,
+        },
+    )
+
+
+def _submit_interactive_trigger(
+    supervisor: Any,
+    trigger: TurnTrigger,
+    *,
+    supervisor_loop: Any | None = None,
+) -> None:
+    _run_supervisor_coroutine(
+        supervisor.submit(trigger),
+        supervisor_loop=supervisor_loop,
+    )
+
+
+def _run_supervisor_coroutine(coro: Any, *, supervisor_loop: Any | None = None) -> Any:
+    if supervisor_loop is not None:
+        return supervisor_loop.run(coro)
+    return asyncio.run(coro)
+
+
+def _with_worker_event_id(trigger: TurnTrigger, event_id: str) -> TurnTrigger:
+    payload = dict(trigger.payload)
+    payload["_worker_event_id"] = event_id
+    return replace(trigger, payload=payload)
+
+
+class _SupervisorLoop:
+    def __init__(self) -> None:
+        self.loop = asyncio.new_event_loop()
+        self.thread = Thread(target=self._run, name="coke-interactive-turns")
+
+    def start(self) -> None:
+        self.thread.start()
+
+    def run(self, coro: Any) -> Any:
+        return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
+
+    def stop(self) -> None:
+        asyncio.run_coroutine_threadsafe(
+            self._cancel_pending_tasks(), self.loop
+        ).result()
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join(timeout=5.0)
+        self.loop.close()
+
+    def _run(self) -> None:
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    async def _cancel_pending_tasks(self) -> None:
+        current = asyncio.current_task()
+        tasks = [
+            task
+            for task in asyncio.all_tasks(self.loop)
+            if task is not current and not task.done()
+        ]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def _handle_non_turn_event(event: StreamEvent) -> bool:

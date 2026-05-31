@@ -219,6 +219,12 @@ class FakeAgent:
             return self.queued_results.pop(0)
         return self.next_result
 
+    async def ainvoke(self, request):
+        return self.invoke(request)
+
+    async def cancel(self, run_id: str) -> bool:
+        return True
+
     def complete_async(self, task_id: str):
         return self.next_async_result
 
@@ -333,6 +339,43 @@ def test_intentional_no_reply_skips_interaction_agent(harness):
     assert harness["agent"].invocations == 0
     disposition = harness["runtime"].get_disposition(result.turn_id)
     assert disposition.disposition == "no_reply"
+
+
+@pytest.mark.asyncio
+async def test_async_inbound_turn_uses_async_interaction_agent_path(harness):
+    class AsyncOnlyAgent(FakeAgent):
+        def invoke(self, request):
+            raise AssertionError("async inbound turns must not call invoke")
+
+        async def ainvoke(self, request):
+            self.invocations += 1
+            self.requests.append(request)
+            return self.next_result
+
+    agent = AsyncOnlyAgent()
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-async",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=agent,
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+    )
+
+    result = await runner.run_inbound_turn_async(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert agent.invocations == 1
+    assert agent.requests[-1].run_id == result.turn_id
 
 
 def test_inbound_reply_delivery_carries_trigger_context_token(harness):
