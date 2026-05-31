@@ -3981,6 +3981,31 @@ html[data-locale-ready="true"] .coke-site-splash {
   color: var(--ink-1000);
 }
 
+@media (max-width: 760px) {
+  .coke-site .customer-reminder-board__head,
+  .coke-site .customer-reminder-weekbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coke-site .customer-reminder-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .coke-site .customer-reminder-timeline {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .coke-site .customer-reminder-days {
+    grid-template-columns: repeat(7, minmax(136px, 1fr));
+    min-width: 952px;
+  }
+
+  .coke-site .customer-reminder-card__actions button {
+    padding: 6px 8px;
+  }
+}
+
 .coke-site .customer-friends-page {
   max-width: 1000px;
 }
