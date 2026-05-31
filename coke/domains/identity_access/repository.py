@@ -21,6 +21,7 @@ from coke.domains.identity_access.models import (
     AccountAccess,
     AccountActivation,
     AuthArtifact,
+    ArtifactType,
     ChannelIdentity,
     Credential,
     Session,
@@ -96,6 +97,10 @@ class IdentityAccessRepository(Protocol):
         artifact_type: str,
         purpose: str,
     ) -> AuthArtifact | None: ...
+
+    def list_deferred_friend_link_artifacts(
+        self, target_account_id: str
+    ) -> list[AuthArtifact]: ...
 
     def save_artifact(self, artifact: AuthArtifact) -> None: ...
 
@@ -282,6 +287,19 @@ class InMemoryIdentityAccessRepository:
         if not artifacts:
             return None
         return max(artifacts, key=lambda artifact: (artifact.created_at, artifact.id))
+
+    def list_deferred_friend_link_artifacts(
+        self, target_account_id: str
+    ) -> list[AuthArtifact]:
+        return [
+            artifact
+            for artifact in self.artifacts_by_code.values()
+            if artifact.type == ArtifactType.CLAIM_CODE
+            and artifact.target_account_id == target_account_id
+            and artifact.delivery_state == "completed"
+            and isinstance(artifact.continuation.get("friend_link_id"), str)
+            and artifact.continuation["friend_link_id"].strip()
+        ]
 
     def save_artifact(self, artifact: AuthArtifact) -> None:
         if artifact.code not in self.artifacts_by_code:
@@ -609,6 +627,29 @@ class PostgresIdentityAccessRepository:
             .first()
         )
         return _artifact(row) if row else None
+
+    def list_deferred_friend_link_artifacts(
+        self, target_account_id: str
+    ) -> list[AuthArtifact]:
+        rows = self.session.execute(
+            sa.select(schema.auth_artifact)
+            .where(
+                schema.auth_artifact.c.type == ArtifactType.CLAIM_CODE,
+                schema.auth_artifact.c.target_account_id == target_account_id,
+                schema.auth_artifact.c.delivery_state == "completed",
+            )
+            .order_by(
+                schema.auth_artifact.c.created_at,
+                schema.auth_artifact.c.id,
+            )
+        ).mappings()
+        artifacts = [_artifact(row) for row in rows]
+        return [
+            artifact
+            for artifact in artifacts
+            if isinstance(artifact.continuation.get("friend_link_id"), str)
+            and artifact.continuation["friend_link_id"].strip()
+        ]
 
     def save_artifact(self, artifact: AuthArtifact) -> None:
         existing = self.get_artifact_by_code(artifact.code)

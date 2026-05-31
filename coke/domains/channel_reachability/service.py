@@ -76,20 +76,32 @@ class IdentityAccessPort(Protocol):
     ) -> ChannelIdentityResolution: ...
 
 
+class DeferredFriendLinkCompletionPort(Protocol):
+    def complete_pending_for_account(self, account_id: str) -> None: ...
+
+
 class ChannelReachabilityService:
     def __init__(
         self,
         repository: ChannelReachabilityRepository,
         identity_access: IdentityAccessPort,
         providers: Mapping[str, ProviderAdapter],
+        deferred_friend_link_completion: DeferredFriendLinkCompletionPort | None = None,
         now: Callable[[], datetime] | None = None,
         id_factory: Callable[[str], str] | None = None,
     ) -> None:
         self.repository = repository
         self.identity_access = identity_access
         self.providers = dict(providers)
+        self.deferred_friend_link_completion = deferred_friend_link_completion
         self._now = now or (lambda: datetime.now(UTC))
         self._id_factory = id_factory or (lambda prefix: uuid4().hex)
+
+    def set_deferred_friend_link_completion(
+        self,
+        deferred_friend_link_completion: DeferredFriendLinkCompletionPort | None,
+    ) -> None:
+        self.deferred_friend_link_completion = deferred_friend_link_completion
 
     def get_status(self, account_id: str) -> ChannelStatus:
         channel = self.repository.get_active_channel(account_id)
@@ -247,6 +259,10 @@ class ChannelReachabilityService:
         self._identity_call(
             lambda: self.identity_access.observe_usable_channel(account_id)
         )
+        if self.deferred_friend_link_completion is not None:
+            self.deferred_friend_link_completion.complete_pending_for_account(
+                account_id
+            )
         return updated
 
     def mark_connection_failed(

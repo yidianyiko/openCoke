@@ -205,7 +205,7 @@ class IdentityAccessService:
                     fact={
                         "type": "channel_identity_write_conflict",
                         "provider_type": provider_type,
-                        "reason": str(error),
+                        "reason": "write_conflict",
                     },
                 ) from error
             return ChannelIdentityResolution(
@@ -396,6 +396,28 @@ class IdentityAccessService:
             session=session,
             continuation=dict(artifact.continuation),
         )
+
+    def consume_deferred_friend_link_continuations(
+        self,
+        account_id: str,
+    ) -> list[str]:
+        self._require_account(account_id)
+        friend_link_ids: list[str] = []
+        for artifact in self.repository.list_deferred_friend_link_artifacts(account_id):
+            friend_link_id = artifact.continuation.get("friend_link_id")
+            if not isinstance(friend_link_id, str) or not friend_link_id.strip():
+                continue
+            continuation = dict(artifact.continuation)
+            continuation.pop("friend_link_id", None)
+            self.repository.save_artifact(
+                replace(
+                    artifact,
+                    continuation=continuation,
+                    updated_at=self._now(),
+                )
+            )
+            friend_link_ids.append(friend_link_id)
+        return friend_link_ids
 
     def issue_pairing_code(self, account_id: str) -> ArtifactIssueResult:
         self._require_pairing_allowed(account_id)

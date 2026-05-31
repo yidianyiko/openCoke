@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from itertools import count
+from types import SimpleNamespace
 
 import pytest
 
@@ -46,7 +47,25 @@ class FakeGoogleCalendarClient(GoogleCalendarClientPort):
         self.revoked_handles.append(auth_handle)
 
 
-def make_service(events: list[CalendarSourceEvent]):
+class FakeAccessGate:
+    def __init__(self, allowed: bool) -> None:
+        self.allowed = allowed
+        self.calls: list[tuple[str, str]] = []
+
+    def check_access_for_action(self, account_id: str, action: str):
+        self.calls.append((account_id, action))
+        return SimpleNamespace(
+            allowed=self.allowed,
+            fact={
+                "type": "account_access_denied",
+                "account_id": account_id,
+                "denial_reason": "subscription_inactive",
+                "checkout_url": None,
+            },
+        )
+
+
+def make_service(events: list[CalendarSourceEvent], access_gate=None):
     reminder_repository = InMemoryReminderRepository()
     reminder_service = ReminderService(
         repository=reminder_repository,
@@ -55,12 +74,15 @@ def make_service(events: list[CalendarSourceEvent]):
     )
     calendar_repository = InMemoryCalendarImportRepository()
     google_client = FakeGoogleCalendarClient(events)
+    if access_gate is None:
+        access_gate = FakeAccessGate(allowed=True)
     service = CalendarImportService(
         repository=calendar_repository,
         google_client=google_client,
         reminder_service=reminder_service,
         now=lambda: NOW,
         id_factory=sequence_factory("calendar"),
+        access_gate=access_gate,
     )
     return service, calendar_repository, reminder_repository, google_client
 
@@ -127,6 +149,43 @@ def test_future_one_time_event_imports_through_reminder_domain():
     assert reminders[0].next_fire_at == start
     assert reminders[0].duration_minutes == 45
     assert summary.items[0].reminder_id == reminders[0].id
+
+
+def test_access_denied_account_fails_closed_before_calendar_read():
+    access_gate = FakeAccessGate(allowed=False)
+    service, repository, reminder_repository, google_client = make_service(
+        [event("event_1", NOW + timedelta(hours=2))],
+        access_gate=access_gate,
+    )
+
+    with pytest.raises(CalendarImportError) as error:
+        import_calendar(service)
+
+    assert error.value.code == "access_denied"
+    assert error.value.fact == {
+        "type": "account_access_denied",
+        "account_id": "acct_1",
+        "denial_reason": "subscription_inactive",
+        "checkout_url": None,
+    }
+    assert access_gate.calls == [("acct_1", "calendar_import")]
+    assert google_client.list_calls == []
+    assert repository.runs_by_id == {}
+    assert reminder_repository.list_active_reminders("acct_1") == []
+
+
+def test_access_allowed_account_proceeds_to_calendar_read():
+    access_gate = FakeAccessGate(allowed=True)
+    service, _repository, _reminder_repository, google_client = make_service(
+        [event("event_1", NOW + timedelta(hours=2))],
+        access_gate=access_gate,
+    )
+
+    summary = import_calendar(service)
+
+    assert access_gate.calls == [("acct_1", "calendar_import")]
+    assert google_client.list_calls == [("google-oauth-token", NOW, VISIBLE_END)]
+    assert summary.imported_count == 1
 
 
 def test_historical_events_are_recorded_but_not_imported():

@@ -679,6 +679,40 @@ def test_web_claim_code_resolves_target_account_at_redemption(identity_service):
     assert browser_completion.continuation == {"friend_link_id": "fl_1"}
 
 
+def test_deferred_friend_link_continuation_is_consumed_once_after_claim_completion(
+    identity_service,
+):
+    sender = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    claim = identity_service.issue_web_claim_code(
+        browser_session="browser_1",
+        continuation={"friend_link_id": "fl_1", "next": "/channels"},
+    )
+    identity_service.redeem_claim_code_from_channel(
+        code=claim.code,
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    identity_service.complete_web_claim_from_browser(
+        code=claim.code,
+        browser_session="browser_1",
+    )
+
+    first = identity_service.consume_deferred_friend_link_continuations(
+        sender.account.id
+    )
+    second = identity_service.consume_deferred_friend_link_continuations(
+        sender.account.id
+    )
+
+    assert first == ["fl_1"]
+    assert second == []
+    saved = identity_service.repository.get_artifact_by_code(claim.code)
+    assert saved.continuation == {"next": "/channels"}
+
+
 def test_claim_code_status_requires_original_browser_session(identity_service):
     claim = identity_service.issue_web_claim_code(browser_session="browser_1")
 
@@ -1085,7 +1119,7 @@ def test_pairing_identity_collision_does_not_consume_artifact():
     assert exc_info.value.fact == {
         "type": "channel_identity_write_conflict",
         "provider_type": "whatsapp_evolution",
-        "reason": "duplicate_channel_identity_id",
+        "reason": "write_conflict",
     }
     assert service.repository.get_artifact_by_code(pairing.code).consumed_at is None
     assert (

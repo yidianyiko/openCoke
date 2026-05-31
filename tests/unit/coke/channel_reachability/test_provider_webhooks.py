@@ -141,6 +141,7 @@ def make_client(
     reminder_service=None,
     social_scheduling_service=None,
     commit_callback=None,
+    webhook_secret=None,
 ):
     service = service or FakeReachabilityService()
     adapters = (
@@ -155,6 +156,7 @@ def make_client(
             reminder_service=reminder_service,
             social_scheduling_service=social_scheduling_service,
             commit_callback=commit_callback,
+            webhook_secret=webhook_secret,
         )
     )
     return app.test_client(), service, adapters
@@ -196,6 +198,110 @@ def test_provider_webhook_normalizes_and_returns_structured_identity_facts_only(
     assert service.calls[0][0] == "accept_provider_inbound"
     assert service.calls[0][1].raw_event_id == "wa_msg_1"
     assert adapters["whatsapp_evolution"].calls == [payload]
+
+
+def test_configured_webhook_secret_rejects_missing_header_before_normalization():
+    client, service, adapters = make_client(webhook_secret="secret-1")
+
+    response = client.post(
+        "/webhooks/whatsapp/evolution",
+        json={
+            "event": "messages.upsert",
+            "instance": "coke",
+            "data": {
+                "key": {
+                    "remoteJid": "15555550123@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": "wa_msg_1",
+                },
+                "message": {"conversation": "hello"},
+                "messageTimestamp": 1_700_000_000,
+            },
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.get_json() == {"error": {"code": "webhook_unauthorized"}}
+    assert service.calls == []
+    assert adapters["whatsapp_evolution"].calls == []
+
+
+def test_configured_webhook_secret_accepts_coke_secret_header():
+    client, service, _adapters = make_client(webhook_secret="secret-1")
+
+    response = client.post(
+        "/webhooks/whatsapp/evolution",
+        json={
+            "event": "messages.upsert",
+            "instance": "coke",
+            "data": {
+                "key": {
+                    "remoteJid": "15555550123@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": "wa_msg_1",
+                },
+                "message": {"conversation": "hello"},
+                "messageTimestamp": 1_700_000_000,
+            },
+        },
+        headers={"X-Coke-Webhook-Secret": "secret-1"},
+    )
+
+    assert response.status_code == 202
+    assert service.calls[0][0] == "accept_provider_inbound"
+
+
+def test_configured_webhook_secret_accepts_evolution_header_and_bearer_token():
+    for headers in (
+        {"X-Webhook-Secret": "secret-1"},
+        {"Authorization": "Bearer secret-1"},
+    ):
+        client, service, _adapters = make_client(webhook_secret="secret-1")
+
+        response = client.post(
+            "/webhooks/whatsapp/evolution",
+            json={
+                "event": "messages.upsert",
+                "instance": "coke",
+                "data": {
+                    "key": {
+                        "remoteJid": "15555550123@s.whatsapp.net",
+                        "fromMe": False,
+                        "id": "wa_msg_1",
+                    },
+                    "message": {"conversation": "hello"},
+                    "messageTimestamp": 1_700_000_000,
+                },
+            },
+            headers=headers,
+        )
+
+        assert response.status_code == 202
+        assert service.calls[0][0] == "accept_provider_inbound"
+
+
+def test_unset_webhook_secret_keeps_transition_mode_accepting_payloads():
+    client, service, _adapters = make_client(webhook_secret=None)
+
+    response = client.post(
+        "/webhooks/whatsapp/evolution",
+        json={
+            "event": "messages.upsert",
+            "instance": "coke",
+            "data": {
+                "key": {
+                    "remoteJid": "15555550123@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": "wa_msg_1",
+                },
+                "message": {"conversation": "hello"},
+                "messageTimestamp": 1_700_000_000,
+            },
+        },
+    )
+
+    assert response.status_code == 202
+    assert service.calls[0][0] == "accept_provider_inbound"
 
 
 def test_wechat_personal_webhook_accepts_account_bound_ilink_payload():

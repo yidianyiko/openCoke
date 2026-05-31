@@ -69,8 +69,13 @@ class ReminderService:
                     )
                 )
             except ValueError as error:
+                reason = _safe_write_error_reason(error)
                 results.append(
-                    ReminderItemResult(state="failed", reason=str(error), fact={})
+                    ReminderItemResult(
+                        state="failed",
+                        reason=reason,
+                        fact={"type": reason},
+                    )
                 )
         return ReminderBatchResult(owner_account_id=owner_account_id, items=results)
 
@@ -787,6 +792,16 @@ class ReminderService:
 
 def _content_hash(content: str) -> str:
     return sha256(content.strip().lower().encode("utf-8")).hexdigest()
+
+
+def _safe_write_error_reason(error: ValueError) -> str:
+    reason = str(error)
+    if reason in {
+        "duplicate_reminder_outbox_id",
+        "duplicate_reminder_outbox_idempotency",
+    }:
+        return reason
+    return "reminder_write_failed"
 
 
 def _duration_minutes(value: Any) -> int:
