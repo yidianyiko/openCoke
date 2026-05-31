@@ -68,6 +68,33 @@ class FakeSocialSchedulingTool:
         return ToolExecutionResult(ok=True, facts={"friend_link_id": "link_1"})
 
 
+class FriendFollowupTool:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def execute(self, command, guard):
+        self.calls.append((command, guard))
+        if command["operation"] == "list_friends":
+            return ToolExecutionResult(
+                ok=True,
+                facts={
+                    "friends": [
+                        {
+                            "account_id": "friend_1",
+                            "display_name": "lizihao",
+                            "friendship_id": "friendship_1",
+                        }
+                    ]
+                },
+            )
+        if command["operation"] == "detect_and_create_shared_reminder":
+            return ToolExecutionResult(
+                ok=True,
+                facts={"status": "created", "shared_reminder_id": "shared_1"},
+            )
+        raise AssertionError(command)
+
+
 class FakeSettingsTool:
     def __init__(self) -> None:
         self.calls = []
@@ -227,6 +254,42 @@ def test_state_change_reply_without_tool_call_is_classified_for_protocol_retry()
         "reason": "state_change_reply_without_tool_call",
     }
     assert result.timed_out is False
+
+
+def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
+    tool = FriendFollowupTool()
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="lizihao",
+            social_scheduling_tool=tool,
+            trusted_facts={
+                "pending_clarification_resolution": {
+                    "type": "shared_reminder_friend_answer",
+                    "answer": "lizihao",
+                    "original_user_text": "帮我和他约一个2029年1月1日上午八点半的晨跑活动",
+                }
+            },
+        )
+    )
+
+    assert fake_agent.calls == []
+    assert result.output == {
+        "type": "reply",
+        "segments": ["好的，已帮你和lizihao创建这个共享提醒"],
+    }
+    assert [call[0]["operation"] for call in tool.calls] == [
+        "list_friends",
+        "detect_and_create_shared_reminder",
+    ]
+    assert tool.calls[1][0]["receiver_account_ids"] == ["friend_1"]
+    assert "好友是lizihao" in tool.calls[1][0]["raw_text"]
 
 
 def test_fenced_json_agno_response_maps_to_agent_result():

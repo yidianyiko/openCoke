@@ -395,6 +395,22 @@ class ConversationRuntimeService:
         self._require_turn(turn_id)
         return self.repository.outbound_messages_for_turn(turn_id)
 
+    def recent_turns_with_messages(
+        self, conversation_id: str, *, limit: int = 10
+    ) -> list[tuple[Turn, tuple[CurrentInputMessage, ...], list[Message]]]:
+        self._require_conversation(conversation_id)
+        contexts: list[tuple[Turn, tuple[CurrentInputMessage, ...], list[Message]]] = []
+        for turn_id in self.repository.latest_turn_ids(conversation_id, limit=limit):
+            turn = self._require_turn(turn_id)
+            contexts.append(
+                (
+                    turn,
+                    self._input_messages_for_turn(turn),
+                    self.repository.outbound_messages_for_turn(turn_id),
+                )
+            )
+        return contexts
+
     def record_outbound_message(
         self,
         turn_id: str,

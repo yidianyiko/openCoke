@@ -808,6 +808,70 @@ def test_concise_clarification_answer_keeps_interactive_tools(harness):
     assert request.tool_profile.tool_names == ("reminder",)
 
 
+def test_concise_friend_answer_carries_pending_shared_reminder_resolution(harness):
+    harness["agent"].next_result = AgentResult.completed(
+        {
+            "type": "reply",
+            "segments": ["约晨跑的话，\"他\"是哪位好友?"],
+        }
+    )
+    first_inbound = harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-shared",
+        text="帮我和他约一个2029年1月1日上午八点半的晨跑活动",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    first_trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-shared",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=first_inbound.conversation.id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "帮我和他约一个2029年1月1日上午八点半的晨跑活动"},
+    )
+    first = harness["runner"].run_inbound_turn(first_trigger)
+    assert first.disposition == "replied"
+
+    inbound = harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="lizihao",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="friend_op",
+        intent_action="none",
+        ambiguity="missing_context",
+        required_clarification="ask_context",
+        language_hint="zh",
+    )
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-2",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=inbound.conversation.id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "lizihao"},
+    )
+
+    result = harness["runner"].run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    pending = harness["agent"].requests[-1].trusted_facts[
+        "pending_clarification_resolution"
+    ]
+    assert pending["type"] == "shared_reminder_friend_answer"
+    assert pending["answer"] == "lizihao"
+    assert "2029年1月1日" in pending["original_user_text"]
+
+
 def test_single_reminder_focus_clears_reference_clarification_for_update(harness):
     harness["runner"].focus_resolver = FocusResolver(
         StaticFocusRepository(

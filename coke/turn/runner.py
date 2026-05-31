@@ -242,6 +242,12 @@ class TurnRunner:
                 now=self._now,
                 account_timezone=self._account_timezone,
             )
+            trusted_facts = _add_pending_clarification_resolution(
+                trusted_facts,
+                conversation_runtime=self.conversation_runtime,
+                trigger=trigger,
+                current_turn_id=start.turn.id,
+            )
             context = self.context_assembler.build(
                 trigger=trigger,
                 trusted_facts=trusted_facts,
@@ -353,6 +359,12 @@ class TurnRunner:
                     semantic_decision=semantic_decision,
                     now=self._now,
                     account_timezone=self._account_timezone,
+                )
+                trusted_facts = _add_pending_clarification_resolution(
+                    trusted_facts,
+                    conversation_runtime=self.conversation_runtime,
+                    trigger=trigger,
+                    current_turn_id=start.turn.id,
                 )
                 context = self.context_assembler.build(
                     trigger=trigger,
@@ -1270,6 +1282,93 @@ def _is_concise_followup_answer_payload(payload: Mapping[str, Any]) -> bool:
     if any(mark in text for mark in ("?", "？")):
         return False
     return len(text) <= 40 and len(text.split()) <= 4
+
+
+def _add_pending_clarification_resolution(
+    trusted_facts: Mapping[str, Any],
+    *,
+    conversation_runtime: ConversationRuntimeService,
+    trigger: TurnTrigger,
+    current_turn_id: str,
+) -> dict[str, Any]:
+    facts = dict(trusted_facts)
+    resolution = _pending_shared_reminder_friend_resolution(
+        conversation_runtime,
+        trigger=trigger,
+        current_turn_id=current_turn_id,
+    )
+    if resolution is not None:
+        facts["pending_clarification_resolution"] = resolution
+    return facts
+
+
+def _pending_shared_reminder_friend_resolution(
+    conversation_runtime: ConversationRuntimeService,
+    *,
+    trigger: TurnTrigger,
+    current_turn_id: str,
+) -> dict[str, Any] | None:
+    answer = _concise_followup_text(trigger.payload)
+    if answer is None:
+        return None
+    for turn, input_messages, outbound_messages in conversation_runtime.recent_turns_with_messages(
+        trigger.conversation_id, limit=6
+    ):
+        if turn.id == current_turn_id:
+            continue
+        question_text = "\n".join(
+            str(message.text or "") for message in outbound_messages
+        )
+        if not _asks_for_shared_reminder_friend(question_text):
+            continue
+        original_text = "\n".join(
+            str(message.text or "")
+            for message in input_messages
+            if message.text and _looks_like_shared_reminder_request(message.text)
+        ).strip()
+        if not original_text:
+            continue
+        return {
+            "type": "shared_reminder_friend_answer",
+            "answer": answer,
+            "original_user_text": original_text,
+            "assistant_question": question_text,
+            "instruction": (
+                "The current concise user message answers the immediately "
+                "preceding shared-reminder friend clarification. Use "
+                "original_user_text plus answer as the executable request; call "
+                "social_scheduling_tool instead of treating the answer as a "
+                "standalone chat turn."
+            ),
+        }
+    return None
+
+
+def _concise_followup_text(payload: Mapping[str, Any]) -> str | None:
+    text = str(payload.get("text") or payload.get("input") or "").strip()
+    if not text or not _is_concise_followup_answer_payload(payload):
+        return None
+    return text
+
+
+def _asks_for_shared_reminder_friend(text: str) -> bool:
+    normalized = text.casefold()
+    friend_question = any(
+        marker in normalized
+        for marker in ("哪位好友", "哪个好友", "which friend", "who do you mean")
+    )
+    shared_context = any(
+        marker in normalized
+        for marker in ("约", "共享提醒", "shared reminder", "晨跑", "活动")
+    )
+    return friend_question and shared_context
+
+
+def _looks_like_shared_reminder_request(text: str) -> bool:
+    normalized = text.casefold()
+    return any(marker in normalized for marker in ("约", "共享提醒", "shared reminder")) and any(
+        marker in normalized for marker in ("提醒", "活动", "晨跑", "shared reminder")
+    )
 
 
 def _require_agent_visibility_for_inbound_no_reply(

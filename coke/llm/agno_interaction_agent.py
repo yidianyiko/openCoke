@@ -146,6 +146,9 @@ class AgnoInteractionAgent:
     def _run_request(
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
+        deterministic = _try_resolved_shared_reminder_followup(request)
+        if deterministic is not None:
+            return deterministic
         agent, tool_events = self._build_agent(request)
         try:
             run_output = agent.run(
@@ -160,6 +163,9 @@ class AgnoInteractionAgent:
     async def _arun_request(
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
+        deterministic = _try_resolved_shared_reminder_followup(request)
+        if deterministic is not None:
+            return deterministic
         agent, tool_events = self._build_agent(request)
         try:
             run_output = await agent.arun(
@@ -379,6 +385,91 @@ def _tool_callable(
     tool.__name__ = f"{name}_tool"
     tool.__doc__ = _tool_doc(name)
     return tool
+
+
+def _try_resolved_shared_reminder_followup(request: AgentRequest) -> AgentResult | None:
+    pending = request.trusted_facts.get("pending_clarification_resolution")
+    if not isinstance(pending, Mapping):
+        return None
+    if pending.get("type") != "shared_reminder_friend_answer":
+        return None
+    port = request.tool_profile.social_scheduling_tool
+    if port is None:
+        return None
+    answer = str(pending.get("answer") or "").strip()
+    original_text = str(pending.get("original_user_text") or "").strip()
+    if not answer or not original_text:
+        return None
+    friends_result = port.execute(
+        {"operation": "list_friends", "account_id": request.account_id},
+        request.freshness_guard,
+    )
+    friends = friends_result.facts.get("friends") if friends_result.ok else None
+    if not isinstance(friends, list):
+        return None
+    matches = [
+        friend
+        for friend in friends
+        if isinstance(friend, Mapping)
+        and _friend_name_matches_answer(friend, answer)
+        and friend.get("account_id")
+    ]
+    if len(matches) != 1:
+        return None
+    friend = matches[0]
+    friend_name = str(friend.get("display_name") or answer)
+    create_result = port.execute(
+        {
+            "operation": "detect_and_create_shared_reminder",
+            "creator_account_id": request.account_id,
+            "receiver_account_ids": [str(friend["account_id"])],
+            "raw_text": f"{original_text}，好友是{friend_name}",
+            "captured_timezone": str(
+                request.trusted_facts.get("default_timezone") or "UTC"
+            ),
+            "context": {
+                "source": "conversation_followup",
+                "original_user_text": original_text,
+                "friend_answer": answer,
+            },
+        },
+        request.freshness_guard,
+    )
+    if create_result.ok:
+        return AgentResult.completed(
+            {
+                "type": "reply",
+                "segments": [f"好的，已帮你和{friend_name}创建这个共享提醒"],
+            }
+        )
+    return AgentResult.completed(
+        {
+            "type": "reply",
+            "segments": ["抱歉，暂时无法帮你创建这个共享提醒，稍后可以再试一次"],
+        }
+    )
+
+
+def _friend_name_matches_answer(friend: Mapping[str, Any], answer: str) -> bool:
+    normalized_answer = _normalize_lookup_text(answer)
+    if not normalized_answer:
+        return False
+    for key in ("display_name", "nickname", "real_name", "account_id"):
+        value = friend.get(key)
+        if value is None:
+            continue
+        normalized_value = _normalize_lookup_text(str(value))
+        if normalized_value and (
+            normalized_value == normalized_answer
+            or normalized_answer in normalized_value
+            or normalized_value in normalized_answer
+        ):
+            return True
+    return False
+
+
+def _normalize_lookup_text(text: str) -> str:
+    return text.casefold().strip(" \t\r\n.!?。！？~～")
 
 
 def _tool_doc(name: str) -> str:
