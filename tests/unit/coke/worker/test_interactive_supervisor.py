@@ -240,7 +240,7 @@ async def test_idle_retry_submission_does_not_cancel_newer_active_turn():
 
 
 @pytest.mark.asyncio
-async def test_post_close_running_turn_is_detached_without_provider_cancel():
+async def test_post_close_running_turn_defers_next_trigger_until_delivery_finishes():
     runner = PostCloseRunner()
     agent = FakeAgent()
     supervisor = InteractiveTurnSupervisor(
@@ -252,10 +252,19 @@ async def test_post_close_running_turn_is_detached_without_provider_cancel():
     await asyncio.sleep(0)
     await supervisor.submit(_inbound_trigger("inbound:2", "provider:2"))
     await asyncio.sleep(0)
-    runner.released.set()
-    await asyncio.sleep(0)
 
-    completed = await supervisor.drain_completed()
+    assert agent.cancelled == []
+    assert [trigger.trigger_id for trigger in runner.started] == ["inbound:1"]
+
+    runner.released.set()
+
+    completed = []
+    for _ in range(5):
+        await asyncio.sleep(0)
+        completed = await supervisor.drain_completed()
+        if completed:
+            break
+    await asyncio.sleep(0)
 
     assert agent.cancelled == []
     assert [trigger.trigger_id for trigger in runner.started] == [
@@ -264,6 +273,12 @@ async def test_post_close_running_turn_is_detached_without_provider_cancel():
     ]
     assert [(trigger.trigger_id, result) for trigger, result in completed] == [
         ("inbound:1", "finished:inbound:1"),
+    ]
+
+    await asyncio.sleep(0)
+    completed = await supervisor.drain_completed()
+
+    assert [(trigger.trigger_id, result) for trigger, result in completed] == [
         ("inbound:2", "finished:inbound:2"),
     ]
 

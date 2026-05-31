@@ -61,6 +61,7 @@ class InteractiveTurnSupervisor:
         self.interaction_agent = interaction_agent
         self.runtime_factory = runtime_factory
         self._active: dict[str, ActiveInteractiveTurn] = {}
+        self._pending: dict[str, TurnTrigger] = {}
         self._retired: list[RetiredInteractiveTurn] = []
         self._cancel_tasks: list[ProviderCancelTask] = []
         self._completed: list[tuple[TurnTrigger, Any]] = []
@@ -73,11 +74,11 @@ class InteractiveTurnSupervisor:
         if existing is not None:
             if existing.task.done():
                 self._collect_completed(trigger.conversation_id, existing)
-            elif existing.lifecycle.close_committed:
-                self._retired.append(
-                    RetiredInteractiveTurn(existing, publish_completion=True)
-                )
-            else:
+                existing = self._active.get(trigger.conversation_id)
+            if existing is not None:
+                if existing.lifecycle.close_committed:
+                    self._pending[trigger.conversation_id] = trigger
+                    return
                 existing.task.cancel(INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON)
                 self._retired.append(
                     RetiredInteractiveTurn(existing, publish_completion=False)
@@ -90,15 +91,9 @@ class InteractiveTurnSupervisor:
                         ),
                     )
                 )
+                self._active.pop(trigger.conversation_id, None)
 
-        lifecycle = InteractiveTurnLifecycle()
-        task = asyncio.create_task(self._run_trigger(trigger, lifecycle))
-        self._active[trigger.conversation_id] = ActiveInteractiveTurn(
-            trigger=trigger,
-            task=task,
-            run_id=run_id,
-            lifecycle=lifecycle,
-        )
+        self._start_trigger(trigger, run_id)
 
     async def submit_if_idle(self, trigger: TurnTrigger) -> bool:
         self._collect_done_retired()
@@ -108,6 +103,11 @@ class InteractiveTurnSupervisor:
             if not existing.task.done():
                 return False
             self._collect_completed(trigger.conversation_id, existing)
+        if (
+            trigger.conversation_id in self._active
+            or trigger.conversation_id in self._pending
+        ):
+            return False
         if any(
             completed_trigger.conversation_id == trigger.conversation_id
             for completed_trigger, _result in self._completed
@@ -115,6 +115,23 @@ class InteractiveTurnSupervisor:
             return False
         await self.submit(trigger)
         return True
+
+    def _start_trigger(self, trigger: TurnTrigger, run_id: str | None = None) -> None:
+        run_id = run_id or trigger.agent_run_id or trigger.trigger_id
+        trigger = replace(trigger, agent_run_id=run_id)
+        lifecycle = InteractiveTurnLifecycle()
+        task = asyncio.create_task(self._run_trigger(trigger, lifecycle))
+        self._active[trigger.conversation_id] = ActiveInteractiveTurn(
+            trigger=trigger,
+            task=task,
+            run_id=run_id,
+            lifecycle=lifecycle,
+        )
+
+    def _start_pending_if_any(self, conversation_id: str) -> None:
+        pending = self._pending.pop(conversation_id, None)
+        if pending is not None:
+            self._start_trigger(pending)
 
     async def drain_completed(self) -> list[tuple[TurnTrigger, Any]]:
         self._collect_done_retired()
@@ -144,6 +161,7 @@ class InteractiveTurnSupervisor:
     ) -> None:
         self._active.pop(conversation_id, None)
         self._collect_task_result(active, publish_completion=True)
+        self._start_pending_if_any(conversation_id)
 
     def _collect_done_retired(self) -> None:
         pending: list[RetiredInteractiveTurn] = []
