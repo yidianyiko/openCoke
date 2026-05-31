@@ -11,6 +11,7 @@ from agno.memory.manager import MemoryManager as AgnoMemoryManager
 
 from coke.llm.config import SiliconFlowLLMConfig
 from coke.turn.agent import AgentRequest, AgentResult, StateChangingToolPort
+from coke.turn.context import TurnMode
 
 AgentFactory = Callable[..., Any]
 TaskIdFactory = Callable[[], str]
@@ -191,6 +192,7 @@ class AgnoInteractionAgent:
             "For friend-removal requests, call social_scheduling_tool with operation=remove_friend, account_id from trusted_facts.account_id, and friend_account_id from an active friend account ID.",
             "For availability requests, call social_scheduling_tool with operation=query_availability, requester_account_id from trusted_facts.account_id, friend_account_ids as active friend account IDs, local_start, local_end, and requester_timezone from trusted_facts.default_timezone.",
             "For shared-reminder creation, call social_scheduling_tool with operation=create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, title, local_trigger_at, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes, and context.",
+            "When a shared-reminder creation tool result succeeds, state that the shared reminder is created and immediately active. Never say or imply waiting for confirmation, pending confirmation, pending acceptance, approval, invitation approval, or that receivers need to accept/reject it.",
             "For shared-reminder cancellation requests, call social_scheduling_tool with operation=cancel_shared_reminder, account_id from trusted_facts.account_id, and shared_reminder_id from trusted context or prior tool results.",
             "When a user gives a friend name but not an account ID, call operation=list_friends first. If exactly one active friend matches the request context, use that friend's account_id; otherwise ask a clarification instead of inventing an ID.",
             "For global timezone switches, call settings_tool with operation=set_timezone, account_id from trusted_facts.account_id, and default_timezone as the requested IANA timezone; do not rewrite existing reminders.",
@@ -201,6 +203,7 @@ class AgnoInteractionAgent:
             "Do not answer as if the action happened until the tool result says it happened.",
             "For any state-changing tool result from reminder, social_scheduling, settings, or calendar-import, report success only when ok=true; when ok=false, reason_code is present, or status starts with needs_, must not claim the action succeeded and should ask the required follow-up or report the failure honestly.",
             'After any tool call, you MUST emit a final user-facing protocol object: {"type":"reply","segments":["..."]} confirming the real tool result in the user\'s language, or {"type":"no_reply","reason":"intentional_no_reply"} only when no user-visible message is truly warranted; the final message must still be JSON, not plain natural-language text; never end with empty assistant content, reasoning-only content, or only tool calls.',
+            "Render mode must not call tools or imply business mutation. For NotificationTurn, render only from notification facts and error_facts; include creator, title, time, timezone, duration, and status when present. Use concrete factual wording, not a generic placeholder such as 'go check it out'. Shared-reminder notification text is informational only and must not become approval, confirmation, accept/reject, or action-execution wording.",
             "If no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
         ]
@@ -506,6 +509,16 @@ def _agent_input(request: AgentRequest) -> str:
             "combine lines into fewer segments when needed."
             f"{guidance}"
         )
+    render_context = _render_context_payload(request)
+    if render_context:
+        parts.append(
+            "Render context:\n"
+            + json.dumps(
+                render_context,
+                ensure_ascii=False,
+                default=str,
+            )
+        )
     parts.append(
         "Trusted context:\n"
         + json.dumps(
@@ -531,6 +544,30 @@ def _support_payload(request: AgentRequest) -> dict[str, Any]:
             "constrained": request.tool_profile.constrained,
         },
     }
+
+
+def _render_context_payload(request: AgentRequest) -> dict[str, Any]:
+    if request.mode != TurnMode.RENDER:
+        return {}
+    payload = dict(request.payload)
+    render_context: dict[str, Any] = {
+        "mode": str(request.mode),
+        "trigger_type": request.trigger_type,
+    }
+    notification_fact = payload.get("notification_fact")
+    if isinstance(notification_fact, Mapping):
+        render_context["notification_fact"] = dict(notification_fact)
+        fact_facts = notification_fact.get("facts")
+        if isinstance(fact_facts, Mapping):
+            render_context["notification_facts"] = dict(fact_facts)
+        fact_hash = notification_fact.get("facts_hash")
+        if isinstance(fact_hash, str) and fact_hash:
+            render_context["facts_hash"] = fact_hash
+    elif isinstance(payload.get("facts"), Mapping):
+        render_context["notification_facts"] = dict(payload["facts"])
+    if isinstance(payload.get("error_facts"), Mapping):
+        render_context["error_facts"] = dict(payload["error_facts"])
+    return render_context
 
 
 def _user_text(request: AgentRequest) -> str:

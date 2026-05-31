@@ -316,6 +316,91 @@ def test_agent_instructions_name_real_social_scheduling_operations():
     assert "create_friend_request" not in instructions
 
 
+def test_shared_reminder_success_prompt_forbids_confirmation_flow_language():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "immediately active" in instructions
+    assert "waiting for confirmation" in instructions
+    assert "accept/reject" in instructions
+    assert "pending confirmation" in instructions
+
+
+def test_notification_render_prompt_requires_structured_fact_grounding():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_render_request())
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "Render mode" in instructions
+    assert "notification facts" in instructions
+    assert "generic placeholder" in instructions
+    assert "creator, title, time, timezone, duration, and status" in instructions
+
+
+def test_render_notification_context_exposes_structured_facts_to_agent():
+    fake_agent = FakeAgentInstance(
+        content={
+            "type": "reply",
+            "segments": [
+                "Alice shared Lunch for 2026-06-01T12:00:00 Asia/Tokyo, 45 minutes."
+            ],
+        }
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _render_request(
+            payload={
+                "notification_fact": {
+                    "id": "notification_fact_1",
+                    "type": "shared_reminder_created",
+                    "facts": {
+                        "actor_display_name": "Alice",
+                        "title": "Lunch",
+                        "time": "2026-06-01T12:00:00",
+                        "timezone": "Asia/Tokyo",
+                        "duration_minutes": 45,
+                        "status": "created",
+                    },
+                    "facts_hash": "hash_1",
+                }
+            }
+        )
+    )
+
+    prompt = fake_agent.calls[0]["input"]
+    render_context = prompt.split("Trusted context:", 1)[0]
+    assert "Render context:" in render_context
+    assert "NotificationTurn" in render_context
+    assert "Alice" in render_context
+    assert "Lunch" in render_context
+    assert "2026-06-01T12:00:00" in render_context
+    assert "Asia/Tokyo" in render_context
+    assert "45" in render_context
+    reply_text = "".join(result.output["segments"])
+    assert "Lunch" in reply_text
+    assert "2026-06-01T12:00:00" in reply_text
+    assert "45" in reply_text
+    assert "Alice" in reply_text
+    assert "go check it out" not in reply_text.lower()
+    assert "快去看看" not in reply_text
+
+
 def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
@@ -820,4 +905,44 @@ def _request(
         tool_profile=ToolProfile.interactive(tool_ports),
         freshness_guard=guard or object(),
         context={"memory": ["recent"]},
+    )
+
+
+def _render_request(
+    *,
+    payload: dict[str, Any] | None = None,
+    trusted_facts: dict[str, Any] | None = None,
+) -> AgentRequest:
+    facts = {
+        "assistant_name": "Coke",
+        "persona": "concise assistant",
+        "memory_enabled": True,
+        "default_timezone": "UTC",
+        "account_id": "account_1",
+    }
+    if trusted_facts is not None:
+        facts.update(trusted_facts)
+    return AgentRequest(
+        turn_id="turn_1",
+        conversation_id="conversation_1",
+        account_id="account_1",
+        mode=TurnMode.RENDER,
+        trigger_type="NotificationTurn",
+        payload=payload
+        or {
+            "notification_fact": {
+                "id": "notification_fact_1",
+                "type": "friendship_created",
+                "facts": {
+                    "actor_display_name": "Alice",
+                    "object_type": "friendship",
+                    "status": "created",
+                },
+                "facts_hash": "hash_1",
+            }
+        },
+        trusted_facts=facts,
+        tool_profile=ToolProfile.render(),
+        freshness_guard=object(),
+        context={},
     )

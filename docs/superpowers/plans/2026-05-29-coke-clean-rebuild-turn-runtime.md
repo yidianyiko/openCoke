@@ -11,10 +11,11 @@
 ---
 
 **Plan Status:** complete
-**Status Date:** 2026-05-30
+**Status Date:** 2026-05-31
 **Freshness Check:** Checked against current `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md` Task 7 and architecture-watch notes, requirements §5.4, target architecture §1/§3.3/§4/§9 invariants, `coke/schema.py`, Task 6 conversation runtime, and existing domain layering patterns.
 **Verification Note:** Turn implementation and backend unit surface pass. The routed `repo-os-docs` check is blocked by existing ownership-registry references to removed legacy `memo-runtime` and nested `gateway` files; that cleanup is outside Task 7's allowed file scope.
 **Live Debugging Addendum (2026-05-30):** The local live stack showed real GLM-5.1 Interaction Agent turns failing before reminder creation because fenced JSON was rejected and the actual inbound text was buried inside a JSON context blob. Live verification also exposed an Agno `kwargs` tool-argument wrapper and a detector prompt-shape issue for non-recurring reminders. This addendum keeps the fix inside the turn-runtime/Interaction Agent + detector/tool boundary: strict output validation remains unchanged, reminder field extraction remains inside the reminder tool, and no fallback prose or regex intent routing is added.
+**Notification Render Bugfix Addendum (2026-05-31):** Live testing found two product-prose regressions inside the turn-runtime/Interaction Agent boundary: shared-reminder creation replies described a receiver confirmation step, and `NotificationTurn` render mode produced generic placeholder copy even when notification facts contained the creator/title/time/timezone/duration. This addendum keeps the single-prose-producer invariant: the Interaction Agent still generates final text, render mode still has no mutation tools, and the runtime only injects trusted structured facts.
 
 **Source Specs:**
 - `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
@@ -217,6 +218,126 @@ Set:
 ```
 
 Only after verification passes.
+
+## Task 6: Notification Render Prose Bugfix
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-turn-runtime.md`
+- Modify: `tests/unit/coke/llm/test_interaction_agent.py`
+- Modify: `tests/unit/coke/worker/test_notification_render_trigger.py`
+- Modify: `coke/llm/agno_interaction_agent.py`
+- Modify: `coke/worker/__main__.py`
+
+- [x] **Step 1: Write failing Interaction Agent prompt tests**
+
+Add tests that invoke `AgnoInteractionAgent` with fake Agno output and assert the generated system instructions:
+
+```python
+def test_shared_reminder_success_prompt_forbids_confirmation_flow_language():
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "immediately active" in instructions
+    assert "waiting for confirmation" in instructions
+    assert "accept/reject" in instructions
+
+def test_notification_render_prompt_requires_structured_fact_grounding():
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "Render mode" in instructions
+    assert "notification facts" in instructions
+    assert "generic placeholder" in instructions
+```
+
+- [x] **Step 2: Write failing notification render facts test**
+
+Add a render-mode unit test that passes a `NotificationTurn` request with structured facts:
+
+```python
+request = _render_request(
+    payload={
+        "notification_fact": {
+            "type": "shared_reminder_created",
+            "facts": {
+                "actor_display_name": "Alice",
+                "title": "Lunch",
+                "time": "2026-06-01T12:00:00",
+                "timezone": "Asia/Tokyo",
+                "duration_minutes": 45,
+            },
+            "facts_hash": "hash_1",
+        }
+    }
+)
+```
+
+Assert the agent input has a dedicated render context section containing `Alice`, `Lunch`, `2026-06-01T12:00:00`, `Asia/Tokyo`, and `45`, so a model cannot miss the facts inside a generic payload blob.
+
+- [x] **Step 3: Write failing worker hydration test**
+
+Add `tests/unit/coke/worker/test_notification_render_trigger.py` with an in-memory runtime fake whose social-scheduling repository returns a `NotificationFact`. Call `_turn_trigger_from_event()` for topic `turn.notification` with only `notification_fact_id`, `facts_hash`, and recipient ids. Assert the resulting `TurnTrigger.payload["notification_fact"]["facts"]` contains title/time/timezone/duration and no prose keys.
+
+- [x] **Step 4: Implement minimal render context and prompt fix**
+
+In `coke/llm/agno_interaction_agent.py`, add render-mode instructions requiring:
+
+```text
+Render mode must not call tools or imply business mutation.
+For NotificationTurn, render only from notification facts and error_facts.
+Include actor/who, title/object, time, timezone, duration, and status when present.
+Do not use generic placeholder copy such as "go check it out".
+Shared-reminder creation is immediately active; never say receivers must confirm, accept, reject, or approve it.
+```
+
+Also add a concise `Render context:` block before `Trusted context:` that extracts `notification_fact`, `facts`, `error_facts`, and `facts_hash` from the request payload when present.
+
+- [x] **Step 5: Implement notification fact hydration in the render trigger path**
+
+In `coke/worker/__main__.py`, when handling `turn.notification`, use the existing social-scheduling repository to find the `notification_fact_id` from `list_notification_facts()`. Add a `notification_fact` payload object with `id`, `type`, `actor_account_id`, `object_type`, `object_id`, `status`, `facts`, and `facts_hash`. If the fact is not found, leave the payload unchanged so the turn fails through existing missing-context behavior instead of inventing facts.
+
+- [x] **Step 6: Run red tests**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py::test_shared_reminder_success_prompt_forbids_confirmation_flow_language tests/unit/coke/llm/test_interaction_agent.py::test_notification_render_prompt_requires_structured_fact_grounding tests/unit/coke/llm/test_interaction_agent.py::test_render_notification_context_exposes_structured_facts_to_agent tests/unit/coke/worker/test_notification_render_trigger.py::test_notification_render_trigger_hydrates_structured_facts_from_repository -v
+```
+
+Expected before implementation: the tests fail because the instructions do not name these contracts and the notification render trigger does not hydrate the structured fact.
+
+- [x] **Step 7: Run green focused tests**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/worker/test_notification_render_trigger.py -v
+```
+
+Expected after implementation: all focused tests pass.
+
+- [x] **Step 8: Run required full unit surface and diff-aware routing**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
+
+Expected: the backend unit surface passes. Review-trigger is a non-blocking risk report; record any suggested extra checks or blockers before commit.
+
+- [x] **Step 9: Mark plan complete and commit**
+
+After verification passes, set:
+
+```markdown
+**Plan Status:** complete
+```
+
+Then commit the plan, tests, and implementation together:
+
+```bash
+git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-turn-runtime.md tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/worker/test_notification_render_trigger.py coke/llm/agno_interaction_agent.py coke/worker/__main__.py
+git commit -m "fix: ground notification render prose in facts"
+```
 
 - [ ] **Step 5: Commit**
 
