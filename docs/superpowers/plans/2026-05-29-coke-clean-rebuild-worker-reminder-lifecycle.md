@@ -27,10 +27,14 @@
 - Modify: `coke/domains/conversation_runtime/repository.py`
 - Modify: `coke/composition.py`
 - Modify: `coke/llm/agno_interaction_agent.py`
+- Modify: `coke/llm/semantic_interpreter.py`
+- Modify: `coke/turn/semantic_interpreter.py`
+- Modify: `coke/turn/runner.py`
 - Create: `tests/unit/coke/worker/test_worker_topic_resilience.py`
 - Modify: `tests/unit/coke/reminder/test_reminder_service.py`
 - Modify: `tests/unit/coke/turn/test_turn_runner.py`
 - Modify: `tests/unit/coke/llm/test_interaction_agent.py`
+- Modify: `tests/unit/coke/llm/test_semantic_interpreter.py`
 - Modify: `tests/integration/coke/test_composition_turn_integration.py`
 - Modify: this plan file
 
@@ -261,6 +265,55 @@ Run:
 ```
 
 Observed after implementation: `2 passed in 2.49s`.
+
+### Task 5B: Follow-Up Semantic Focus Repair
+
+Second live smoke proved the worker and repository focus were clean, but the
+semantic decision layer still treated `把它改成60分钟` as reference-ambiguous
+before the interaction agent could invoke the reminder tool.
+
+- [x] **Step 1: Add semantic focus RED tests**
+
+Add tests proving:
+
+- `SemanticInterpreterRequest` carries trusted `focus_subject` to the LLM
+  payload and prompt;
+- a single trusted reminder focus clears only reference clarification for
+  reminder edit actions, enabling tools while preserving missing-field
+  clarifications.
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/coke/turn/test_turn_runner.py::test_single_reminder_focus_clears_reference_clarification_for_update \
+  tests/unit/coke/llm/test_semantic_interpreter.py::test_interpret_request_includes_trusted_focus_subject \
+  -v
+```
+
+Observed before implementation: FAIL because `SemanticInterpreterRequest` had
+no `focus_subject`, and the runner left `ask_reference_choice` as a tool-blocking
+clarification.
+
+- [x] **Step 2: Implement semantic focus handling**
+
+Use trusted focus from `FocusResolver` before semantic interpretation, pass it
+into the semantic request and LLM payload, and deterministically clear only
+reference-based clarification for single-reminder edit/completion/deletion
+actions.
+
+- [x] **Step 3: Verify semantic focus GREEN**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/coke/turn/test_turn_runner.py::test_single_reminder_focus_clears_reference_clarification_for_update \
+  tests/unit/coke/llm/test_semantic_interpreter.py::test_interpret_request_includes_trusted_focus_subject \
+  -v
+```
+
+Observed after implementation: `2 passed in 2.38s`.
 
 ### Task 6: Redeploy And Live Verify
 

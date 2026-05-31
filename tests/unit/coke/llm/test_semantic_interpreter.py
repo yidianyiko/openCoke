@@ -6,6 +6,7 @@ from coke.llm.semantic_interpreter import (
     LLMOutputError,
     SiliconFlowSemanticInterpreter,
 )
+from coke.turn.focus import MessageSubject
 from coke.turn.semantic_interpreter import SemanticInterpreterRequest
 
 
@@ -76,6 +77,42 @@ def test_interpret_prompt_exposes_typed_actions_ambiguity_and_examples():
     assert "follow-up that only supplies the missing time" in call["system"]
     assert "new topic does not reopen" in call["system"]
     assert "Do not use keyword routing" in call["system"]
+
+
+def test_interpret_request_includes_trusted_focus_subject():
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "reminder_op",
+            "intent_action": "update_reminder",
+            "ambiguity": "clear",
+            "required_clarification": "none",
+            "language_hint": "zh",
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    interpreter.interpret(
+        SemanticInterpreterRequest(
+            account_id="account_1",
+            conversation_id="conversation_1",
+            payload={"text": "把它改成60分钟"},
+            trusted_facts={"account_id": "account_1"},
+            focus_subject=MessageSubject(
+                subject_type="reminder",
+                object_ids=("reminder_1",),
+                ordered=True,
+            ),
+        )
+    )
+
+    call = client.calls[0]
+    assert call["user"]["focus_subject"] == {
+        "subject_type": "reminder",
+        "object_ids": ["reminder_1"],
+        "ordered": True,
+    }
+    assert "If focus has exactly one reminder" in call["system"]
 
 
 @pytest.mark.parametrize(

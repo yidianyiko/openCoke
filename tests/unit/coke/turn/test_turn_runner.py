@@ -19,6 +19,7 @@ from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
 from coke.turn.agent import AgentResult, AgentToolPorts, ToolExecutionResult
 from coke.turn.context import ToolProfile, TurnMode, TurnTrigger
+from coke.turn.focus import FocusResolver, MessageSubject
 from coke.turn.locks import ConversationLockManager
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
@@ -115,9 +116,11 @@ class FakeSemanticInterpreter:
             language_hint="en",
         )
         self.calls = 0
+        self.requests = []
 
     def interpret(self, request):
         self.calls += 1
+        self.requests.append(request)
         return self.next_decision
 
 
@@ -195,6 +198,14 @@ class FakeDeliveryLifecycle:
 
     def record_delivery(self, *, trigger, request, outcome):
         self.calls.append((trigger, request, outcome))
+
+
+class StaticFocusRepository:
+    def __init__(self, subject: MessageSubject | None) -> None:
+        self.subject = subject
+
+    def last_rendered_subject(self, conversation_id: str) -> MessageSubject | None:
+        return self.subject
 
 
 @pytest.fixture
@@ -355,6 +366,61 @@ def test_required_clarification_is_passed_as_trusted_agent_instruction(harness):
     assert request.tool_profile.intent_tools_enabled is False
     assert request.tool_profile.tool_names == ()
     assert request.context.semantic_decision.intent_action == "create_reminder"
+
+
+def test_single_reminder_focus_clears_reference_clarification_for_update(harness):
+    harness["runner"].focus_resolver = FocusResolver(
+        StaticFocusRepository(
+            MessageSubject(
+                subject_type="reminder",
+                object_ids=("reminder_1",),
+                ordered=True,
+            )
+        )
+    )
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="reminder_op",
+        intent_action="update_reminder",
+        ambiguity="ambiguous_reference",
+        required_clarification="ask_reference_choice",
+        language_hint="zh",
+    )
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={
+            "text": "把它改成60分钟",
+            "execute_reminder_tool": True,
+        },
+    )
+
+    result = harness["runner"].run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert harness["reminder_tool"].committed == 1
+    semantic_request = harness["semantic"].requests[-1]
+    assert semantic_request.focus_subject == MessageSubject(
+        subject_type="reminder",
+        object_ids=("reminder_1",),
+        ordered=True,
+    )
+    agent_request = harness["agent"].requests[-1]
+    assert "required_clarification" not in agent_request.trusted_facts
+    assert agent_request.context.semantic_decision == SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="reminder_op",
+        intent_action="update_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+    )
+    assert agent_request.tool_profile.intent_tools_enabled is True
+    assert agent_request.tool_profile.reminder_tool is not None
 
 
 def test_invalid_agent_output_retries_same_turn_once_then_uses_valid_retry(harness):

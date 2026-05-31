@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -152,13 +152,18 @@ class TurnRunner:
                 turn_id=start.turn.id,
                 based_on_inbound_seq=start.turn.based_on_inbound_seq,
             )
+            focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
             semantic_decision = self.semantic_interpreter.interpret(
                 SemanticInterpreterRequest(
                     account_id=trigger.account_id,
                     conversation_id=trigger.conversation_id,
                     payload=dict(trigger.payload),
                     trusted_facts=gate.trust_facts,
+                    focus_subject=focus_subject,
                 )
+            )
+            semantic_decision = _clear_reference_clarification_with_single_focus(
+                semantic_decision, focus_subject
             )
             if semantic_decision.reply_necessity == "intentional_no_reply":
                 disposition = self.conversation_runtime.commit_no_reply(
@@ -184,7 +189,7 @@ class TurnRunner:
                 trigger=trigger,
                 trusted_facts=trusted_facts,
                 semantic_decision=semantic_decision,
-                focus_subject=self.focus_resolver.resolve(trigger.conversation_id),
+                focus_subject=focus_subject,
                 reference_resolution=self.reference_resolver.resolve_all([]),
                 memory_context=self.memory_manager.load(
                     account_id=trigger.account_id,
@@ -685,6 +690,51 @@ def _trusted_facts_for_agent(
             "instruction": "Ask exactly this clarification before any domain action.",
         }
     return facts
+
+
+REFERENCE_CLARIFICATIONS = {"ask_context", "ask_reference_choice"}
+REFERENCE_AMBIGUITIES = {"ambiguous_reference", "missing_context"}
+REMINDER_FOCUS_ACTIONS = {
+    "update_reminder",
+    "complete_reminder",
+    "delete_reminder",
+    "clear_trigger_time",
+    "schedule_unscheduled",
+}
+
+
+def _clear_reference_clarification_with_single_focus(
+    decision: SemanticDecision,
+    focus_subject: Any | None,
+) -> SemanticDecision:
+    if not _has_single_focus(focus_subject, "reminder"):
+        return decision
+    if decision.intent_family != "reminder_op":
+        return decision
+    if decision.intent_action not in REMINDER_FOCUS_ACTIONS:
+        return decision
+    if decision.required_clarification not in REFERENCE_CLARIFICATIONS:
+        return decision
+    if decision.ambiguity not in REFERENCE_AMBIGUITIES:
+        return decision
+    return replace(decision, ambiguity="clear", required_clarification="none")
+
+
+def _has_single_focus(focus_subject: Any | None, subject_type: str) -> bool:
+    if focus_subject is None:
+        return False
+    if isinstance(focus_subject, Mapping):
+        focus_type = focus_subject.get("subject_type")
+        object_ids = focus_subject.get("object_ids")
+    else:
+        focus_type = getattr(focus_subject, "subject_type", None)
+        object_ids = getattr(focus_subject, "object_ids", None)
+    if focus_type != subject_type or isinstance(object_ids, str):
+        return False
+    try:
+        return len(tuple(object_ids or ())) == 1
+    except TypeError:
+        return False
 
 
 def _current_time_facts(

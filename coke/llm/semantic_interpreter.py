@@ -106,6 +106,9 @@ Examples:
   completes the original reminder action as follow-up_time.
 - If a reminder was already confirmed and the user starts a new topic, new topic does not reopen
   that already-confirmed reminder.
+- If focus has exactly one reminder object_id, reference-only follow-ups to that reminder are not
+  ambiguous; classify reminder edits such as duration, content, or time changes as clear
+  reminder_op/update_reminder unless another required field is missing.
 - Friend list: friend_op/list_friends. Availability: scheduling/availability_query.
 - Shared reminder creation with friend names: scheduling/create_shared_reminder.
 - User challenge such as "我没设过这个" or "你是不是搞错了": keep reply_needed,
@@ -165,6 +168,7 @@ class SiliconFlowSemanticInterpreter:
                 "conversation_id": request.conversation_id,
                 "payload": request.payload,
                 "trusted_facts": request.trusted_facts,
+                "focus_subject": _focus_subject_payload(request.focus_subject),
                 "allowed_reply_necessity": sorted(REPLY_NECESSITIES),
                 "allowed_intent_family": sorted(INTENT_FAMILIES),
                 "allowed_intent_action": sorted(INTENT_ACTIONS),
@@ -219,3 +223,29 @@ def _required_enum(
     if value not in allowed:
         raise LLMOutputError(f"invalid {field}")
     return value
+
+
+def _focus_subject_payload(focus_subject: Any | None) -> dict[str, Any] | None:
+    if focus_subject is None:
+        return None
+    if isinstance(focus_subject, Mapping):
+        subject_type = focus_subject.get("subject_type")
+        object_ids = focus_subject.get("object_ids")
+        ordered = focus_subject.get("ordered", False)
+    else:
+        subject_type = getattr(focus_subject, "subject_type", None)
+        object_ids = getattr(focus_subject, "object_ids", None)
+        ordered = getattr(focus_subject, "ordered", False)
+    if not isinstance(subject_type, str):
+        return None
+    if isinstance(object_ids, str):
+        return None
+    try:
+        normalized_object_ids = tuple(str(object_id) for object_id in object_ids or ())
+    except TypeError:
+        return None
+    return {
+        "subject_type": subject_type,
+        "object_ids": list(normalized_object_ids),
+        "ordered": bool(ordered),
+    }

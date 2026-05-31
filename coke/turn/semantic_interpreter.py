@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 
 ReplyNecessity = Literal["reply_needed", "intentional_no_reply"]
@@ -84,6 +84,7 @@ class SemanticInterpreterRequest:
     conversation_id: str
     payload: dict
     trusted_facts: dict
+    focus_subject: Any | None = None
 
 
 class SemanticInterpreter(Protocol):
