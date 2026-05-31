@@ -70,8 +70,9 @@ class CokeVoicePolicy:
         return "\n".join(
             [
                 f"Speak like Coke as a {self.role_texture}: concise, direct, and warm when useful.",
-                f"Use {self.normal_segment_limit}; match the user's language and rough message length.",
-                "Avoid generic closers such as 还有什么可以帮您吗.",
+                f"Use {self.normal_segment_limit} as short message-channel segments; match the user's language and rough message length.",
+                "Avoid generic closers and generic customer-service openings such as 您好 or 还有什么可以帮您吗.",
+                "Do not end ordinary final statement segments with . or 。; keep ? or ! only when the sentence needs it.",
                 "Do not expose internal tools, agents, logs, or architecture.",
                 "do not invent facts or times; use trusted facts and domain_result for product state.",
                 (
@@ -241,8 +242,8 @@ class AgnoInteractionAgent:
             "Call tools for state-changing domain work instead of claiming the action happened.",
             "For reminder, scheduling, friendship, settings, or calendar-import requests, call the matching tool before replying.",
             "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
-            "For reminder list or count requests, call reminder_tool with operation=list_reminders and owner_account_id from trusted_facts.account_id before answering. When it succeeds, answer with the total count and list every returned active reminder using display_lines or display_time_label from the tool facts; include each reminder's content and local display time, and label reminders without display_time_label as unscheduled/no set time in the user's language. Do not answer with only the count, do not expose raw UTC next_fire_at as the user-visible time when display_time_label is present, and do not say the full list is unavailable unless the tool result fails.",
-            "For reminder content or duration edits, call reminder_tool with operation=update_reminder, owner_account_id from trusted_facts.account_id, reminder_id from trusted context, and content and/or duration_minutes. Do not call reschedule_reminder for duration-only edits.",
+            "For reminder list, count, search, or filter requests, call reminder_tool with operation=list_reminders and owner_account_id from trusted_facts.account_id before answering. Pass keyword, status/lifecycle, kind/reminder_type, trigger_after, and trigger_before when the user asks for those filters. When it succeeds, answer with the total count and list every returned active reminder using display_lines or display_time_label from the tool facts; include each reminder's content and local display time, and label reminders without display_time_label as unscheduled/no set time in the user's language. Do not answer with only the count, do not expose raw UTC next_fire_at as the user-visible time when display_time_label is present, and do not say the full list is unavailable unless the tool result fails.",
+            "For reminder content or duration edits, call reminder_tool with operation=update_reminder, owner_account_id from trusted_facts.account_id, reminder_id from trusted context, and content and/or duration_minutes. If the user identifies the target only by keyword, pass keyword instead of reminder_id; if the tool returns ambiguous_reminder_reference, ask the user to choose. Do not call reschedule_reminder for duration-only edits.",
             "If the focus block has subject_type='reminder' with exactly one object_id, use that object_id as reminder_id for follow-up edits to that reminder instead of asking which reminder.",
             "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
             "For adding a friend from an invite code or link token, call social_scheduling_tool with operation=establish_friendship_from_token, joiner_account_id from trusted_facts.account_id, and link_code or public_token from the User message.",
@@ -264,6 +265,7 @@ class AgnoInteractionAgent:
             "Render mode must not call tools or imply business mutation. For NotificationTurn, render only from notification facts and error_facts; include creator, title, time, timezone, duration, and status when present. NotificationTurn must return a visible reply; no_reply is invalid because each notification_recipient delivery state must settle. Use concrete factual wording, not a generic placeholder such as 'go check it out'. Shared-reminder notification text is informational only and must not become approval, confirmation, accept/reject, or action-execution wording.",
             "For non-notification turns, if no user-visible message is warranted, return the explicit no_reply JSON.",
             "Text output is limited to one to three non-empty segments.",
+            "Use short message-channel segments. Avoid generic customer-service openings or closers. Do not end ordinary final statement segments with . or 。.",
         ]
 
     def _input_payload(self, request: AgentRequest) -> dict[str, Any]:
@@ -340,17 +342,22 @@ def _tool_doc(name: str) -> str:
             "the exact User message, captured_timezone set to "
             "trusted_facts.default_timezone, and entry_point='conversation'. "
             "For content or duration edits, call operation='update_reminder' "
-            "with reminder_id plus content and/or duration_minutes; when the "
+            "with reminder_id plus content and/or duration_minutes; if the user "
+            "identifies the target by content, pass keyword instead of "
+            "reminder_id and ask for clarification when the tool reports "
+            "ambiguous_reminder_reference; when the "
             "trusted focus block contains one reminder object_id, use it as "
             "reminder_id for follow-up edits. For time edits, call "
             "operation='reschedule_reminder' with reminder_id "
             "and trigger_time. For completion, call operation='complete_reminder' "
-            "with reminder_id. For cancellation/deletion, call "
-            "operation='delete_reminder' with reminder_id. For reminder list "
-            "or count requests, call operation='list_reminders' with "
-            "owner_account_id set to trusted_facts.account_id; the result "
-            "includes count, active reminder facts, local display_time_label "
-            "values, and display_lines. The "
+            "with reminder_id or keyword. For cancellation/deletion, call "
+            "operation='delete_reminder' with reminder_id or keyword. For "
+            "reminder list, count, search, or filter requests, call "
+            "operation='list_reminders' with owner_account_id set to "
+            "trusted_facts.account_id; optional filters are keyword, "
+            "status/lifecycle, kind/reminder_type, trigger_after, and "
+            "trigger_before. The result includes count, reminder facts, local "
+            "display_time_label values, and display_lines. The "
             "final reply for a successful list_reminders result must include "
             "the total count and every returned active reminder; count-only "
             "answers are incomplete."

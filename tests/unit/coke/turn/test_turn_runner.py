@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from itertools import count
 from types import SimpleNamespace
 from typing import Any
@@ -336,6 +336,38 @@ def test_inbound_reply_delivery_carries_trigger_context_token(harness):
 
     assert result.disposition == "replied"
     assert harness["delivery"].deliveries[-1].context_token == "ctx-message-1"
+
+
+def test_reply_segments_deliver_as_separate_ordered_messages(harness):
+    harness["agent"].next_result = AgentResult.completed(
+        {"type": "reply", "segments": ["先这样", "明天再看"]}
+    )
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "先这样\n明天再看"
+    assert [request.visible_text for request in harness["delivery"].deliveries] == [
+        "先这样",
+        "明天再看",
+    ]
+    assert [request.segments for request in harness["delivery"].deliveries] == [
+        ("先这样",),
+        ("明天再看",),
+    ]
+    assert [request.idempotency_key for request in harness["delivery"].deliveries] == [
+        f"{result.turn_id}:reply:1",
+        f"{result.turn_id}:reply:2",
+    ]
+    outbound_messages = [
+        message
+        for message in harness["runtime"].outbound_messages_for_turn(result.turn_id)
+        if (message.segment_index or 0) > 0
+    ]
+    assert [request.message_id for request in harness["delivery"].deliveries] == [
+        outbound_messages[0].id,
+        outbound_messages[1].id,
+    ]
 
 
 def test_malformed_agent_output_fails_closed_without_rewrite(harness):
@@ -701,6 +733,102 @@ def test_reminder_tool_list_reminders_returns_active_count_without_write_guard()
     assert "1. pay rent (2026-05-30 20:00 Asia/Shanghai)" in (
         result.domain_result.visible_summary
     )
+
+
+def test_reminder_tool_list_reminders_accepts_keyword_kind_and_time_filters():
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    reminder_service.execute_batch(
+        owner_account_id="account_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="call mom",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="call dentist",
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                trigger_time=NOW + timedelta(days=1),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+    adapter = ReminderToolAdapter(reminder_service)
+
+    result = adapter.execute(
+        {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "keyword": "call",
+            "kind": "timed",
+            "trigger_after": NOW.isoformat(),
+            "trigger_before": (NOW + timedelta(hours=2)).isoformat(),
+            "captured_timezone": "UTC",
+        },
+        object(),
+    )
+
+    assert result.ok is True
+    assert result.facts["count"] == 1
+    assert result.facts["reminders"][0]["content"] == "call mom"
+
+
+def test_reminder_tool_complete_reminder_accepts_unambiguous_keyword():
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    reminder_service.execute_batch(
+        owner_account_id="account_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+    adapter = ReminderToolAdapter(reminder_service)
+
+    class WriteGuard:
+        def guard_state_change(self):
+            return None
+
+    result = adapter.execute(
+        {
+            "operation": "complete_reminder",
+            "owner_account_id": "account_1",
+            "keyword": "rent",
+        },
+        WriteGuard(),
+    )
+
+    assert result.ok is True
+    assert result.facts["state"] == "succeeded"
+    assert [
+        reminder.content
+        for reminder in reminder_repository.list_active_reminders("account_1")
+    ] == ["buy milk"]
 
 
 def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harness):

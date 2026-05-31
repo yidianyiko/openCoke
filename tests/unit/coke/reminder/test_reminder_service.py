@@ -191,6 +191,112 @@ def test_update_reminder_duration_updates_existing_row_and_writes_lifecycle_even
     assert outbox.payload["duration_minutes"] == 60
 
 
+def test_filter_reminders_by_keyword_lifecycle_kind_and_time_range(service):
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="call mom",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="call dentist",
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                trigger_time=NOW + timedelta(days=1),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+    assert [item.state for item in created.items] == [
+        "succeeded",
+        "succeeded",
+        "succeeded",
+    ]
+
+    matches = service.filter_reminders(
+        owner_account_id="acct_1",
+        keyword="call",
+        lifecycle="active",
+        kind="timed",
+        trigger_after=NOW,
+        trigger_before=NOW + timedelta(hours=2),
+    )
+
+    assert [reminder.content for reminder in matches] == ["call mom"]
+
+
+def test_complete_reminder_by_keyword_mutates_single_unambiguous_match(service):
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+
+    result = service.complete_reminder_by_keyword(
+        owner_account_id="acct_1",
+        keyword="rent",
+    )
+
+    assert result.state == "succeeded"
+    assert result.reminder_id == created.items[0].reminder_id
+    assert [
+        reminder.content
+        for reminder in service.repository.list_active_reminders("acct_1")
+    ] == ["buy milk"]
+
+
+def test_complete_reminder_by_keyword_asks_follow_up_for_ambiguous_matches(service):
+    service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="call mom",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="call dentist",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+
+    result = service.complete_reminder_by_keyword(
+        owner_account_id="acct_1",
+        keyword="call",
+    )
+
+    assert result.state == "needs-follow-up"
+    assert result.reason == "ambiguous_reminder_reference"
+    assert result.fact["match_count"] == 2
+    assert [reminder.content for reminder in service.filter_reminders("acct_1")] == [
+        "call mom",
+        "call dentist",
+    ]
+
+
 def test_commit_guard_blocks_personal_reminder_write(service):
     class StaleCommitGuard:
         def __call__(self):

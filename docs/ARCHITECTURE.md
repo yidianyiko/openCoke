@@ -2,7 +2,7 @@
 
 This document describes the clean-rebuild target architecture for Coke. The
 requirements source of truth is
-`docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`;
+`docs/product-requirements/current.md`;
 the technical target is
 `docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md`.
 If this document and those specs disagree, treat the settled specs as the
@@ -70,14 +70,22 @@ Turn execution has one spine:
    reply.
 7. Record exactly one turn disposition:
    `replied | no_reply | pending_async_reply | failed | superseded`.
-8. Persist outbound messages with deterministic segment ids and provider
-   idempotency keys.
-9. Deliver through the current channel route and record delivery attempts.
+8. Persist outbound messages with deterministic segment ids.
+9. Deliver through the current channel route with provider idempotency keys and
+   record delivery attempts.
 10. Update output-class-specific lifecycle state from delivery callbacks.
 
 Interactive mode exposes domain tools and may mutate product state through
 domain services. Render mode receives already-trusted structured facts and has no
 business mutation tools.
+
+Structured reply output may contain one to three text segments. Each segment is
+persisted as its own outbound message. For message-style channels such as
+personal WeChat and shared WhatsApp, each persisted segment is delivered as a
+separate ordered visible message with its own message id, idempotency key, and
+provider delivery evidence. Aggregated newline-joined text is only an internal
+turn summary and must not be used as the provider-visible payload for segmented
+replies.
 
 For inbound user turns, no-reply is an Interaction Agent output decision after
 the full trusted context is assembled. Semantic interpretation may carry a

@@ -817,6 +817,19 @@ def test_reminder_list_instructions_require_full_list_not_count_only():
     assert "do not expose raw UTC next_fire_at" in instructions
 
 
+def test_voice_policy_instructions_include_message_style_micro_rules():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True))
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "short message-channel segments" in instructions
+    assert "Do not end ordinary final statement segments with . or 。" in instructions
+    assert "Avoid generic customer-service openings or closers" in instructions
+
+
 def test_reminder_list_tool_result_overrides_count_only_final_reply():
     class CountOnlyAgentInstance:
         def __init__(self, tools):

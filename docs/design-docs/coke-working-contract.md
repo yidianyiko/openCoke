@@ -10,7 +10,7 @@ requirements and target architecture instead of preserving old runtime shape.
 
 Source documents:
 
-- `docs/superpowers/specs/2026-05-28-coke-requirements-user-journey-matrix-design.md`
+- `docs/product-requirements/current.md`
 - `docs/superpowers/specs/2026-05-28-coke-clean-rebuild-target-architecture-design.md`
 - `docs/ARCHITECTURE.md`
 - `docs/product-specs/FEATURE_TREE.md`
@@ -33,6 +33,7 @@ The standalone ClawScale bridge is superseded. ClawScale remains only as the
 
 - Product/API discovery: `docs/product-specs/FEATURE_TREE.md` and
   `docs/design-docs/interface-contract.md`.
+- Product requirements: `docs/product-requirements/current.md`.
 - Runtime architecture: `docs/ARCHITECTURE.md`.
 - Clean-rebuild service operations: `docs/deploy.md`.
 - ClawScale adapter boundary: `docs/clawscale_bridge.md`.

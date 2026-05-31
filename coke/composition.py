@@ -458,7 +458,7 @@ class ReminderToolAdapter:
         operation = _required_str(command, "operation")
         owner = _required_str(command, "owner_account_id", default_key="account_id")
 
-        if operation == "list_reminders":
+        if operation in {"list_reminders", "filter_reminders"}:
             display_timezone = str(
                 command.get("display_timezone")
                 or command.get("captured_timezone")
@@ -466,7 +466,14 @@ class ReminderToolAdapter:
             )
             facts = _reminder_list_facts(
                 owner,
-                self.reminder_service.repository.list_active_reminders(owner),
+                self.reminder_service.filter_reminders(
+                    owner_account_id=owner,
+                    keyword=_optional_non_empty_str(command.get("keyword")),
+                    lifecycle=_reminder_lifecycle_filter(command),
+                    kind=_reminder_kind_filter(command),
+                    trigger_after=_optional_datetime(command.get("trigger_after")),
+                    trigger_before=_optional_datetime(command.get("trigger_before")),
+                ),
                 display_timezone=display_timezone,
             )
             return ToolExecutionResult(
@@ -475,7 +482,7 @@ class ReminderToolAdapter:
                 domain_result=DomainExecutionResult(
                     domain="reminder",
                     intent="list reminders",
-                    action="list_reminders",
+                    action=operation,
                     effect="listed",
                     intent_fulfilled=True,
                     visible_summary=_reminder_list_visible_summary(facts),
@@ -556,15 +563,27 @@ class ReminderToolAdapter:
             return _single_item_tool_result(result)
 
         if operation == "update_reminder":
-            result = self.reminder_service.update_reminder(
-                owner_account_id=owner,
-                reminder_id=_required_str(command, "reminder_id"),
-                content=command.get("content"),
-                trigger_time=_optional_datetime(command.get("trigger_time")),
-                captured_timezone=command.get("captured_timezone"),
-                duration_minutes=command.get("duration_minutes"),
-                commit_guard=_guard_commit_guard(guard),
-            )
+            keyword = _optional_non_empty_str(command.get("keyword"))
+            if keyword and not command.get("reminder_id"):
+                result = self.reminder_service.update_reminder_by_keyword(
+                    owner_account_id=owner,
+                    keyword=keyword,
+                    content=command.get("content"),
+                    trigger_time=_optional_datetime(command.get("trigger_time")),
+                    captured_timezone=command.get("captured_timezone"),
+                    duration_minutes=command.get("duration_minutes"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
+            else:
+                result = self.reminder_service.update_reminder(
+                    owner_account_id=owner,
+                    reminder_id=_required_str(command, "reminder_id"),
+                    content=command.get("content"),
+                    trigger_time=_optional_datetime(command.get("trigger_time")),
+                    captured_timezone=command.get("captured_timezone"),
+                    duration_minutes=command.get("duration_minutes"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
             return _single_item_tool_result(result)
 
         if operation == "clear_trigger_time":
@@ -576,19 +595,35 @@ class ReminderToolAdapter:
             return _single_item_tool_result(result)
 
         if operation == "complete_reminder":
-            result = self.reminder_service.complete_reminder(
-                owner_account_id=owner,
-                reminder_id=_required_str(command, "reminder_id"),
-                commit_guard=_guard_commit_guard(guard),
-            )
+            keyword = _optional_non_empty_str(command.get("keyword"))
+            if keyword and not command.get("reminder_id"):
+                result = self.reminder_service.complete_reminder_by_keyword(
+                    owner_account_id=owner,
+                    keyword=keyword,
+                    commit_guard=_guard_commit_guard(guard),
+                )
+            else:
+                result = self.reminder_service.complete_reminder(
+                    owner_account_id=owner,
+                    reminder_id=_required_str(command, "reminder_id"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
             return _single_item_tool_result(result)
 
         if operation == "delete_reminder":
-            result = self.reminder_service.delete_reminder(
-                owner_account_id=owner,
-                reminder_id=_required_str(command, "reminder_id"),
-                commit_guard=_guard_commit_guard(guard),
-            )
+            keyword = _optional_non_empty_str(command.get("keyword"))
+            if keyword and not command.get("reminder_id"):
+                result = self.reminder_service.delete_reminder_by_keyword(
+                    owner_account_id=owner,
+                    keyword=keyword,
+                    commit_guard=_guard_commit_guard(guard),
+                )
+            else:
+                result = self.reminder_service.delete_reminder(
+                    owner_account_id=owner,
+                    reminder_id=_required_str(command, "reminder_id"),
+                    commit_guard=_guard_commit_guard(guard),
+                )
             return _single_item_tool_result(result)
 
         return ToolExecutionResult(
@@ -1343,6 +1378,37 @@ def _optional_datetime(value: Any) -> datetime | None:
     if isinstance(value, str):
         return datetime.fromisoformat(value)
     raise ValueError("invalid_datetime")
+
+
+def _optional_non_empty_str(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _reminder_lifecycle_filter(command: Mapping[str, Any]) -> str | None:
+    value = command.get("lifecycle", command.get("status", "active"))
+    if value is None or value == "all":
+        return None
+    if value in {"active", "completed", "deleted"}:
+        return str(value)
+    raise ValueError("invalid_reminder_lifecycle")
+
+
+def _reminder_kind_filter(command: Mapping[str, Any]) -> str | None:
+    value = command.get("kind", command.get("reminder_type"))
+    if value is None or value == "all":
+        return None
+    if value in {
+        "timed",
+        "no_trigger_time",
+        "recurring",
+        "proactive",
+        "shared_projection",
+    }:
+        return str(value)
+    raise ValueError("invalid_reminder_kind")
 
 
 def _list_value(

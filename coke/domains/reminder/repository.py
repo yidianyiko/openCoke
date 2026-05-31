@@ -53,6 +53,8 @@ class ReminderRepository(Protocol):
 
     def get_reminder(self, reminder_id: str) -> Reminder | None: ...
 
+    def list_reminders(self, owner_account_id: str) -> list[Reminder]: ...
+
     def list_active_reminders(self, owner_account_id: str) -> list[Reminder]: ...
 
     def list_due_reminders(self, due_at: datetime) -> list[Reminder]: ...
@@ -146,6 +148,16 @@ class InMemoryReminderRepository:
 
     def get_reminder(self, reminder_id: str) -> Reminder | None:
         return self.reminders_by_id.get(reminder_id)
+
+    def list_reminders(self, owner_account_id: str) -> list[Reminder]:
+        return sorted(
+            [
+                reminder
+                for reminder in self.reminders_by_id.values()
+                if reminder.owner_account_id == owner_account_id
+            ],
+            key=lambda reminder: (reminder.created_at, reminder.id),
+        )
 
     def list_active_reminders(self, owner_account_id: str) -> list[Reminder]:
         return [
@@ -413,6 +425,17 @@ class PostgresReminderRepository:
             self.session, schema.reminder, schema.reminder.c.id == reminder_id
         )
         return _reminder(row) if row else None
+
+    def list_reminders(self, owner_account_id: str) -> list[Reminder]:
+        return [
+            _reminder(row)
+            for row in many(
+                self.session,
+                schema.reminder,
+                schema.reminder.c.owner_account_id == owner_account_id,
+                order_by=(schema.reminder.c.created_at, schema.reminder.c.id),
+            )
+        ]
 
     def list_active_reminders(self, owner_account_id: str) -> list[Reminder]:
         return [

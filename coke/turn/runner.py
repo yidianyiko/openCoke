@@ -550,25 +550,33 @@ class TurnRunner:
     ) -> list[DeliveryRequest]:
         recipients = _recipient_account_ids(trigger)
         multiple = len(recipients) > 1
-        message_id = _first_outbound_message_id(outbound_messages)
+        ordered_messages = sorted(
+            outbound_messages,
+            key=lambda message: (
+                getattr(message, "segment_index", None) or 0,
+                message.id,
+            ),
+        )
         requests: list[DeliveryRequest] = []
         for account_id in recipients:
-            idempotency_key = f"{turn_id}:reply"
-            if multiple or account_id != trigger.account_id:
-                idempotency_key = f"{idempotency_key}:{account_id}"
-            requests.append(
-                DeliveryRequest(
-                    account_id=account_id,
-                    conversation_id=trigger.conversation_id,
-                    turn_id=turn_id,
-                    message_type="reply",
-                    visible_text=visible_text,
-                    idempotency_key=idempotency_key,
-                    message_id=message_id,
-                    segments=segments,
-                    context_token=_context_token_from_trigger(trigger),
+            for index, segment in enumerate(segments, start=1):
+                message_id = _outbound_message_id_for_segment(ordered_messages, index)
+                idempotency_key = f"{turn_id}:reply:{index}"
+                if multiple or account_id != trigger.account_id:
+                    idempotency_key = f"{idempotency_key}:{account_id}"
+                requests.append(
+                    DeliveryRequest(
+                        account_id=account_id,
+                        conversation_id=trigger.conversation_id,
+                        turn_id=turn_id,
+                        message_type="reply",
+                        visible_text=segment,
+                        idempotency_key=idempotency_key,
+                        message_id=message_id,
+                        segments=(segment,),
+                        context_token=_context_token_from_trigger(trigger),
+                    )
                 )
-            )
         return requests
 
     def _deliver(self, request: DeliveryRequest) -> DeliveryOutcome:
@@ -919,14 +927,13 @@ def _recipient_account_ids(trigger: TurnTrigger) -> list[str]:
     return [trigger.account_id]
 
 
-def _first_outbound_message_id(outbound_messages: list[Any]) -> str | None:
-    if not outbound_messages:
-        return None
-    ordered = sorted(
-        outbound_messages,
-        key=lambda message: (getattr(message, "segment_index", None) or 0, message.id),
-    )
-    return ordered[0].id
+def _outbound_message_id_for_segment(
+    outbound_messages: list[Any], segment_index: int
+) -> str | None:
+    for message in outbound_messages:
+        if getattr(message, "segment_index", None) == segment_index:
+            return message.id
+    return None
 
 
 def _context_token_from_trigger(trigger: TurnTrigger) -> str | None:
