@@ -229,6 +229,7 @@ class AgnoInteractionAgent:
             "For reminder, scheduling, friendship, settings, or calendar-import requests, call the matching tool before replying.",
             "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
             "For reminder content or duration edits, call reminder_tool with operation=update_reminder, owner_account_id from trusted_facts.account_id, reminder_id from trusted context, and content and/or duration_minutes. Do not call reschedule_reminder for duration-only edits.",
+            "If the focus block has subject_type='reminder' with exactly one object_id, use that object_id as reminder_id for follow-up edits to that reminder instead of asking which reminder.",
             "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
             "For adding a friend from an invite code or link token, call social_scheduling_tool with operation=establish_friendship_from_token, joiner_account_id from trusted_facts.account_id, and link_code or public_token from the User message.",
             "For friend-list requests, call social_scheduling_tool with operation=list_friends and account_id from trusted_facts.account_id.",
@@ -321,8 +322,10 @@ def _tool_doc(name: str) -> str:
             "the exact User message, captured_timezone set to "
             "trusted_facts.default_timezone, and entry_point='conversation'. "
             "For content or duration edits, call operation='update_reminder' "
-            "with reminder_id plus content and/or duration_minutes. For time "
-            "edits, call operation='reschedule_reminder' with reminder_id "
+            "with reminder_id plus content and/or duration_minutes; when the "
+            "trusted focus block contains one reminder object_id, use it as "
+            "reminder_id for follow-up edits. For time edits, call "
+            "operation='reschedule_reminder' with reminder_id "
             "and trigger_time. For completion, call operation='complete_reminder' "
             "with reminder_id. For cancellation/deletion, call "
             "operation='delete_reminder' with reminder_id."
@@ -503,8 +506,36 @@ def _with_tool_defaults(
         "captured_timezone",
         str(request.trusted_facts.get("default_timezone") or "UTC"),
     )
+    if payload.get("operation") in {
+        "update_reminder",
+        "reschedule_reminder",
+        "clear_trigger_time",
+        "complete_reminder",
+        "delete_reminder",
+    } and not payload.get("reminder_id"):
+        focused_reminder_id = _single_focus_object_id(request, "reminder")
+        if focused_reminder_id is not None:
+            payload["reminder_id"] = focused_reminder_id
     payload.setdefault("entry_point", "conversation")
     return payload
+
+
+def _single_focus_object_id(request: AgentRequest, subject_type: str) -> str | None:
+    focus = _context_value(request.context, "focus_subject")
+    if not focus:
+        return None
+    if isinstance(focus, Mapping):
+        focus_subject_type = focus.get("subject_type")
+        object_ids = focus.get("object_ids")
+    else:
+        focus_subject_type = getattr(focus, "subject_type", None)
+        object_ids = getattr(focus, "object_ids", None)
+    if focus_subject_type != subject_type or not isinstance(object_ids, (list, tuple)):
+        return None
+    object_ids = [item for item in object_ids if isinstance(item, str) and item]
+    if len(object_ids) != 1:
+        return None
+    return object_ids[0]
 
 
 def _normalize_settings_operation(command: Mapping[str, Any]) -> dict[str, Any]:

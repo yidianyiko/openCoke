@@ -23,13 +23,15 @@
 
 - Modify: `coke/worker/__main__.py`
 - Modify: `coke/domains/reminder/service.py`
-- Modify: `coke/domains/reminder/models.py`
+- Modify: `coke/domains/reminder/repository.py`
+- Modify: `coke/domains/conversation_runtime/repository.py`
 - Modify: `coke/composition.py`
 - Modify: `coke/llm/agno_interaction_agent.py`
 - Create: `tests/unit/coke/worker/test_worker_topic_resilience.py`
 - Modify: `tests/unit/coke/reminder/test_reminder_service.py`
 - Modify: `tests/unit/coke/turn/test_turn_runner.py`
 - Modify: `tests/unit/coke/llm/test_interaction_agent.py`
+- Modify: `tests/integration/coke/test_composition_turn_integration.py`
 - Modify: this plan file
 
 ## Tasks
@@ -198,7 +200,7 @@ zsh scripts/suggest-verification --base HEAD~1
 zsh scripts/review-trigger --base HEAD~1
 ```
 
-- [ ] **Step 5: Commit local code/tests/plan progress**
+- [x] **Step 5: Commit local code/tests/plan progress**
 
 Commit the coherent local repair before deploying:
 
@@ -206,6 +208,59 @@ Commit the coherent local repair before deploying:
 git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-worker-reminder-lifecycle.md coke/worker/__main__.py coke/domains/reminder/models.py coke/domains/reminder/service.py coke/composition.py coke/llm/agno_interaction_agent.py tests/unit/coke/worker/test_worker_topic_resilience.py tests/unit/coke/reminder/test_reminder_service.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/llm/test_interaction_agent.py
 git commit -m "fix: ack reminder lifecycle worker events"
 ```
+
+### Task 5A: Follow-Up Reminder Focus Repair
+
+First live smoke proved the worker no longer crashed on `reminder.lifecycle`, but
+the exact user journey `把它改成60分钟` still produced a clarification because the
+follow-up turn did not receive a trusted recent reminder focus.
+
+- [x] **Step 1: Add focus RED tests**
+
+Add tests proving:
+
+- the Agno reminder tool defaults a missing `reminder_id` from a single trusted
+  `focus_subject`;
+- a second inbound turn after a reminder create receives the recently created
+  reminder as focus and can update `duration_minutes` to `60`.
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/coke/llm/test_interaction_agent.py::test_reminder_tool_defaults_update_reminder_id_from_single_focus_subject \
+  tests/integration/coke/test_composition_turn_integration.py::test_followup_reminder_edit_receives_recent_created_reminder_focus \
+  -v
+```
+
+Expected before implementation: FAIL because no focus subject is resolved from
+recent reminder lifecycle evidence and the tool default does not fill
+`reminder_id`.
+
+- [x] **Step 2: Implement recent reminder focus**
+
+Use existing `turn` and `outbox` tables only:
+
+- add repository reads for latest conversation turn ids and reminder lifecycle
+  events by `payload.turn_id`;
+- resolve the latest active reminder from create/update/reschedule lifecycle
+  evidence as a `MessageSubject`;
+- pass that focus resolver through the composition root;
+- default missing reminder ids for update/reschedule/clear/complete/delete
+  operations from one trusted reminder focus.
+
+- [x] **Step 3: Verify focus GREEN**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/coke/llm/test_interaction_agent.py::test_reminder_tool_defaults_update_reminder_id_from_single_focus_subject \
+  tests/integration/coke/test_composition_turn_integration.py::test_followup_reminder_edit_receives_recent_created_reminder_focus \
+  -v
+```
+
+Observed after implementation: `2 passed in 2.49s`.
 
 ### Task 6: Redeploy And Live Verify
 

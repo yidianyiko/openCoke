@@ -52,6 +52,8 @@ class ConversationRuntimeRepository(Protocol):
 
     def get_turn_by_trigger_id(self, trigger_id: str) -> Turn | None: ...
 
+    def latest_turn_ids(self, conversation_id: str, limit: int = 10) -> list[str]: ...
+
     def add_turn(self, turn: Turn) -> None: ...
 
     def save_turn(self, turn: Turn) -> None: ...
@@ -159,6 +161,18 @@ class InMemoryConversationRuntimeRepository:
 
     def get_turn_by_trigger_id(self, trigger_id: str) -> Turn | None:
         return self.turns_by_trigger_id.get(trigger_id)
+
+    def latest_turn_ids(self, conversation_id: str, limit: int = 10) -> list[str]:
+        turns = [
+            turn
+            for turn in self.turns_by_id.values()
+            if turn.conversation_id == conversation_id
+        ]
+        turns.sort(
+            key=lambda turn: (turn.started_at, turn.created_at, turn.id),
+            reverse=True,
+        )
+        return [turn.id for turn in turns[:limit]]
 
     def add_turn(self, turn: Turn) -> None:
         if turn.id in self.turns_by_id:
@@ -397,6 +411,19 @@ class PostgresConversationRuntimeRepository:
             self.session, schema.turn, schema.turn.c.trigger_id == trigger_id
         )
         return _turn(row) if row else None
+
+    def latest_turn_ids(self, conversation_id: str, limit: int = 10) -> list[str]:
+        statement = (
+            sa.select(schema.turn.c.id)
+            .where(schema.turn.c.conversation_id == conversation_id)
+            .order_by(
+                schema.turn.c.started_at.desc(),
+                schema.turn.c.created_at.desc(),
+                schema.turn.c.id.desc(),
+            )
+            .limit(max(1, limit))
+        )
+        return [db_id(row[0]) for row in self.session.execute(statement).all()]
 
     def add_turn(self, turn: Turn) -> None:
         if self.get_conversation(turn.conversation_id) is None:

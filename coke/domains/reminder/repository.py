@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from collections.abc import Mapping
-from typing import Callable, Protocol
+from typing import Callable, Protocol, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -46,6 +46,10 @@ class ReminderRepository(Protocol):
     def get_outbox_by_idempotency_key(
         self, idempotency_key: str
     ) -> ReminderOutboxEvent | None: ...
+
+    def list_lifecycle_events_for_turn_ids(
+        self, turn_ids: Sequence[str], limit: int = 20
+    ) -> list[ReminderOutboxEvent]: ...
 
     def get_reminder(self, reminder_id: str) -> Reminder | None: ...
 
@@ -124,6 +128,21 @@ class InMemoryReminderRepository:
         self, idempotency_key: str
     ) -> ReminderOutboxEvent | None:
         return self.outbox_by_idempotency_key.get(idempotency_key)
+
+    def list_lifecycle_events_for_turn_ids(
+        self, turn_ids: Sequence[str], limit: int = 20
+    ) -> list[ReminderOutboxEvent]:
+        turn_id_set = {turn_id for turn_id in turn_ids if turn_id}
+        if not turn_id_set:
+            return []
+        events = [
+            event
+            for event in self.outbox_by_id.values()
+            if event.topic == "reminder.lifecycle"
+            and event.payload.get("turn_id") in turn_id_set
+        ]
+        events.sort(key=lambda event: (event.created_at, event.id), reverse=True)
+        return events[:limit]
 
     def get_reminder(self, reminder_id: str) -> Reminder | None:
         return self.reminders_by_id.get(reminder_id)
@@ -368,6 +387,26 @@ class PostgresReminderRepository:
             schema.outbox.c.idempotency_key == idempotency_key,
         )
         return _outbox(row) if row else None
+
+    def list_lifecycle_events_for_turn_ids(
+        self, turn_ids: Sequence[str], limit: int = 20
+    ) -> list[ReminderOutboxEvent]:
+        turn_id_list = [turn_id for turn_id in turn_ids if turn_id]
+        if not turn_id_list:
+            return []
+        turn_id_expr = schema.outbox.c.payload.op("->>")("turn_id")
+        statement = (
+            sa.select(schema.outbox)
+            .where(
+                schema.outbox.c.topic == "reminder.lifecycle",
+                turn_id_expr.in_(turn_id_list),
+            )
+            .order_by(schema.outbox.c.created_at.desc(), schema.outbox.c.id.desc())
+            .limit(max(1, limit))
+        )
+        return [
+            _outbox(dict(row)) for row in self.session.execute(statement).mappings()
+        ]
 
     def get_reminder(self, reminder_id: str) -> Reminder | None:
         row = one_or_none(

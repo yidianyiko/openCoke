@@ -70,6 +70,7 @@ from coke.providers.wechat_personal import WeChatPersonalAdapter
 from coke.providers.whatsapp_evolution import WhatsAppEvolutionAdapter
 from coke.turn.agent import AgentToolPorts, ToolExecutionResult
 from coke.turn.agent import AgentRequest, AgentResult
+from coke.turn.focus import FocusResolver, MessageSubject
 from coke.turn.locks import ConversationLockManager, RedisLockPort
 from coke.turn.memory import MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator
@@ -314,6 +315,43 @@ class ReminderAvailabilityAdapter:
                     )
                 )
         return intervals
+
+
+class ReminderLifecycleFocusRepository:
+    def __init__(
+        self, conversation_runtime_repository: Any, reminder_repository: Any
+    ) -> None:
+        self.conversation_runtime_repository = conversation_runtime_repository
+        self.reminder_repository = reminder_repository
+
+    def last_rendered_subject(self, conversation_id: str) -> MessageSubject | None:
+        turn_ids = self.conversation_runtime_repository.latest_turn_ids(
+            conversation_id,
+            limit=20,
+        )
+        for event in self.reminder_repository.list_lifecycle_events_for_turn_ids(
+            turn_ids,
+            limit=20,
+        ):
+            if event.payload.get("operation") not in {
+                "create",
+                "update",
+                "reschedule",
+                "clear_trigger_time",
+            }:
+                continue
+            reminder_id = event.payload.get("reminder_id")
+            if not isinstance(reminder_id, str) or not reminder_id:
+                continue
+            reminder = self.reminder_repository.get_reminder(reminder_id)
+            if reminder is None or reminder.lifecycle != "active":
+                continue
+            return MessageSubject(
+                subject_type="reminder",
+                object_ids=(reminder.id,),
+                ordered=True,
+            )
+        return None
 
 
 class IdentityAccessPreLLMGatePort:
@@ -996,6 +1034,12 @@ def compose_coke_runtime(
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=outbound_delivery,
         tool_ports=tool_ports,
+        focus_resolver=FocusResolver(
+            ReminderLifecycleFocusRepository(
+                repositories.conversation_runtime,
+                repositories.reminder,
+            )
+        ),
         delivery_lifecycle=OutputLifecycleDeliveryCallbacks(
             reminder_service=reminder_service,
             social_scheduling_service=social_scheduling_service,

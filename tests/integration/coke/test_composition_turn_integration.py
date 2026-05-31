@@ -192,6 +192,71 @@ def test_inbound_reminder_create_runs_real_domains_and_records_replied(composed)
     assert outbound.requests[-1].visible_text == "created it"
 
 
+def test_followup_reminder_edit_receives_recent_created_reminder_focus(composed):
+    runtime, _semantic, agent, outbound, identity = composed
+    create_inbound = _record_inbound(
+        runtime, identity, "provider-message-focus-1", "remind me"
+    )
+    agent.execute_reminder_tool = True
+
+    runtime.turn_runner.run_inbound_turn(
+        _trigger(create_inbound, identity, "provider-message-focus-1", "remind me")
+    )
+
+    reminder = runtime.repositories.reminder.list_active_reminders(identity.account.id)[
+        0
+    ]
+
+    class FocusUpdateAgent:
+        def __init__(self) -> None:
+            self.requests = []
+            self.tool_result = None
+
+        def invoke(self, request):
+            self.requests.append(request)
+            focus = request.context.focus_subject
+            assert focus is not None
+            assert focus.subject_type == "reminder"
+            assert focus.object_ids == (reminder.id,)
+            self.tool_result = request.tool_profile.reminder_tool.execute(
+                {
+                    "operation": "update_reminder",
+                    "owner_account_id": request.account_id,
+                    "reminder_id": focus.object_ids[0],
+                    "duration_minutes": 60,
+                },
+                request.freshness_guard,
+            )
+            return AgentResult.completed(
+                {"type": "reply", "segments": ["updated duration"]}
+            )
+
+        def complete_async(self, task_id: str):
+            raise AssertionError("focus update should not be async")
+
+    update_agent = FocusUpdateAgent()
+    runtime.turn_runner.interaction_agent = update_agent
+    update_inbound = _record_inbound(
+        runtime, identity, "provider-message-focus-2", "change it to 60 minutes"
+    )
+
+    result = runtime.turn_runner.run_inbound_turn(
+        _trigger(
+            update_inbound,
+            identity,
+            "provider-message-focus-2",
+            "change it to 60 minutes",
+        )
+    )
+
+    assert result.disposition == "replied"
+    assert update_agent.tool_result.ok is True
+    assert (
+        runtime.repositories.reminder.get_reminder(reminder.id).duration_minutes == 60
+    )
+    assert outbound.requests[-1].visible_text == "updated duration"
+
+
 def test_intentional_no_reply_skips_agent_and_creates_no_reminder(composed):
     runtime, semantic, agent, outbound, identity = composed
     inbound = _record_inbound(runtime, identity, "provider-message-2", "thanks")
