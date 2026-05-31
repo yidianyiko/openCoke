@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import json
 from typing import Any
 from uuid import uuid4
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.config import ConfigurationError, Settings
 from coke.domains.calendar_import.google import GoogleCalendarClientPort
@@ -459,9 +459,15 @@ class ReminderToolAdapter:
         owner = _required_str(command, "owner_account_id", default_key="account_id")
 
         if operation == "list_reminders":
+            display_timezone = str(
+                command.get("display_timezone")
+                or command.get("captured_timezone")
+                or "UTC"
+            )
             facts = _reminder_list_facts(
                 owner,
                 self.reminder_service.repository.list_active_reminders(owner),
+                display_timezone=display_timezone,
             )
             return ToolExecutionResult(
                 ok=True,
@@ -1431,10 +1437,17 @@ def _single_item_tool_result(item: Any) -> ToolExecutionResult:
     )
 
 
-def _reminder_list_facts(owner_account_id: str, reminders: list[Any]) -> dict[str, Any]:
-    reminder_facts = [_reminder_fact(reminder) for reminder in reminders]
+def _reminder_list_facts(
+    owner_account_id: str, reminders: list[Any], *, display_timezone: str = "UTC"
+) -> dict[str, Any]:
+    zone_name, zone = _display_zone(display_timezone)
+    reminder_facts = [
+        _reminder_fact(reminder, zone_name=zone_name, zone=zone)
+        for reminder in reminders
+    ]
     return {
         "owner_account_id": owner_account_id,
+        "display_timezone": zone_name,
         "count": len(reminder_facts),
         "reminders": reminder_facts,
         "display_lines": [
@@ -1444,12 +1457,16 @@ def _reminder_list_facts(owner_account_id: str, reminders: list[Any]) -> dict[st
     }
 
 
-def _reminder_fact(reminder: Any) -> dict[str, Any]:
+def _reminder_fact(reminder: Any, *, zone_name: str, zone: ZoneInfo) -> dict[str, Any]:
     return {
         "reminder_id": reminder.id,
         "content": reminder.content,
         "kind": reminder.kind,
         "next_fire_at": _iso_or_none(reminder.next_fire_at),
+        "display_timezone": zone_name,
+        "display_time_label": _display_time_label(
+            reminder.next_fire_at, zone_name, zone
+        ),
         "captured_timezone": reminder.captured_timezone,
         "duration_minutes": reminder.duration_minutes,
         "lifecycle": reminder.lifecycle,
@@ -1466,8 +1483,21 @@ def _iso_or_none(value: Any) -> str | None:
     return None
 
 
+def _display_zone(timezone_name: str) -> tuple[str, ZoneInfo]:
+    try:
+        return timezone_name, ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return "UTC", ZoneInfo("UTC")
+
+
+def _display_time_label(value: Any, timezone_name: str, zone: ZoneInfo) -> str | None:
+    if not isinstance(value, datetime):
+        return None
+    return f"{value.astimezone(zone):%Y-%m-%d %H:%M} {timezone_name}"
+
+
 def _reminder_display_line(index: int, reminder: Mapping[str, Any]) -> str:
-    time_label = reminder.get("next_fire_at") or "unscheduled"
+    time_label = reminder.get("display_time_label") or "unscheduled"
     return f"{index}. {reminder.get('content', '')} ({time_label})"
 
 

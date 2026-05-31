@@ -650,13 +650,13 @@ def test_reminder_tool_list_reminders_returns_active_count_without_write_guard()
                 operation="create",
                 content="pay rent",
                 trigger_time=datetime(2026, 5, 30, 12, 0, tzinfo=UTC),
-                captured_timezone="UTC",
+                captured_timezone="Asia/Shanghai",
                 duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
                 content="buy milk",
-                captured_timezone="UTC",
+                captured_timezone="Asia/Shanghai",
                 duration_minutes=15,
             ),
         ],
@@ -668,20 +668,29 @@ def test_reminder_tool_list_reminders_returns_active_count_without_write_guard()
             raise AssertionError("list_reminders must not open a write guard")
 
     result = adapter.execute(
-        {"operation": "list_reminders", "owner_account_id": "account_1"},
+        {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Shanghai",
+        },
         ReadOnlyGuard(),
     )
 
     assert result.ok is True
     assert result.reason_code is None
     assert result.facts["owner_account_id"] == "account_1"
+    assert result.facts["display_timezone"] == "Asia/Shanghai"
     assert result.facts["count"] == 2
     assert [item["content"] for item in result.facts["reminders"]] == [
         "pay rent",
         "buy milk",
     ]
+    assert result.facts["reminders"][0]["next_fire_at"] == ("2026-05-30T12:00:00+00:00")
+    assert result.facts["reminders"][0]["display_time_label"] == (
+        "2026-05-30 20:00 Asia/Shanghai"
+    )
     assert result.facts["display_lines"] == [
-        "1. pay rent (2026-05-30T12:00:00+00:00)",
+        "1. pay rent (2026-05-30 20:00 Asia/Shanghai)",
         "2. buy milk (unscheduled)",
     ]
     assert result.domain_result is not None
@@ -689,7 +698,7 @@ def test_reminder_tool_list_reminders_returns_active_count_without_write_guard()
     assert result.domain_result.intent_fulfilled is True
     assert result.domain_result.reply_contract == "render_reminder_list"
     assert "Active reminder count: 2." in result.domain_result.visible_summary
-    assert "1. pay rent (2026-05-30T12:00:00+00:00)" in (
+    assert "1. pay rent (2026-05-30 20:00 Asia/Shanghai)" in (
         result.domain_result.visible_summary
     )
 
