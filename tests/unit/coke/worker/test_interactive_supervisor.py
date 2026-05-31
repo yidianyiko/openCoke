@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from coke.turn.context import TurnMode, TurnTrigger
+from coke.turn.runner import notify_close_boundary_committed
 from coke.worker.interactive_supervisor import InteractiveTurnSupervisor
 
 
@@ -50,6 +51,18 @@ class CancelFailureRunner:
             await self.released.wait()
         except asyncio.CancelledError as error:
             raise RuntimeError(f"cleanup_failed:{trigger.trigger_id}") from error
+        return f"finished:{trigger.trigger_id}"
+
+
+class PostCloseRunner:
+    def __init__(self) -> None:
+        self.started: list[TurnTrigger] = []
+        self.released = asyncio.Event()
+
+    async def run_inbound_turn_async(self, trigger: TurnTrigger):
+        self.started.append(trigger)
+        notify_close_boundary_committed()
+        await self.released.wait()
         return f"finished:{trigger.trigger_id}"
 
 
@@ -159,6 +172,35 @@ async def test_replaced_task_failure_is_observed_without_becoming_completion():
     failure_trigger, failure = failures[0]
     assert failure_trigger == runner.started[0]
     assert str(failure) == "cleanup_failed:inbound:1"
+
+
+@pytest.mark.asyncio
+async def test_post_close_running_turn_is_detached_without_provider_cancel():
+    runner = PostCloseRunner()
+    agent = FakeAgent()
+    supervisor = InteractiveTurnSupervisor(
+        turn_runner=runner,
+        interaction_agent=agent,
+    )
+
+    await supervisor.submit(_inbound_trigger("inbound:1", "provider:1"))
+    await asyncio.sleep(0)
+    await supervisor.submit(_inbound_trigger("inbound:2", "provider:2"))
+    await asyncio.sleep(0)
+    runner.released.set()
+    await asyncio.sleep(0)
+
+    completed = await supervisor.drain_completed()
+
+    assert agent.cancelled == []
+    assert [trigger.trigger_id for trigger in runner.started] == [
+        "inbound:1",
+        "inbound:2",
+    ]
+    assert [(trigger.trigger_id, result) for trigger, result in completed] == [
+        ("inbound:1", "finished:inbound:1"),
+        ("inbound:2", "finished:inbound:2"),
+    ]
 
 
 @pytest.mark.asyncio

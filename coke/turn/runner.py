@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -25,6 +27,25 @@ from coke.turn.semantic_interpreter import (
 
 WAITING_TEXT = "Still working on it."
 NOTIFICATION_VISIBLE_REPLY_REQUIRED = "notification_requires_visible_reply"
+_CLOSE_BOUNDARY_OBSERVER: ContextVar[Callable[[], None] | None] = ContextVar(
+    "coke_close_boundary_observer",
+    default=None,
+)
+
+
+@contextmanager
+def close_boundary_observer(observer: Callable[[], None]) -> Iterator[None]:
+    token = _CLOSE_BOUNDARY_OBSERVER.set(observer)
+    try:
+        yield
+    finally:
+        _CLOSE_BOUNDARY_OBSERVER.reset(token)
+
+
+def notify_close_boundary_committed() -> None:
+    observer = _CLOSE_BOUNDARY_OBSERVER.get()
+    if observer is not None:
+        observer()
 
 
 class OutboundDeliveryPort(Protocol):
@@ -767,6 +788,7 @@ class TurnRunner:
 
     def _commit_close_boundary(self) -> None:
         self._close_boundary_committer()
+        notify_close_boundary_committed()
 
     def _commit_claim_boundary(self) -> None:
         self._claim_boundary_committer()

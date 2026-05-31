@@ -5,6 +5,12 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from coke.turn.context import TurnTrigger
+from coke.turn.runner import close_boundary_observer
+
+
+@dataclass(slots=True)
+class InteractiveTurnLifecycle:
+    close_committed: bool = False
 
 
 @dataclass(slots=True)
@@ -12,6 +18,13 @@ class ActiveInteractiveTurn:
     trigger: TurnTrigger
     task: asyncio.Task[Any]
     run_id: str
+    lifecycle: InteractiveTurnLifecycle
+
+
+@dataclass(slots=True)
+class RetiredInteractiveTurn:
+    active: ActiveInteractiveTurn
+    publish_completion: bool
 
 
 class InteractiveTurnSupervisor:
@@ -28,7 +41,7 @@ class InteractiveTurnSupervisor:
         self.interaction_agent = interaction_agent
         self.runtime_factory = runtime_factory
         self._active: dict[str, ActiveInteractiveTurn] = {}
-        self._retired: list[ActiveInteractiveTurn] = []
+        self._retired: list[RetiredInteractiveTurn] = []
         self._cancel_tasks: list[asyncio.Task[Any]] = []
         self._completed: list[tuple[TurnTrigger, Any]] = []
         self._failures: list[tuple[TurnTrigger | None, Exception]] = []
@@ -40,18 +53,26 @@ class InteractiveTurnSupervisor:
         if existing is not None:
             if existing.task.done():
                 self._collect_completed(trigger.conversation_id, existing)
+            elif existing.lifecycle.close_committed:
+                self._retired.append(
+                    RetiredInteractiveTurn(existing, publish_completion=True)
+                )
             else:
                 existing.task.cancel()
-                self._retired.append(existing)
+                self._retired.append(
+                    RetiredInteractiveTurn(existing, publish_completion=False)
+                )
                 self._cancel_tasks.append(
                     asyncio.create_task(self.interaction_agent.cancel(existing.run_id))
                 )
 
-        task = asyncio.create_task(self._run_trigger(trigger))
+        lifecycle = InteractiveTurnLifecycle()
+        task = asyncio.create_task(self._run_trigger(trigger, lifecycle))
         self._active[trigger.conversation_id] = ActiveInteractiveTurn(
             trigger=trigger,
             task=task,
             run_id=run_id,
+            lifecycle=lifecycle,
         )
 
     async def drain_completed(self) -> list[tuple[TurnTrigger, Any]]:
@@ -81,10 +102,13 @@ class InteractiveTurnSupervisor:
         self._collect_task_result(active, publish_completion=True)
 
     def _collect_done_retired(self) -> None:
-        pending: list[ActiveInteractiveTurn] = []
+        pending: list[RetiredInteractiveTurn] = []
         for retired in self._retired:
-            if retired.task.done():
-                self._collect_task_result(retired, publish_completion=False)
+            if retired.active.task.done():
+                self._collect_task_result(
+                    retired.active,
+                    publish_completion=retired.publish_completion,
+                )
             else:
                 pending.append(retired)
         self._retired = pending
@@ -119,21 +143,29 @@ class InteractiveTurnSupervisor:
         if publish_completion:
             self._completed.append((active.trigger, result))
 
-    async def _run_trigger(self, trigger: TurnTrigger) -> Any:
-        if self.runtime_factory is None:
-            return await self.turn_runner.run_inbound_turn_async(trigger)
+    async def _run_trigger(
+        self,
+        trigger: TurnTrigger,
+        lifecycle: InteractiveTurnLifecycle,
+    ) -> Any:
+        def mark_close_committed() -> None:
+            lifecycle.close_committed = True
 
-        runtime = self.runtime_factory()
-        session = getattr(runtime, "session", None)
-        try:
-            result = await runtime.turn_runner.run_inbound_turn_async(trigger)
-            if session is not None and callable(getattr(session, "commit", None)):
-                session.commit()
-            return result
-        except BaseException:
-            if session is not None and callable(getattr(session, "rollback", None)):
-                session.rollback()
-            raise
-        finally:
-            if session is not None and callable(getattr(session, "close", None)):
-                session.close()
+        with close_boundary_observer(mark_close_committed):
+            if self.runtime_factory is None:
+                return await self.turn_runner.run_inbound_turn_async(trigger)
+
+            runtime = self.runtime_factory()
+            session = getattr(runtime, "session", None)
+            try:
+                result = await runtime.turn_runner.run_inbound_turn_async(trigger)
+                if session is not None and callable(getattr(session, "commit", None)):
+                    session.commit()
+                return result
+            except BaseException:
+                if session is not None and callable(getattr(session, "rollback", None)):
+                    session.rollback()
+                raise
+            finally:
+                if session is not None and callable(getattr(session, "close", None)):
+                    session.close()
