@@ -433,6 +433,36 @@ describe('CustomerWechatPersonalPage branded layout', () => {
       'The last connect attempt failed. Retry or archive this channel.',
     );
   });
+
+  it('shows a disconnect failure alert while the channel remains connected', async () => {
+    getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'connected',
+        channel_id: 'channel_1',
+      },
+    });
+    disconnectCustomerWechatChannelMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'Temporary connector failure',
+    });
+
+    renderWithLocale(root, 'en');
+    await waitForText(container, 'Your personal WeChat channel is connected and ready.');
+
+    const disconnectButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Disconnect WeChat'),
+    );
+    expect(disconnectButton).toBeTruthy();
+    disconnectButton?.click();
+
+    await flushTicks(5);
+
+    expect(container.textContent).toContain('Your personal WeChat channel is connected and ready.');
+    expect(container.textContent).toContain(
+      'Could not disconnect your WeChat channel. It is still connected.',
+    );
+  });
 });
 
 describe('CustomerWechatPersonalPage sign out', () => {

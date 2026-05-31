@@ -97,7 +97,7 @@ class WeChatPersonalAdapter:
                 params={"account_id": account_id, "session_id": session_id},
                 timeout=5.0,
             )
-        except (httpx.TimeoutException, httpx.NetworkError):
+        except httpx.TransportError:
             return {
                 "account_id": account_id,
                 "session_id": session_id,

@@ -273,6 +273,7 @@ type CustomerPagesMessages = {
     errorCard: {
       eyebrow: string;
       fallbackDescription: string;
+      disconnectDescription: string;
     };
     nextSteps: {
       title: string;
@@ -766,6 +767,7 @@ export const messages: MessagesCatalog = {
         errorCard: {
           eyebrow: 'Connection error',
           fallbackDescription: 'The last connect attempt failed. Retry or archive this channel.',
+          disconnectDescription: 'Could not disconnect your WeChat channel. It is still connected.',
         },
         nextSteps: {
           title: 'What you can do next',
@@ -1199,6 +1201,7 @@ export const messages: MessagesCatalog = {
         errorCard: {
           eyebrow: '连接异常',
           fallbackDescription: '上一次连接尝试失败了。你可以重试，或归档这个通道。',
+          disconnectDescription: '暂时无法断开你的微信通道。当前通道仍然保持连接。',
         },
         nextSteps: {
           title: '接下来可以做什么',

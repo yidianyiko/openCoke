@@ -36,6 +36,11 @@ type BlockedAccessState = {
 };
 
 type BindWechatCopy = ReturnType<typeof useLocale>['messages']['customerPages']['bindWechat'];
+type ChannelAction = 'create' | 'connect' | 'disconnect' | 'archive';
+type ActionErrorState = {
+  action: ChannelAction;
+  message: string;
+};
 
 const primaryButtonClass = 'customer-channel-page__button customer-channel-page__button--primary';
 const secondaryButtonClass = 'customer-channel-page__button customer-channel-page__button--secondary';
@@ -174,6 +179,14 @@ function currentPendingSession(channel: CustomerWechatChannelState | null): stri
   return channel.session_id ?? null;
 }
 
+function actionFailureMessage(action: ChannelAction, copy: BindWechatCopy): string {
+  if (action === 'disconnect') {
+    return copy.errorCard.disconnectDescription;
+  }
+
+  return copy.errorCard.fallbackDescription;
+}
+
 export default function CustomerWechatPersonalPage() {
   const { locale, messages } = useLocale();
   const copy = messages.customerPages.bindWechat;
@@ -185,12 +198,12 @@ export default function CustomerWechatPersonalPage() {
   const [channel, setChannel] = useState<CustomerWechatChannelState | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'create' | 'connect' | 'disconnect' | 'archive' | null>(null);
+  const [busyAction, setBusyAction] = useState<ChannelAction | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<ActionErrorState | null>(null);
   const channelRef = useRef<CustomerWechatChannelState | null>(null);
   const profileRefreshStartedRef = useRef(false);
-  const busyActionRef = useRef<'create' | 'connect' | 'disconnect' | 'archive' | null>(null);
+  const busyActionRef = useRef<ChannelAction | null>(null);
   const channelRevisionRef = useRef(0);
   const channelViewModel = useMemo(
     () => getCustomerWechatChannelViewModel(channel, copy.viewModel),
@@ -358,7 +371,7 @@ export default function CustomerWechatPersonalPage() {
   }
 
   async function runAction(
-    action: 'create' | 'connect' | 'disconnect' | 'archive',
+    action: ChannelAction,
     operation: () => Promise<ApiResponse<CustomerWechatChannelState>>,
   ) {
     if (busyActionRef.current != null) {
@@ -375,10 +388,10 @@ export default function CustomerWechatPersonalPage() {
         setRefreshError(null);
         const next = applyCustomerWechatChannelMutationFailure(
           currentChannel,
-          copy.errorCard.fallbackDescription,
+          actionFailureMessage(action, copy),
         );
         channelRevisionRef.current += 1;
-        setActionError(next.actionError);
+        setActionError(next.actionError ? { action, message: next.actionError } : null);
         setChannel(next.channel);
         return;
       }
@@ -391,10 +404,10 @@ export default function CustomerWechatPersonalPage() {
       setRefreshError(null);
       const next = applyCustomerWechatChannelMutationFailure(
         currentChannel,
-        copy.errorCard.fallbackDescription,
+        actionFailureMessage(action, copy),
       );
       channelRevisionRef.current += 1;
-      setActionError(next.actionError);
+      setActionError(next.actionError ? { action, message: next.actionError } : null);
       setChannel(next.channel);
     } finally {
       busyActionRef.current = null;
@@ -480,7 +493,8 @@ export default function CustomerWechatPersonalPage() {
 
   const statusDescription = getChannelStatusDescription(channel.status, copy);
   const nextSteps = getChannelNextSteps(channel.status, copy);
-  const visibleActionError = channel.status === 'connected' ? null : actionError;
+  const visibleActionError =
+    channel.status === 'connected' && actionError?.action !== 'disconnect' ? null : actionError?.message;
 
   return (
     <ChannelSetupCard
