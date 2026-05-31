@@ -61,6 +61,13 @@ cd web && pnpm test
 cd web && pnpm build
 ```
 
+The clean compose deploy runs `coke-web` from a bind-mounted `web/` directory.
+Next.js build output in `web/.next` is generated inside the running container,
+so deploy sync must not delete it without recreating the web service. The
+canonical deploy script preserves `.next` during rsync and force-recreates
+`coke-web` after migration checks so static assets and route manifests match
+the current source.
+
 Deployment implementation tasks must add task-specific smoke evidence for the
 real user path they claim. Structure checks alone do not prove runtime delivery.
 

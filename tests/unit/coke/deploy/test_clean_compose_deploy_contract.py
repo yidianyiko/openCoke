@@ -86,6 +86,16 @@ def test_clean_web_is_part_of_default_deploy() -> None:
     assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"' in script
 
 
+def test_deploy_script_preserves_and_recreates_next_build_output() -> None:
+    script = DEPLOY_SCRIPT.read_text()
+
+    assert "--exclude=.next" in script
+    assert (
+        'docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml '
+        '-f docker-compose.clean.yml up -d --no-deps --force-recreate coke-web'
+    ) in script
+
+
 def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> None:
     script = DEPLOY_SCRIPT.read_text()
 
@@ -119,6 +129,7 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
         "__pycache__",
         "node_modules",
         ".pnpm-store",
+        ".next",
     ):
         assert f"--exclude={excluded}" in script
     assert (
