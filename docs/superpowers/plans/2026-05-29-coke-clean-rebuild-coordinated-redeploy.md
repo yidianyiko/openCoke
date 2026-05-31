@@ -4,7 +4,7 @@
 
 **Goal:** Redeploy the live `gcp-coke` `coke-clean` stack to current `main` while preserving the two already-connected real personal-WeChat sessions.
 
-**Architecture:** Keep the clean Python API as the only customer API authority: customer identity comes from `Authorization: Bearer <session_token>`, not from client-supplied account ids. Preserve product data and provider sessions in Postgres and the existing `wechat-personal-connector`; update only the clean application code, run Alembic in place, and mutate only the two existing credential rows for Argon2 login compatibility.
+**Architecture:** Keep the clean Python API as the only customer API authority: customer identity comes from `Authorization: Bearer <session_token>`, not from client-supplied account ids. Preserve product data and provider sessions in Postgres and the existing `wechat-personal-connector`; update only the clean application code, run Alembic in place, and mutate only scoped auth/profile rows for the two preserved live accounts.
 
 **Tech Stack:** Next.js 16, Vitest, Flask, SQLAlchemy 2.x, Alembic, Argon2, Docker Compose on `gcp-coke`, Postgres, Redis, and the existing personal-WeChat connector on port 8095.
 
@@ -241,7 +241,9 @@ When all verification passes, set `Plan Status` to `complete` and record the fin
 
 **Files:**
 - Modify: `scripts/deploy-compose-to-gcp.sh`
+- Modify: `scripts/ops/migrate_coke_clean_credentials.py`
 - Modify: `tests/unit/coke/deploy/test_clean_compose_deploy_contract.py`
+- Modify: `tests/unit/coke/deploy/test_migrate_coke_clean_credentials.py`
 - Modify: `docs/superpowers/plans/2026-05-29-coke-clean-rebuild-coordinated-redeploy.md`
 - Remote read/write: `/home/whoami/coke-clean`
 
@@ -318,12 +320,15 @@ stop before service recreation, and preserve product data.
 Run:
 
 ```bash
-docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate python scripts/ops/migrate_coke_clean_credentials.py
+docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm -e PYTHONPATH=/app coke-migrate python scripts/ops/migrate_coke_clean_credentials.py
 ```
 
 Expected: `credential_migration updated=2 skipped=0 missing=-` or an
-idempotent `updated=0 skipped=2 missing=-` if already migrated. Verify no
-account/channel/channel_identity rows were recreated.
+idempotent `updated=0 skipped=2 missing=-` if already migrated. The script also
+ensures missing `user_profile` rows for only these two preserved accounts,
+because live `/api/friends` and notification rendering require the clean
+identity profile contract. Verify no account/channel/channel_identity rows were
+recreated.
 
 - [ ] **Step 9: Recreate only clean app services**
 
