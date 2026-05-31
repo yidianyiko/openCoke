@@ -38,7 +38,9 @@ _REMINDER_OP_ALIASES = {
     "cancel": "delete_reminder",
     "remove": "delete_reminder",
     "reschedule": "reschedule_reminder",
-    "update": "reschedule_reminder",
+    "edit": "update_reminder",
+    "modify": "update_reminder",
+    "update": "update_reminder",
     "modify_time": "reschedule_reminder",
 }
 _SETTINGS_OP_ALIASES = {
@@ -226,6 +228,7 @@ class AgnoInteractionAgent:
             "Call tools for state-changing domain work instead of claiming the action happened.",
             "For reminder, scheduling, friendship, settings, or calendar-import requests, call the matching tool before replying.",
             "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
+            "For reminder content or duration edits, call reminder_tool with operation=update_reminder, owner_account_id from trusted_facts.account_id, reminder_id from trusted context, and content and/or duration_minutes. Do not call reschedule_reminder for duration-only edits.",
             "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
             "For adding a friend from an invite code or link token, call social_scheduling_tool with operation=establish_friendship_from_token, joiner_account_id from trusted_facts.account_id, and link_code or public_token from the User message.",
             "For friend-list requests, call social_scheduling_tool with operation=list_friends and account_id from trusted_facts.account_id.",
@@ -317,7 +320,9 @@ def _tool_doc(name: str) -> str:
             "owner_account_id set to trusted_facts.account_id, raw_text set to "
             "the exact User message, captured_timezone set to "
             "trusted_facts.default_timezone, and entry_point='conversation'. "
-            "For edits, call operation='reschedule_reminder' with reminder_id "
+            "For content or duration edits, call operation='update_reminder' "
+            "with reminder_id plus content and/or duration_minutes. For time "
+            "edits, call operation='reschedule_reminder' with reminder_id "
             "and trigger_time. For completion, call operation='complete_reminder' "
             "with reminder_id. For cancellation/deletion, call "
             "operation='delete_reminder' with reminder_id."
@@ -534,6 +539,8 @@ def _normalize_reminder_operation(command: Mapping[str, Any]) -> dict[str, Any]:
             nested["operation"] = _REMINDER_OP_ALIASES.get(str(op), str(op))
         if "new_trigger_time" in nested and "trigger_time" not in nested:
             nested["trigger_time"] = nested.pop("new_trigger_time")
+        if "new_duration_minutes" in nested and "duration_minutes" not in nested:
+            nested["duration_minutes"] = nested.pop("new_duration_minutes")
         nested.update(payload)
         payload = nested
     elif "op" in payload and "operation" not in payload:
@@ -545,6 +552,8 @@ def _normalize_reminder_operation(command: Mapping[str, Any]) -> dict[str, Any]:
         )
     if "new_trigger_time" in payload and "trigger_time" not in payload:
         payload["trigger_time"] = payload.pop("new_trigger_time")
+    if "new_duration_minutes" in payload and "duration_minutes" not in payload:
+        payload["duration_minutes"] = payload.pop("new_duration_minutes")
     return payload
 
 

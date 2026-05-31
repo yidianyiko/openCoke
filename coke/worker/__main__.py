@@ -17,6 +17,18 @@ from coke.worker.stream_consumer import StreamConsumer, StreamEvent
 
 LOGGER = logging.getLogger(__name__)
 
+REMINDER_LIFECYCLE_TOPICS = frozenset({"reminder.lifecycle"})
+RENDER_TURN_TOPICS = frozenset(
+    {
+        "turn.reminder_fire",
+        "turn.nightly_summary",
+        "turn.proactive_fire",
+        "turn.notification",
+        "turn.undelivered_resend",
+    }
+)
+TURN_TOPICS = frozenset({"turn.inbound", *RENDER_TURN_TOPICS})
+
 
 def run_worker_loop(
     settings: Settings | None = None,
@@ -66,6 +78,8 @@ def run_worker_loop(
 
 
 def _handle_event(runtime: CokeRuntime, event: StreamEvent) -> None:
+    if _handle_non_turn_event(event):
+        return
     trigger = _turn_trigger_from_event(runtime, event)
     if trigger.mode == TurnMode.RENDER:
         result = runtime.turn_runner.run_render_turn(trigger)
@@ -87,18 +101,34 @@ def _handle_event(runtime: CokeRuntime, event: StreamEvent) -> None:
             )
 
 
+def _handle_non_turn_event(event: StreamEvent) -> bool:
+    payload = dict(event.payload)
+    if event.topic in REMINDER_LIFECYCLE_TOPICS:
+        LOGGER.info(
+            "reminder_lifecycle_event_acked_as_evidence",
+            extra={
+                "event_id": event.event_id,
+                "topic": event.topic,
+                "operation": payload.get("operation"),
+                "reminder_id": payload.get("reminder_id"),
+            },
+        )
+        return True
+    if event.topic not in TURN_TOPICS:
+        LOGGER.warning(
+            "unknown_worker_topic_skipped",
+            extra={"event_id": event.event_id, "topic": event.topic},
+        )
+        return True
+    return False
+
+
 def _turn_trigger_from_event(runtime: CokeRuntime, event: StreamEvent) -> TurnTrigger:
     topic = event.topic
     payload = dict(event.payload)
     if topic == "turn.inbound":
         return _inbound_trigger(runtime, payload)
-    if topic in {
-        "turn.reminder_fire",
-        "turn.nightly_summary",
-        "turn.proactive_fire",
-        "turn.notification",
-        "turn.undelivered_resend",
-    }:
+    if topic in RENDER_TURN_TOPICS:
         return _render_trigger(runtime, topic, payload)
     raise RuntimeError(f"unsupported_worker_topic:{topic}")
 

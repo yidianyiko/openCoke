@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
+from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -162,6 +163,87 @@ class ReminderService:
             reminder_id=updated.id,
             time_state="valid_future",
             fact={"transition": "reschedule_reminder"},
+        )
+
+    def update_reminder(
+        self,
+        owner_account_id: str,
+        reminder_id: str,
+        *,
+        content: str | None = None,
+        trigger_time: datetime | None = None,
+        captured_timezone: str | None = None,
+        duration_minutes: Any | None = None,
+        commit_guard: CommitGuard = None,
+    ) -> ReminderItemResult:
+        reminder = self._require_owned_reminder(owner_account_id, reminder_id)
+        if reminder.kind == "proactive":
+            raise ReminderError("proactive_user_immutable")
+
+        updates: dict[str, Any] = {"updated_at": self._now()}
+        time_state: TimeValidationState | None = None
+        if content is not None:
+            content = content.strip()
+            if not content:
+                return ReminderItemResult(
+                    state="needs-follow-up",
+                    reminder_id=reminder.id,
+                    reason="needs_content",
+                )
+            updates["content"] = content
+            updates["content_hash"] = _content_hash(content)
+
+        if trigger_time is not None:
+            timezone = captured_timezone or reminder.captured_timezone
+            time_state = self.validate_trigger_time(
+                trigger_time=trigger_time,
+                captured_timezone=timezone,
+                incomplete_date=False,
+            )
+            if time_state != "valid_future":
+                return ReminderItemResult(
+                    state="needs-follow-up" if time_state != "invalid" else "failed",
+                    reminder_id=reminder.id,
+                    reason=time_state,
+                    time_state=time_state,
+                )
+            updates["kind"] = (
+                "timed" if reminder.kind == "no_trigger_time" else reminder.kind
+            )
+            updates["next_fire_at"] = trigger_time
+            updates["captured_timezone"] = timezone
+
+        if duration_minutes is not None:
+            updates["duration_minutes"] = _duration_minutes(duration_minutes)
+
+        if len(updates) == 1:
+            return ReminderItemResult(
+                state="needs-follow-up",
+                reminder_id=reminder.id,
+                reason="no_update_fields",
+            )
+
+        updated = replace(reminder, **updates)
+        self._save_reminder_with_outbox(
+            updated,
+            "update",
+            commit_guard=commit_guard,
+        )
+        return ReminderItemResult(
+            state="succeeded",
+            reminder_id=updated.id,
+            time_state=time_state,
+            fact={
+                "transition": "update_reminder",
+                "kind": updated.kind,
+                "content": updated.content,
+                "trigger_time": (
+                    updated.next_fire_at.isoformat()
+                    if updated.next_fire_at is not None
+                    else None
+                ),
+                "duration_minutes": updated.duration_minutes,
+            },
         )
 
     def clear_trigger_time(
@@ -533,7 +615,11 @@ class ReminderService:
             next_fire_at=item.trigger_time,
             recurrence_rule=dict(item.recurrence_rule),
             captured_timezone=item.captured_timezone,
-            duration_minutes=item.duration_minutes or 15,
+            duration_minutes=(
+                _duration_minutes(item.duration_minutes)
+                if item.duration_minutes is not None
+                else 15
+            ),
             lifecycle="active",
             hidden_from_calendar=kind == "proactive",
             shared_reminder_id=item.shared_reminder_id,
@@ -685,6 +771,7 @@ class ReminderService:
                 "kind": reminder.kind,
                 "lifecycle": reminder.lifecycle,
                 "next_fire_at": next_fire_at,
+                "duration_minutes": reminder.duration_minutes,
                 "shared_reminder_id": reminder.shared_reminder_id,
             },
             traceparent=generate_traceparent(),
@@ -700,3 +787,17 @@ class ReminderService:
 
 def _content_hash(content: str) -> str:
     return sha256(content.strip().lower().encode("utf-8")).hexdigest()
+
+
+def _duration_minutes(value: Any) -> int:
+    if isinstance(value, bool):
+        raise ReminderError("invalid_duration_minutes")
+    if isinstance(value, int):
+        minutes = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        minutes = int(value)
+    else:
+        raise ReminderError("invalid_duration_minutes")
+    if minutes <= 0:
+        raise ReminderError("invalid_duration_minutes")
+    return minutes

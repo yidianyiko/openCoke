@@ -153,6 +153,44 @@ def test_personal_reminder_lifecycle_writes_outbox_events(service):
     assert operations == ["create", "reschedule", "complete", "create", "delete"]
 
 
+def test_update_reminder_duration_updates_existing_row_and_writes_lifecycle_event(
+    service,
+):
+    trigger_time = NOW + timedelta(hours=1)
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="stand up",
+                trigger_time=trigger_time,
+                captured_timezone="Asia/Tokyo",
+                duration_minutes=15,
+            )
+        ],
+    )
+    reminder_id = created.items[0].reminder_id
+
+    result = service.update_reminder(
+        owner_account_id="acct_1",
+        reminder_id=reminder_id,
+        duration_minutes=60,
+    )
+
+    assert result.state == "succeeded"
+    reminders = service.repository.list_active_reminders("acct_1")
+    assert len(reminders) == 1
+    assert reminders[0].id == reminder_id
+    assert reminders[0].duration_minutes == 60
+    assert reminders[0].next_fire_at == trigger_time
+    assert reminders[0].captured_timezone == "Asia/Tokyo"
+    outbox = service.repository.outbox_records[-1]
+    assert outbox.topic == "reminder.lifecycle"
+    assert outbox.payload["operation"] == "update"
+    assert outbox.payload["reminder_id"] == reminder_id
+    assert outbox.payload["duration_minutes"] == 60
+
+
 def test_commit_guard_blocks_personal_reminder_write(service):
     class StaleCommitGuard:
         def __call__(self):

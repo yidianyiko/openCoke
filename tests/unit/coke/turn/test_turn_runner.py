@@ -24,6 +24,8 @@ from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import TurnRunner
 from coke.turn.semantic_interpreter import SemanticDecision
+from coke.worker.__main__ import _handle_event
+from coke.worker.stream_consumer import StreamEvent
 
 NOW = datetime(2026, 5, 30, 10, 0, tzinfo=UTC)
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
@@ -543,6 +545,125 @@ def test_superseded_after_tool_entry_commits_no_domain_facts(harness):
     assert guard.calls == 2
     assert reminder_repository.list_active_reminders("account_1") == []
     assert harness["runtime"].get_disposition(start.turn.id).disposition == "superseded"
+
+
+def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harness):
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    created = reminder_service.execute_batch(
+        owner_account_id="account_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="work block",
+                trigger_time=datetime(2026, 5, 30, 12, 0, tzinfo=UTC),
+                captured_timezone="Asia/Shanghai",
+                duration_minutes=15,
+            )
+        ],
+    )
+    reminder_id = created.items[0].reminder_id
+    adapter = ReminderToolAdapter(reminder_service)
+
+    class DurationUpdateAgent:
+        def __init__(self) -> None:
+            self.tool_result = None
+
+        def invoke(self, request):
+            self.tool_result = request.tool_profile.reminder_tool.execute(
+                {
+                    "operation": "update_reminder",
+                    "owner_account_id": request.account_id,
+                    "reminder_id": reminder_id,
+                    "duration_minutes": 60,
+                },
+                request.freshness_guard,
+            )
+            return AgentResult.completed(
+                {"type": "reply", "segments": ["已改成60分钟。"]}
+            )
+
+        def complete_async(self, task_id: str):
+            raise AssertionError("duration update should complete synchronously")
+
+    agent = DurationUpdateAgent()
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-duration-update",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=agent,
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=adapter),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: "Asia/Shanghai",
+    )
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="reminder_op",
+        intent_action="update_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+    )
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "把提醒改成60分钟"},
+    )
+
+    result = runner.run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert agent.tool_result is not None
+    assert agent.tool_result.ok is True
+    reminder = reminder_repository.get_reminder(reminder_id)
+    assert reminder is not None
+    assert reminder.duration_minutes == 60
+    assert harness["delivery"].deliveries[-1].visible_text == "已改成60分钟。"
+
+    lifecycle_event = reminder_repository.outbox_records[-1]
+    assert lifecycle_event.topic == "reminder.lifecycle"
+    assert lifecycle_event.payload["operation"] == "update"
+    assert lifecycle_event.payload["duration_minutes"] == 60
+    worker_runtime = SimpleNamespace(
+        session=SimpleNamespace(commit=lambda: None),
+        turn_runner=SimpleNamespace(
+            run_inbound_turn=lambda _trigger: pytest.fail(
+                "reminder.lifecycle must not spawn an inbound turn"
+            ),
+            run_render_turn=lambda _trigger: pytest.fail(
+                "reminder.lifecycle must not spawn a render turn"
+            ),
+        ),
+        reply_pubsub=None,
+    )
+
+    _handle_event(
+        worker_runtime,
+        StreamEvent(
+            event_id=lifecycle_event.id,
+            topic=lifecycle_event.topic,
+            idempotency_key=lifecycle_event.idempotency_key,
+            traceparent=lifecycle_event.traceparent,
+            payload=lifecycle_event.payload,
+            stream_message_id="1-0",
+        ),
+    )
 
 
 def test_render_delivery_failure_updates_output_class_lifecycle(harness):

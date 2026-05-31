@@ -447,6 +447,18 @@ class ReminderToolAdapter:
             )
             return _single_item_tool_result(result)
 
+        if operation == "update_reminder":
+            result = self.reminder_service.update_reminder(
+                owner_account_id=owner,
+                reminder_id=_required_str(command, "reminder_id"),
+                content=command.get("content"),
+                trigger_time=_optional_datetime(command.get("trigger_time")),
+                captured_timezone=command.get("captured_timezone"),
+                duration_minutes=command.get("duration_minutes"),
+                commit_guard=_guard_commit_guard(guard),
+            )
+            return _single_item_tool_result(result)
+
         if operation == "clear_trigger_time":
             result = self.reminder_service.clear_trigger_time(
                 owner_account_id=owner,

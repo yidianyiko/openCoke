@@ -1151,6 +1151,42 @@ def test_reminder_tool_maps_agno_modify_time_op_to_reschedule_operation():
     ]
 
 
+def test_reminder_tool_maps_agno_update_duration_op_to_update_operation():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    reminder_tool = FakeReminderTool()
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=reminder_tool))
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    tool(
+        kwargs={
+            "command": {
+                "op": "update",
+                "reminder_id": "reminder_1",
+                "duration_minutes": 60,
+            },
+            "owner_account_id": "owner_1",
+            "captured_timezone": "Asia/Shanghai",
+        }
+    )
+
+    assert reminder_tool.calls == [
+        (
+            {
+                "operation": "update_reminder",
+                "reminder_id": "reminder_1",
+                "duration_minutes": 60,
+                "owner_account_id": "owner_1",
+                "captured_timezone": "Asia/Shanghai",
+                "entry_point": "conversation",
+            },
+            reminder_tool.calls[0][1],
+        )
+    ]
+
+
 def test_tool_callable_coerces_json_string_list_fields_once_for_all_tools():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
