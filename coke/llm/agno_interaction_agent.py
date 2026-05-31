@@ -231,7 +231,7 @@ class AgnoInteractionAgent:
             "For friend-list requests, call social_scheduling_tool with operation=list_friends and account_id from trusted_facts.account_id.",
             "For friend-removal requests, call social_scheduling_tool with operation=remove_friend, account_id from trusted_facts.account_id, and friend_account_id from an active friend account ID.",
             "For availability requests, call social_scheduling_tool with operation=query_availability, requester_account_id from trusted_facts.account_id, friend_account_ids as active friend account IDs, local_start, local_end, and requester_timezone from trusted_facts.default_timezone.",
-            "For shared-reminder creation, call social_scheduling_tool with operation=create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, title, local_trigger_at, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes, and context.",
+            "For shared-reminder creation from natural language, call social_scheduling_tool with operation=detect_and_create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, raw_text set to the exact User message, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes only when explicit, and context. Do not compute local_trigger_at yourself.",
             "When a shared-reminder creation tool result succeeds, state that the shared reminder is created and immediately active. Never say or imply waiting for confirmation, pending confirmation, pending acceptance, approval, invitation approval, or that receivers need to accept/reject it.",
             "For shared-reminder cancellation requests, call social_scheduling_tool with operation=cancel_shared_reminder, account_id from trusted_facts.account_id, and shared_reminder_id from trusted context or prior tool results.",
             "When a user gives a friend name but not an account ID, call operation=list_friends first. If exactly one active friend matches the request context, use that friend's account_id; otherwise ask a clarification instead of inventing an ID.",
@@ -340,12 +340,16 @@ def _tool_doc(name: str) -> str:
             "friend account ID. To query availability, call "
             "operation='query_availability' with requester_account_id set to "
             "trusted_facts.account_id, friend_account_ids, local_start, "
-            "local_end, and requester_timezone. To create a shared reminder, "
-            "call operation='create_shared_reminder' with creator_account_id "
-            "set to trusted_facts.account_id, receiver_account_ids set to "
-            "active friend account IDs, title, local_trigger_at, "
-            "captured_timezone, duration_minutes, and context. To cancel a "
-            "shared reminder, call operation='cancel_shared_reminder' with "
+            "local_end, and requester_timezone. To create a shared reminder "
+            "from natural language, call "
+            "operation='detect_and_create_shared_reminder' with "
+            "creator_account_id set to trusted_facts.account_id, "
+            "receiver_account_ids set to active friend account IDs, raw_text "
+            "set to the exact User message, captured_timezone set to "
+            "trusted_facts.default_timezone, duration_minutes only when "
+            "explicit, and context. Do not compute local_trigger_at yourself. "
+            "To cancel a shared reminder, call "
+            "operation='cancel_shared_reminder' with "
             "account_id set to trusted_facts.account_id and "
             "shared_reminder_id."
         )
@@ -462,6 +466,25 @@ def _with_tool_defaults(
     if name == "settings":
         payload = _normalize_settings_operation(command)
         payload.setdefault("account_id", request.account_id)
+        return payload
+    if name == "social_scheduling":
+        payload = dict(command)
+        if payload.get("operation") == "detect_and_create_shared_reminder":
+            text = _user_text(request)
+            payload.setdefault("raw_text", text)
+            payload.setdefault("creator_account_id", request.account_id)
+            payload.setdefault(
+                "captured_timezone",
+                str(request.trusted_facts.get("default_timezone") or "UTC"),
+            )
+            payload.setdefault("duration_minutes", 15)
+            payload.setdefault(
+                "context",
+                {
+                    "source": "conversation",
+                    "text": text,
+                },
+            )
         return payload
     if name != "reminder":
         return command
@@ -720,8 +743,7 @@ def _persona_block(request: AgentRequest) -> str:
         return ""
     return (
         "User-configured persona and speaking preferences layer on top of "
-        "CokeVoicePolicy:\n"
-        + _json_block(persona)
+        "CokeVoicePolicy:\n" + _json_block(persona)
     )
 
 
@@ -800,7 +822,9 @@ def _domain_result_block(domain_result: Mapping[str, Any]) -> str:
         "Do not infer success from the transcript or from the mere existence of a requested operation.",
     ]
     if domain_result.get("intent_fulfilled") is False:
-        lines.append("Do not claim the action succeeded; ask for missing information or report the trusted failure reason.")
+        lines.append(
+            "Do not claim the action succeeded; ask for missing information or report the trusted failure reason."
+        )
     return "\n".join(lines)
 
 
@@ -862,16 +886,12 @@ def _output_contract_block(request: AgentRequest) -> str:
             ]
         )
         if isinstance(protocol_retry, Mapping) and protocol_retry.get("guidance"):
-            lines.append(
-                f"Specific protocol violation: {protocol_retry['guidance']}."
-            )
+            lines.append(f"Specific protocol violation: {protocol_retry['guidance']}.")
     return "\n".join(lines)
 
 
 def _plain_mapping(mapping: Mapping[str, Any]) -> str:
-    return "\n".join(
-        f"{key}: {_plain_value(value)}" for key, value in mapping.items()
-    )
+    return "\n".join(f"{key}: {_plain_value(value)}" for key, value in mapping.items())
 
 
 def _plain_value(value: Any) -> str:

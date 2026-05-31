@@ -104,6 +104,18 @@ class FakeSocialSchedulingService:
             follow_up_facts={},
         )
 
+    def detect_and_create_shared_reminder(self, **kwargs):
+        kwargs.pop("commit_guard", None)
+        self.calls.append(("detect_and_create_shared_reminder", kwargs))
+        if self.shared_reminder_error is not None:
+            raise self.shared_reminder_error
+        return SimpleNamespace(
+            status="created",
+            shared_reminder=SimpleNamespace(id="shared_1"),
+            breakdown={},
+            follow_up_facts={},
+        )
+
 
 def test_social_scheduling_tool_routes_friend_link_operations_to_service():
     service = FakeSocialSchedulingService()
@@ -273,6 +285,49 @@ def test_establish_friendship_operation_accepts_visible_invite_code():
         (
             "establish_friendship_from_code",
             {"joiner_account_id": "joiner_1", "link_code": "invite_code"},
+        )
+    ]
+    assert guard.calls == 1
+
+
+def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
+    service = FakeSocialSchedulingService()
+    adapter = SocialSchedulingToolAdapter(service)
+    guard = FakeGuard()
+
+    result = adapter.execute(
+        {
+            "operation": "detect_and_create_shared_reminder",
+            "creator_account_id": "creator_1",
+            "receiver_account_ids": ["friend_1"],
+            "raw_text": "帮我和 lizihao 约一个今天晚上10:30的会议",
+            "captured_timezone": "Asia/Shanghai",
+            "duration_minutes": 15,
+            "context": {"source": "unit"},
+        },
+        guard,
+    )
+
+    assert result.ok is True
+    assert result.reason_code is None
+    assert result.facts == {
+        "status": "created",
+        "shared_reminder_id": "shared_1",
+        "breakdown": {},
+        "follow_up_facts": {},
+    }
+    assert service.calls == [
+        (
+            "detect_and_create_shared_reminder",
+            {
+                "creator_account_id": "creator_1",
+                "receiver_account_ids": ["friend_1"],
+                "raw_text": "帮我和 lizihao 约一个今天晚上10:30的会议",
+                "title": None,
+                "captured_timezone": "Asia/Shanghai",
+                "duration_minutes": 15,
+                "context": {"source": "unit"},
+            },
         )
     ]
     assert guard.calls == 1

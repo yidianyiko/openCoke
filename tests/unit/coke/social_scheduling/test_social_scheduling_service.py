@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from coke.domains.reminder.models import DetectedReminderFields
 from coke.domains.social_scheduling.availability import (
     BusyInterval,
     ParticipantReachabilityPort,
@@ -45,7 +46,17 @@ class FakeReminderAvailability(ReminderAvailabilityPort):
         ]
 
 
-def make_service(reachable: set[str] | None = None, now=None):
+class FakeDetector:
+    def __init__(self, outputs):
+        self.outputs = list(outputs)
+        self.calls: list[tuple[str, str, datetime]] = []
+
+    def extract(self, text, captured_timezone, now):
+        self.calls.append((text, captured_timezone, now))
+        return self.outputs.pop(0)
+
+
+def make_service(reachable: set[str] | None = None, now=None, detector=None):
     repo = InMemorySocialSchedulingRepository()
     reachability = FakeReachability(reachable)
     reminder_availability = FakeReminderAvailability()
@@ -53,6 +64,7 @@ def make_service(reachable: set[str] | None = None, now=None):
         repository=repo,
         reachability=reachability,
         reminder_availability=reminder_availability,
+        detector=detector,
         now=now or (lambda: NOW),
         id_factory=lambda prefix: f"{prefix}_{len(repo.generated_ids) + 1}",
         token_factory=lambda prefix: f"{prefix}_token_{len(repo.generated_tokens) + 1}",
@@ -345,6 +357,109 @@ def test_shared_reminder_past_trigger_requires_confirmation_without_mutation():
         for fact in repo.notification_facts_by_id.values()
         if fact.object_type == "shared_reminder"
     ] == []
+
+
+@pytest.mark.parametrize(
+    ("raw_text", "detected_time"),
+    [
+        (
+            "帮我和 lizihao 约一个今天晚上10:30的会议",
+            datetime(2026, 5, 31, 22, 30),
+        ),
+        (
+            "帮我和 olivers 约一个明天晚上十点半的会议",
+            datetime(2026, 6, 1, 22, 30),
+        ),
+    ],
+)
+def test_detected_shared_reminder_uses_account_local_now_for_relative_time(
+    raw_text,
+    detected_time,
+):
+    detector = FakeDetector(
+        [
+            DetectedReminderFields(
+                content="会议",
+                trigger_time=detected_time,
+                recurrence_rule={},
+                duration_minutes=None,
+            )
+        ]
+    )
+    service, repo, _, _ = make_service(
+        {"creator", "friend"},
+        now=lambda: datetime(2026, 5, 31, 6, 2, tzinfo=UTC),
+        detector=detector,
+    )
+    create_active_friendship(service, "creator", "friend")
+
+    result = service.detect_and_create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        raw_text=raw_text,
+        title=None,
+        captured_timezone="Asia/Shanghai",
+        duration_minutes=None,
+        context={"source": "conversation"},
+    )
+
+    assert result.status == "created"
+    assert result.shared_reminder is not None
+    assert result.shared_reminder.status == "active"
+    assert result.shared_reminder.local_trigger_at == detected_time
+    assert result.shared_reminder.captured_timezone == "Asia/Shanghai"
+    assert len(repo.shared_reminders_by_id) == 1
+    assert [(text, timezone) for text, timezone, _ in detector.calls] == [
+        (raw_text, "Asia/Shanghai")
+    ]
+    detector_now = detector.calls[0][2]
+    assert detector_now.tzinfo == ZoneInfo("Asia/Shanghai")
+    assert (
+        detector_now.year,
+        detector_now.month,
+        detector_now.day,
+        detector_now.hour,
+        detector_now.minute,
+    ) == (2026, 5, 31, 14, 2)
+
+
+def test_detected_shared_reminder_keeps_past_time_guard():
+    detector = FakeDetector(
+        [
+            DetectedReminderFields(
+                content="会议",
+                trigger_time=datetime(2026, 5, 31, 13, 30),
+                recurrence_rule={},
+                duration_minutes=None,
+            )
+        ]
+    )
+    service, repo, _, _ = make_service(
+        {"creator", "friend"},
+        now=lambda: datetime(2026, 5, 31, 6, 2, tzinfo=UTC),
+        detector=detector,
+    )
+    create_active_friendship(service, "creator", "friend")
+
+    result = service.detect_and_create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        raw_text="帮我和 lizihao 约一个今天下午1:30的会议",
+        title=None,
+        captured_timezone="Asia/Shanghai",
+        duration_minutes=None,
+        context={"source": "conversation"},
+    )
+
+    assert result.status == "needs_past_time_confirmation"
+    assert result.shared_reminder is None
+    assert result.follow_up_facts == {
+        "time_state": "needs_past_time_confirmation",
+        "local_trigger_at": "2026-05-31T13:30:00",
+        "captured_timezone": "Asia/Shanghai",
+    }
+    assert repo.shared_reminders_by_id == {}
+    assert repo.projections_by_id == {}
 
 
 def test_shared_reminder_view_cancel_and_completion_are_participant_scoped():

@@ -573,6 +573,50 @@ class SocialSchedulingToolAdapter:
                     ),
                 )
 
+            if operation == "detect_and_create_shared_reminder":
+                result = (
+                    self.social_scheduling_service.detect_and_create_shared_reminder(
+                        creator_account_id=_required_str(
+                            command, "creator_account_id", default_key="account_id"
+                        ),
+                        receiver_account_ids=_list_value(
+                            command,
+                            "receiver_account_ids",
+                            aliases=("participant_account_ids", "participants"),
+                        ),
+                        raw_text=_required_str(command, "raw_text"),
+                        title=command.get("title"),
+                        captured_timezone=str(
+                            command.get("captured_timezone") or "UTC"
+                        ),
+                        duration_minutes=(
+                            int(command["duration_minutes"])
+                            if command.get("duration_minutes") is not None
+                            else None
+                        ),
+                        context=_optional_context(command.get("context")),
+                        commit_guard=_guard_commit_guard(guard),
+                    )
+                )
+                return ToolExecutionResult(
+                    ok=result.status in {"created", "duplicate"},
+                    facts={
+                        "status": result.status,
+                        "shared_reminder_id": (
+                            result.shared_reminder.id
+                            if result.shared_reminder
+                            else None
+                        ),
+                        "breakdown": result.breakdown,
+                        "follow_up_facts": result.follow_up_facts,
+                    },
+                    reason_code=(
+                        None
+                        if result.status in {"created", "duplicate"}
+                        else result.status
+                    ),
+                )
+
             if operation == "cancel_shared_reminder":
                 result = self.social_scheduling_service.cancel_shared_reminder(
                     account_id=_required_str(command, "account_id"),
@@ -879,6 +923,7 @@ def compose_coke_runtime(
         repository=repositories.social_scheduling,
         reachability=IdentityReachabilityAdapter(identity_access_service),
         reminder_availability=ReminderAvailabilityAdapter(repositories.reminder),
+        detector=reminder_detector,
         now=now,
         id_factory=id_factory,
         display_name_resolver=identity_access_service.get_display_name,

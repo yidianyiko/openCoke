@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from secrets import token_urlsafe
+from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -48,6 +49,7 @@ class SocialSchedulingService:
         repository: SocialSchedulingRepository,
         reachability: ParticipantReachabilityPort,
         reminder_availability: ReminderAvailabilityPort,
+        detector: Any | None = None,
         now: Callable[[], datetime] | None = None,
         id_factory: Callable[[str], str] | None = None,
         token_factory: Callable[[str], str] | None = None,
@@ -56,6 +58,7 @@ class SocialSchedulingService:
         self.repository = repository
         self.reachability = reachability
         self.reminder_availability = reminder_availability
+        self.detector = detector
         self._now = now or (lambda: datetime.now(UTC))
         self._id_factory = id_factory or (lambda prefix: f"{prefix}_{uuid4().hex}")
         self._token_factory = token_factory or (
@@ -387,6 +390,44 @@ class SocialSchedulingService:
             notification_facts=[notification],
         )
 
+    def detect_and_create_shared_reminder(
+        self,
+        *,
+        creator_account_id: str,
+        receiver_account_ids: list[str],
+        raw_text: str,
+        title: str | None,
+        captured_timezone: str,
+        duration_minutes: int | None,
+        context: dict | None,
+        commit_guard: CommitGuard = None,
+    ) -> SharedReminderCreateResult:
+        if self.detector is None:
+            raise SocialSchedulingError("detector_unavailable")
+        try:
+            zone = ZoneInfo(captured_timezone)
+            detector_now = self._now().astimezone(zone)
+            fields = self.detector.extract(raw_text, captured_timezone, detector_now)
+        except (RuntimeError, ZoneInfoNotFoundError) as error:
+            raise SocialSchedulingError("invalid_detector_output") from error
+
+        detected_title = getattr(fields, "content", None)
+        detected_trigger_at = self._detected_local_trigger_time(
+            getattr(fields, "trigger_time", None),
+            captured_timezone,
+        )
+        detected_duration = getattr(fields, "duration_minutes", None)
+        return self.create_shared_reminder(
+            creator_account_id=creator_account_id,
+            receiver_account_ids=receiver_account_ids,
+            title=title or detected_title,
+            local_trigger_at=detected_trigger_at,
+            captured_timezone=captured_timezone,
+            duration_minutes=duration_minutes or detected_duration or 15,
+            context=context,
+            commit_guard=commit_guard,
+        )
+
     def list_shared_reminders(self, account_id: str) -> list[SharedReminder]:
         return self.repository.list_shared_reminders_for_participant(account_id)
 
@@ -694,6 +735,21 @@ class SocialSchedulingService:
         if trigger_in_zone < now_in_zone:
             return "needs_past_time_confirmation"
         return "valid_future"
+
+    def _detected_local_trigger_time(
+        self,
+        trigger_time: datetime | None,
+        captured_timezone: str,
+    ) -> datetime | None:
+        if trigger_time is None:
+            return None
+        try:
+            zone = ZoneInfo(captured_timezone)
+        except ZoneInfoNotFoundError as error:
+            raise SocialSchedulingError("invalid_detector_output") from error
+        if trigger_time.tzinfo is not None:
+            return trigger_time.astimezone(zone).replace(tzinfo=None)
+        return trigger_time
 
     def _new_id(self, prefix: str) -> str:
         value = self._id_factory(prefix)

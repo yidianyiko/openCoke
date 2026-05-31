@@ -10,11 +10,12 @@
 
 ---
 
-**Plan Status:** complete
-**Status Date:** 2026-05-30
+**Plan Status:** in_progress
+**Status Date:** 2026-05-31
 **Blocker:** None. Bug A/B/C/D regression work, full unit tests, Postgres
-integration tests, clean-stack redeploy, and mocked Phase 4-6 live resume now
-have fresh evidence.
+integration tests, clean-stack redeploy, and mocked Phase 4-6 live resume have
+fresh evidence. Bug E is open for the live shared-reminder time grounding
+regression where the agent supplied an ungrounded absolute `local_trigger_at`.
 **Freshness Check:** Read `AGENTS.md`, `docs/design-docs/index.md`, `docs/design-docs/human-ai-working-contract.md`, master plan Task 9 and architecture-watch sections, requirements §§5.6/5.7/5.9, target architecture §§3.5/4/8/9/14/15, `coke/schema.py`, existing `identity_access`, `channel_reachability`, `coke/api/*_routes.py`, and `coke/app.py`.
 
 **Files:**
@@ -716,3 +717,108 @@ Closeout evidence:
 - Scheduler resume: forced reminder `b12a6fc3-ae33-4401-9c12-70d2f64607a0`
   produced reminder fire `d0164945-9687-4a2e-a50e-67ddfab0d482` and
   render-turn outbound message `df3ac514-f3fc-4c9d-a859-b9ca209de00f`.
+
+### Task 13: Bug E - Shared Reminder Relative-Time Grounding
+
+**Files:**
+- Modify: `coke/domains/social_scheduling/service.py`
+- Modify: `coke/composition.py`
+- Modify: `coke/llm/agno_interaction_agent.py`
+- Modify: `tests/unit/coke/social_scheduling/test_social_scheduling_service.py`
+- Modify: `tests/unit/coke/test_social_scheduling_tool_adapter.py`
+- Modify: `tests/unit/coke/llm/test_interaction_agent.py`
+- Modify: `tests/unit/coke/reminder/test_reminder_service.py`
+
+- [x] **Step 1: Reproduce the shared-reminder time grounding defect**
+
+Add failing unit tests with fixed now `2026-05-31 14:02 Asia/Shanghai` showing
+that shared reminder phrases `今天晚上10:30` and `明天晚上十点半` must resolve through
+an authoritative account-local detector now to `2026-05-31T22:30:00` and
+`2026-06-01T22:30:00`, while a genuinely past detected time still returns
+`needs_past_time_confirmation`. Reconfirm the personal reminder path still
+resolves `今晚10:30` to the future time.
+
+Red evidence:
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/reminder/test_reminder_service.py -q`
+failed with 25 failures: the social service lacked a detector constructor
+argument/method, the adapter returned `unsupported_social_scheduling_operation`
+for `detect_and_create_shared_reminder`, and the Agno instructions/defaults
+still requested or passed through agent-supplied `local_trigger_at`.
+
+- [x] **Step 2: Route shared natural-language creation through the grounded detector**
+
+Add a SocialScheduling detect-and-create path that calls the existing reminder
+detector with `self._now().astimezone(ZoneInfo(captured_timezone))`, uses the
+detector output as a local wall-clock time, and then delegates to the existing
+shared-reminder creation and past-time guard. Do not add regex parsing,
+fallback prose, schema changes, or legacy imports.
+
+- [x] **Step 3: Update the interaction-agent tool contract**
+
+Change the social-scheduling tool instructions/defaults so natural-language
+shared-reminder creation calls `detect_and_create_shared_reminder` with exact
+raw user text and trusted timezone instead of asking the model to emit an
+unbounded absolute `local_trigger_at`.
+
+- [x] **Step 4: Run focused green tests**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/reminder/test_reminder_service.py -q
+```
+
+Expected: the new regression tests and existing affected tool tests pass.
+
+Evidence:
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/reminder/test_reminder_service.py -q`
+passed with `89 passed in 2.23s` after formatting.
+
+- [x] **Step 5: Run required full verification**
+
+Run:
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q
+COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q
+```
+
+Expected: both suites pass. Classify any failure before editing further.
+
+Evidence:
+`/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q` passed with
+`530 passed in 17.04s`.
+`COKE_TEST_DATABASE_URL=postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql /data/projects/coke/.venv/bin/python -m pytest tests/integration/coke -q`
+passed with `46 passed in 4.55s`.
+`git diff --check` passed.
+`zsh scripts/suggest-verification --base HEAD~1` suggested
+`zsh scripts/verify-surface clean-rebuild-backend repo-os-docs`.
+`zsh scripts/review-trigger --base HEAD~1` returned `human_review_required: no`
+with non-blocking medium repo-OS/evidence-gap triggers.
+`zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed with
+`530 passed in 16.55s` and `scripts/check` `check passed`.
+
+- [ ] **Step 6: Commit the fix**
+
+Commit code, tests, and this plan update on the current `main` branch.
+
+- [ ] **Step 7: Redeploy coke-clean non-disruptively**
+
+Take a rollback snapshot first, preserve `/home/whoami/coke-clean/.env`, run
+Alembic upgrade/check for the clean stack, deploy current `main`, and verify
+clean API health, worker/scheduler/outbox-relay health, login endpoints, and
+connector session preservation. Do not recreate accounts/channels and do not
+touch evolution or connector stacks.
+
+- [ ] **Step 8: Live verify shared-reminder future times**
+
+Drive the connected WeChat/API path for `今天晚上10:30` and `明天晚上十点半`; confirm
+`shared_reminder.status = active`, `local_trigger_at` equals the correct future
+account-local 22:30 time, replies do not say the time has passed, logins still
+return 200, both channels remain connected, and connector `session_count = 2`.
+
+- [ ] **Step 9: Close the plan**
+
+Only after Steps 1-8 have evidence, update `Plan Status` to `complete`, set
+`Status Date` to the completion date, check off Task 13, and commit any plan
+closeout change.

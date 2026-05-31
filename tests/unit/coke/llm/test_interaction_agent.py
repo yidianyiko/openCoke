@@ -93,6 +93,20 @@ class FakeSharedReminderService:
             },
         )()
 
+    def detect_and_create_shared_reminder(self, **kwargs):
+        kwargs.pop("commit_guard", None)
+        self.calls.append(kwargs)
+        return type(
+            "SharedReminderResult",
+            (),
+            {
+                "status": "created",
+                "shared_reminder": type("SharedReminder", (), {"id": "shared_1"})(),
+                "breakdown": {},
+                "follow_up_facts": {},
+            },
+        )()
+
 
 def test_invoke_maps_valid_agno_response_to_agent_result():
     fake_agent = FakeAgentInstance(
@@ -153,9 +167,7 @@ def test_inbound_text_is_sent_as_current_input_block_with_context_supporting():
     assert prompt.startswith('<trusted_block name="turn_source">')
     assert '<trusted_block name="current_input">' in prompt
     assert "提醒我明天早上9点跑步" in _block_text(prompt, "current_input")
-    assert "This is a real message from the user" in _block_text(
-        prompt, "turn_source"
-    )
+    assert "This is a real message from the user" in _block_text(prompt, "turn_source")
     assert '"payload"' not in _block_text(prompt, "current_input")
 
 
@@ -544,10 +556,8 @@ def test_protocol_retry_instruction_is_sent_as_retry_context():
     assert "previous assistant answer for this same turn was rejected" in prompt
     assert '{"type":"reply","segments":["..."]}' in prompt
     assert "one to three non-empty string segments" in prompt
-    assert prompt.rstrip().endswith('</trusted_block>')
-    assert prompt.rfind('name="output_contract"') > prompt.rfind(
-        'name="voice_policy"'
-    )
+    assert prompt.rstrip().endswith("</trusted_block>")
+    assert prompt.rfind('name="output_contract"') > prompt.rfind('name="voice_policy"')
 
 
 def test_protocol_retry_instruction_includes_specific_violation_guidance():
@@ -594,8 +604,11 @@ def test_agent_instructions_name_real_social_scheduling_operations():
     assert "operation=list_friends" in instructions
     assert "operation=remove_friend" in instructions
     assert "operation=query_availability" in instructions
+    assert "operation=detect_and_create_shared_reminder" in instructions
     assert "operation=cancel_shared_reminder" in instructions
     assert "owner_account_id from trusted_facts.account_id" in instructions
+    assert "raw_text set to the exact User message" in instructions
+    assert "Do not compute local_trigger_at yourself" in instructions
     assert "friend name" in instructions
     assert "exactly one active friend" in instructions
     assert "establish_friendship_from_token" in instructions
@@ -826,9 +839,7 @@ def test_settings_tool_doc_and_defaults_use_trusted_account():
     assert "proactive_enabled" in doc
     assert "memory_enabled" in doc
     assert "trusted_facts.account_id" in doc
-    result = tools[0](
-        {"operation": "set_timezone", "default_timezone": "Asia/Tokyo"}
-    )
+    result = tools[0]({"operation": "set_timezone", "default_timezone": "Asia/Tokyo"})
     assert _base_tool_result(result) == {
         "ok": True,
         "facts": {"default_timezone": "Asia/Tokyo"},
@@ -884,9 +895,10 @@ def test_social_scheduling_tool_doc_describes_shared_reminder_creation():
     )
 
     doc = factory.agent_kwargs[0]["tools"][0].__doc__ or ""
-    assert "create_shared_reminder" in doc
+    assert "detect_and_create_shared_reminder" in doc
     assert "receiver_account_ids" in doc
-    assert "local_trigger_at" in doc
+    assert "raw_text" in doc
+    assert "Do not compute local_trigger_at yourself" in doc
     assert "context" in doc
 
 
@@ -945,6 +957,50 @@ def test_empty_reminder_tool_call_defaults_to_detecting_current_user_message():
                 "raw_text": "提醒我明天早上9点跑步",
                 "captured_timezone": "Asia/Tokyo",
                 "entry_point": "conversation",
+            },
+            guard,
+        )
+    ]
+
+
+def test_shared_reminder_detect_tool_defaults_to_current_user_message_and_timezone():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    social_tool = FakeSocialSchedulingTool()
+    guard = object()
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="帮我和 lizihao 约一个今天晚上10:30的会议",
+            default_timezone="Asia/Shanghai",
+            social_scheduling_tool=social_tool,
+            guard=guard,
+        )
+    )
+
+    tools = factory.agent_kwargs[0]["tools"]
+    result = tools[0](
+        operation="detect_and_create_shared_reminder",
+        receiver_account_ids=["friend_1"],
+    )
+
+    assert result["ok"] is True
+    assert result["domain_result"]["action"] == "detect_and_create_shared_reminder"
+    assert social_tool.calls == [
+        (
+            {
+                "operation": "detect_and_create_shared_reminder",
+                "receiver_account_ids": ["friend_1"],
+                "raw_text": "帮我和 lizihao 约一个今天晚上10:30的会议",
+                "creator_account_id": "account_1",
+                "captured_timezone": "Asia/Shanghai",
+                "duration_minutes": 15,
+                "context": {
+                    "source": "conversation",
+                    "text": "帮我和 lizihao 约一个今天晚上10:30的会议",
+                },
             },
             guard,
         )

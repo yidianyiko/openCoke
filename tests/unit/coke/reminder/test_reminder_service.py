@@ -421,6 +421,49 @@ def test_detector_receives_account_local_now_for_relative_time_grounding(
     assert reminder.next_fire_at == expected_fire_at
 
 
+def test_personal_reminder_tonight_uses_fixed_account_local_now(repository):
+    detector = FakeDetector(
+        [
+            DetectedReminderFields(
+                content="会议",
+                trigger_time=datetime(2026, 5, 31, 22, 30),
+                recurrence_rule={},
+                duration_minutes=None,
+            )
+        ]
+    )
+    service = ReminderService(
+        repository=repository,
+        detector=detector,
+        now=lambda: datetime(2026, 5, 31, 6, 2, tzinfo=UTC),
+        id_factory=sequence_factory("tonight"),
+    )
+
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="detect_and_create",
+                raw_text="今晚10:30提醒我开会",
+                captured_timezone="Asia/Shanghai",
+            )
+        ],
+    )
+
+    assert result.items[0].state == "succeeded"
+    detector_now = detector.calls[0][2]
+    assert detector_now.tzinfo == ZoneInfo("Asia/Shanghai")
+    assert (
+        detector_now.year,
+        detector_now.month,
+        detector_now.day,
+        detector_now.hour,
+        detector_now.minute,
+    ) == (2026, 5, 31, 14, 2)
+    reminder = repository.list_active_reminders("acct_1")[0]
+    assert reminder.next_fire_at == datetime(2026, 5, 31, 14, 30, tzinfo=UTC)
+
+
 def test_detector_invalid_shape_fails_item_without_tool_exception(repository):
     class InvalidDetector:
         def extract(self, text, captured_timezone, now):
