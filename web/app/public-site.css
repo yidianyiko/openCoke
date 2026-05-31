@@ -3757,7 +3757,7 @@ html[data-locale-ready="true"] .coke-site-splash {
 
 .coke-site .customer-reminder-timeline {
   --customer-reminder-day-head-height: 45px;
-  --customer-reminder-outside-height: 244px;
+  --customer-reminder-outside-height: 340px;
   --customer-reminder-hour-height: 74px;
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
@@ -3880,8 +3880,31 @@ html[data-locale-ready="true"] .coke-site-splash {
 }
 
 .coke-site .customer-reminder-outside .customer-reminder-card {
-  gap: 6px;
-  padding: 8px;
+  gap: 5px;
+  padding: 6px;
+}
+
+.coke-site .customer-reminder-outside .customer-reminder-card h2 {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.coke-site .customer-reminder-outside .customer-reminder-card p {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.coke-site .customer-reminder-outside .customer-reminder-card__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.coke-site .customer-reminder-outside .customer-reminder-card__actions button {
+  min-height: 24px;
+  padding: 3px 4px;
+  font-size: 10px;
+  overflow-wrap: anywhere;
 }
 
 .coke-site .customer-reminder-card {
