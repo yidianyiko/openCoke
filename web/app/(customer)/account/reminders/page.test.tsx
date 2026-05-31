@@ -148,6 +148,24 @@ describe('CustomerRemindersPage', () => {
     expect(container.textContent).toContain('Next: Thu 06:15 - DST local check');
   });
 
+  it('places reminders in reminder-local timeline hour slots and sorts by full local time', async () => {
+    renderPage();
+    await flushTicks(3);
+
+    const wed0900Slot = container.querySelector('[data-testid="slot-2026-05-13-09"]') as HTMLElement | null;
+    expect(wed0900Slot?.textContent).toContain('Standup prep');
+    expect(wed0900Slot?.textContent).toContain('09:05');
+    expect(wed0900Slot?.textContent).toContain('Pay rent');
+    expect(wed0900Slot?.textContent).toContain('09:30');
+    expect(wed0900Slot?.textContent?.indexOf('Standup prep')).toBeLessThan(
+      wed0900Slot?.textContent?.indexOf('Pay rent') ?? -1,
+    );
+
+    const thu0600Slot = container.querySelector('[data-testid="slot-2026-05-14-06"]') as HTMLElement | null;
+    expect(thu0600Slot?.textContent).toContain('DST local check');
+    expect(thu0600Slot?.textContent).toContain('06:15');
+  });
+
   it('resets the selected week to the current week from the Today control', async () => {
     renderPage();
     await flushTicks(3);
@@ -307,6 +325,18 @@ describe('CustomerRemindersPage', () => {
 
     expect((container.querySelector('input[name="localDate"]') as HTMLInputElement | null)?.value).toBe('2026-05-23');
     expect((container.querySelector('input[name="localTime"]') as HTMLInputElement | null)?.value).toBe('17:15');
+  });
+
+  it('opens create drawer from an empty timeline slot with the selected local date and hour', async () => {
+    renderPage();
+    await flushTicks(3);
+
+    const slotButton = container.querySelector('[data-testid="slot-button-2026-05-16-14"]') as HTMLButtonElement | null;
+    slotButton?.click();
+    await flushTicks(1);
+
+    expect((container.querySelector('input[name="localDate"]') as HTMLInputElement | null)?.value).toBe('2026-05-16');
+    expect((container.querySelector('input[name="localTime"]') as HTMLInputElement | null)?.value).toBe('14:00');
   });
 
   it('shows a specific message when the selected reminder time is in the past', async () => {

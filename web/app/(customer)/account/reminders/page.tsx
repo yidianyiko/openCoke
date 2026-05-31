@@ -33,7 +33,7 @@ interface DayReminderBuckets {
 
 type DrawerState =
   | { mode: 'closed' }
-  | { mode: 'create'; initialDate: string }
+  | { mode: 'create'; initialDate: string; initialTime?: string }
   | { mode: 'edit'; reminder: CustomerReminder };
 
 function startOfLocalWeek(date: Date): Date {
@@ -158,9 +158,13 @@ function nextFutureTimeSlot(now: Date = new Date()): { localDate: string; localT
   };
 }
 
-function emptyForm(localDate: string): CustomerReminderFormInput {
+function emptyForm(localDate: string, localTime?: string): CustomerReminderFormInput {
   const today = toLocalDate(new Date());
-  const defaultSlot = localDate <= today ? nextFutureTimeSlot() : { localDate, localTime: '09:00' };
+  const defaultSlot = localTime
+    ? { localDate, localTime }
+    : localDate <= today
+      ? nextFutureTimeSlot()
+      : { localDate, localTime: '09:00' };
   return {
     title: '',
     localDate: defaultSlot.localDate,
@@ -204,7 +208,7 @@ function ReminderForm({
   onAction: (action: 'complete' | 'cancel', reminderId: string) => void;
   onSubmit: (input: CustomerReminderFormInput) => void;
 }) {
-  const form = drawer.mode === 'edit' ? formFromReminder(drawer.reminder) : emptyForm(drawer.initialDate);
+  const form = drawer.mode === 'edit' ? formFromReminder(drawer.reminder) : emptyForm(drawer.initialDate, drawer.initialTime);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -311,6 +315,39 @@ function ReminderForm({
   );
 }
 
+function ReminderCalendarItem({
+  reminder,
+  onEdit,
+  onAction,
+}: {
+  reminder: CustomerReminder;
+  onEdit: () => void;
+  onAction: (action: 'complete' | 'cancel', reminderId: string) => void;
+}) {
+  const repeat = repeatFromRrule(reminder.rrule);
+  const meta = repeat === 'none' ? reminder.timezone : repeat;
+  return (
+    <article className="customer-reminder-card">
+      <button type="button" className="customer-reminder-card__open" onClick={onEdit}>
+        <time>{reminder.localTime}</time>
+        <h2>{reminder.title}</h2>
+        <p>{meta}</p>
+      </button>
+      <div className="customer-reminder-card__actions">
+        <button type="button" onClick={onEdit}>
+          Edit
+        </button>
+        <button type="button" onClick={() => void onAction('complete', reminder.id)}>
+          Complete
+        </button>
+        <button type="button" onClick={() => void onAction('cancel', reminder.id)}>
+          Cancel
+        </button>
+      </div>
+    </article>
+  );
+}
+
 export default function CustomerRemindersPage() {
   const router = useRouter();
   const [weekStart, setWeekStart] = useState(() => startOfLocalWeek(new Date()));
@@ -340,6 +377,15 @@ export default function CustomerRemindersPage() {
   }, [days, reminders]);
   const selectedWeekReminders = useMemo(() => Array.from(grouped.values()).flat(), [grouped]);
   const summary = useMemo(() => summarizeWeek(selectedWeekReminders, new Date()), [selectedWeekReminders]);
+  const hourSlots = useMemo(() => buildHourSlots(VISIBLE_START_HOUR, VISIBLE_END_HOUR), []);
+  const bucketsByDate = useMemo(() => {
+    const map = new Map<string, DayReminderBuckets>();
+    for (const day of days) {
+      const localDate = toLocalDate(day);
+      map.set(localDate, buildDayBuckets(grouped.get(localDate) ?? [], VISIBLE_START_HOUR, VISIBLE_END_HOUR));
+    }
+    return map;
+  }, [days, grouped]);
 
   const loadWeek = useCallback(async () => {
     const requestId = listRequestIdRef.current + 1;
@@ -513,64 +559,84 @@ export default function CustomerRemindersPage() {
         ) : null}
         {error ? <p className="customer-inline-note customer-inline-note--error">{error}</p> : null}
 
-        <div className="customer-reminder-week" aria-label="Selected week reminders">
-          {days.map((day) => {
-            const localDate = toLocalDate(day);
-            const dayReminders = grouped.get(localDate) ?? [];
-            return (
-              <section key={localDate} className="customer-reminder-day">
-                <div className="customer-reminder-day__head">
-                  <strong>{day.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
-                  <span>{day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                </div>
-                <div className="customer-reminder-day__items">
-                  {dayReminders.length === 0 ? (
-                    <p className="customer-reminder-empty">No active reminders</p>
-                  ) : (
-                    dayReminders.map((reminder) => (
-                      <article key={reminder.id} className="customer-reminder-card">
-                        <button
-                          type="button"
-                          className="customer-reminder-card__open"
-                          onClick={() => setDrawer({ mode: 'edit', reminder })}
+        <div className="customer-reminder-timeline" aria-label="Selected week reminder timeline">
+          <div className="customer-reminder-time-gutter" aria-hidden="true">
+            <div className="customer-reminder-time-gutter__spacer" />
+            {hourSlots.map((hour) => (
+              <span key={hour}>{formatHour(hour)}</span>
+            ))}
+          </div>
+          <div className="customer-reminder-days">
+            {days.map((day) => {
+              const localDate = toLocalDate(day);
+              const dayBuckets = bucketsByDate.get(localDate) ?? buildDayBuckets([], VISIBLE_START_HOUR, VISIBLE_END_HOUR);
+              const isToday = localDate === toLocalDate(new Date());
+              return (
+                <section key={localDate} className="customer-reminder-day" data-today={isToday ? 'true' : undefined}>
+                  <div className="customer-reminder-day__head">
+                    <strong>{day.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
+                    <span>{day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  </div>
+                  {dayBuckets.outside.length > 0 ? (
+                    <div className="customer-reminder-outside" data-testid={`outside-${localDate}`}>
+                      <span className="customer-reminder-outside__label">Outside visible hours</span>
+                      {dayBuckets.outside.slice(0, MAX_OUTSIDE_HOURS_ITEMS).map((reminder) => (
+                        <ReminderCalendarItem
+                          key={reminder.id}
+                          reminder={reminder}
+                          onEdit={() => setDrawer({ mode: 'edit', reminder })}
+                          onAction={runAction}
+                        />
+                      ))}
+                      {dayBuckets.outside.length > MAX_OUTSIDE_HOURS_ITEMS ? (
+                        <p className="customer-reminder-outside__more">
+                          +{dayBuckets.outside.length - MAX_OUTSIDE_HOURS_ITEMS} more outside visible hours
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="customer-reminder-day__hours">
+                    {hourSlots.map((hour) => {
+                      const slotReminders = dayBuckets.byHour.get(hour) ?? [];
+                      return (
+                        <div
+                          key={hour}
+                          className="customer-reminder-hour"
+                          data-testid={`slot-${localDate}-${String(hour).padStart(2, '0')}`}
                         >
-                          <time>{reminder.localTime}</time>
-                          <h2>{reminder.title}</h2>
-                          <p>{repeatFromRrule(reminder.rrule) === 'none' ? reminder.timezone : repeatFromRrule(reminder.rrule)}</p>
-                        </button>
-                        <div className="customer-reminder-card__actions">
                           <button
                             type="button"
-                            onClick={() => setDrawer({ mode: 'edit', reminder })}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void runAction('complete', reminder.id)}
-                          >
-                            Complete
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void runAction('cancel', reminder.id)}
-                          >
-                            Cancel
-                          </button>
+                            className="customer-reminder-slot-button"
+                            data-testid={`slot-button-${localDate}-${String(hour).padStart(2, '0')}`}
+                            aria-label={`Create reminder on ${localDate} at ${formatHour(hour)}`}
+                            onClick={() =>
+                              setDrawer({ mode: 'create', initialDate: localDate, initialTime: formatHour(hour) })
+                            }
+                          />
+                          <div className="customer-reminder-hour__items">
+                            {slotReminders.map((reminder) => (
+                              <ReminderCalendarItem
+                                key={reminder.id}
+                                reminder={reminder}
+                                onEdit={() => setDrawer({ mode: 'edit', reminder })}
+                                onAction={runAction}
+                              />
+                            ))}
+                          </div>
                         </div>
-                      </article>
-                    ))
-                  )}
-                </div>
-              </section>
-            );
-          })}
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {drawer.mode !== 'closed' ? (
         <ReminderForm
-          key={drawer.mode === 'edit' ? drawer.reminder.id : drawer.initialDate}
+          key={drawer.mode === 'edit' ? drawer.reminder.id : `${drawer.initialDate}-${drawer.initialTime ?? 'default'}`}
           drawer={drawer}
           saving={saving}
           onClose={() => setDrawer({ mode: 'closed' })}
