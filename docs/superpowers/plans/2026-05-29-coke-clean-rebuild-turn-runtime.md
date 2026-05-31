@@ -10,7 +10,7 @@
 
 ---
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 **Status Date:** 2026-05-31
 **Freshness Check:** Checked against current `docs/superpowers/plans/2026-05-29-coke-clean-rebuild.md` Task 7 and architecture-watch notes, requirements §5.4, target architecture §1/§3.3/§4/§9 invariants, `coke/schema.py`, Task 6 conversation runtime, and existing domain layering patterns.
 **Verification Note:** Turn implementation and backend unit surface pass. The routed `repo-os-docs` check is blocked by existing ownership-registry references to removed legacy `memo-runtime` and nested `gateway` files; that cleanup is outside Task 7's allowed file scope.
@@ -632,7 +632,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 Expected: unit and integration tests pass; verification routing and risk report complete. `review-trigger` is non-blocking.
 
-- [ ] **Step 6: Commit the local fix**
+- [x] **Step 6: Commit the local fix**
 
 After local verification passes, commit:
 
@@ -641,7 +641,7 @@ git add docs/superpowers/plans/2026-05-29-coke-clean-rebuild-turn-runtime.md cok
 git commit -m "fix: inject current time into agent environment"
 ```
 
-- [ ] **Step 7: Redeploy and live-verify gcp-coke coke-clean**
+- [x] **Step 7: Redeploy and live-verify gcp-coke coke-clean**
 
 Before deploy, take a rollback snapshot and preserve `coke-clean/.env`, connected accounts, connected channels, and `evolution-*` / connector state. Redeploy current `main` non-disruptively using `docs/deploy.md`: run alembic upgrade head, deployment checks, restart only Coke clean services, and do not recreate accounts or channels.
 
@@ -654,7 +654,9 @@ curl -fsS http://127.0.0.1:8000/api/channels
 
 Drive one inbound turn through the existing connected channel, then inspect `ai.agno_sessions` or the available debug/store path for the latest Interaction Agent prompt. Expected: the prompt contains `<trusted_block name="environment">` with non-empty `current_time` and `default_timezone`, both channels are still `connected`, and connector `session_count=2`.
 
-- [ ] **Step 8: Mark plan complete**
+Live verification passed on `gcp-coke` `coke-clean`: rollback snapshot `20260531T070559Z` exists; `.env` hash stayed `889fb8a770a0bba2d40c26748190962c4861812f30a15febee127890c1fef2e3`; alembic upgrade/check passed; API health and web login returned 200; connector health reported `connected_session_count=2`; the marked live turn `time-smoke-direct-20260531T071443Z` produced an Agno prompt environment block with `default_timezone` `Asia/Shanghai` and `current_time` `2026-05-31T15:15:00.735866+08:00`.
+
+- [x] **Step 8: Mark plan complete**
 
 After verification and live proof pass, set:
 
