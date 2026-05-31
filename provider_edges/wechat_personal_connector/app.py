@@ -24,6 +24,7 @@ class ConnectorConfig:
     api_key: str | None = None
     webhook_url: str = ""
     webhook_api_key: str | None = None
+    webhook_inbound_secret: str | None = None
     ilink_base_url: str = DEFAULT_ILINK_BASE_URL
     poll_interval_seconds: float = 2.0
 
@@ -164,6 +165,7 @@ def config_from_env() -> ConnectorConfig:
         api_key=os.getenv("WECHAT_CONNECTOR_API_KEY"),
         webhook_url=os.getenv("WECHAT_CONNECTOR_WEBHOOK_URL", ""),
         webhook_api_key=os.getenv("WECHAT_CONNECTOR_WEBHOOK_API_KEY"),
+        webhook_inbound_secret=os.getenv("COKE_WEBHOOK_INBOUND_SECRET"),
         ilink_base_url=os.getenv("WEIXIN_PERSONAL_BASE_URL", DEFAULT_ILINK_BASE_URL),
         poll_interval_seconds=float(os.getenv("WECHAT_CONNECTOR_POLL_SECONDS", "2.0")),
     )
@@ -588,9 +590,12 @@ def _authorized(config: ConnectorConfig) -> bool:
 
 
 def _webhook_headers(config: ConnectorConfig) -> dict[str, str]:
-    if not config.webhook_api_key:
-        return {}
-    return {"X-API-Key": config.webhook_api_key}
+    headers: dict[str, str] = {}
+    if config.webhook_api_key:
+        headers["X-API-Key"] = config.webhook_api_key
+    if config.webhook_inbound_secret:
+        headers["X-Coke-Webhook-Secret"] = config.webhook_inbound_secret
+    return headers
 
 
 def _sessions(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:

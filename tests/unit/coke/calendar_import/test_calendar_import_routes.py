@@ -95,6 +95,19 @@ class ErrorService(FakeCalendarImportService):
         )
 
 
+class AccessDeniedImportService(FakeCalendarImportService):
+    def import_google_calendar(self, **kwargs):
+        raise CalendarImportError(
+            "access_denied",
+            fact={
+                "type": "account_access_denied",
+                "account_id": kwargs["account_id"],
+                "denial_reason": "subscription_inactive",
+                "checkout_url": None,
+            },
+        )
+
+
 class FakeIdentityService:
     def __init__(self, account_id="acct_1") -> None:
         self.calls: list[tuple[str, dict]] = []
@@ -228,6 +241,33 @@ def test_route_errors_return_structured_error_body():
         "error": {
             "code": "calendar_authorization_not_found",
             "fact": {"type": "calendar_authorization_not_found"},
+        }
+    }
+
+
+def test_import_route_returns_safe_access_denied_error():
+    client, _service, _identity = make_client(AccessDeniedImportService())
+
+    response = client.post(
+        "/api/calendar-import/google/import",
+        json={
+            "auth_handle": "google-oauth-token",
+            "visible_start": "2026-05-30T12:00:00+00:00",
+            "visible_end": "2026-06-30T12:00:00+00:00",
+            "captured_timezone": "UTC",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "access_denied",
+            "fact": {
+                "type": "account_access_denied",
+                "account_id": "acct_1",
+                "denial_reason": "subscription_inactive",
+                "checkout_url": None,
+            },
         }
     }
 

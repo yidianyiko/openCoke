@@ -335,7 +335,9 @@ def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
 
 def test_create_shared_reminder_repository_failure_returns_clear_non_success_result():
     service = FakeSocialSchedulingService()
-    service.shared_reminder_error = ValueError("notification_fact_write_failed")
+    service.shared_reminder_error = ValueError(
+        'duplicate key value violates unique constraint "uq_internal"'
+    )
     adapter = SocialSchedulingToolAdapter(service)
 
     result = adapter.execute(
@@ -353,8 +355,8 @@ def test_create_shared_reminder_repository_failure_returns_clear_non_success_res
     )
 
     assert result.ok is False
-    assert result.reason_code == "notification_fact_write_failed"
-    assert result.facts == {"type": "notification_fact_write_failed"}
+    assert result.reason_code == "social_scheduling_write_failed"
+    assert result.facts == {"type": "social_scheduling_write_failed"}
     assert service.calls == [
         (
             "create_shared_reminder",

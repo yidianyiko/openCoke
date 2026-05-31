@@ -56,6 +56,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     monkeypatch.setenv("COKE_WORK_GROUP", "workers-test")
     monkeypatch.setenv("COKE_WORK_CONSUMER", "worker-a")
     monkeypatch.setenv("COKE_REPLY_CHANNEL_PREFIX", "coke:reply:test")
+    monkeypatch.setenv("COKE_WEBHOOK_INBOUND_SECRET", "webhook-secret")
     monkeypatch.setenv("COKE_LLM_FAKE", "0")
 
     settings = Settings.from_env()
@@ -74,6 +75,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     assert settings.work_group_name == "workers-test"
     assert settings.work_consumer_name == "worker-a"
     assert settings.reply_channel_prefix == "coke:reply:test"
+    assert settings.webhook_inbound_secret == "webhook-secret"
     assert settings.llm_fake is False
 
 

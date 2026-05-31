@@ -18,6 +18,9 @@ from coke.domains.channel_reachability.repository import (
 from coke.domains.channel_reachability.service import ChannelReachabilityService
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
 from coke.domains.identity_access.service import IdentityAccessService
+from coke.domains.social_scheduling.availability import ReminderAvailabilityPort
+from coke.domains.social_scheduling.repository import InMemorySocialSchedulingRepository
+from coke.domains.social_scheduling.service import SocialSchedulingService
 
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 
@@ -77,6 +80,54 @@ class PassiveAdapter(RecordingAdapter):
             "status": "connected",
             "ilink_user_id": "wxid_lizihao",
         }
+
+
+class FakeDeferredFriendLinkCompletion:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def complete_pending_for_account(self, account_id: str) -> None:
+        self.calls.append(account_id)
+
+
+class IdentityReachability:
+    def __init__(self, identity_access: IdentityAccessService) -> None:
+        self.identity_access = identity_access
+
+    def has_usable_channel(self, account_id: str) -> bool:
+        return self.identity_access.repository.has_usable_channel(account_id)
+
+
+class EmptyReminderAvailability(ReminderAvailabilityPort):
+    def personal_busy_intervals(
+        self,
+        account_id: str,
+        start: datetime,
+        end: datetime,
+        requester_timezone: str,
+    ) -> list:
+        return []
+
+
+class DeferredFriendLinkAdapter:
+    def __init__(
+        self,
+        identity_access: IdentityAccessService,
+        social_scheduling: SocialSchedulingService,
+    ) -> None:
+        self.identity_access = identity_access
+        self.social_scheduling = social_scheduling
+
+    def complete_pending_for_account(self, account_id: str) -> None:
+        for (
+            friend_link_id
+        ) in self.identity_access.consume_deferred_friend_link_continuations(
+            account_id
+        ):
+            self.social_scheduling.complete_deferred_friend_link(
+                joiner_account_id=account_id,
+                friend_link_id=friend_link_id,
+            )
 
 
 @pytest.fixture
@@ -220,6 +271,154 @@ def test_connecting_is_not_reachable_and_connected_is_reachable(
 
     assert connected.connection_state == "connected"
     assert service.get_status(account.id).reachable is True
+
+
+def test_mark_connected_triggers_deferred_friend_link_self_completion(identity_service):
+    account, identity = verified_web_account(identity_service)
+    completion = FakeDeferredFriendLinkCompletion()
+    service = ChannelReachabilityService(
+        repository=InMemoryChannelReachabilityRepository(),
+        identity_access=identity_service,
+        providers={"whatsapp_evolution": RecordingAdapter()},
+        deferred_friend_link_completion=completion,
+        now=lambda: NOW,
+        id_factory=sequence_factory("deferred"),
+    )
+    channel = service.create_channel(
+        account_id=account.id,
+        provider_type="whatsapp_evolution",
+        channel_identity_id=identity.id,
+        removable=True,
+    )
+
+    service.mark_connected(account.id, channel.id)
+
+    assert completion.calls == [account.id]
+
+
+def test_deferred_friend_link_completion_is_idempotently_triggered_on_reconnect(
+    identity_service,
+):
+    account, identity = verified_web_account(identity_service)
+    completion = FakeDeferredFriendLinkCompletion()
+    service = ChannelReachabilityService(
+        repository=InMemoryChannelReachabilityRepository(),
+        identity_access=identity_service,
+        providers={"whatsapp_evolution": RecordingAdapter()},
+        deferred_friend_link_completion=completion,
+        now=lambda: NOW,
+        id_factory=sequence_factory("deferred"),
+    )
+    channel = service.create_channel(
+        account_id=account.id,
+        provider_type="whatsapp_evolution",
+        channel_identity_id=identity.id,
+        removable=True,
+    )
+
+    service.mark_connected(account.id, channel.id)
+    service.mark_connected(account.id, channel.id)
+
+    assert completion.calls == [account.id, account.id]
+
+
+def test_inbound_channel_provisioning_triggers_deferred_friend_link_completion(
+    identity_service,
+):
+    completion = FakeDeferredFriendLinkCompletion()
+    service = ChannelReachabilityService(
+        repository=InMemoryChannelReachabilityRepository(),
+        identity_access=identity_service,
+        providers={"whatsapp_evolution": RecordingAdapter()},
+        deferred_friend_link_completion=completion,
+        now=lambda: NOW,
+        id_factory=sequence_factory("deferred"),
+    )
+
+    accepted = service.accept_provider_inbound(
+        NormalizedInbound(
+            provider_type="whatsapp_evolution",
+            provider_subject="15555550123",
+            text="hello",
+            raw_event_id="wa_msg_first_contact",
+            received_at=NOW,
+        )
+    )
+
+    assert completion.calls == [accepted.account_id]
+
+
+def test_claimed_friend_link_self_completes_when_joiner_connects_channel(
+    identity_service,
+):
+    social_repository = InMemorySocialSchedulingRepository()
+    social = SocialSchedulingService(
+        repository=social_repository,
+        reachability=IdentityReachability(identity_service),
+        reminder_availability=EmptyReminderAvailability(),
+        now=lambda: NOW,
+        id_factory=sequence_factory("social"),
+        token_factory=sequence_factory("social_token"),
+        display_name_resolver=identity_service.get_display_name,
+    )
+    channel_service = ChannelReachabilityService(
+        repository=InMemoryChannelReachabilityRepository(),
+        identity_access=identity_service,
+        providers={"whatsapp_evolution": RecordingAdapter()},
+        deferred_friend_link_completion=DeferredFriendLinkAdapter(
+            identity_service, social
+        ),
+        now=lambda: NOW,
+        id_factory=sequence_factory("channel"),
+    )
+    owner, owner_identity = verified_web_account(identity_service)
+    owner_channel = channel_service.create_channel(
+        account_id=owner.id,
+        provider_type="whatsapp_evolution",
+        channel_identity_id=owner_identity.id,
+        removable=True,
+    )
+    channel_service.mark_connected(owner.id, owner_channel.id)
+    link = social.get_or_create_friend_link(owner.id)
+    joiner = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550999",
+    )
+
+    deferred = social.establish_friendship_from_token(
+        joiner_account_id=joiner.account.id,
+        public_token=link.public_token,
+    )
+    claim = identity_service.issue_web_claim_code(
+        browser_session="browser_1",
+        continuation=deferred.continuation,
+    )
+    identity_service.redeem_claim_code_from_channel(
+        code=claim.code,
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550999",
+    )
+    identity_service.complete_web_claim_from_browser(
+        code=claim.code,
+        browser_session="browser_1",
+    )
+    joiner_channel = channel_service.create_channel(
+        account_id=joiner.account.id,
+        provider_type="whatsapp_evolution",
+        channel_identity_id=joiner.channel_identity.id,
+        removable=False,
+    )
+
+    channel_service.mark_connected(joiner.account.id, joiner_channel.id)
+    channel_service.mark_connected(joiner.account.id, joiner_channel.id)
+
+    assert deferred.status == "deferred_channel_required"
+    assert social_repository.list_active_friends(owner.id) == [joiner.account.id]
+    assert len(social_repository.friendships_by_id) == 1
+    assert (
+        identity_service.consume_deferred_friend_link_continuations(joiner.account.id)
+        == []
+    )
 
 
 def test_wechat_personal_connect_starts_ilink_login_and_status_stays_unconnected(

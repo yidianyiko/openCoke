@@ -279,6 +279,37 @@ def test_duplicate_prevention_uses_schema_key_not_duration_or_entry_point(servic
     assert no_trigger_duplicate.items[0].reason == "duplicate_reminder"
 
 
+def test_repository_write_errors_return_safe_reason_without_raw_exception_details():
+    class FailingRepository(InMemoryReminderRepository):
+        def add_reminder_with_outbox(self, reminder, outbox, before_write=None):
+            raise ValueError(
+                'duplicate key value violates unique constraint "uq_internal"'
+            )
+
+    repository = FailingRepository()
+    service = ReminderService(
+        repository=repository,
+        now=lambda: NOW,
+        id_factory=sequence_factory("safe_error"),
+    )
+
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            )
+        ],
+    )
+
+    assert result.items[0].state == "failed"
+    assert result.items[0].reason == "reminder_write_failed"
+    assert result.items[0].fact == {"type": "reminder_write_failed"}
+
+
 def test_batch_items_commit_independently_and_detector_output_is_trusted_or_invalid(
     repository,
 ):

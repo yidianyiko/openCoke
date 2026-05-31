@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hmac
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from coke.domains.channel_reachability.models import (
     ChannelReachabilityError,
@@ -19,12 +20,13 @@ def create_provider_webhook_blueprint(
     reminder_service=None,
     social_scheduling_service=None,
     commit_callback: Callable[[], None] | None = None,
+    webhook_secret: str | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("provider_webhooks", __name__)
 
     @blueprint.errorhandler(ChannelReachabilityError)
     def handle_channel_error(error: ChannelReachabilityError):
-        return jsonify(_error_body(error.code, error.fact)), 400
+        return jsonify(_error_body(error.code, error.fact)), _status_code(error.code)
 
     @blueprint.post("/webhooks/whatsapp/evolution")
     def whatsapp_evolution_inbound():
@@ -43,6 +45,7 @@ def create_provider_webhook_blueprint(
         return _handle_inbound("linq")
 
     def _handle_inbound(provider_type: str):
+        _require_webhook_secret(webhook_secret)
         adapter = providers.get(provider_type)
         if adapter is None:
             raise ChannelReachabilityError("unsupported_provider")
@@ -94,6 +97,45 @@ def create_provider_webhook_blueprint(
         )
 
     return blueprint
+
+
+def _require_webhook_secret(webhook_secret: str | None) -> None:
+    expected = _configured_webhook_secret(webhook_secret)
+    if expected is None:
+        return
+    for presented in _presented_webhook_secrets():
+        if hmac.compare_digest(presented, expected):
+            return
+    raise ChannelReachabilityError("webhook_unauthorized")
+
+
+def _configured_webhook_secret(webhook_secret: str | None) -> str | None:
+    if webhook_secret is not None:
+        stripped = webhook_secret.strip()
+        return stripped or None
+    settings = current_app.config.get("COKE_SETTINGS")
+    value = getattr(settings, "webhook_inbound_secret", None)
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _presented_webhook_secrets() -> list[str]:
+    values: list[str] = []
+    for header in (
+        "X-Coke-Webhook-Secret",
+        "X-Webhook-Secret",
+        "X-Webhook-Token",
+        "X-Evolution-Webhook-Secret",
+    ):
+        value = request.headers.get(header)
+        if value:
+            values.append(value.strip())
+    authorization = request.headers.get("Authorization", "")
+    if authorization.startswith("Bearer "):
+        values.append(authorization.removeprefix("Bearer ").strip())
+    return [value for value in values if value]
 
 
 def _enqueue_undelivered_resend(
@@ -182,3 +224,7 @@ def _error_body(code: str, fact: dict | None = None) -> dict:
     if fact is not None:
         body["error"]["fact"] = fact
     return body
+
+
+def _status_code(code: str) -> int:
+    return 401 if code in {"unauthorized", "webhook_unauthorized"} else 400

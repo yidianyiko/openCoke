@@ -306,6 +306,28 @@ class IdentityReachabilityAdapter:
         return self.identity_access.repository.has_usable_channel(account_id)
 
 
+class DeferredFriendLinkCompletionAdapter:
+    def __init__(
+        self,
+        *,
+        identity_access: IdentityAccessService,
+        social_scheduling: SocialSchedulingService,
+    ) -> None:
+        self.identity_access = identity_access
+        self.social_scheduling = social_scheduling
+
+    def complete_pending_for_account(self, account_id: str) -> None:
+        for (
+            friend_link_id
+        ) in self.identity_access.consume_deferred_friend_link_continuations(
+            account_id
+        ):
+            self.social_scheduling.complete_deferred_friend_link(
+                joiner_account_id=account_id,
+                friend_link_id=friend_link_id,
+            )
+
+
 class ReminderAvailabilityAdapter:
     def __init__(self, reminder_repository: Any) -> None:
         self.reminder_repository = reminder_repository
@@ -751,8 +773,8 @@ class SocialSchedulingToolAdapter:
                 facts=error.fact or {},
                 reason_code=error.code,
             )
-        except ValueError as error:
-            reason_code = str(error) or "social_scheduling_write_failed"
+        except ValueError:
+            reason_code = "social_scheduling_write_failed"
             return ToolExecutionResult(
                 ok=False,
                 facts={"type": reason_code},
@@ -911,8 +933,8 @@ class SettingsToolAdapter:
                 facts=error.fact or {"type": error.code},
                 reason_code=error.code,
             )
-        except ValueError as error:
-            reason_code = str(error) or "settings_write_failed"
+        except ValueError:
+            reason_code = "settings_write_failed"
             return ToolExecutionResult(
                 ok=False,
                 facts={"type": reason_code},
@@ -999,6 +1021,12 @@ def compose_coke_runtime(
         id_factory=id_factory,
         display_name_resolver=identity_access_service.get_display_name,
     )
+    channel_reachability_service.set_deferred_friend_link_completion(
+        DeferredFriendLinkCompletionAdapter(
+            identity_access=identity_access_service,
+            social_scheduling=social_scheduling_service,
+        )
+    )
     reminder_service = ReminderService(
         repository=repositories.reminder,
         detector=reminder_detector,
@@ -1013,6 +1041,7 @@ def compose_coke_runtime(
         repository=repositories.calendar_import,
         google_client=google_calendar_client or EmptyGoogleCalendarClient(),
         reminder_service=reminder_service,
+        access_gate=identity_access_service,
         now=now,
         id_factory=id_factory,
     )
