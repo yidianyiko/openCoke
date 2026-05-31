@@ -3767,7 +3767,7 @@ html[data-locale-ready="true"] .coke-site-splash {
 
 .coke-site .customer-reminder-time-gutter {
   display: grid;
-  grid-template-rows: calc(var(--customer-reminder-day-head-height) + var(--customer-reminder-outside-height)) repeat(17, var(--customer-reminder-hour-height));
+  grid-template-rows: var(--customer-reminder-day-head-height) repeat(17, var(--customer-reminder-hour-height));
   color: var(--ink-500);
   font-size: 11px;
   font-weight: 700;
@@ -3787,7 +3787,7 @@ html[data-locale-ready="true"] .coke-site-splash {
 .coke-site .customer-reminder-day {
   min-width: 148px;
   display: grid;
-  grid-template-rows: var(--customer-reminder-day-head-height) var(--customer-reminder-outside-height) 1fr;
+  grid-template-rows: var(--customer-reminder-day-head-height) auto 1fr;
   border-radius: 8px;
   border: 1px solid rgba(27, 20, 16, 0.08);
   background: rgba(255, 255, 255, 0.62);
@@ -3826,10 +3826,6 @@ html[data-locale-ready="true"] .coke-site-splash {
   overflow: hidden;
   padding: 8px;
   border-bottom: 1px solid rgba(27, 20, 16, 0.08);
-}
-
-.coke-site .customer-reminder-outside--empty {
-  visibility: hidden;
 }
 
 .coke-site .customer-reminder-outside__label,

@@ -189,6 +189,7 @@ describe('CustomerRemindersPage', () => {
     expect(outside?.textContent).toContain('Early three');
     expect(outside?.textContent).not.toContain('Early four');
     expect(outside?.textContent).toContain('+1 more outside visible hours');
+    expect(container.querySelector('[data-testid="outside-2026-05-14"]')).toBeNull();
   });
 
   it('resets the selected week to the current week from the Today control', async () => {
