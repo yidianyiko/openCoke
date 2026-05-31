@@ -54,6 +54,26 @@ _SETTINGS_OP_ALIASES = {
     "reset": "reset_agent_settings",
     "reset_settings": "reset_agent_settings",
 }
+_AFFIRMATIVE_FOLLOWUP_TEXTS = {
+    "yes",
+    "y",
+    "yeah",
+    "yep",
+    "ok",
+    "okay",
+    "sure",
+    "confirm",
+    "confirmed",
+    "是",
+    "是的",
+    "对",
+    "对的",
+    "嗯",
+    "好",
+    "好的",
+    "可以",
+    "确认",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -416,12 +436,16 @@ def _try_resolved_shared_reminder_followup(request: AgentRequest) -> AgentResult
     friends = friends_result.facts.get("friends") if friends_result.ok else None
     if not isinstance(friends, list):
         return None
+    lookup_texts = [answer]
+    assistant_question = str(pending.get("assistant_question") or "").strip()
+    if _is_affirmative_followup(answer) and assistant_question:
+        lookup_texts.append(assistant_question)
     matches = [
         friend
         for friend in friends
         if isinstance(friend, Mapping)
-        and _friend_name_matches_answer(friend, answer)
         and friend.get("account_id")
+        and any(_friend_name_matches_answer(friend, text) for text in lookup_texts)
     ]
     if len(matches) != 1:
         return None
@@ -485,6 +509,10 @@ def _friend_name_matches_answer(friend: Mapping[str, Any], answer: str) -> bool:
     return False
 
 
+def _is_affirmative_followup(text: str) -> bool:
+    return _normalize_lookup_text(text) in _AFFIRMATIVE_FOLLOWUP_TEXTS
+
+
 def _normalize_lookup_text(text: str) -> str:
     return text.casefold().strip(" \t\r\n.!?。！？~～")
 
@@ -516,10 +544,9 @@ def _current_input_texts(request: AgentRequest) -> list[str]:
 
 def _is_ambiguous_shared_reminder_friend_request(text: str) -> bool:
     normalized = text.casefold()
-    has_shared_request = (
-        any(marker in normalized for marker in ("约", "共享提醒", "shared reminder"))
-        and any(marker in normalized for marker in ("提醒", "活动", "晨跑", "shared reminder"))
-    )
+    has_shared_request = any(
+        marker in normalized for marker in ("约", "共享提醒", "shared reminder")
+    ) and any(marker in normalized for marker in ("提醒", "活动", "晨跑", "shared reminder"))
     has_ambiguous_friend = any(
         marker in text for marker in ("和他", "跟他", "和她", "跟她", "和ta", "跟ta")
     )

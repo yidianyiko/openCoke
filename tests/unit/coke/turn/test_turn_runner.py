@@ -198,7 +198,9 @@ class FakeReminderTool:
 
 class FakeSocialSchedulingTool:
     def execute(self, command, guard):
-        return ToolExecutionResult(ok=True, facts={"operation": command.get("operation")})
+        return ToolExecutionResult(
+            ok=True, facts={"operation": command.get("operation")}
+        )
 
 
 class FakeAgent:
@@ -838,7 +840,7 @@ def test_concise_friend_answer_carries_pending_shared_reminder_resolution(harnes
     harness["agent"].next_result = AgentResult.completed(
         {
             "type": "reply",
-            "segments": ["约晨跑的话，\"他\"是哪位好友?"],
+            "segments": ['约晨跑的话，"他"是哪位好友?'],
         }
     )
     first_inbound = harness["runtime"].record_inbound(
@@ -897,6 +899,84 @@ def test_concise_friend_answer_carries_pending_shared_reminder_resolution(harnes
     assert "2029年1月1日" in pending["original_user_text"]
     assert request.tool_profile.social_scheduling_tool is social_tool
     assert "social_scheduling" in request.tool_profile.tool_names
+
+
+def test_shared_reminder_confirmation_followup_skips_semantic_interpreter(harness):
+    social_tool = FakeSocialSchedulingTool()
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-social-confirmation-followup",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=harness["agent"],
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(
+            reminder_tool=harness["reminder_tool"],
+            social_scheduling_tool=social_tool,
+        ),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+    )
+    harness["agent"].next_result = AgentResult.completed(
+        {
+            "type": "reply",
+            "segments": ["你是想约 lizihao 一起晨跑吗？"],
+        }
+    )
+    first_inbound = harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-shared-confirm",
+        text="帮我和他约一个2029年1月1日上午八点半的晨跑活动",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    first_trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-shared-confirm",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=first_inbound.conversation.id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "帮我和他约一个2029年1月1日上午八点半的晨跑活动"},
+    )
+    assert runner.run_inbound_turn(first_trigger).disposition == "replied"
+    semantic_calls_after_question = harness["semantic"].calls
+
+    inbound = harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-yes",
+        text="是的",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-yes",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=inbound.conversation.id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "是的"},
+    )
+
+    result = runner.run_inbound_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert harness["semantic"].calls == semantic_calls_after_question
+    request = harness["agent"].requests[-1]
+    pending = request.trusted_facts["pending_clarification_resolution"]
+    assert pending["answer"] == "是的"
+    assert pending["assistant_question"] == "你是想约 lizihao 一起晨跑吗？"
+    assert "2029年1月1日" in pending["original_user_text"]
+    assert request.tool_profile.social_scheduling_tool is social_tool
 
 
 def test_single_reminder_focus_clears_reference_clarification_for_update(harness):

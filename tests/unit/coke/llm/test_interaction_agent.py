@@ -281,7 +281,7 @@ def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
                     "type": "shared_reminder_friend_answer",
                     "answer": "lizihao",
                     "original_user_text": "帮我和他约一个明天上午八点半的晨跑活动",
-                }
+                },
             },
         )
     )
@@ -298,6 +298,43 @@ def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
     assert tool.calls[1][0]["receiver_account_ids"] == ["friend_1"]
     assert tool.calls[1][0]["title"] == "晨跑活动"
     assert tool.calls[1][0]["local_trigger_at"] == "2026-06-01T08:30:00+08:00"
+
+
+def test_affirmative_shared_reminder_followup_uses_friend_named_in_question():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
+    tool = FriendFollowupTool()
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="是的",
+            social_scheduling_tool=tool,
+            trusted_facts={
+                "default_timezone": "Asia/Shanghai",
+                "current_time": "2026-05-31T14:02:00+08:00",
+                "pending_clarification_resolution": {
+                    "type": "shared_reminder_friend_answer",
+                    "answer": "是的",
+                    "original_user_text": "帮我和他约一个明天上午八点半的晨跑活动",
+                    "assistant_question": "你是想约 lizihao 一起晨跑吗？",
+                },
+            },
+        )
+    )
+
+    assert fake_agent.calls == []
+    assert result.output == {
+        "type": "reply",
+        "segments": ["好的，已帮你和lizihao创建这个共享提醒"],
+    }
+    assert [call[0]["operation"] for call in tool.calls] == [
+        "list_friends",
+        "create_shared_reminder",
+    ]
 
 
 def test_ambiguous_shared_reminder_friend_request_asks_without_model():

@@ -216,6 +216,19 @@ class TurnRunner:
                 input_to_seq=start.turn.input_to_seq,
             )
             focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
+            pending_context = self._pending_clarification_context(
+                trigger=trigger,
+                gate=gate,
+                freshness_guard=freshness_guard,
+                focus_subject=focus_subject,
+                current_input_messages=start.input_messages,
+            )
+            if pending_context is not None:
+                return self._invoke_agent_and_record(
+                    trigger,
+                    pending_context,
+                    semantic_decision=None,
+                )
             semantic_decision = self.semantic_interpreter.interpret(
                 SemanticInterpreterRequest(
                     account_id=trigger.account_id,
@@ -334,6 +347,19 @@ class TurnRunner:
                     input_to_seq=start.turn.input_to_seq,
                 )
                 focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
+                pending_context = self._pending_clarification_context(
+                    trigger=trigger,
+                    gate=gate,
+                    freshness_guard=freshness_guard,
+                    focus_subject=focus_subject,
+                    current_input_messages=start.input_messages,
+                )
+                if pending_context is not None:
+                    return await self._invoke_agent_and_record_async(
+                        trigger,
+                        pending_context,
+                        semantic_decision=None,
+                    )
                 semantic_decision = await self._interpret_semantic_async(
                     SemanticInterpreterRequest(
                         account_id=trigger.account_id,
@@ -768,6 +794,48 @@ class TurnRunner:
         self, request: SemanticInterpreterRequest
     ) -> SemanticDecision:
         return await asyncio.to_thread(self.semantic_interpreter.interpret, request)
+
+    def _pending_clarification_context(
+        self,
+        *,
+        trigger: TurnTrigger,
+        gate: GateDecision,
+        freshness_guard: FreshnessGuard,
+        focus_subject: Any | None,
+        current_input_messages: tuple[Any, ...],
+    ) -> Any | None:
+        trusted_facts = _trusted_facts_for_agent(
+            gate.trust_facts,
+            trigger=trigger,
+            semantic_decision=None,
+            now=self._now,
+            account_timezone=self._account_timezone,
+        )
+        trusted_facts = _add_pending_clarification_resolution(
+            trusted_facts,
+            conversation_runtime=self.conversation_runtime,
+            trigger=trigger,
+            current_turn_id=freshness_guard.turn_id,
+        )
+        if not _has_executable_pending_clarification(trusted_facts):
+            return None
+        return self.context_assembler.build(
+            trigger=trigger,
+            trusted_facts=trusted_facts,
+            semantic_decision=None,
+            focus_subject=focus_subject,
+            reference_resolution=self.reference_resolver.resolve_all([]),
+            memory_context=self.memory_manager.load(
+                account_id=trigger.account_id,
+                conversation_id=trigger.conversation_id,
+                long_term_enabled=bool(gate.trust_facts.get("memory_enabled", True)),
+            ),
+            freshness_guard=freshness_guard,
+            tool_profile=ToolProfile.interactive(self.tool_ports),
+            onboarding_guidance_required=gate.activation_guidance_required,
+            turn_source=trusted_facts["turn_source"],
+            current_input_messages=current_input_messages,
+        )
 
     async def _acquire_conversation_lock_async(self, conversation_id: str):
         while True:
@@ -1332,7 +1400,11 @@ def _pending_shared_reminder_friend_resolution(
     answer = _concise_followup_text(trigger.payload)
     if answer is None:
         return None
-    for turn, input_messages, outbound_messages in conversation_runtime.recent_turns_with_messages(
+    for (
+        turn,
+        input_messages,
+        outbound_messages,
+    ) in conversation_runtime.recent_turns_with_messages(
         trigger.conversation_id, limit=6
     ):
         if turn.id == current_turn_id:
@@ -1340,7 +1412,7 @@ def _pending_shared_reminder_friend_resolution(
         question_text = "\n".join(
             str(message.text or "") for message in outbound_messages
         )
-        if not _asks_for_shared_reminder_friend(question_text):
+        if not _asks_for_shared_reminder_friend_question(question_text):
             continue
         original_text = "\n".join(
             str(message.text or "")
@@ -1372,6 +1444,12 @@ def _concise_followup_text(payload: Mapping[str, Any]) -> str | None:
     return text
 
 
+def _asks_for_shared_reminder_friend_question(text: str) -> bool:
+    return _asks_for_shared_reminder_friend(
+        text
+    ) or _asks_for_shared_reminder_confirmation(text)
+
+
 def _asks_for_shared_reminder_friend(text: str) -> bool:
     normalized = text.casefold()
     friend_question = any(
@@ -1385,11 +1463,21 @@ def _asks_for_shared_reminder_friend(text: str) -> bool:
     return friend_question and shared_context
 
 
+def _asks_for_shared_reminder_confirmation(text: str) -> bool:
+    normalized = text.casefold()
+    shared_context = any(
+        marker in normalized
+        for marker in ("约", "共享提醒", "shared reminder", "晨跑", "活动")
+    )
+    confirmation_shape = any(marker in text for marker in ("吗", "?", "？"))
+    return shared_context and confirmation_shape
+
+
 def _looks_like_shared_reminder_request(text: str) -> bool:
     normalized = text.casefold()
-    return any(marker in normalized for marker in ("约", "共享提醒", "shared reminder")) and any(
-        marker in normalized for marker in ("提醒", "活动", "晨跑", "shared reminder")
-    )
+    return any(
+        marker in normalized for marker in ("约", "共享提醒", "shared reminder")
+    ) and any(marker in normalized for marker in ("提醒", "活动", "晨跑", "shared reminder"))
 
 
 def _require_agent_visibility_for_inbound_no_reply(
