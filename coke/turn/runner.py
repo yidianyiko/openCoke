@@ -262,10 +262,10 @@ class TurnRunner:
                     ),
                 ),
                 freshness_guard=freshness_guard,
-                tool_profile=(
-                    ToolProfile.clarification()
-                    if semantic_decision.required_clarification != "none"
-                    else ToolProfile.interactive(self.tool_ports)
+                tool_profile=_tool_profile_for_interactive_decision(
+                    semantic_decision,
+                    trusted_facts=trusted_facts,
+                    tool_ports=self.tool_ports,
                 ),
                 onboarding_guidance_required=gate.activation_guidance_required,
                 turn_source=trusted_facts["turn_source"],
@@ -380,10 +380,10 @@ class TurnRunner:
                         ),
                     ),
                     freshness_guard=freshness_guard,
-                    tool_profile=(
-                        ToolProfile.clarification()
-                        if semantic_decision.required_clarification != "none"
-                        else ToolProfile.interactive(self.tool_ports)
+                    tool_profile=_tool_profile_for_interactive_decision(
+                        semantic_decision,
+                        trusted_facts=trusted_facts,
+                        tool_ports=self.tool_ports,
                     ),
                     onboarding_guidance_required=gate.activation_guidance_required,
                     turn_source=trusted_facts["turn_source"],
@@ -1300,6 +1300,27 @@ def _add_pending_clarification_resolution(
     if resolution is not None:
         facts["pending_clarification_resolution"] = resolution
     return facts
+
+
+def _tool_profile_for_interactive_decision(
+    semantic_decision: SemanticDecision,
+    *,
+    trusted_facts: Mapping[str, Any],
+    tool_ports: AgentToolPorts,
+) -> ToolProfile:
+    if _has_executable_pending_clarification(trusted_facts):
+        return ToolProfile.interactive(tool_ports)
+    if semantic_decision.required_clarification != "none":
+        return ToolProfile.clarification()
+    return ToolProfile.interactive(tool_ports)
+
+
+def _has_executable_pending_clarification(trusted_facts: Mapping[str, Any]) -> bool:
+    pending = trusted_facts.get("pending_clarification_resolution")
+    return (
+        isinstance(pending, Mapping)
+        and pending.get("type") == "shared_reminder_friend_answer"
+    )
 
 
 def _pending_shared_reminder_friend_resolution(
