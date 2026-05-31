@@ -189,3 +189,35 @@ passed; `verify-surface` passed clean-rebuild-backend with 590 tests in 18.32s
 and repo-os-docs; verification suggestion remained
 `clean-rebuild-backend repo-os-docs`; risk report returned
 `human_review_required: no`.
+
+```text
+RSYNC_RSH='ssh -o ProxyCommand=none -o KexAlgorithms=curve25519-sha256' \
+bash -c 'ssh() { command ssh -o ProxyCommand=none -o KexAlgorithms=curve25519-sha256 "$@"; }; export -f ssh; scripts/deploy-compose-to-gcp.sh'
+```
+
+Result: deployed `17bb046f8d1865c6c1c9d3a0564b2a911cbfa630`.
+The normal SSH KEX path stalled while reading the remote sha, so the deploy
+was rerun with direct SSH and `curve25519-sha256`; remote `.deployed-sha`
+matched `17bb046f8d1865c6c1c9d3a0564b2a911cbfa630`. `coke-api` was healthy,
+and `coke-worker`, `coke-outbox-relay`, and `coke-scheduler` were up.
+
+```text
+POST /webhooks/wechat/personal
+raw_event_id=codex-reminder-list-guard-smoke-20260531T141402Z
+text=现在我一共有几个提醒？
+```
+
+Result: production user-path smoke completed turn
+`b641cf8f-ceb7-4969-9d15-4fb92fcddebd` as `replied / reply_ready`.
+Outbound message `7db0dfff-cf1b-4470-9189-69a333f90b60` was 1433 characters
+and 30 lines. It began:
+
+```text
+你现在一共有 29 个提醒：
+1. 跑步（2026-05-31T01:00:00+00:00）
+2. 一起喝水（2026-05-30T19:21:37.032838+00:00）
+3. 喝水（2029-01-20T02:00:00+00:00）
+```
+
+Delivery attempt `d3e3a69e-d021-46c7-b355-e0f0866a4e5c` sent through
+`wechat_personal` with provider id `coke-1780237015724-d10ffa2b6afa`.

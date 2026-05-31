@@ -1,10 +1,12 @@
 ---
 kind: incident
-status: fixed_pending_deploy
+status: fixed_deployed
 surface: conversation-runtime, reminder, interaction-agent
 created: 2026-05-31
 fixed_commit: ba4c005cc4e2aa220e6fd9b2fd3bfac3f24ec58a
-deployed_sha: ba4c005cc4e2aa220e6fd9b2fd3bfac3f24ec58a
+ux_contract_commit: 202d13084e108674958aa6b1ad7e6dc9988a9833
+runtime_guard_commit: 17bb046f8d1865c6c1c9d3a0564b2a911cbfa630
+deployed_sha: 17bb046f8d1865c6c1c9d3a0564b2a911cbfa630
 ---
 
 # Reminder List Query Returned Unsupported Tool Failure
@@ -86,3 +88,13 @@ from trusted tool facts.
 - The runtime guard test covers the exact failure mode: a model that calls the
   list tool but returns only `你现在一共有 2 个提醒。` is replaced with a reply
   containing the total count and every reminder line.
+- Runtime guard deployment `17bb046f8d1865c6c1c9d3a0564b2a911cbfa630`
+  reached production on 2026-05-31; remote `.deployed-sha` matched that commit
+  and the backend services were healthy.
+- Production smoke
+  `codex-reminder-list-guard-smoke-20260531T141402Z` completed turn
+  `b641cf8f-ceb7-4969-9d15-4fb92fcddebd` as `replied / reply_ready`.
+  Outbound message `7db0dfff-cf1b-4470-9189-69a333f90b60` had 30 lines and
+  began with `你现在一共有 29 个提醒：` followed by numbered reminder rows.
+  Delivery attempt `d3e3a69e-d021-46c7-b355-e0f0866a4e5c` was
+  `wechat_personal / sent`.
