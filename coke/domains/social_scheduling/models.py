@@ -145,6 +145,9 @@ class SharedReminderCreateResult:
         "needs_title",
         "needs_time",
         "needs_context",
+        "needs_past_time_confirmation",
+        "needs_incomplete_date_clarification",
+        "invalid",
     ]
     shared_reminder: SharedReminder | None
     projections: list[ReminderProjection] = field(default_factory=list)

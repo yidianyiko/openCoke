@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from secrets import token_urlsafe
 from uuid import uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.domains.social_scheduling.availability import (
     FriendAvailability,
@@ -235,6 +236,20 @@ class SocialSchedulingService:
                 status=f"needs_{missing}",
                 shared_reminder=None,
                 follow_up_facts={"missing": missing},
+            )
+        time_state = self._validate_shared_trigger_time(
+            local_trigger_at,
+            captured_timezone,
+        )
+        if time_state != "valid_future":
+            return SharedReminderCreateResult(
+                status=time_state,
+                shared_reminder=None,
+                follow_up_facts={
+                    "time_state": time_state,
+                    "local_trigger_at": local_trigger_at.isoformat(),
+                    "captured_timezone": captured_timezone,
+                },
             )
 
         unique_receivers = _dedupe_preserve_order(receiver_account_ids)
@@ -620,6 +635,21 @@ class SocialSchedulingService:
             raise SocialSchedulingError(
                 code, fact={"type": code, "account_id": account_id}
             )
+
+    def _validate_shared_trigger_time(
+        self,
+        local_trigger_at: datetime,
+        captured_timezone: str,
+    ) -> str:
+        try:
+            zone = ZoneInfo(captured_timezone)
+        except ZoneInfoNotFoundError:
+            return "invalid"
+        trigger_in_zone = local_trigger_at.replace(tzinfo=zone)
+        now_in_zone = self._now().astimezone(zone)
+        if trigger_in_zone < now_in_zone:
+            return "needs_past_time_confirmation"
+        return "valid_future"
 
     def _new_id(self, prefix: str) -> str:
         value = self._id_factory(prefix)

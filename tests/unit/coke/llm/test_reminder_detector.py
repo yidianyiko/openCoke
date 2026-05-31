@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -53,7 +54,9 @@ def test_extract_prompt_requires_empty_recurrence_object_for_non_recurring_items
     )
     detector = SiliconFlowReminderDetector(client)
 
-    detector.extract("remind me to pay rent", "Asia/Tokyo", datetime(2026, 5, 30, 10, 0, tzinfo=UTC))
+    detector.extract(
+        "remind me to pay rent", "Asia/Tokyo", datetime(2026, 5, 30, 10, 0, tzinfo=UTC)
+    )
 
     assert "Use {} for one-time or non-recurring reminders" in client.calls[0]["system"]
     assert client.calls[0]["user"]["schema"]["recurrence_rule"] == (
@@ -83,6 +86,55 @@ def test_extract_prompt_requires_full_local_wall_clock_time_in_captured_timezone
     assert client.calls[0]["user"]["schema"]["trigger_time"] == (
         "full ISO-8601 local wall-clock datetime in captured_timezone, including explicit hour/minute"
     )
+
+
+class GroundedRelativeClient:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def complete_json(self, *, system: str, user: dict, schema_name: str):
+        self.calls.append({"system": system, "user": user, "schema_name": schema_name})
+        assert "authoritative current datetime" in system
+        assert "Relative expressions" in system
+        assert user["captured_timezone"] == "Asia/Shanghai"
+        assert user["now"] == "2026-05-31T11:44:00+08:00"
+        assert user["current_local_date"] == "2026-05-31"
+        assert user["current_local_time"] == "11:44:00"
+        tomorrow = datetime.combine(
+            datetime.fromisoformat(user["current_local_date"]).date()
+            + timedelta(days=1),
+            time(12, 0) if "中午" in user["text"] else time(9, 0),
+            tzinfo=ZoneInfo(user["captured_timezone"]),
+        )
+        return {
+            "content": "午餐" if "午餐" in user["text"] else "跑步",
+            "trigger_time": tomorrow.isoformat(),
+            "recurrence_rule": {},
+            "duration_minutes": None,
+            "kind": "timed",
+        }
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "和我的好友约一个明天中午的午餐",
+            datetime(2026, 6, 1, 12, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
+        ),
+        (
+            "提醒我明天早上9点跑步",
+            datetime(2026, 6, 1, 9, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
+        ),
+    ],
+)
+def test_extract_grounds_relative_times_against_authoritative_local_now(text, expected):
+    detector = SiliconFlowReminderDetector(GroundedRelativeClient())
+    now = datetime(2026, 5, 31, 11, 44, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    fields = detector.extract(text, "Asia/Shanghai", now)
+
+    assert fields.trigger_time == expected
 
 
 def test_extract_rejects_invalid_output_without_regex_recovery():

@@ -460,12 +460,13 @@ class ReminderService:
         if self.detector is None or item.raw_text is None:
             raise ReminderError("detector_unavailable")
         try:
+            detector_now = self._now().astimezone(ZoneInfo(item.captured_timezone))
             fields: DetectedReminderFields = self.detector.extract(
                 item.raw_text,
                 item.captured_timezone,
-                self._now(),
+                detector_now,
             )
-        except RuntimeError as error:
+        except (RuntimeError, ZoneInfoNotFoundError) as error:
             raise ReminderError("invalid_detector_output") from error
         if not fields.content:
             raise ReminderError("invalid_detector_output")
