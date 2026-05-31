@@ -166,18 +166,9 @@ class TurnRunner:
             semantic_decision = _clear_reference_clarification_with_single_focus(
                 semantic_decision, focus_subject
             )
-            if semantic_decision.reply_necessity == "intentional_no_reply":
-                disposition = self.conversation_runtime.commit_no_reply(
-                    turn_id=start.turn.id,
-                    based_on_inbound_seq=start.turn.based_on_inbound_seq,
-                    reason_code="intentional_no_reply",
-                )
-                return self._result_from_disposition(
-                    turn_id=start.turn.id,
-                    trigger=trigger,
-                    disposition=disposition.disposition,
-                    reason_code=disposition.reason_code,
-                )
+            semantic_decision = _require_agent_visibility_for_inbound_no_reply(
+                semantic_decision
+            )
 
             trusted_facts = _trusted_facts_for_agent(
                 gate.trust_facts,
@@ -761,6 +752,14 @@ def _clear_reference_clarification_with_single_focus(
     if decision.ambiguity not in REFERENCE_AMBIGUITIES:
         return decision
     return replace(decision, ambiguity="clear", required_clarification="none")
+
+
+def _require_agent_visibility_for_inbound_no_reply(
+    decision: SemanticDecision,
+) -> SemanticDecision:
+    if decision.reply_necessity != "intentional_no_reply":
+        return decision
+    return replace(decision, reply_necessity="reply_needed")
 
 
 def _has_single_focus(focus_subject: Any | None, subject_type: str) -> bool:

@@ -79,6 +79,13 @@ Interactive mode exposes domain tools and may mutate product state through
 domain services. Render mode receives already-trusted structured facts and has no
 business mutation tools.
 
+For inbound user turns, no-reply is an Interaction Agent output decision after
+the full trusted context is assembled. Semantic interpretation may carry a
+reply-necessity signal, but it must not close an inbound user turn before the
+Interaction Agent has seen product-notification, reminder, focus, and memory
+context. This keeps intentional no-reply observable without making the
+pre-agent classifier stricter than the chat workflow.
+
 ### Interactive Input Windows And Pre-Reply Interruption
 
 Interactive inbound turns are ordered by conversation input windows, not by a
@@ -225,6 +232,10 @@ conversation `context_token`.
   cancel the whole group; completion affects only that participant's projection.
 - Product notifications are structured facts rendered by The Turn. Notifications
   are informational and never approval or action-execution workflows.
+- Shared-reminder creation sends the invitation notification to receivers. The
+  creator receives the original interactive creation reply, then receives a
+  separate structured delivery-confirmed notification when a receiver's
+  invitation notification is delivered.
 - Calendar import is one-time import into Coke-owned reminders with
   occurrence-grain dedupe.
 

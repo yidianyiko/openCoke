@@ -272,7 +272,7 @@ def harness():
     }
 
 
-def test_intentional_no_reply_skips_interaction_agent(harness):
+def test_semantic_intentional_no_reply_still_reaches_interaction_agent(harness):
     harness["semantic"].next_decision = SemanticDecision(
         reply_necessity="intentional_no_reply",
         intent_family="chit_chat",
@@ -284,12 +284,35 @@ def test_intentional_no_reply_skips_interaction_agent(harness):
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 
+    assert result.disposition == "replied"
+    assert result.visible_text == "hello"
+    assert harness["agent"].invocations == 1
+    request = harness["agent"].requests[-1]
+    assert request.trusted_facts["semantic_decision"]["reply_necessity"] == (
+        "reply_needed"
+    )
+    disposition = harness["runtime"].get_disposition(result.turn_id)
+    assert disposition.disposition == "replied"
+
+
+def test_interaction_agent_can_still_intentionally_no_reply(harness):
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="intentional_no_reply",
+        intent_family="chit_chat",
+        intent_action="chit_chat",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="en",
+    )
+    harness["agent"].next_result = AgentResult.completed(
+        {"type": "no_reply", "reason": "intentional_no_reply"}
+    )
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
     assert result.disposition == "no_reply"
     assert result.reason_code == "intentional_no_reply"
-    assert result.visible_text is None
-    assert harness["agent"].invocations == 0
-    disposition = harness["runtime"].get_disposition(result.turn_id)
-    assert disposition.disposition == "no_reply"
+    assert harness["agent"].invocations == 1
 
 
 def test_inbound_reply_delivery_carries_trigger_context_token(harness):

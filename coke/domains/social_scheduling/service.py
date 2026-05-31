@@ -381,7 +381,7 @@ class SocialSchedulingService:
                 self.repository.add_projection(projection)
                 projections.append(projection)
             notification = self._create_shared_reminder_notification(
-                reminder, "created"
+                reminder, "created", recipients=unique_receivers
             )
         return SharedReminderCreateResult(
             status="created",
@@ -558,13 +558,15 @@ class SocialSchedulingService:
         error_facts: dict,
         turn_id: str | None = None,
     ) -> NotificationRecipient:
-        return self._notifications.record_delivery(
+        recipient = self._notifications.record_delivery(
             notification_fact_id=notification_fact_id,
             recipient_account_id=recipient_account_id,
             delivery_state=delivery_state,
             error_facts=error_facts,
             turn_id=turn_id,
         )
+        self._maybe_create_shared_reminder_delivery_receipt(recipient)
+        return recipient
 
     def undelivered_notification_resend_turn(
         self, recipient_account_id: str
@@ -687,6 +689,62 @@ class SocialSchedulingService:
             ),
             idempotency_key=f"shared_reminder:{reminder.id}:{status}",
         )
+
+    def _maybe_create_shared_reminder_delivery_receipt(
+        self, recipient: NotificationRecipient
+    ) -> None:
+        if recipient.delivery_state != "delivered":
+            return
+        fact = self._notification_fact_by_id(recipient.notification_fact_id)
+        if fact is None or fact.type != "shared_reminder_created":
+            return
+        creator_account_id = str(fact.facts.get("actor_account_id") or "")
+        if (
+            not creator_account_id
+            or recipient.recipient_account_id == creator_account_id
+        ):
+            return
+        idempotency_key = (
+            f"shared_reminder:{fact.object_id}:delivery_confirmed:"
+            f"{recipient.recipient_account_id}"
+        )
+        if any(
+            existing.idempotency_key == idempotency_key
+            for existing in self.repository.list_notification_facts()
+        ):
+            return
+        self._notifications.create_fact(
+            notification_type="shared_reminder_delivery_confirmed",
+            actor_account_id=recipient.recipient_account_id,
+            object_type=fact.object_type,
+            object_id=fact.object_id,
+            status="delivered",
+            facts={
+                "creator_account_id": creator_account_id,
+                "recipient_account_id": recipient.recipient_account_id,
+                "recipient_display_name": self.display_name_resolver(
+                    recipient.recipient_account_id
+                ),
+                "object_type": fact.object_type,
+                "object_id": fact.object_id,
+                "title": fact.facts.get("title"),
+                "time": fact.facts.get("time"),
+                "timezone": fact.facts.get("timezone"),
+                "duration_minutes": fact.facts.get("duration_minutes"),
+                "delivery_state": "delivered",
+                "status": "delivered",
+            },
+            recipients=[creator_account_id],
+            idempotency_key=idempotency_key,
+        )
+
+    def _notification_fact_by_id(
+        self, notification_fact_id: str
+    ) -> NotificationFact | None:
+        for fact in self.repository.list_notification_facts():
+            if fact.id == notification_fact_id:
+                return fact
+        return None
 
     def _busy_intervals_for(
         self,

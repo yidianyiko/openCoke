@@ -422,6 +422,23 @@ def test_output_contract_forbids_duplicate_proactive_after_timed_reminder():
     )
 
 
+def test_output_contract_keeps_product_notification_followups_visible():
+    request = _request(memory_enabled=True, text="好的")
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    output_contract = _block_text(rendered, "output_contract")
+    assert "Do not use no-reply for post-notification acknowledgements" in (
+        output_contract
+    )
+    assert (
+        "meaningless content, natural conversation endings, or explicit no-disturb"
+        in (output_contract)
+    )
+
+
 def test_domain_failure_or_missing_info_prompt_forbids_success_claim():
     request = _request(
         memory_enabled=True,

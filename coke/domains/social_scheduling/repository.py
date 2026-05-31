@@ -1144,6 +1144,9 @@ def _notification_outbox_values(fact: NotificationFact) -> dict:
 
 
 def _notification_recipients_from_fact(fact: NotificationFact) -> list[str]:
+    delivery_recipients = fact.facts.get("delivery_recipients")
+    if isinstance(delivery_recipients, list):
+        return sorted(str(recipient) for recipient in delivery_recipients)
     participants = fact.facts.get("participants")
     if isinstance(participants, list):
         return sorted(str(participant) for participant in participants)

@@ -927,6 +927,16 @@ def _output_contract_block(request: AgentRequest) -> str:
             3,
             'Valid no-reply: {"type":"no_reply","reason":"intentional_no_reply"}.',
         )
+        lines.insert(
+            4,
+            (
+                "Use no-reply only for meaningless content, natural conversation "
+                "endings, or explicit no-disturb requests. Do not use no-reply "
+                "for post-notification acknowledgements, delivery/status "
+                "questions, challenges, or short replies that refer to a recent "
+                "product notification."
+            ),
+        )
     protocol_retry = request.trusted_facts.get("protocol_retry")
     if protocol_retry:
         retry_output = (
