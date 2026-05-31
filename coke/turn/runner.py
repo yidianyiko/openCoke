@@ -80,7 +80,6 @@ class _AsyncState:
     trigger_type: str
     conversation_id: str
     account_id: str
-    based_on_inbound_seq: int | None
     context_token: str | None
 
 
@@ -103,6 +102,8 @@ class TurnRunner:
         delivery_lifecycle: DeliveryLifecyclePort | None = None,
         now: Callable[[], datetime] | None = None,
         account_timezone: Callable[[str], str | None] | None = None,
+        claim_boundary_committer: Callable[[], None] | None = None,
+        close_boundary_committer: Callable[[], None] | None = None,
     ) -> None:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
@@ -119,22 +120,39 @@ class TurnRunner:
         self.reference_resolver = reference_resolver or ReferenceResolver()
         self._now = now or (lambda: datetime.now(UTC))
         self._account_timezone = account_timezone
+        self._claim_boundary_committer = claim_boundary_committer or (lambda: None)
+        self._close_boundary_committer = close_boundary_committer or (lambda: None)
         self._async_states: dict[str, _AsyncState] = {}
 
     def run_inbound_turn(self, trigger: TurnTrigger) -> TurnRunResult:
-        gate = self.pre_llm_gate.evaluate(trigger)
-        if not gate.permitted:
-            return self._run_access_denied_turn(trigger, gate)
-
-        start = self.conversation_runtime.start_turn(
-            conversation_id=trigger.conversation_id,
-            trigger_id=trigger.trigger_id,
-            trigger_type=trigger.trigger_type,
-            mode=TurnMode.INTERACTIVE.value,
-        )
+        try:
+            start = self.conversation_runtime.start_turn(
+                conversation_id=trigger.conversation_id,
+                trigger_id=trigger.trigger_id,
+                trigger_type=trigger.trigger_type,
+                mode=TurnMode.INTERACTIVE.value,
+            )
+        except ConversationRuntimeError as error:
+            if error.code == "no_open_inbound_window":
+                return self._result_from_disposition(
+                    turn_id=trigger.trigger_id,
+                    trigger=trigger,
+                    disposition="superseded",
+                    reason_code="input_window_already_closed",
+                )
+            raise
+        self._commit_claim_boundary()
         replay_result = self._replayed_result(start.replayed, start.turn.id, trigger)
         if replay_result is not None:
             return replay_result
+        gate = self.pre_llm_gate.evaluate(trigger)
+        if not gate.permitted:
+            return self._run_access_denied_turn(
+                trigger=trigger,
+                gate=gate,
+                turn_id=start.turn.id,
+            )
+
         lock = self.lock_manager.acquire(trigger.conversation_id)
         if lock is None:
             disposition = self.conversation_runtime.mark_failed(
@@ -148,11 +166,9 @@ class TurnRunner:
             )
 
         try:
-            freshness_seq = start.turn.input_to_seq
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
                 turn_id=start.turn.id,
-                based_on_inbound_seq=freshness_seq,
             )
             focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
             semantic_decision = self.semantic_interpreter.interpret(
@@ -170,9 +186,9 @@ class TurnRunner:
             if semantic_decision.reply_necessity == "intentional_no_reply":
                 disposition = self.conversation_runtime.commit_no_reply(
                     turn_id=start.turn.id,
-                    based_on_inbound_seq=freshness_seq,
                     reason_code="intentional_no_reply",
                 )
+                self._commit_close_boundary()
                 return self._result_from_disposition(
                     turn_id=start.turn.id,
                     trigger=trigger,
@@ -255,12 +271,15 @@ class TurnRunner:
         return self._record_validated_output(
             turn_id=state.turn_id,
             trigger=trigger,
-            based_on_inbound_seq=state.based_on_inbound_seq,
             validated=validated,
         )
 
     def _run_access_denied_turn(
-        self, trigger: TurnTrigger, gate: GateDecision
+        self,
+        *,
+        trigger: TurnTrigger,
+        gate: GateDecision,
+        turn_id: str,
     ) -> TurnRunResult:
         render_trigger = TurnTrigger(
             trigger_id=f"{trigger.trigger_id}:access_denied",
@@ -275,17 +294,56 @@ class TurnRunner:
                 "facts": gate.access_facts,
             },
         )
-        return self._run_render_with_gate(
-            trigger=render_trigger,
-            gate=GateDecision.allowed(
-                trust_facts={
-                    "account_id": trigger.account_id,
-                    "denial_reason": gate.denial_reason,
-                    **gate.access_facts,
-                }
-            ),
-            constrained=True,
+        render_gate = GateDecision.allowed(
+            trust_facts={
+                "account_id": trigger.account_id,
+                "denial_reason": gate.denial_reason,
+                **gate.access_facts,
+            }
         )
+        lock = self.lock_manager.acquire(trigger.conversation_id)
+        if lock is None:
+            disposition = self.conversation_runtime.mark_failed(
+                turn_id, "conversation_lock_unavailable"
+            )
+            return self._result_from_disposition(
+                turn_id=turn_id,
+                trigger=render_trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+        try:
+            freshness_guard = FreshnessGuard(
+                conversation_runtime=self.conversation_runtime,
+                turn_id=turn_id,
+            )
+            trusted_facts = _trusted_facts_for_agent(
+                render_gate.trust_facts,
+                trigger=render_trigger,
+                semantic_decision=None,
+                now=self._now,
+                account_timezone=self._account_timezone,
+            )
+            context = self.context_assembler.build(
+                trigger=render_trigger,
+                trusted_facts=trusted_facts,
+                semantic_decision=None,
+                focus_subject=None,
+                reference_resolution=None,
+                memory_context=None,
+                freshness_guard=freshness_guard,
+                tool_profile=ToolProfile.render(constrained=True),
+                turn_source=trusted_facts["turn_source"],
+            )
+            return self._invoke_agent_and_record(
+                render_trigger, context, semantic_decision=None
+            )
+        except ConversationRuntimeError as error:
+            return self._conversation_runtime_error_result(
+                turn_id, render_trigger, error
+            )
+        finally:
+            lock.release()
 
     def _run_render_with_gate(
         self,
@@ -315,11 +373,9 @@ class TurnRunner:
                 reason_code=disposition.reason_code,
             )
         try:
-            freshness_seq = start.turn.input_to_seq
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
                 turn_id=start.turn.id,
-                based_on_inbound_seq=freshness_seq,
             )
             trusted_facts = _trusted_facts_for_agent(
                 gate.trust_facts,
@@ -383,7 +439,6 @@ class TurnRunner:
         return self._record_validated_output(
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
-            based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
             validated=validated,
         )
 
@@ -407,7 +462,6 @@ class TurnRunner:
         context.freshness_guard.guard_state_change()
         disposition = self.conversation_runtime.mark_pending_async_reply(
             turn_id=context.freshness_guard.turn_id,
-            based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
             reason_code="sync_timeout",
         )
         waiting_message = self.conversation_runtime.record_outbound_message(
@@ -416,6 +470,17 @@ class TurnRunner:
             segment_index=0,
             payload={"message_type": "waiting"},
         )
+        async_state = _AsyncState(
+            task_id=agent_result.task_id,
+            turn_id=context.freshness_guard.turn_id,
+            trigger_id=trigger.trigger_id,
+            trigger_type=trigger.trigger_type,
+            conversation_id=trigger.conversation_id,
+            account_id=trigger.account_id,
+            context_token=_context_token_from_trigger(trigger),
+        )
+        self._commit_close_boundary()
+        self._async_states[agent_result.task_id] = async_state
         self.outbound_delivery.deliver(
             DeliveryRequest(
                 account_id=trigger.account_id,
@@ -428,16 +493,6 @@ class TurnRunner:
                 segments=(WAITING_TEXT,),
                 context_token=_context_token_from_trigger(trigger),
             )
-        )
-        self._async_states[agent_result.task_id] = _AsyncState(
-            task_id=agent_result.task_id,
-            turn_id=context.freshness_guard.turn_id,
-            trigger_id=trigger.trigger_id,
-            trigger_type=trigger.trigger_type,
-            conversation_id=trigger.conversation_id,
-            account_id=trigger.account_id,
-            based_on_inbound_seq=context.freshness_guard.based_on_inbound_seq,
-            context_token=_context_token_from_trigger(trigger),
         )
         return self._result_from_disposition(
             turn_id=context.freshness_guard.turn_id,
@@ -453,7 +508,6 @@ class TurnRunner:
         *,
         turn_id: str,
         trigger: TurnTrigger,
-        based_on_inbound_seq: int | None,
         validated: ValidatedOutput,
     ) -> TurnRunResult:
         if not validated.valid:
@@ -475,9 +529,9 @@ class TurnRunner:
         if validated.kind == "no_reply":
             disposition = self.conversation_runtime.commit_no_reply(
                 turn_id=turn_id,
-                based_on_inbound_seq=based_on_inbound_seq,
                 reason_code="intentional_no_reply",
             )
+            self._commit_close_boundary()
             return self._result_from_disposition(
                 turn_id=turn_id,
                 trigger=trigger,
@@ -485,14 +539,12 @@ class TurnRunner:
                 reason_code=disposition.reason_code,
             )
 
-        self.conversation_runtime.guard_state_change(turn_id, based_on_inbound_seq)
         disposition = self.conversation_runtime.commit_reply(
             turn_id=turn_id,
-            based_on_inbound_seq=based_on_inbound_seq,
             segments=validated.segments,
             reason_code=validated.reason_code or "reply_ready",
         )
-        self.conversation_runtime.guard_state_change(turn_id, based_on_inbound_seq)
+        self._commit_close_boundary()
         visible_text = "\n".join(validated.segments)
         outbound_messages = [
             message
@@ -515,6 +567,12 @@ class TurnRunner:
             reason_code=disposition.reason_code,
             visible_text=visible_text,
         )
+
+    def _commit_close_boundary(self) -> None:
+        self._close_boundary_committer()
+
+    def _commit_claim_boundary(self) -> None:
+        self._claim_boundary_committer()
 
     def _replayed_result(
         self,
@@ -540,7 +598,7 @@ class TurnRunner:
                 )
             )
         elif disposition.disposition == "pending_async_reply":
-            async_task_id = None
+            async_task_id = self._async_task_id_for_turn(turn_id)
         return self._result_from_disposition(
             turn_id=turn_id,
             trigger=trigger,
@@ -549,6 +607,12 @@ class TurnRunner:
             visible_text=visible_text,
             async_task_id=async_task_id,
         )
+
+    def _async_task_id_for_turn(self, turn_id: str) -> str | None:
+        for task_id, state in self._async_states.items():
+            if state.turn_id == turn_id:
+                return task_id
+        return None
 
     def _reply_delivery_requests(
         self,

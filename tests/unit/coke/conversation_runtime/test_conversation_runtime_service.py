@@ -107,6 +107,64 @@ def test_inbound_messages_increment_durable_latest_seq_and_preserve_media_refere
     assert repository.outbox_records[0].payload["message_id"] == first.message.id
 
 
+def test_record_inbound_preserves_concurrently_closed_input_window():
+    class ConcurrentCloseRepository(InMemoryConversationRuntimeRepository):
+        def add_inbound_message_with_media_and_outbox(
+            self,
+            conversation,
+            message,
+            media,
+            outbox,
+        ) -> None:
+            if message.seq == 2:
+                self.save_conversation(
+                    conversation.__class__(
+                        conversation.id,
+                        conversation.account_id,
+                        1,
+                        1,
+                        conversation.created_at,
+                        conversation.updated_at,
+                    )
+                )
+            super().add_inbound_message_with_media_and_outbox(
+                conversation,
+                message,
+                media,
+                outbox,
+            )
+
+    repository = ConcurrentCloseRepository(now=lambda: NOW)
+    service = ConversationRuntimeService(
+        repository=repository,
+        now=lambda: NOW,
+        id_factory=sequence_factory("conversation"),
+    )
+    first = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="first",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    second = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="second",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    saved = repository.get_conversation(first.conversation.id)
+    assert second.message.seq == 2
+    assert saved is not None
+    assert saved.latest_inbound_seq == 2
+    assert saved.last_closed_inbound_seq == 1
+
+
 def test_latest_context_token_reads_newest_inbound_message_payload(service):
     first = service.record_inbound(
         account_id="account_1",
@@ -163,6 +221,160 @@ def test_turn_records_input_window_and_replay_reconciles_existing_turn(
     assert len(repository.turns_by_trigger_id) == 1
 
 
+def test_interactive_turn_claims_open_input_window(service):
+    first = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="first",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="second",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    result = service.start_turn(
+        conversation_id=first.conversation.id,
+        trigger_id="inbound:provider:message-2",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    assert result.turn.input_from_seq == 1
+    assert result.turn.input_to_seq == 2
+    assert [message.text for message in result.input_messages] == ["first", "second"]
+
+
+def test_start_turn_claim_does_not_lock_conversation_row():
+    class LockFailingRepository(InMemoryConversationRuntimeRepository):
+        def lock_conversation(self, conversation_id: str):
+            raise AssertionError("start_turn must not hold a row lock during claim")
+
+    repository = LockFailingRepository(now=lambda: NOW)
+    service = ConversationRuntimeService(
+        repository=repository,
+        now=lambda: NOW,
+        id_factory=sequence_factory("conversation"),
+    )
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="hello",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    result = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    assert result.turn.input_from_seq == 1
+    assert result.turn.input_to_seq == 1
+
+
+def test_close_advances_last_closed_inbound_seq(service, repository):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="hello",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    service.commit_reply(turn_id=turn.turn.id, segments=["hello"])
+
+    saved = repository.get_conversation(inbound.conversation.id)
+    assert saved is not None
+    assert saved.last_closed_inbound_seq == 1
+
+
+def test_newer_inbound_before_close_supersedes_old_turn_without_closing(
+    service,
+    repository,
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="old",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+    service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="new",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
+        service.commit_reply(turn_id=turn.turn.id, segments=["stale"])
+
+    saved = repository.get_conversation(inbound.conversation.id)
+    assert saved is not None
+    assert saved.last_closed_inbound_seq == 0
+    superseded = service.get_disposition(turn.turn.id)
+    assert superseded.disposition == "superseded"
+    assert superseded.reason_code == "newer_inbound_seq"
+
+
+def test_duplicate_close_of_already_closed_window_is_superseded(service):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="hello",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    first = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1:first",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+    duplicate = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1:duplicate",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    service.commit_reply(turn_id=first.turn.id, segments=["hello"])
+
+    with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
+        service.commit_reply(turn_id=duplicate.turn.id, segments=["duplicate"])
+
+    disposition = service.get_disposition(duplicate.turn.id)
+    assert disposition.disposition == "superseded"
+    assert disposition.reason_code == "window_already_closed"
+
+
 @pytest.mark.parametrize("close_path", ["reply", "no_reply", "pending_async_reply"])
 def test_successful_close_advances_last_closed_inbound_seq(
     service,
@@ -187,18 +399,15 @@ def test_successful_close_advances_last_closed_inbound_seq(
     if close_path == "reply":
         service.commit_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.input_to_seq,
             segments=["ok"],
         )
     elif close_path == "no_reply":
         service.commit_no_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.input_to_seq,
         )
     else:
         service.mark_pending_async_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.input_to_seq,
         )
 
     saved = repository.get_conversation(inbound.conversation.id)
@@ -237,7 +446,6 @@ def test_stale_outbound_commit_records_superseded_and_never_no_reply_or_failed(
     with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
         service.commit_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.input_to_seq,
             segments=["stale reply"],
         )
 
@@ -273,10 +481,7 @@ def test_stale_state_change_guard_rejects_before_business_commit(service):
     )
 
     with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
-        service.guard_state_change(
-            turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.input_to_seq,
-        )
+        service.guard_state_change(turn_id=turn.turn.id)
 
     assert service.get_disposition(turn.turn.id).disposition == "superseded"
 
@@ -299,7 +504,6 @@ def test_no_reply_is_only_intentional_and_not_failure_or_supersession(service):
 
     disposition = service.commit_no_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.input_to_seq,
         reason_code="intentional_no_reply",
     )
 
@@ -309,7 +513,6 @@ def test_no_reply_is_only_intentional_and_not_failure_or_supersession(service):
     with pytest.raises(ConversationRuntimeError, match="invalid_no_reply_reason"):
         service.commit_no_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.input_to_seq,
             reason_code="failure",
         )
 
@@ -332,12 +535,10 @@ def test_pending_async_reply_is_only_non_terminal_and_transitions_to_replied(ser
 
     pending = service.mark_pending_async_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.input_to_seq,
         reason_code="sync_timeout",
     )
     replied = service.commit_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.input_to_seq,
         segments=["final answer"],
     )
 
@@ -363,7 +564,6 @@ def test_outbound_segments_are_unique_by_turn_id_and_segment_index(service, repo
     )
     service.commit_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.input_to_seq,
         segments=["one", "two"],
     )
     existing = repository.outbound_messages_for_turn(turn.turn.id)[0]
@@ -408,6 +608,5 @@ def test_reply_requires_one_to_three_segments(service, segments):
     with pytest.raises(ConversationRuntimeError, match="invalid_segment_count"):
         service.commit_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.input_to_seq,
             segments=segments,
         )

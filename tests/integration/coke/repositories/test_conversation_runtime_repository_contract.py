@@ -45,6 +45,24 @@ def _message(direction: str = "inbound") -> Message:
     )
 
 
+def _inbound_message(message_id: str, seq: int, text: str) -> Message:
+    return Message(
+        message_id,
+        CONVERSATION_A,
+        None,
+        "inbound",
+        None,
+        seq,
+        None,
+        f"provider:message-{seq}",
+        text,
+        {"provider": "whatsapp_evolution"},
+        None,
+        NOW,
+        NOW,
+    )
+
+
 def _media() -> InboundMedia:
     return InboundMedia(
         "51000000000000000000000000000001",
@@ -64,6 +82,23 @@ def _outbox() -> OutboxRecord:
         "turn.inbound",
         "turn:message-1",
         {"message_id": MESSAGE_A},
+        TRACEPARENT,
+        "pending",
+        NOW,
+        None,
+        None,
+        None,
+        0,
+        None,
+    )
+
+
+def _outbox_for(message_id: str, seq: int) -> OutboxRecord:
+    return OutboxRecord(
+        f"7000000000000000000000000000000{seq}",
+        "turn.inbound",
+        f"turn:message-{seq}",
+        {"message_id": message_id},
         TRACEPARENT,
         "pending",
         NOW,
@@ -136,6 +171,61 @@ def test_conversation_inbound_media_turn_outbound_and_outbox_round_trip(
     assert published.status == "published"
     assert processed.status == "processed"
     assert processed.acked_at == NOW
+
+
+def test_inbound_messages_for_window_returns_ordered_inbound_only(repository) -> None:
+    conversation = _conversation()
+    repository.add_conversation(conversation)
+    second = _inbound_message(
+        "50000000000000000000000000000002",
+        2,
+        "second",
+    )
+    first = _inbound_message(
+        "50000000000000000000000000000001",
+        1,
+        "first",
+    )
+    repository.add_inbound_message_with_media_and_outbox(
+        replace(conversation, latest_inbound_seq=2),
+        second,
+        (),
+        _outbox_for(second.id, 2),
+    )
+    repository.add_inbound_message_with_media_and_outbox(
+        replace(conversation, latest_inbound_seq=2),
+        first,
+        (),
+        _outbox_for(first.id, 1),
+    )
+    repository.add_turn(_turn())
+    repository.add_outbound_message(_message("outbound"))
+
+    messages = repository.inbound_messages_for_window(CONVERSATION_A, 1, 2)
+
+    assert [message.text for message in messages] == ["first", "second"]
+    assert [message.direction for message in messages] == ["inbound", "inbound"]
+
+
+def test_add_inbound_message_preserves_higher_durable_last_closed_seq(
+    repository,
+) -> None:
+    conversation = _conversation()
+    repository.add_conversation(conversation)
+    repository.save_conversation(
+        replace(conversation, latest_inbound_seq=1, last_closed_inbound_seq=1)
+    )
+
+    repository.add_inbound_message_with_media_and_outbox(
+        replace(conversation, latest_inbound_seq=2, last_closed_inbound_seq=0),
+        _inbound_message("50000000000000000000000000000002", 2, "new input"),
+        (),
+        _outbox_for("50000000000000000000000000000002", 2),
+    )
+
+    saved = repository.get_conversation(CONVERSATION_A)
+    assert saved.latest_inbound_seq == 2
+    assert saved.last_closed_inbound_seq == 1
 
 
 def test_conversation_uniqueness_errors_match_in_memory(repository) -> None:

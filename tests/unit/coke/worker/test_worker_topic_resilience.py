@@ -52,15 +52,16 @@ class FakeTurnRunner:
     def __init__(self) -> None:
         self.inbound_triggers = []
         self.render_triggers = []
-
-    def run_inbound_turn(self, trigger):
-        self.inbound_triggers.append(trigger)
-        return SimpleNamespace(
+        self.next_inbound_result = SimpleNamespace(
             turn_id="turn_inbound_1",
             disposition="replied",
             reason_code=None,
             visible_text="ok",
         )
+
+    def run_inbound_turn(self, trigger):
+        self.inbound_triggers.append(trigger)
+        return self.next_inbound_result
 
     def run_render_turn(self, trigger):
         self.render_triggers.append(trigger)
@@ -156,6 +157,50 @@ def test_unknown_topic_is_warned_acked_and_following_inbound_still_processes(cap
     assert len(runtime.turn_runner.inbound_triggers) == 1
     assert runtime.turn_runner.inbound_triggers[0].trigger_type == "InboundTurn"
     assert "unknown_worker_topic_skipped" in caplog.text
+
+
+def test_covered_inbound_event_publishes_terminal_no_visible_result_and_acks():
+    redis = fakeredis.FakeRedis(decode_responses=True)
+    stream = RedisWorkStream(redis, stream_name="coke.work", group_name="workers")
+    stream.ensure_group()
+    stream.publish_event(
+        event_id="outbox_inbound_covered",
+        topic="turn.inbound",
+        idempotency_key="inbound:covered",
+        traceparent=TRACEPARENT,
+        payload={
+            "trigger_id": "inbound:provider_message_1:covered",
+            "conversation_id": "conversation_1",
+            "message_id": "message_1",
+        },
+    )
+    runtime = FakeRuntime()
+    runtime.turn_runner.next_inbound_result = SimpleNamespace(
+        turn_id="inbound:provider_message_1:covered",
+        disposition="superseded",
+        reason_code="input_window_already_closed",
+        visible_text=None,
+    )
+    acked: list[str] = []
+    consumer = _consumer(stream, acked)
+
+    count = consumer.poll_once(lambda event: _handle_event(runtime, event))
+
+    assert count == 1
+    assert acked == ["outbox_inbound_covered"]
+    assert runtime.session.commits == 1
+    assert runtime.reply_pubsub.published == [
+        (
+            "provider_message_1",
+            {
+                "event_id": "outbox_inbound_covered",
+                "turn_id": "inbound:provider_message_1:covered",
+                "disposition": "superseded",
+                "reason_code": "input_window_already_closed",
+                "visible_text": None,
+            },
+        )
+    ]
 
 
 def _consumer(stream: RedisWorkStream, acked: list[str]) -> StreamConsumer:

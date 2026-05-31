@@ -940,6 +940,8 @@ def compose_coke_runtime(
     id_factory: Callable[[str], str] | None = None,
     lock_token_factory: Callable[[], str] | None = None,
     lock_ttl_ms: int = 30_000,
+    claim_boundary_committer: Callable[[], None] | None = None,
+    close_boundary_committer: Callable[[], None] | None = None,
 ) -> CokeRuntime:
     now = now or (lambda: datetime.now(UTC))
     # Row ids must be valid UUIDs because every domain `id` primary-key column is
@@ -1069,6 +1071,8 @@ def compose_coke_runtime(
         account_timezone=lambda account_id: _account_default_timezone(
             identity_access_service, account_id
         ),
+        claim_boundary_committer=claim_boundary_committer,
+        close_boundary_committer=close_boundary_committer,
     )
     return CokeRuntime(
         repositories=repositories,
@@ -1140,6 +1144,8 @@ def build_runtime_from_settings(
         now=now,
         id_factory=id_factory,
         lock_ttl_ms=settings.lock_ttl_ms,
+        claim_boundary_committer=session.commit,
+        close_boundary_committer=session.commit,
     )
     object.__setattr__(
         runtime.turn_runner,

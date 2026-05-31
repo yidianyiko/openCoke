@@ -9,6 +9,7 @@ from uuid import uuid4
 from coke.domains.conversation_runtime.models import (
     Conversation,
     ConversationRuntimeError,
+    CurrentInputMessage,
     InboundMedia,
     InboundMediaInput,
     InboundRecordResult,
@@ -138,18 +139,36 @@ class ConversationRuntimeService:
         if existing is not None:
             if existing.conversation_id != conversation_id:
                 raise ConversationRuntimeError("turn_trigger_conversation_mismatch")
-            return TurnStartResult(turn=existing, replayed=True)
+            return TurnStartResult(
+                turn=existing,
+                replayed=True,
+                input_messages=self._input_messages_for_turn(existing),
+            )
 
         conversation = self._require_conversation(conversation_id)
         now = self._now()
+        if mode == "interactive":
+            input_from_seq = conversation.last_closed_inbound_seq + 1
+            input_to_seq = conversation.latest_inbound_seq
+            if input_to_seq < input_from_seq:
+                raise ConversationRuntimeError("no_open_inbound_window")
+            input_messages = self._input_messages_for_window(
+                conversation_id,
+                input_from_seq,
+                input_to_seq,
+            )
+        else:
+            input_from_seq = None
+            input_to_seq = None
+            input_messages = ()
         turn = Turn(
             id=self._id_factory("turn"),
             conversation_id=conversation_id,
             trigger_id=trigger_id,
             trigger_type=trigger_type,
             mode=mode,
-            input_from_seq=conversation.latest_inbound_seq,
-            input_to_seq=conversation.latest_inbound_seq,
+            input_from_seq=input_from_seq,
+            input_to_seq=input_to_seq,
             superseded_by_inbound_seq=None,
             started_at=now,
             completed_at=None,
@@ -157,12 +176,15 @@ class ConversationRuntimeService:
             updated_at=now,
         )
         self.repository.add_turn(turn)
-        return TurnStartResult(turn=turn, replayed=False)
+        return TurnStartResult(
+            turn=turn,
+            replayed=False,
+            input_messages=input_messages,
+        )
 
     def commit_reply(
         self,
         turn_id: str,
-        based_on_inbound_seq: int | None,
         segments: Sequence[str],
         reason_code: str = "reply_ready",
     ) -> OutputDisposition:
@@ -173,7 +195,9 @@ class ConversationRuntimeService:
         if existing is not None and existing.disposition == "replied":
             return existing
         self._ensure_turn_can_transition(existing, target="replied")
-        self._ensure_fresh(turn, based_on_inbound_seq)
+        conversation = None
+        if existing is None:
+            conversation = self._ensure_turn_can_close(turn)
 
         now = self._now()
         for index, text in enumerate(segments, start=1):
@@ -196,14 +220,13 @@ class ConversationRuntimeService:
             )
         disposition = self._new_disposition(turn.id, "replied", reason_code)
         self.repository.save_disposition(disposition)
-        self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
-        self._advance_last_closed_inbound_seq(turn, now)
+        updated_turn = replace(turn, completed_at=now, updated_at=now)
+        self._save_close_state(conversation, updated_turn, now)
         return disposition
 
     def commit_no_reply(
         self,
         turn_id: str,
-        based_on_inbound_seq: int | None,
         reason_code: str = "intentional_no_reply",
     ) -> OutputDisposition:
         if reason_code != "intentional_no_reply":
@@ -213,18 +236,20 @@ class ConversationRuntimeService:
         if existing is not None and existing.disposition == "no_reply":
             return existing
         self._ensure_turn_can_transition(existing, target="no_reply")
-        self._ensure_fresh(turn, based_on_inbound_seq)
+        conversation = self._ensure_turn_can_close(turn)
         now = self._now()
         disposition = self._new_disposition(turn.id, "no_reply", reason_code)
         self.repository.save_disposition(disposition)
-        self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
-        self._advance_last_closed_inbound_seq(turn, now)
+        self._save_close_state(
+            conversation,
+            replace(turn, completed_at=now, updated_at=now),
+            now,
+        )
         return disposition
 
     def mark_pending_async_reply(
         self,
         turn_id: str,
-        based_on_inbound_seq: int | None,
         reason_code: str = "sync_timeout",
     ) -> OutputDisposition:
         turn = self._require_turn(turn_id)
@@ -232,11 +257,15 @@ class ConversationRuntimeService:
         if existing is not None and existing.disposition == "pending_async_reply":
             return existing
         self._ensure_turn_can_transition(existing, target="pending_async_reply")
-        self._ensure_fresh(turn, based_on_inbound_seq)
+        conversation = self._ensure_turn_can_close(turn)
         now = self._now()
         disposition = self._new_disposition(turn.id, "pending_async_reply", reason_code)
         self.repository.save_disposition(disposition)
-        self._advance_last_closed_inbound_seq(turn, now)
+        self._save_close_state(
+            conversation,
+            replace(turn, completed_at=now, updated_at=now),
+            now,
+        )
         return disposition
 
     def mark_failed(self, turn_id: str, reason_code: str) -> OutputDisposition:
@@ -251,13 +280,9 @@ class ConversationRuntimeService:
         self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
         return disposition
 
-    def guard_state_change(
-        self,
-        turn_id: str,
-        based_on_inbound_seq: int | None,
-    ) -> None:
+    def guard_state_change(self, turn_id: str) -> None:
         turn = self._require_turn(turn_id)
-        self._ensure_fresh(turn, based_on_inbound_seq)
+        self._ensure_turn_can_close(turn)
 
     def get_disposition(self, turn_id: str) -> OutputDisposition:
         disposition = self.repository.get_disposition(turn_id)
@@ -327,36 +352,82 @@ class ConversationRuntimeService:
         self.repository.add_outbox(outbox)
         return outbox
 
-    def _ensure_fresh(self, turn: Turn, based_on_inbound_seq: int | None) -> None:
-        if turn.input_to_seq != based_on_inbound_seq:
-            raise ConversationRuntimeError("based_on_inbound_seq_mismatch")
+    def _ensure_turn_can_close(self, turn: Turn) -> Conversation:
         conversation = self._lock_conversation(turn.conversation_id)
-        if (
-            based_on_inbound_seq is not None
-            and conversation.latest_inbound_seq != based_on_inbound_seq
-        ):
+        if turn.input_from_seq is None or turn.input_to_seq is None:
+            return conversation
+        if conversation.last_closed_inbound_seq != turn.input_from_seq - 1:
+            self._record_superseded(turn, reason_code="window_already_closed")
+            raise ConversationRuntimeError(
+                "turn_superseded",
+                fact={
+                    "turn_id": turn.id,
+                    "input_from_seq": turn.input_from_seq,
+                    "last_closed_inbound_seq": conversation.last_closed_inbound_seq,
+                },
+            )
+        if conversation.latest_inbound_seq != turn.input_to_seq:
             self._record_superseded(turn, reason_code="newer_inbound_seq")
             raise ConversationRuntimeError(
                 "turn_superseded",
                 fact={
                     "turn_id": turn.id,
-                    "based_on_inbound_seq": based_on_inbound_seq,
+                    "input_to_seq": turn.input_to_seq,
                     "latest_inbound_seq": conversation.latest_inbound_seq,
                 },
             )
+        return conversation
 
-    def _advance_last_closed_inbound_seq(self, turn: Turn, now: datetime) -> None:
-        if turn.input_to_seq is None:
+    def _save_close_state(
+        self,
+        conversation: Conversation | None,
+        turn: Turn,
+        now: datetime,
+    ) -> None:
+        if conversation is None or turn.input_to_seq is None:
+            self.repository.save_turn(turn)
             return
-        conversation = self._require_conversation(turn.conversation_id)
-        if conversation.last_closed_inbound_seq >= turn.input_to_seq:
-            return
-        self.repository.save_conversation(
+        self.repository.save_conversation_and_turn(
             replace(
                 conversation,
                 last_closed_inbound_seq=turn.input_to_seq,
                 updated_at=now,
+            ),
+            turn,
+        )
+
+    def _input_messages_for_turn(
+        self,
+        turn: Turn,
+    ) -> tuple[CurrentInputMessage, ...]:
+        if turn.input_from_seq is None or turn.input_to_seq is None:
+            return ()
+        return self._input_messages_for_window(
+            turn.conversation_id,
+            turn.input_from_seq,
+            turn.input_to_seq,
+        )
+
+    def _input_messages_for_window(
+        self,
+        conversation_id: str,
+        input_from_seq: int,
+        input_to_seq: int,
+    ) -> tuple[CurrentInputMessage, ...]:
+        return tuple(
+            CurrentInputMessage(
+                message_id=message.id,
+                seq=message.seq,
+                text=message.text,
+                payload=dict(message.payload),
+                causal_inbound_event_id=message.causal_inbound_event_id,
             )
+            for message in self.repository.inbound_messages_for_window(
+                conversation_id,
+                input_from_seq,
+                input_to_seq,
+            )
+            if message.seq is not None
         )
 
     def _record_superseded(self, turn: Turn, reason_code: str) -> OutputDisposition:

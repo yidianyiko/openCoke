@@ -154,3 +154,4 @@ class InboundRecordResult:
 class TurnStartResult:
     turn: Turn
     replayed: bool
+    input_messages: tuple[CurrentInputMessage, ...] = ()

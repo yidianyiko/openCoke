@@ -45,6 +45,48 @@ def id_factory():
     return lambda prefix: f"{prefix}_{next(counter)}"
 
 
+def runner_with_close_boundary(harness, close_boundary_committer):
+    return TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-close-boundary",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=harness["agent"],
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+        close_boundary_committer=close_boundary_committer,
+    )
+
+
+def runner_with_claim_boundary(harness, claim_boundary_committer):
+    return TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-claim-boundary",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=harness["agent"],
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+        claim_boundary_committer=claim_boundary_committer,
+    )
+
+
 class FakeRedis:
     def __init__(self) -> None:
         self.values: dict[str, str] = {}
@@ -522,6 +564,57 @@ def test_replayed_inbound_turn_with_existing_reply_reconciles_without_agent_or_d
     assert len(harness["delivery"].deliveries) == delivery_count
 
 
+def test_covered_inbound_turn_is_ackable_without_agent_or_delivery(harness):
+    first = harness["runner"].run_inbound_turn(harness["trigger"])
+    agent_invocations = harness["agent"].invocations
+    delivery_count = len(harness["delivery"].deliveries)
+    covered_trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1:covered",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "hello"},
+    )
+
+    covered = harness["runner"].run_inbound_turn(covered_trigger)
+
+    assert first.disposition == "replied"
+    assert covered.turn_id == covered_trigger.trigger_id
+    assert covered.disposition == "superseded"
+    assert covered.reason_code == "input_window_already_closed"
+    assert covered.visible_text is None
+    assert harness["agent"].invocations == agent_invocations
+    assert len(harness["delivery"].deliveries) == delivery_count
+
+
+def test_covered_inbound_bypasses_denied_gate(harness):
+    first = harness["runner"].run_inbound_turn(harness["trigger"])
+    harness["gate_port"].allowed = False
+    agent_invocations = harness["agent"].invocations
+    delivery_count = len(harness["delivery"].deliveries)
+    covered_trigger = TurnTrigger(
+        trigger_id="inbound:provider:message-1:covered-denied",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        payload={"text": "hello"},
+    )
+
+    covered = harness["runner"].run_inbound_turn(covered_trigger)
+
+    assert first.disposition == "replied"
+    assert covered.turn_id == covered_trigger.trigger_id
+    assert covered.disposition == "superseded"
+    assert covered.reason_code == "input_window_already_closed"
+    assert covered.visible_text is None
+    assert harness["agent"].invocations == agent_invocations
+    assert len(harness["delivery"].deliveries) == delivery_count
+
+
 def test_superseded_inbound_yields_distinct_disposition_and_blocks_state_commit(
     harness,
 ):
@@ -576,10 +669,7 @@ def test_superseded_after_tool_entry_commits_no_domain_facts(harness):
         def guard_state_change(self):
             self.calls += 1
             if self.calls == 1:
-                harness["runtime"].guard_state_change(
-                    start.turn.id,
-                    start.turn.input_to_seq,
-                )
+                harness["runtime"].guard_state_change(start.turn.id)
                 return
             harness["runtime"].record_inbound(
                 account_id="account_1",
@@ -589,10 +679,7 @@ def test_superseded_after_tool_entry_commits_no_domain_facts(harness):
                 payload={"provider": "whatsapp_evolution"},
                 traceparent=TRACEPARENT,
             )
-            harness["runtime"].guard_state_change(
-                start.turn.id,
-                start.turn.input_to_seq,
-            )
+            harness["runtime"].guard_state_change(start.turn.id)
 
     guard = SupersedeAfterEntryGuard()
 
@@ -810,6 +897,11 @@ def test_denied_access_gate_yields_access_denied_turn_rendered_in_constrained_mo
     assert request.mode == TurnMode.RENDER
     assert request.tool_profile == ToolProfile.render(constrained=True)
     assert request.trusted_facts["denial_reason"] == "subscription_inactive"
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == 1
 
 
 def test_render_mode_exposes_no_intent_or_business_mutation_tools(harness):
@@ -950,3 +1042,86 @@ def test_timeout_yields_waiting_text_pending_async_then_transitions_to_replied(
     assert final.disposition == "replied"
     assert final.visible_text == "final answer"
     assert harness["runtime"].get_disposition(final.turn_id).disposition == "replied"
+
+
+def test_close_boundary_commits_before_reply_delivery(harness):
+    events = []
+    runner = runner_with_close_boundary(
+        harness,
+        close_boundary_committer=lambda: events.append("close_commit"),
+    )
+
+    def deliver(request):
+        events.append(f"deliver:{request.message_type}")
+        harness["delivery"].deliveries.append(request)
+        return None
+
+    harness["delivery"].deliver = deliver
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert events == ["close_commit", "deliver:reply"]
+
+
+def test_close_boundary_commits_before_waiting_text_delivery(harness):
+    events = []
+    harness["agent"].next_result = AgentResult.timeout(task_id="async-1")
+    runner = runner_with_close_boundary(
+        harness,
+        close_boundary_committer=lambda: events.append("close_commit"),
+    )
+
+    def deliver(request):
+        events.append(f"deliver:{request.message_type}")
+        harness["delivery"].deliveries.append(request)
+        return None
+
+    harness["delivery"].deliver = deliver
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "pending_async_reply"
+    assert events == ["close_commit", "deliver:waiting"]
+
+
+def test_pending_async_state_survives_waiting_delivery_failure_and_replay(harness):
+    harness["agent"].next_result = AgentResult.timeout(task_id="async-1")
+
+    def deliver(_request):
+        raise RuntimeError("provider_down")
+
+    harness["delivery"].deliver = deliver
+
+    with pytest.raises(RuntimeError, match="provider_down"):
+        harness["runner"].run_inbound_turn(harness["trigger"])
+
+    replay = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert replay.disposition == "pending_async_reply"
+    assert replay.async_task_id == "async-1"
+
+
+def test_claim_boundary_commits_before_gate_and_agent_work(harness):
+    events = []
+    runner = runner_with_claim_boundary(
+        harness,
+        claim_boundary_committer=lambda: events.append("claim_commit"),
+    )
+
+    original_evaluate = harness["gate_port"].evaluate
+
+    def evaluate(trigger):
+        events.append("gate")
+        return original_evaluate(trigger)
+
+    def before_agent():
+        events.append("agent")
+
+    harness["gate_port"].evaluate = evaluate
+    harness["agent"].before_tool = before_agent
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert events[:3] == ["claim_commit", "gate", "agent"]
