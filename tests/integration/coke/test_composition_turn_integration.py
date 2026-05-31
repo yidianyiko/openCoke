@@ -234,8 +234,12 @@ def test_inbound_reminder_count_uses_tool_result_for_visible_reply(composed):
                 request.freshness_guard,
             )
             count = self.tool_result.facts["count"]
+            lines = "\n".join(self.tool_result.facts["display_lines"])
             return AgentResult.completed(
-                {"type": "reply", "segments": [f"你现在一共有 {count} 个提醒。"]}
+                {
+                    "type": "reply",
+                    "segments": [f"你现在一共有 {count} 个提醒：\n{lines}"],
+                }
             )
 
         def complete_async(self, task_id: str):
@@ -262,7 +266,11 @@ def test_inbound_reminder_count_uses_tool_result_for_visible_reply(composed):
     assert result.disposition == "replied"
     assert agent.tool_result.ok is True
     assert agent.tool_result.facts["count"] == 2
-    assert outbound.requests[-1].visible_text == "你现在一共有 2 个提醒。"
+    assert outbound.requests[-1].visible_text == (
+        "你现在一共有 2 个提醒：\n"
+        "1. pay rent (2026-05-30T13:00:00+00:00)\n"
+        "2. buy milk (unscheduled)"
+    )
 
 
 def test_followup_reminder_edit_receives_recent_created_reminder_focus(composed):

@@ -237,7 +237,7 @@ class AgnoInteractionAgent:
             "Call tools for state-changing domain work instead of claiming the action happened.",
             "For reminder, scheduling, friendship, settings, or calendar-import requests, call the matching tool before replying.",
             "For natural-language reminder creation, call reminder_tool with operation=detect_and_create, owner_account_id from trusted_facts.account_id, raw_text from the User message, and captured_timezone from trusted_facts.default_timezone.",
-            "For reminder list or count requests, call reminder_tool with operation=list_reminders and owner_account_id from trusted_facts.account_id before answering. Use the returned count and reminder facts; do not say the full list is unavailable unless the tool result fails.",
+            "For reminder list or count requests, call reminder_tool with operation=list_reminders and owner_account_id from trusted_facts.account_id before answering. When it succeeds, answer with the total count and list every returned active reminder using the reminder facts or display_lines; include each reminder's content and time, and label reminders without next_fire_at as unscheduled/no set time in the user's language. Do not answer with only the count, and do not say the full list is unavailable unless the tool result fails.",
             "For reminder content or duration edits, call reminder_tool with operation=update_reminder, owner_account_id from trusted_facts.account_id, reminder_id from trusted context, and content and/or duration_minutes. Do not call reschedule_reminder for duration-only edits.",
             "If the focus block has subject_type='reminder' with exactly one object_id, use that object_id as reminder_id for follow-up edits to that reminder instead of asking which reminder.",
             "For friend link/code requests, call social_scheduling_tool with operation=get_friend_link and owner_account_id from trusted_facts.account_id.",
@@ -341,7 +341,10 @@ def _tool_doc(name: str) -> str:
             "operation='delete_reminder' with reminder_id. For reminder list "
             "or count requests, call operation='list_reminders' with "
             "owner_account_id set to trusted_facts.account_id; the result "
-            "includes count and active reminder facts."
+            "includes count, active reminder facts, and display_lines. The "
+            "final reply for a successful list_reminders result must include "
+            "the total count and every returned active reminder; count-only "
+            "answers are incomplete."
         )
     if name == "social_scheduling":
         return (

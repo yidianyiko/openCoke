@@ -680,9 +680,18 @@ def test_reminder_tool_list_reminders_returns_active_count_without_write_guard()
         "pay rent",
         "buy milk",
     ]
+    assert result.facts["display_lines"] == [
+        "1. pay rent (2026-05-30T12:00:00+00:00)",
+        "2. buy milk (unscheduled)",
+    ]
     assert result.domain_result is not None
     assert result.domain_result.action == "list_reminders"
     assert result.domain_result.intent_fulfilled is True
+    assert result.domain_result.reply_contract == "render_reminder_list"
+    assert "Active reminder count: 2." in result.domain_result.visible_summary
+    assert "1. pay rent (2026-05-30T12:00:00+00:00)" in (
+        result.domain_result.visible_summary
+    )
 
 
 def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harness):

@@ -472,8 +472,8 @@ class ReminderToolAdapter:
                     action="list_reminders",
                     effect="listed",
                     intent_fulfilled=True,
-                    visible_summary=json.dumps(facts, ensure_ascii=False),
-                    reply_contract="render_fact",
+                    visible_summary=_reminder_list_visible_summary(facts),
+                    reply_contract="render_reminder_list",
                     privacy_notes=("Only describe reminders for this account.",),
                 ),
             )
@@ -1437,6 +1437,10 @@ def _reminder_list_facts(owner_account_id: str, reminders: list[Any]) -> dict[st
         "owner_account_id": owner_account_id,
         "count": len(reminder_facts),
         "reminders": reminder_facts,
+        "display_lines": [
+            _reminder_display_line(index, reminder)
+            for index, reminder in enumerate(reminder_facts, start=1)
+        ],
     }
 
 
@@ -1460,6 +1464,20 @@ def _iso_or_none(value: Any) -> str | None:
     if isinstance(value, datetime):
         return value.isoformat()
     return None
+
+
+def _reminder_display_line(index: int, reminder: Mapping[str, Any]) -> str:
+    time_label = reminder.get("next_fire_at") or "unscheduled"
+    return f"{index}. {reminder.get('content', '')} ({time_label})"
+
+
+def _reminder_list_visible_summary(facts: Mapping[str, Any]) -> str:
+    count = facts.get("count", 0)
+    lines = [f"Active reminder count: {count}."]
+    display_lines = facts.get("display_lines")
+    if isinstance(display_lines, list):
+        lines.extend(str(line) for line in display_lines)
+    return "\n".join(lines)
 
 
 def _friend_link_facts(link: Any) -> dict[str, Any]:

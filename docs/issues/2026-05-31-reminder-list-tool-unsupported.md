@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: fixed_deployed
+status: fixed_pending_deploy
 surface: conversation-runtime, reminder, interaction-agent
 created: 2026-05-31
 fixed_commit: ba4c005cc4e2aa220e6fd9b2fd3bfac3f24ec58a
@@ -37,6 +37,22 @@ to the Interaction Agent.
 - The integration user path covers a reminder count question flowing through
   the turn runner and real reminder tool adapter.
 
+## Follow-up UX Gap
+
+After the first production fix, the same user path could answer only
+`你目前一共有 28 个提醒。`. That proved the read path worked, but it did not
+meet the user expectation for a reminder-list question because the final reply
+did not enumerate the reminders.
+
+The follow-up fix tightens the successful `list_reminders` reply contract:
+
+- tool facts include `display_lines` for every active reminder;
+- the domain result uses `reply_contract=render_reminder_list`;
+- the visible summary is a directly renderable list, not raw JSON only;
+- Interaction Agent instructions and the reminder tool doc state that
+  count-only answers are incomplete and the final reply must include every
+  returned active reminder.
+
 ## Evidence
 
 - Focused tests failed before implementation because `list_reminders` was not
@@ -54,3 +70,5 @@ to the Interaction Agent.
   `9d6bf3e5-780c-4f4a-a010-49f4bf6ebeca` as `replied / reply_ready`; outbound
   message `d109fd5f-4b48-4ee7-bcff-6527991411ee` said
   `你目前一共有 28 个提醒。` and provider delivery status was `sent`.
+- Follow-up focused tests for the reminder tool facts, Agent instructions, and
+  composition visible reply pass with the expanded list contract.

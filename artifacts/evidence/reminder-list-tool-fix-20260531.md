@@ -109,3 +109,39 @@ Result: production user-path smoke created turn
 `d109fd5f-4b48-4ee7-bcff-6527991411ee` was `你目前一共有 28 个提醒。`;
 delivery attempt status was `sent` with provider id
 `coke-1780234489305-3e06d9d15c26`.
+
+## Follow-up UX Contract
+
+The first production smoke proved the read path worked but still produced a
+count-only reply. The follow-up change makes a successful reminder list/count
+query return and request rendering of every active reminder.
+
+```text
+.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py::test_reminder_tool_list_reminders_returns_active_count_without_write_guard -q
+.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py::test_reminder_list_instructions_require_full_list_not_count_only tests/unit/coke/llm/test_interaction_agent.py::test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard -q
+.venv/bin/python -m pytest tests/integration/coke/test_composition_turn_integration.py::test_inbound_reminder_count_uses_tool_result_for_visible_reply -q
+```
+
+Result: all focused checks passed after the UX contract change.
+
+```text
+.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/llm/test_interaction_agent.py tests/integration/coke/test_composition_turn_integration.py -q
+```
+
+Result: 82 passed in 2.22s.
+
+```text
+.venv/bin/python -m pytest tests/unit/coke -q
+zsh scripts/check
+git diff --check
+zsh scripts/verify-surface clean-rebuild-backend repo-os-docs
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
+
+Result: 589 unit tests passed in 20.34s; `scripts/check` passed; whitespace
+check passed; `verify-surface` passed clean-rebuild-backend with 589 tests in
+18.41s and repo-os-docs. Verification suggestion matched
+`clean-rebuild-backend repo-os-docs`. Risk report returned
+`human_review_required: no`; the only risk trigger was the medium
+`sensitive_repo_os_change` for updating the incident record.

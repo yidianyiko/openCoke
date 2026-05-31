@@ -777,6 +777,7 @@ def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
     assert [tool.__name__ for tool in tools] == ["reminder_tool"]
     assert "detect_and_create" in (tools[0].__doc__ or "")
     assert "list_reminders" in (tools[0].__doc__ or "")
+    assert "count-only answers are incomplete" in (tools[0].__doc__ or "")
     assert "owner_account_id" in (tools[0].__doc__ or "")
     assert "raw_text" in (tools[0].__doc__ or "")
     result = tools[0]({"operation": "create", "content": "pay rent"})
@@ -800,6 +801,19 @@ def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
             guard,
         )
     ]
+
+
+def test_reminder_list_instructions_require_full_list_not_count_only():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=FakeReminderTool()))
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "list every returned active reminder" in instructions
+    assert "Do not answer with only the count" in instructions
+    assert "label reminders without next_fire_at" in instructions
 
 
 def test_tool_callable_exposes_domain_execution_result_when_adapter_provides_it():
