@@ -435,7 +435,9 @@ class ChannelReachabilityService:
                     removable=True,
                 )
             if channel.connection_state != "connected":
-                channel = self.mark_connected(account_id=account_id, channel_id=channel.id)
+                channel = self.mark_connected(
+                    account_id=account_id, channel_id=channel.id
+                )
             self._identity_call(
                 lambda: self.identity_access.mark_first_inbound_received(account_id)
             )
@@ -471,6 +473,7 @@ class ChannelReachabilityService:
                 provider_type=inbound.provider_type,
                 provider_subject=inbound.provider_subject,
                 pairing_code=inbound.pairing_code,
+                sender_display_name=inbound.sender_display_name,
             )
         )
         account_id = resolution.account.id
@@ -557,6 +560,7 @@ class ChannelReachabilityService:
             return callback()
         except IdentityAccessError as error:
             raise ChannelReachabilityError(error.code, fact=error.fact) from error
+
 
 def _delivery_route_key(
     channel_id: str,

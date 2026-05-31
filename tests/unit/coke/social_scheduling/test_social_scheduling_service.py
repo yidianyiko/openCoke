@@ -78,6 +78,20 @@ def test_direct_friendship_is_active_and_has_no_pending_request_model():
     assert not hasattr(repo, "friend_requests")
 
 
+def test_friend_list_entries_include_profile_display_names():
+    service, _repo, _, _ = make_service({"owner", "joiner"})
+    service.display_name_resolver = lambda account_id: {
+        "joiner": "Alice Push",
+        "owner": "Owner Name",
+    }[account_id]
+    create_active_friendship(service, "owner", "joiner")
+
+    friends = service.list_friends("owner")
+
+    assert friends[0].account_id == "joiner"
+    assert friends[0].display_name == "Alice Push"
+
+
 def test_deferred_self_completion_when_joiner_has_no_usable_channel():
     service, repo, reachability, _ = make_service({"owner"})
     link = service.get_or_create_friend_link("owner")
@@ -212,6 +226,11 @@ def test_commit_guard_blocks_shared_reminder_and_notification_fact():
 
 def test_group_shared_reminder_creation_is_one_object_with_participant_projections():
     service, _, _, _ = make_service({"creator", "bob", "carol"})
+    service.display_name_resolver = lambda account_id: {
+        "bob": "Bob Chen",
+        "carol": "Carol Wu",
+        "creator": "Creator Name",
+    }[account_id]
     create_active_friendship(service, "creator", "bob")
     create_active_friendship(service, "creator", "carol")
 
@@ -256,6 +275,21 @@ def test_group_shared_reminder_creation_is_one_object_with_participant_projectio
 
     assert duplicate.status == "duplicate"
     assert duplicate.shared_reminder.id == created.shared_reminder.id
+    assert service.friend_identifiers_for_shared_reminder(
+        created.shared_reminder.id,
+        viewer_account_id="creator",
+    ) == ["Bob Chen", "Carol Wu"]
+    assert service.friend_identifiers_for_shared_reminder(
+        created.shared_reminder.id,
+        viewer_account_id="bob",
+    ) == ["Carol Wu", "Creator Name"]
+    assert (
+        service.friend_identifiers_for_shared_reminder(
+            created.shared_reminder.id,
+            viewer_account_id="outsider",
+        )
+        == []
+    )
 
 
 def test_shared_reminder_accepts_aware_agent_datetime_as_local_wall_clock():

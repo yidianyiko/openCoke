@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-
 AccountOrigin = Literal["web_first", "messaging_first"]
 AccountLifecycle = Literal["active", "disabled"]
 ChannelIdentityLifecycle = Literal["active", "removed"]
@@ -71,6 +70,18 @@ class AccountAccess:
 
 
 @dataclass(slots=True)
+class UserProfile:
+    id: str
+    account_id: str
+    real_name: str | None
+    nickname: str | None
+    description: str | None
+    relationship_description: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(slots=True)
 class Credential:
     id: str
     account_id: str
@@ -127,6 +138,7 @@ class AuthArtifact:
 @dataclass(frozen=True, slots=True)
 class RegistrationResult:
     account: Account
+    user_profile: UserProfile
     credential: Credential
     session: Session
     email_verification: AuthArtifact

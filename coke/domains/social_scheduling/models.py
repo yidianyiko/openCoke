@@ -70,6 +70,7 @@ class Friendship:
 class FriendListEntry:
     account_id: str
     friendship_id: str
+    display_name: str
 
 
 @dataclass(frozen=True, slots=True)

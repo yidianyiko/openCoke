@@ -844,19 +844,23 @@ def compose_coke_runtime(
         now=now,
         id_factory=id_factory,
     )
-    reminder_service = ReminderService(
-        repository=repositories.reminder,
-        detector=reminder_detector,
-        delivery=reminder_delivery,
-        now=now,
-        id_factory=id_factory,
-    )
     social_scheduling_service = SocialSchedulingService(
         repository=repositories.social_scheduling,
         reachability=IdentityReachabilityAdapter(identity_access_service),
         reminder_availability=ReminderAvailabilityAdapter(repositories.reminder),
         now=now,
         id_factory=id_factory,
+        display_name_resolver=identity_access_service.get_display_name,
+    )
+    reminder_service = ReminderService(
+        repository=repositories.reminder,
+        detector=reminder_detector,
+        delivery=reminder_delivery,
+        now=now,
+        id_factory=id_factory,
+        friend_identifiers=(
+            social_scheduling_service.friend_identifiers_for_shared_reminder
+        ),
     )
     calendar_import_service = CalendarImportService(
         repository=repositories.calendar_import,

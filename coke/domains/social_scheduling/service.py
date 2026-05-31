@@ -50,6 +50,7 @@ class SocialSchedulingService:
         now: Callable[[], datetime] | None = None,
         id_factory: Callable[[str], str] | None = None,
         token_factory: Callable[[str], str] | None = None,
+        display_name_resolver: Callable[[str], str] | None = None,
     ) -> None:
         self.repository = repository
         self.reachability = reachability
@@ -59,6 +60,7 @@ class SocialSchedulingService:
         self._token_factory = token_factory or (
             lambda prefix: f"{prefix}_{token_urlsafe(24)}"
         )
+        self.display_name_resolver = display_name_resolver or _default_display_name
         self._notifications = NotificationFactWriter(
             repository=repository,
             now=self._now,
@@ -187,8 +189,28 @@ class SocialSchedulingService:
             FriendListEntry(
                 account_id=friendship.other_account_id(account_id),
                 friendship_id=friendship.id,
+                display_name=self.display_name_resolver(
+                    friendship.other_account_id(account_id)
+                ),
             )
             for friendship in self.repository.list_active_friendships(account_id)
+        ]
+
+    def friend_identifiers_for_shared_reminder(
+        self,
+        shared_reminder_id: str,
+        viewer_account_id: str,
+    ) -> list[str]:
+        reminder = self.repository.get_shared_reminder(shared_reminder_id)
+        if (
+            reminder is None
+            or viewer_account_id not in reminder.participant_account_ids
+        ):
+            return []
+        return [
+            self.display_name_resolver(account_id)
+            for account_id in reminder.participant_account_ids
+            if account_id != viewer_account_id
         ]
 
     def remove_friend(
@@ -697,6 +719,10 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
 def _run_commit_guard(commit_guard: CommitGuard) -> None:
     if commit_guard is not None:
         commit_guard()
+
+
+def _default_display_name(account_id: str) -> str:
+    return account_id
 
 
 def _first_missing_field(

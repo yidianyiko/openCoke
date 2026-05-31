@@ -176,6 +176,7 @@ describe('customer auth storage', () => {
     expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith('/api/auth/register', {
       email: 'alice@example.com',
       password: 'secret',
+      display_name: 'Alice',
       default_timezone: expect.any(String),
     });
   });

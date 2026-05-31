@@ -292,6 +292,26 @@ def test_wechat_personal_inbound_with_account_binding_connects_without_pairing(
     assert accepted.created_account is False
 
 
+def test_messaging_first_first_contact_preserves_sender_display_name(
+    identity_service, reachability
+):
+    service, _adapter = reachability
+
+    accepted = service.accept_provider_inbound(
+        NormalizedInbound(
+            provider_type="whatsapp_evolution",
+            provider_subject="15555550123",
+            text="hello",
+            raw_event_id="wa_msg_first_contact",
+            received_at=NOW,
+            sender_display_name="Alice Push",
+        )
+    )
+
+    assert accepted.created_account is True
+    assert identity_service.get_display_name(accepted.account_id) == "Alice Push"
+
+
 def test_unpaired_wechat_personal_inbound_fails_closed_without_auto_provision(
     identity_service, reachability
 ):

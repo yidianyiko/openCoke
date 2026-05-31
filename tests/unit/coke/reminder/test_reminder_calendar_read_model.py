@@ -126,3 +126,40 @@ def test_calendar_includes_undelivered_and_merged_same_time_groups():
     assert by_type["merged_group"].action_handles == ["expand"]
     assert by_type["undelivered"].fire_id == fire.id
     assert by_type["undelivered"].action_handles == ["complete", "delete"]
+
+
+def test_reminder_service_calendar_uses_shared_friend_identifier_resolver():
+    service = ReminderService(
+        repository=InMemoryReminderRepository(),
+        now=lambda: NOW,
+        id_factory=sequence_factory("service_calendar"),
+        friend_identifiers=lambda shared_id, viewer_id: [
+            f"{viewer_id}:{shared_id}:Alice Push"
+        ],
+    )
+    due = NOW + timedelta(hours=1)
+    service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="shared",
+                trigger_time=due,
+                captured_timezone="UTC",
+                kind="shared_projection",
+                shared_reminder_id="shared_1",
+            )
+        ],
+    )
+
+    entries = service.calendar_entries(
+        owner_account_id="acct_1",
+        visible_start=NOW,
+        visible_end=NOW + timedelta(days=1),
+        display_timezone="UTC",
+    )
+
+    shared = next(
+        entry for entry in entries.entries if entry.entry_type == "shared_projection"
+    )
+    assert shared.friend_identifiers == ["acct_1:shared_1:Alice Push"]

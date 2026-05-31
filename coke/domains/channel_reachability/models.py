@@ -110,6 +110,7 @@ class NormalizedInbound:
     raw_event_id: str
     received_at: datetime
     pairing_code: str | None = None
+    sender_display_name: str | None = None
     account_id: str | None = None
     connector_session_id: str | None = None
     context_token: str | None = None

@@ -24,6 +24,7 @@ from coke.domains.identity_access.models import (
     ChannelIdentity,
     Credential,
     Session,
+    UserProfile,
 )
 
 
@@ -45,6 +46,12 @@ class IdentityAccessRepository(Protocol):
     def get_access(self, account_id: str) -> AccountAccess | None: ...
 
     def save_access(self, access: AccountAccess) -> None: ...
+
+    def add_user_profile(self, profile: UserProfile) -> None: ...
+
+    def get_user_profile(self, account_id: str) -> UserProfile | None: ...
+
+    def get_user_profiles(self, account_ids: list[str]) -> dict[str, UserProfile]: ...
 
     def add_credential(self, credential: Credential) -> None: ...
 
@@ -106,6 +113,7 @@ class InMemoryIdentityAccessRepository:
         self.accounts: dict[str, Account] = {}
         self.activations: dict[str, AccountActivation] = {}
         self.access: dict[str, AccountAccess] = {}
+        self.user_profiles_by_account: dict[str, UserProfile] = {}
         self.credentials_by_account: dict[str, Credential] = {}
         self.credentials_by_email: dict[str, Credential] = {}
         self.sessions_by_token: dict[str, Session] = {}
@@ -150,6 +158,22 @@ class InMemoryIdentityAccessRepository:
         if access.account_id not in self.access:
             raise ValueError("access_not_found")
         self.access[access.account_id] = access
+
+    def add_user_profile(self, profile: UserProfile) -> None:
+        if profile.account_id in self.user_profiles_by_account:
+            raise ValueError("duplicate_user_profile_account")
+        self.user_profiles_by_account[profile.account_id] = profile
+
+    def get_user_profile(self, account_id: str) -> UserProfile | None:
+        return self.user_profiles_by_account.get(account_id)
+
+    def get_user_profiles(self, account_ids: list[str]) -> dict[str, UserProfile]:
+        requested = set(account_ids)
+        return {
+            account_id: profile
+            for account_id, profile in self.user_profiles_by_account.items()
+            if account_id in requested
+        }
 
     def add_credential(self, credential: Credential) -> None:
         email_key = credential.email.lower()
@@ -361,6 +385,37 @@ class PostgresIdentityAccessRepository:
             == 0
         ):
             raise ValueError("access_not_found")
+
+    def add_user_profile(self, profile: UserProfile) -> None:
+        insert_row(
+            self.session,
+            schema.user_profile,
+            _user_profile_values(profile),
+            {
+                "pk_user_profile": "duplicate_user_profile_id",
+                "uq_user_profile_account": "duplicate_user_profile_account",
+            },
+            default_error="duplicate_user_profile_account",
+        )
+
+    def get_user_profile(self, account_id: str) -> UserProfile | None:
+        row = one_or_none(
+            self.session,
+            schema.user_profile,
+            schema.user_profile.c.account_id == account_id,
+        )
+        return _user_profile(row) if row else None
+
+    def get_user_profiles(self, account_ids: list[str]) -> dict[str, UserProfile]:
+        if not account_ids:
+            return {}
+        rows = self.session.execute(
+            sa.select(schema.user_profile).where(
+                schema.user_profile.c.account_id.in_(account_ids)
+            )
+        ).mappings()
+        profiles = [_user_profile(row) for row in rows]
+        return {profile.account_id: profile for profile in profiles}
 
     def add_credential(self, credential: Credential) -> None:
         insert_row(
@@ -654,6 +709,32 @@ def _access(row: Mapping) -> AccountAccess:
         row["suspension_state"],
         row["access_allowed"],
         row["denial_reason"],
+        row["created_at"],
+        row["updated_at"],
+    )
+
+
+def _user_profile_values(profile: UserProfile) -> dict:
+    return {
+        "id": profile.id,
+        "account_id": profile.account_id,
+        "real_name": profile.real_name,
+        "nickname": profile.nickname,
+        "description": profile.description,
+        "relationship_description": profile.relationship_description,
+        "created_at": profile.created_at,
+        "updated_at": profile.updated_at,
+    }
+
+
+def _user_profile(row: Mapping) -> UserProfile:
+    return UserProfile(
+        db_id(row["id"]),
+        db_id(row["account_id"]),
+        row["real_name"],
+        row["nickname"],
+        row["description"],
+        row["relationship_description"],
         row["created_at"],
         row["updated_at"],
     )

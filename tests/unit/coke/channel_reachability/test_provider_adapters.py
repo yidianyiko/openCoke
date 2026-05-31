@@ -68,6 +68,7 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
         "pairing_code",
         "account_id",
         "context_token",
+        "sender_display_name",
     ),
     [
         (
@@ -85,12 +86,14 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
             "ABC123",
             None,
             None,
+            "Alice",
         ),
         (
             WeChatPersonalAdapter(now=lambda: NOW),
             {
                 "message_id": "wx_msg_1",
                 "wxid": "wxid_alice",
+                "sender_name": "Alice WeChat",
                 "text": "hello",
                 "account_id": "acct_1",
                 "session_id": "session_1",
@@ -102,6 +105,7 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
             None,
             "acct_1",
             "ctx-1",
+            "Alice WeChat",
         ),
         (
             WeChatECloudAdapter(now=lambda: NOW),
@@ -113,6 +117,7 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
             "gewe_alice",
             "hello",
             "gewe_msg_1",
+            None,
             None,
             None,
             None,
@@ -130,6 +135,7 @@ def delivery_route(provider_type: str, address: str) -> DeliveryRoute:
             None,
             None,
             None,
+            None,
         ),
     ],
 )
@@ -142,6 +148,7 @@ def test_provider_adapters_normalize_inbound_payloads(
     pairing_code,
     account_id,
     context_token,
+    sender_display_name,
 ):
     inbound = adapter.normalize_inbound(payload)
 
@@ -152,6 +159,7 @@ def test_provider_adapters_normalize_inbound_payloads(
     assert inbound.pairing_code == pairing_code
     assert inbound.account_id == account_id
     assert inbound.context_token == context_token
+    assert inbound.sender_display_name == sender_display_name
     assert inbound.received_at in {NOW, EVOLUTION_TS}
     assert inbound.payload is not payload
 

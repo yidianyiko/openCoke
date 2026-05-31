@@ -14,7 +14,6 @@ from coke.domains.identity_access.models import (
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
 from coke.domains.identity_access.service import IdentityAccessService
 
-
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 
 
@@ -40,11 +39,14 @@ def test_register_web_account_creates_credential_session_and_verification_artifa
     result = identity_service.register_web_account(
         email="a@example.com",
         password="correct horse battery staple",
+        display_name="Alice A",
         default_timezone="Asia/Tokyo",
     )
 
     assert result.account.origin == "web_first"
     assert result.account.default_timezone == "Asia/Tokyo"
+    assert result.user_profile.account_id == result.account.id
+    assert result.user_profile.nickname == "Alice A"
     assert result.credential.email == "a@example.com"
     assert result.credential.password_hash != "correct horse battery staple"
     assert result.credential.password_hash.startswith("$argon2")
@@ -54,10 +56,20 @@ def test_register_web_account_creates_credential_session_and_verification_artifa
     assert result.email_verification.delivery == "email"
 
 
+def test_register_web_account_rejects_blank_display_name(identity_service):
+    with pytest.raises(IdentityAccessError, match="display_name_required"):
+        identity_service.register_web_account(
+            email="blank@example.com",
+            password="correct horse battery staple",
+            display_name="  ",
+        )
+
+    assert identity_service.repository.count_accounts() == 0
+
+
 def test_login_reuses_existing_web_account_and_creates_session(identity_service):
     registered = identity_service.register_web_account(
-        email="a@example.com",
-        password="hash_1",
+        email="a@example.com", password="hash_1", display_name="Alice"
     )
 
     logged_in = identity_service.login(email="a@example.com", password="hash_1")
@@ -70,12 +82,10 @@ def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_c
     identity_service,
 ):
     first = identity_service.register_web_account(
-        email="a@example.com",
-        password="hash_1",
+        email="a@example.com", password="hash_1", display_name="Alice"
     )
     second = identity_service.register_web_account(
-        email="b@example.com",
-        password="hash_2",
+        email="b@example.com", password="hash_2", display_name="Bob"
     )
     login = identity_service.login(email="a@example.com", password="hash_1")
     first_reset = identity_service.issue_password_reset(email="a@example.com")
@@ -100,8 +110,7 @@ def test_default_identity_access_ids_are_schema_uuid_strings():
     )
 
     registered = service.register_web_account(
-        email="uuid@example.com",
-        password="hash_1",
+        email="uuid@example.com", password="hash_1", display_name="Uuid User"
     )
     resolved = service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
@@ -115,10 +124,12 @@ def test_default_identity_access_ids_are_schema_uuid_strings():
         registered.email_verification.id,
         repository.get_activation(registered.account.id).id,
         repository.get_access(registered.account.id).id,
+        repository.get_user_profile(registered.account.id).id,
         resolved.account.id,
         resolved.channel_identity.id,
         repository.get_activation(resolved.account.id).id,
         repository.get_access(resolved.account.id).id,
+        repository.get_user_profile(resolved.account.id).id,
     ]
     for value in ids:
         assert UUID(value).hex == value
@@ -126,8 +137,7 @@ def test_default_identity_access_ids_are_schema_uuid_strings():
 
 def test_repository_duplicate_guards_reject_silent_overwrites(identity_service):
     registered = identity_service.register_web_account(
-        email="a@example.com",
-        password="hash_1",
+        email="a@example.com", password="hash_1", display_name="Alice"
     )
     sender = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
@@ -171,7 +181,9 @@ def test_repository_duplicate_guards_reject_silent_overwrites(identity_service):
 
 
 def test_login_rejects_unknown_or_wrong_password(identity_service):
-    identity_service.register_web_account(email="a@example.com", password="hash_1")
+    identity_service.register_web_account(
+        email="a@example.com", password="hash_1", display_name="Alice"
+    )
 
     with pytest.raises(IdentityAccessError, match="invalid_credentials"):
         identity_service.login(email="a@example.com", password="hash_2")
@@ -186,6 +198,7 @@ def test_shared_whatsapp_first_seen_auto_provisions_one_messaging_account(
     first = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
+        sender_display_name="Alice WhatsApp",
     )
     second = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
@@ -194,9 +207,25 @@ def test_shared_whatsapp_first_seen_auto_provisions_one_messaging_account(
 
     assert first.account.origin == "messaging_first"
     assert first.channel_identity.is_account_anchor is True
+    assert identity_service.get_display_name(first.account.id) == "Alice WhatsApp"
     assert second.account.id == first.account.id
     assert second.channel_identity.id == first.channel_identity.id
     assert identity_service.repository.count_accounts() == 1
+
+
+def test_shared_whatsapp_first_seen_uses_non_empty_fallback_display_name(
+    identity_service,
+):
+    resolved = identity_service.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="wxid_lizihao",
+        sender_display_name="  ",
+    )
+
+    display_name = identity_service.get_display_name(resolved.account.id)
+
+    assert display_name
+    assert display_name == "wxid_lizihao"
 
 
 def test_non_whatsapp_first_seen_identity_fails_closed(identity_service):
@@ -213,8 +242,7 @@ def test_pairing_code_binds_first_seen_provider_identity_to_web_account(
     identity_service,
 ):
     registered = identity_service.register_web_account(
-        email="a@example.com",
-        password="hash_1",
+        email="a@example.com", password="hash_1", display_name="Alice"
     )
     identity_service.set_access_state(
         account_id=registered.account.id,
