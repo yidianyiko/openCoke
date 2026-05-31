@@ -1,0 +1,59 @@
+OK  AGENTS.md
+OK  CLAUDE.md
+OK  README.md
+OK  docs/ARCHITECTURE.md
+OK  docs/architecture.md
+OK  docs/design-docs/index.md
+OK  docs/design-docs/human-ai-working-contract.md
+OK  docs/design-docs/coke-working-contract.md
+OK  docs/adr/README.md
+OK  docs/adr/_template.md
+OK  docs/adr/0001-canonical-repo-os-structure.md
+OK  docs/adr/0002-retire-tasks-directory.md
+OK  docs/adr/0003-consolidate-plans-to-superpowers.md
+OK  docs/superpowers/plans/README.md
+OK  docs/superpowers/plans/_template.md
+OK  docs/issues/README.md
+OK  docs/issues/_template.md
+OK  docs/issues/issue-gc-state.yaml
+OK  docs/product-specs/FEATURE_TREE.md
+OK  docs/release-guide.md
+OK  docs/RELEASE_CHECKLIST.md
+OK  docs/fitness/README.md
+OK  docs/fitness/coke-verification-matrix.md
+OK  docs/fitness/surfaces.yaml
+OK  docs/fitness/ownership-registry.yaml
+OK  web/OWNERS.md
+OK  scripts/check
+OK  scripts/verify-surface
+OK  scripts/suggest-verification
+OK  scripts/review-trigger
+OK  scripts/guardrails.py
+OK  scripts/e2e/clean-rebuild-canonical-doc-sync.sh
+OK  coke/app.py
+OK  coke/schema.py
+OK  migrations/env.py
+OK  docker-compose.prod.yml
+OK  docs/exec-plans retired
+OK  docs/architecture.md compatibility symlink
+OK  docs/superpowers root has no loose files
+OK  docs/superpowers/plans stays flat
+OK  docs root markdown allowlist
+OK import boundaries
+OK ownership registry
+OK  root docs reference docs/design-docs/index.md
+OK  root docs reference docs/fitness/README.md
+OK  root docs reference docs/fitness/coke-verification-matrix.md
+OK  root docs reference docs/fitness/surfaces.yaml
+OK  root docs reference docs/design-docs/human-ai-working-contract.md
+OK  root docs reference docs/ARCHITECTURE.md
+OK  root docs reference docs/issues/
+OK  root docs reference docs/product-specs/FEATURE_TREE.md
+OK  root docs reference docs/release-guide.md
+OK  root docs reference docs/RELEASE_CHECKLIST.md
+OK  root docs reference docs/superpowers/plans/
+OK  root docs reference docs/superpowers/specs/
+OK  root docs reference artifacts/evidence/
+OK  README points to AGENTS.md
+OK  README points to docs/design-docs/index.md
+check passed

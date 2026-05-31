@@ -125,6 +125,14 @@ atomically verify that no newer inbound has arrived for the claimed window,
 materialize staged interactive commands, persist the close result, and advance
 `last_closed_inbound_seq` to the turn's `input_to_seq`.
 
+Runtime-owned waiting text is emitted independently of the blocked Interaction
+Agent call. `coke-outbox-relay` scans active inbound turns and, after
+`COKE_WAITING_REPLY_AFTER_SECONDS` (default 20 seconds), persists
+`pending_async_reply`, records a segment `0` waiting message, and delivers that
+waiting text through the same channel route. The original worker turn keeps
+running; when the Interaction Agent eventually returns, the same turn may still
+transition from `pending_async_reply` to `replied` or `failed`.
+
 Interactive state-changing tools must stage commands before the close boundary.
 They may validate intent, read state, and create turn-local drafts, but they
 must not activate reminders, shared-reminder proposals, notifications, or

@@ -1164,7 +1164,7 @@ def test_timeout_yields_waiting_text_pending_async_then_transitions_to_replied(
     assert pending.disposition == "pending_async_reply"
     assert pending.async_task_id == "async-1"
     assert harness["delivery"].deliveries[0].message_type == "waiting"
-    assert harness["delivery"].deliveries[0].visible_text == "Still working on it."
+    assert harness["delivery"].deliveries[0].visible_text == "我还在处理，稍等一下。"
     assert final.disposition == "replied"
     assert final.visible_text == "final answer"
     assert harness["runtime"].get_disposition(final.turn_id).disposition == "replied"

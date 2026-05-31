@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
-
 MessageDirection = Literal["inbound", "outbound"]
 OutputDispositionState = Literal[
     "replied",
@@ -15,9 +14,7 @@ OutputDispositionState = Literal[
     "superseded",
 ]
 
-TERMINAL_DISPOSITIONS = frozenset(
-    {"replied", "no_reply", "failed", "superseded"}
-)
+TERMINAL_DISPOSITIONS = frozenset({"replied", "no_reply", "failed", "superseded"})
 NON_TERMINAL_DISPOSITIONS = frozenset({"pending_async_reply"})
 
 
@@ -83,6 +80,15 @@ class Turn:
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class WaitingReplyCandidate:
+    turn_id: str
+    trigger_id: str
+    conversation_id: str
+    account_id: str
+    based_on_inbound_seq: int | None
 
 
 @dataclass(frozen=True, slots=True)

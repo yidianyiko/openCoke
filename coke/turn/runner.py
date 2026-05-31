@@ -23,7 +23,7 @@ from coke.turn.semantic_interpreter import (
     SemanticInterpreterRequest,
 )
 
-WAITING_TEXT = "Still working on it."
+WAITING_TEXT = "我还在处理，稍等一下。"
 NOTIFICATION_VISIBLE_REPLY_REQUIRED = "notification_requires_visible_reply"
 
 
