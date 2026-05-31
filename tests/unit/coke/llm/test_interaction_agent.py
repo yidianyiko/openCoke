@@ -1295,7 +1295,6 @@ def _render_request(
     trigger_type: str = "NotificationTurn",
     payload: dict[str, Any] | None = None,
     trusted_facts: dict[str, Any] | None = None,
-    trigger_type: str = "NotificationTurn",
 ) -> AgentRequest:
     facts = {
         "assistant_name": "Coke",
