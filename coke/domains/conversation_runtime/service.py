@@ -16,6 +16,7 @@ from coke.domains.conversation_runtime.models import (
     Message,
     OutboxRecord,
     OutputDisposition,
+    StagedCommand,
     TERMINAL_DISPOSITIONS,
     Turn,
     TurnStartResult,
@@ -187,6 +188,7 @@ class ConversationRuntimeService:
         turn_id: str,
         segments: Sequence[str],
         reason_code: str = "reply_ready",
+        materialize_staged_command: Callable[[StagedCommand], Any] | None = None,
     ) -> OutputDisposition:
         if not 1 <= len(segments) <= 3:
             raise ConversationRuntimeError("invalid_segment_count")
@@ -200,6 +202,12 @@ class ConversationRuntimeService:
             conversation = self._ensure_turn_can_close(turn)
 
         now = self._now()
+        if existing is None:
+            self._materialize_staged_commands(
+                turn,
+                now,
+                materialize_staged_command,
+            )
         for index, text in enumerate(segments, start=1):
             self.repository.add_outbound_message(
                 Message(
@@ -228,6 +236,7 @@ class ConversationRuntimeService:
         self,
         turn_id: str,
         reason_code: str = "intentional_no_reply",
+        materialize_staged_command: Callable[[StagedCommand], Any] | None = None,
     ) -> OutputDisposition:
         if reason_code != "intentional_no_reply":
             raise ConversationRuntimeError("invalid_no_reply_reason")
@@ -238,6 +247,7 @@ class ConversationRuntimeService:
         self._ensure_turn_can_transition(existing, target="no_reply")
         conversation = self._ensure_turn_can_close(turn)
         now = self._now()
+        self._materialize_staged_commands(turn, now, materialize_staged_command)
         disposition = self._new_disposition(turn.id, "no_reply", reason_code)
         self.repository.save_disposition(disposition)
         self._save_close_state(
@@ -251,6 +261,7 @@ class ConversationRuntimeService:
         self,
         turn_id: str,
         reason_code: str = "sync_timeout",
+        materialize_staged_command: Callable[[StagedCommand], Any] | None = None,
     ) -> OutputDisposition:
         turn = self._require_turn(turn_id)
         existing = self.repository.get_disposition(turn_id)
@@ -259,6 +270,7 @@ class ConversationRuntimeService:
         self._ensure_turn_can_transition(existing, target="pending_async_reply")
         conversation = self._ensure_turn_can_close(turn)
         now = self._now()
+        self._materialize_staged_commands(turn, now, materialize_staged_command)
         disposition = self._new_disposition(turn.id, "pending_async_reply", reason_code)
         self.repository.save_disposition(disposition)
         self._save_close_state(
@@ -283,6 +295,41 @@ class ConversationRuntimeService:
     def guard_state_change(self, turn_id: str) -> None:
         turn = self._require_turn(turn_id)
         self._ensure_turn_can_close(turn)
+
+    def stage_command(
+        self,
+        *,
+        turn_id: str,
+        domain: str,
+        operation: str,
+        command_payload: Mapping[str, Any],
+        preview_facts: Mapping[str, Any],
+        item_index: int,
+    ) -> StagedCommand:
+        turn = self._require_turn(turn_id)
+        self._ensure_turn_can_close(turn)
+        idempotency_key = (
+            f"staged:{turn.conversation_id}:{turn.input_from_seq}:"
+            f"{turn.input_to_seq}:{domain}:{operation}:{item_index}"
+        )
+        for existing in self.repository.staged_commands_for_turn(turn_id):
+            if existing.idempotency_key == idempotency_key:
+                return existing
+        now = self._now()
+        command = StagedCommand(
+            id=self._id_factory("staged_command"),
+            turn_id=turn_id,
+            domain=domain,
+            operation=operation,
+            idempotency_key=idempotency_key,
+            command_payload=dict(command_payload),
+            preview_facts=dict(preview_facts),
+            status="staged",
+            materialized_at=None,
+            created_at=now,
+            updated_at=now,
+        )
+        return self.repository.save_staged_command(command)
 
     def get_disposition(self, turn_id: str) -> OutputDisposition:
         disposition = self.repository.get_disposition(turn_id)
@@ -396,6 +443,28 @@ class ConversationRuntimeService:
             turn,
         )
 
+    def _materialize_staged_commands(
+        self,
+        turn: Turn,
+        now: datetime,
+        materialize_staged_command: Callable[[StagedCommand], Any] | None,
+    ) -> None:
+        commands = self.repository.staged_commands_for_turn(turn.id)
+        for command in commands:
+            if command.status != "staged":
+                continue
+            if materialize_staged_command is None:
+                raise ConversationRuntimeError("staged_command_materializer_missing")
+            materialize_staged_command(command)
+            self.repository.save_staged_command(
+                replace(
+                    command,
+                    status="materialized",
+                    materialized_at=now,
+                    updated_at=now,
+                )
+            )
+
     def _input_messages_for_turn(
         self,
         turn: Turn,
@@ -433,6 +502,11 @@ class ConversationRuntimeService:
     def _record_superseded(self, turn: Turn, reason_code: str) -> OutputDisposition:
         now = self._now()
         conversation = self._require_conversation(turn.conversation_id)
+        for command in self.repository.staged_commands_for_turn(turn.id):
+            if command.status == "staged":
+                self.repository.save_staged_command(
+                    replace(command, status="superseded", updated_at=now)
+                )
         disposition = self._new_disposition(turn.id, "superseded", reason_code)
         self.repository.save_disposition(disposition)
         self.repository.save_turn(

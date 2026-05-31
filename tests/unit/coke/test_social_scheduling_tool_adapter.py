@@ -22,6 +22,27 @@ class FakeGuard:
         self.calls += 1
 
 
+class FakeStagingGuard:
+    def __init__(
+        self,
+        *,
+        turn_id: str,
+        input_from_seq: int,
+        input_to_seq: int,
+    ) -> None:
+        self.turn_id = turn_id
+        self.input_from_seq = input_from_seq
+        self.input_to_seq = input_to_seq
+        self.staged: list[dict[str, Any]] = []
+
+    def stage_command(self, **kwargs):
+        self.staged.append(kwargs)
+        return SimpleNamespace(
+            id="staged_1",
+            preview_facts=dict(kwargs["preview_facts"]),
+        )
+
+
 class FakeSocialSchedulingService:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
@@ -331,6 +352,29 @@ def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
         )
     ]
     assert guard.calls == 1
+
+
+def test_interactive_shared_reminder_tool_stages_before_close():
+    service = FakeSocialSchedulingService()
+    adapter = SocialSchedulingToolAdapter(service)
+    guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=1, input_to_seq=1)
+
+    result = adapter.execute(
+        {
+            "operation": "create_shared_reminder",
+            "creator_account_id": "account_1",
+            "receiver_account_ids": ["account_2"],
+            "title": "Dinner",
+            "captured_timezone": "UTC",
+        },
+        guard,
+    )
+
+    assert result.ok is True
+    assert result.facts["status"] == "staged"
+    assert service.calls == []
+    assert guard.staged[0]["domain"] == "social_scheduling"
+    assert guard.staged[0]["operation"] == "create_shared_reminder"
 
 
 def test_create_shared_reminder_repository_failure_returns_clear_non_success_result():

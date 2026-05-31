@@ -100,6 +100,7 @@ class TurnRunner:
         focus_resolver: FocusResolver | None = None,
         reference_resolver: ReferenceResolver | None = None,
         delivery_lifecycle: DeliveryLifecyclePort | None = None,
+        staged_command_materializer: Any | None = None,
         now: Callable[[], datetime] | None = None,
         account_timezone: Callable[[str], str | None] | None = None,
         claim_boundary_committer: Callable[[], None] | None = None,
@@ -114,6 +115,7 @@ class TurnRunner:
         self.output_protocol = output_protocol
         self.outbound_delivery = outbound_delivery
         self.delivery_lifecycle = delivery_lifecycle
+        self.staged_command_materializer = staged_command_materializer
         self.tool_ports = tool_ports or AgentToolPorts()
         self.context_assembler = context_assembler or ContextAssembler()
         self.focus_resolver = focus_resolver or FocusResolver()
@@ -191,6 +193,7 @@ class TurnRunner:
                 disposition = self.conversation_runtime.commit_no_reply(
                     turn_id=start.turn.id,
                     reason_code="intentional_no_reply",
+                    materialize_staged_command=self._materialize_staged_command,
                 )
                 self._commit_close_boundary()
                 return self._result_from_disposition(
@@ -486,6 +489,7 @@ class TurnRunner:
         disposition = self.conversation_runtime.mark_pending_async_reply(
             turn_id=context.freshness_guard.turn_id,
             reason_code="sync_timeout",
+            materialize_staged_command=self._materialize_staged_command,
         )
         waiting_message = self.conversation_runtime.record_outbound_message(
             context.freshness_guard.turn_id,
@@ -553,6 +557,7 @@ class TurnRunner:
             disposition = self.conversation_runtime.commit_no_reply(
                 turn_id=turn_id,
                 reason_code="intentional_no_reply",
+                materialize_staged_command=self._materialize_staged_command,
             )
             self._commit_close_boundary()
             return self._result_from_disposition(
@@ -566,6 +571,7 @@ class TurnRunner:
             turn_id=turn_id,
             segments=validated.segments,
             reason_code=validated.reason_code or "reply_ready",
+            materialize_staged_command=self._materialize_staged_command,
         )
         self._commit_close_boundary()
         visible_text = "\n".join(validated.segments)
@@ -596,6 +602,15 @@ class TurnRunner:
 
     def _commit_claim_boundary(self) -> None:
         self._claim_boundary_committer()
+
+    def _materialize_staged_command(self, command) -> None:
+        if self.staged_command_materializer is None:
+            raise ConversationRuntimeError("staged_command_materializer_missing")
+        guard = FreshnessGuard(
+            conversation_runtime=self.conversation_runtime,
+            turn_id=command.turn_id,
+        )
+        self.staged_command_materializer.materialize(command, guard)
 
     def _replayed_result(
         self,

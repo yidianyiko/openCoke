@@ -78,6 +78,7 @@ from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import DeliveryRequest, OutboundDeliveryPort, TurnRunner
 from coke.turn.semantic_interpreter import SemanticDecision
 from coke.turn.semantic_interpreter import SemanticInterpreter
+from coke.turn.staged_commands import StagedCommandMaterializer
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,6 +433,26 @@ class ReminderToolAdapter:
         self.reminder_service = reminder_service
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
+        operation = _required_str(command, "operation")
+        owner = _required_str(command, "owner_account_id", default_key="account_id")
+        staged = _staged_command_result(
+            guard,
+            domain="reminder",
+            operation=operation,
+            command=command,
+            preview_facts={
+                "status": "staged",
+                "operation": operation,
+                "owner_account_id": owner,
+            },
+        )
+        if staged is not None:
+            return staged
+        return self.execute_without_staging(command, guard)
+
+    def execute_without_staging(
+        self, command: Mapping[str, Any], guard: Any
+    ) -> ToolExecutionResult:
         _guard_state_change(guard)
         operation = _required_str(command, "operation")
         owner = _required_str(command, "owner_account_id", default_key="account_id")
@@ -552,6 +573,35 @@ class SocialSchedulingToolAdapter:
         self.social_scheduling_service = social_scheduling_service
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
+        operation = _required_str(command, "operation")
+        if operation in {"list_friends", "query_availability"}:
+            return self.execute_without_staging(command, guard)
+        try:
+            staged = _staged_command_result(
+                guard,
+                domain="social_scheduling",
+                operation=operation,
+                command=command,
+                preview_facts={
+                    "status": "staged",
+                    "operation": operation,
+                    "account_id": _social_scheduling_preview_account_id(command),
+                },
+            )
+            if staged is not None:
+                return staged
+        except ValueError as error:
+            reason_code = str(error) or "social_scheduling_write_failed"
+            return ToolExecutionResult(
+                ok=False,
+                facts={"type": reason_code},
+                reason_code=reason_code,
+            )
+        return self.execute_without_staging(command, guard)
+
+    def execute_without_staging(
+        self, command: Mapping[str, Any], guard: Any
+    ) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
         try:
             if operation == "list_friends":
@@ -770,6 +820,25 @@ class CalendarImportToolAdapter:
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
+        staged = _staged_command_result(
+            guard,
+            domain="calendar_import",
+            operation=operation,
+            command=command,
+            preview_facts={
+                "status": "staged",
+                "operation": operation,
+                "account_id": _required_str(command, "account_id"),
+            },
+        )
+        if staged is not None:
+            return staged
+        return self.execute_without_staging(command, guard)
+
+    def execute_without_staging(
+        self, command: Mapping[str, Any], guard: Any
+    ) -> ToolExecutionResult:
+        operation = _required_str(command, "operation")
         _guard_state_change(guard)
         if operation == "import_google_calendar":
             summary = self.calendar_import_service.import_google_calendar(
@@ -819,6 +888,28 @@ class IdentityAccessToolAdapter:
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
         if operation == "get_access_status":
+            return self.execute_without_staging(command, guard)
+
+        staged = _staged_command_result(
+            guard,
+            domain="identity_access",
+            operation=operation,
+            command=command,
+            preview_facts={
+                "status": "staged",
+                "operation": operation,
+                "account_id": command.get("account_id"),
+            },
+        )
+        if staged is not None:
+            return staged
+        return self.execute_without_staging(command, guard)
+
+    def execute_without_staging(
+        self, command: Mapping[str, Any], guard: Any
+    ) -> ToolExecutionResult:
+        operation = _required_str(command, "operation")
+        if operation == "get_access_status":
             access = self.identity_access_service.get_access_status(
                 _required_str(command, "account_id")
             )
@@ -863,6 +954,31 @@ class SettingsToolAdapter:
         self.settings_service = settings_service
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
+        operation = _required_str(command, "operation")
+        account_id = _required_str(
+            command, "account_id", default_key="owner_account_id"
+        )
+        if operation == "view_settings":
+            return self.execute_without_staging(command, guard)
+
+        staged = _staged_command_result(
+            guard,
+            domain="settings",
+            operation=operation,
+            command=command,
+            preview_facts={
+                "status": "staged",
+                "operation": operation,
+                "account_id": account_id,
+            },
+        )
+        if staged is not None:
+            return staged
+        return self.execute_without_staging(command, guard)
+
+    def execute_without_staging(
+        self, command: Mapping[str, Any], guard: Any
+    ) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
         account_id = _required_str(
             command, "account_id", default_key="owner_account_id"
@@ -1032,6 +1148,13 @@ def compose_coke_runtime(
         identity_access_tool=IdentityAccessToolAdapter(identity_access_service),
         settings_tool=SettingsToolAdapter(settings_service),
     )
+    staged_command_materializer = StagedCommandMaterializer(
+        reminder_tool=adapters.reminder_tool,
+        social_scheduling_tool=adapters.social_scheduling_tool,
+        calendar_import_tool=adapters.calendar_import_tool,
+        identity_access_tool=adapters.identity_access_tool,
+        settings_tool=adapters.settings_tool,
+    )
     tool_ports = AgentToolPorts(
         reminder_tool=adapters.reminder_tool,
         social_scheduling_tool=adapters.social_scheduling_tool,
@@ -1067,6 +1190,7 @@ def compose_coke_runtime(
             reminder_service=reminder_service,
             social_scheduling_service=social_scheduling_service,
         ),
+        staged_command_materializer=staged_command_materializer,
         now=now,
         account_timezone=lambda account_id: _account_default_timezone(
             identity_access_service, account_id
@@ -1263,6 +1387,55 @@ def _guard_commit_guard(guard: Any):
 def _guard_turn_id(guard: Any) -> str | None:
     value = getattr(guard, "turn_id", None)
     return value if isinstance(value, str) else None
+
+
+def _staged_command_result(
+    guard: Any,
+    *,
+    domain: str,
+    operation: str,
+    command: Mapping[str, Any],
+    preview_facts: Mapping[str, Any],
+) -> ToolExecutionResult | None:
+    stage_command = getattr(guard, "stage_command", None)
+    if not callable(stage_command):
+        return None
+    staged = stage_command(
+        domain=domain,
+        operation=operation,
+        command_payload=dict(command),
+        preview_facts=preview_facts,
+        item_index=_command_item_index(command),
+    )
+    return ToolExecutionResult(
+        ok=True,
+        facts={
+            "status": "staged",
+            "staged_command_id": staged.id,
+            "preview": dict(staged.preview_facts),
+        },
+    )
+
+
+def _command_item_index(command: Mapping[str, Any]) -> int:
+    value = command.get("item_index") or 1
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _social_scheduling_preview_account_id(command: Mapping[str, Any]) -> str | None:
+    for key in (
+        "account_id",
+        "owner_account_id",
+        "creator_account_id",
+        "joiner_account_id",
+    ):
+        value = command.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 def _required_str(

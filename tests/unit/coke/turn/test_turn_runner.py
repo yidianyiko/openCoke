@@ -25,6 +25,7 @@ from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import TurnRunner
 from coke.turn.semantic_interpreter import SemanticDecision
+from coke.turn.staged_commands import StagedCommandMaterializer
 from coke.worker.__main__ import _handle_event
 from coke.worker.stream_consumer import StreamEvent
 
@@ -721,6 +722,68 @@ def test_superseded_after_tool_entry_commits_no_domain_facts(harness):
     assert harness["runtime"].get_disposition(start.turn.id).disposition == "superseded"
 
 
+def test_superseded_interactive_turn_leaves_no_active_reminder(harness):
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: NOW,
+        id_factory=id_factory(),
+    )
+    adapter = ReminderToolAdapter(reminder_service)
+
+    class ReminderThenSupersedeAgent:
+        def invoke(self, request):
+            request.tool_profile.reminder_tool.execute(
+                {
+                    "operation": "create",
+                    "owner_account_id": request.account_id,
+                    "content": "pay rent",
+                    "trigger_time": NOW.isoformat(),
+                    "captured_timezone": "UTC",
+                },
+                request.freshness_guard,
+            )
+            harness["runtime"].record_inbound(
+                account_id="account_1",
+                channel_identity_id="channel_identity_1",
+                causal_inbound_event_id="provider:message-2",
+                text="actually make it 10",
+                payload={"provider": "whatsapp_evolution"},
+                traceparent=TRACEPARENT,
+            )
+            return AgentResult.completed(
+                {"type": "reply", "segments": ["I will remind you."]}
+            )
+
+        def complete_async(self, task_id: str):
+            raise AssertionError("reminder turn should complete synchronously")
+
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-superseded-reminder",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=ReminderThenSupersedeAgent(),
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=adapter),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: "UTC",
+    )
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "superseded"
+    assert reminder_repository.list_active_reminders("account_1") == []
+    staged = harness["repository"].staged_commands_for_turn(result.turn_id)
+    assert [command.status for command in staged] == ["superseded"]
+
+
 def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harness):
     reminder_repository = InMemoryReminderRepository()
     reminder_service = ReminderService(
@@ -779,6 +842,13 @@ def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harn
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=harness["delivery"],
         tool_ports=AgentToolPorts(reminder_tool=adapter),
+        staged_command_materializer=StagedCommandMaterializer(
+            reminder_tool=adapter,
+            social_scheduling_tool=None,
+            calendar_import_tool=None,
+            identity_access_tool=None,
+            settings_tool=None,
+        ),
         now=harness["clock"].now,
         account_timezone=lambda _account_id: "Asia/Shanghai",
     )
@@ -805,6 +875,8 @@ def test_duration_update_turn_replies_and_lifecycle_event_is_worker_ackable(harn
     assert result.disposition == "replied"
     assert agent.tool_result is not None
     assert agent.tool_result.ok is True
+    staged = harness["repository"].staged_commands_for_turn(result.turn_id)
+    assert [command.status for command in staged] == ["materialized"]
     reminder = reminder_repository.get_reminder(reminder_id)
     assert reminder is not None
     assert reminder.duration_minutes == 60
