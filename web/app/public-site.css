@@ -3877,13 +3877,21 @@ html[data-locale-ready="true"] .coke-site-splash {
 }
 
 .coke-site .customer-reminder-outside .customer-reminder-card h2 {
+  display: -webkit-box;
   margin-top: 2px;
   font-size: 12px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
 }
 
 .coke-site .customer-reminder-outside .customer-reminder-card p {
+  display: -webkit-box;
   margin-top: 2px;
   font-size: 11px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
 }
 
 .coke-site .customer-reminder-outside .customer-reminder-card__actions {

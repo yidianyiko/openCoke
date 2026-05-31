@@ -176,15 +176,26 @@ export function cancelCustomerReminder(reminderId: string): Promise<ApiResponse<
 }
 
 function calendarEntryToReminder(entry: CleanCalendarEntry): CustomerReminder {
-  const start = entry.display_start ? new Date(entry.display_start) : null;
+  const start = entry.display_start ? localDateTimeParts(entry.display_start) : null;
   return {
     id: entry.reminder_id ?? '',
     title: entry.content,
     lifecycleState: 'active',
-    localDate: start ? start.toISOString().slice(0, 10) : '',
-    localTime: start ? start.toISOString().slice(11, 16) : '',
+    localDate: start?.localDate ?? '',
+    localTime: start?.localTime ?? '',
     timezone: currentTimezone(),
     durationMinutes: null,
+  };
+}
+
+function localDateTimeParts(value: string): { localDate: string; localTime: string } | null {
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (!match) {
+    return null;
+  }
+  return {
+    localDate: match[1],
+    localTime: match[2],
   };
 }
 

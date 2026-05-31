@@ -50,6 +50,31 @@ describe('customer reminder wrappers', () => {
     );
   });
 
+  it('preserves display_start local date and time without UTC shifting', async () => {
+    apiMock.get.mockResolvedValueOnce({
+      owner_account_id: 'acct_1',
+      entries: [{
+        reminder_id: 'rem-local',
+        content: 'Late local reminder',
+        display_start: '2026-05-30T22:00:00+09:00',
+      }],
+    });
+
+    const result = await listCustomerReminders({ from: '2026-05-30', to: '2026-05-30' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        reminders: [{
+          id: 'rem-local',
+          title: 'Late local reminder',
+          localDate: '2026-05-30',
+          localTime: '22:00',
+        }],
+      },
+    });
+  });
+
   it('creates and updates reminders using repeat selections mapped to rrule values', async () => {
     apiMock.post
       .mockResolvedValueOnce({
