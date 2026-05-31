@@ -1,8 +1,10 @@
 ---
 kind: incident
-status: fixed_pending_deploy
+status: fixed_deployed
 surface: conversation-runtime, social-scheduling, notification-delivery
 created: 2026-05-31
+fixed_commit: 97efc4115194b6cbad89bd32ba90a690496a9fb3
+deployed_sha: 97efc4115194b6cbad89bd32ba90a690496a9fb3
 ---
 
 # Shared Reminder Follow-Up No-Reply And Missing Creator Receipt
@@ -47,4 +49,16 @@ but no creator-facing receipt was emitted.
 
 - Focused regression tests cover the no-reply routing and creator receipt
   behavior.
-- Deployment and production repair evidence should be appended after rollout.
+- `scripts/deploy-compose-to-gcp.sh` deployed
+  `97efc4115194b6cbad89bd32ba90a690496a9fb3`; remote `.deployed-sha` matches
+  that commit.
+- Production `docker compose ps` showed `coke-api` healthy and worker, outbox
+  relay, and scheduler up after deployment.
+- The historical receiver delivery for notification
+  `069f3fbd-8852-4290-a62a-13ac070b3b3f` was replayed through
+  `SocialSchedulingService.record_notification_delivery`.
+- Production created `shared_reminder_delivery_confirmed`
+  `cf11766a-b8aa-4386-bbb0-2297aeb4cdb5` for creator account
+  `635d3bdc-1b02-4a08-acf4-9940b91a9de5`; outbound message
+  `03c92b4c-37e3-4853-a47b-f73ee81b94bf` was sent with provider id
+  `coke-1780228670318-2e4dc32da443`.
