@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 
 **Goal:** Stop `reminder.lifecycle` outbox events from crash-looping the clean worker, make unknown worker topics non-fatal, and prove reminder duration edits still reply and emit consumable lifecycle evidence.
 
@@ -317,19 +317,31 @@ Observed after implementation: `2 passed in 2.38s`.
 
 ### Task 6: Redeploy And Live Verify
 
-- [ ] **Step 1: Read deploy/coke-clean runtime commands**
+- [x] **Step 1: Read deploy/coke-clean runtime commands**
 
 Read `docs/deploy.md` and the recent coke-clean redeploy plan only for concrete compose paths, project names, snapshot commands, and service names.
 
-- [ ] **Step 2: Capture rollback snapshot**
+- [x] **Step 2: Capture rollback snapshot**
 
 On `gcp-coke`, capture the current `coke-clean` git SHA, compose image/container state, `.env` checksum without printing secrets, and a Postgres dump or timestamped dump path before recreating services.
 
-- [ ] **Step 3: Deploy current main non-disruptively**
+Observed: rollback snapshot `20260531T083937Z` captured source archive
+`/home/whoami/coke-clean-rollback-20260531T083937Z.tgz`, DB dump
+`/home/whoami/coke-clean-db-20260531T083937Z.dump`, compose/container state
+files, and `.env` SHA
+`889fb8a770a0bba2d40c26748190962c4861812f30a15febee127890c1fef2e3`.
+
+- [x] **Step 3: Deploy current main non-disruptively**
 
 Rsync/checkout current committed `main`, preserve `/home/whoami/coke-clean/.env`, run Alembic `upgrade head`, and recreate only clean Coke services needed for this code path: `coke-api`, `coke-worker`, `coke-scheduler`, `coke-outbox-relay`, and web only if compose dependency requires it. Do not touch `evolution-*`, `wechat-personal-connector`, accounts, channels, or connector sessions.
 
-- [ ] **Step 4: Verify service health and sessions**
+Observed: rsynced only touched backend/docs/test files, preserved
+`/home/whoami/coke-clean/.env`, rebuilt `coke-migrate`, `coke-api`,
+`coke-worker`, `coke-scheduler`, and `coke-outbox-relay`, ran Alembic
+`upgrade head` and `check` (`No new upgrade operations detected.`), and
+recreated only the four clean backend services.
+
+- [x] **Step 4: Verify service health and sessions**
 
 On `gcp-coke`, verify:
 
@@ -339,7 +351,14 @@ On `gcp-coke`, verify:
 - `coke-clean-coke-worker-1` restart count is stable;
 - recent worker logs have no `unsupported_worker_topic:reminder.lifecycle`.
 
-- [ ] **Step 5: Live reminder duration smoke**
+Observed after deploy: `/healthz` returned `200`; olivers and lizihao login
+returned `200`; both channel statuses returned `wechat_personal connected`
+and reachable; connector health returned `connected_session_count=2`; API,
+worker, scheduler, and outbox-relay restart counts were `0`; worker logs since
+deploy had no `unsupported_worker_topic`, no `worker loop iteration failed`,
+and no tracebacks.
+
+- [x] **Step 5: Live reminder duration smoke**
 
 Through the connected account path, create a marked reminder, then send `把它改成60分钟`. Query clean Postgres to prove:
 
@@ -349,6 +368,19 @@ Through the connected account path, create a marked reminder, then send `把它�
 - the corresponding `reminder.lifecycle` outbox event is `processed`/`acked`;
 - worker logs remain clean.
 
-- [ ] **Step 6: Final plan closeout**
+Observed marker `duration-smoke-20260531T084901Z` through olivers'
+connected personal-WeChat route: create turn replied
+`已设好：2029年1月21日上午11点提醒你处理duration-smoke-20260531T084901Z，持续15分钟。`;
+update turn replied `已把持续时间改为60分钟。`; reminder
+`50fe5743-e304-42ee-a923-ab5367713a7d` reached `duration_minutes=60`;
+create/update/delete `reminder.lifecycle` events all had `processed_at` and
+`acked_at`; cleanup delete succeeded and left the marked reminder deleted with
+duration `60`. Worker logs recorded three
+`reminder_lifecycle_event_acked_as_evidence` lines and no unsupported-topic
+failures. Redis `XPENDING coke.work workers` returned `0`.
+
+- [x] **Step 6: Final plan closeout**
 
 Only after local verification and live verification pass, set `Plan Status: complete`, check all boxes, append concise verification evidence, and commit the plan closeout if it changed after deployment.
+
+Observed: plan status set to complete after local and live verification passed.
