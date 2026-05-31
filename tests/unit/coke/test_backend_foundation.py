@@ -92,6 +92,18 @@ def test_settings_from_env_reads_interaction_timeout(monkeypatch):
     assert settings.interaction_timeout_s == 18.75
 
 
+def test_settings_from_env_rejects_invalid_interaction_timeout(monkeypatch):
+    from coke.config import ConfigurationError, Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.setenv("COKE_INTERACTION_TIMEOUT_S", "-1")
+
+    with pytest.raises(ConfigurationError, match="COKE_INTERACTION_TIMEOUT_S"):
+        Settings.from_env()
+
+
 def test_settings_from_env_allows_fake_llm_without_siliconflow_key(monkeypatch):
     from coke.config import Settings
 

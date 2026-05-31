@@ -56,6 +56,16 @@ def test_siliconflow_config_requires_api_key():
         SiliconFlowLLMConfig.from_env({})
 
 
+def test_siliconflow_config_rejects_invalid_interaction_timeout():
+    with pytest.raises(LLMConfigurationError, match="COKE_INTERACTION_TIMEOUT_S"):
+        SiliconFlowLLMConfig.from_env(
+            {
+                "SiliconFlow_API_KEY": "test-key",
+                "COKE_INTERACTION_TIMEOUT_S": "0",
+            }
+        )
+
+
 def test_openai_like_model_uses_siliconflow_settings_and_interaction_timeout():
     config = SiliconFlowLLMConfig.from_env(
         {
