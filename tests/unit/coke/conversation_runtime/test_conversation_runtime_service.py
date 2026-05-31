@@ -16,7 +16,6 @@ from coke.domains.conversation_runtime.repository import (
 )
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 
-
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
@@ -129,7 +128,7 @@ def test_latest_context_token_reads_newest_inbound_message_payload(service):
     assert service.latest_context_token(first.conversation.id) == "ctx-new"
 
 
-def test_turn_records_based_on_inbound_seq_and_replay_reconciles_existing_turn(
+def test_turn_records_input_window_and_replay_reconciles_existing_turn(
     service,
     repository,
 ):
@@ -158,8 +157,55 @@ def test_turn_records_based_on_inbound_seq_and_replay_reconciles_existing_turn(
     assert first.replayed is False
     assert replay.replayed is True
     assert replay.turn.id == first.turn.id
-    assert replay.turn.based_on_inbound_seq == 1
+    assert replay.turn.input_from_seq == 1
+    assert replay.turn.input_to_seq == 1
+    assert replay.turn.superseded_by_inbound_seq is None
     assert len(repository.turns_by_trigger_id) == 1
+
+
+@pytest.mark.parametrize("close_path", ["reply", "no_reply", "pending_async_reply"])
+def test_successful_close_advances_last_closed_inbound_seq(
+    service,
+    repository,
+    close_path,
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id=f"provider:message-{close_path}",
+        text="hello",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id=f"inbound:provider:message-{close_path}",
+        trigger_type="inbound_message",
+        mode="interactive",
+    )
+
+    if close_path == "reply":
+        service.commit_reply(
+            turn_id=turn.turn.id,
+            based_on_inbound_seq=turn.turn.input_to_seq,
+            segments=["ok"],
+        )
+    elif close_path == "no_reply":
+        service.commit_no_reply(
+            turn_id=turn.turn.id,
+            based_on_inbound_seq=turn.turn.input_to_seq,
+        )
+    else:
+        service.mark_pending_async_reply(
+            turn_id=turn.turn.id,
+            based_on_inbound_seq=turn.turn.input_to_seq,
+        )
+
+    saved = repository.get_conversation(inbound.conversation.id)
+
+    assert saved is not None
+    assert turn.turn.input_to_seq == 1
+    assert saved.last_closed_inbound_seq == turn.turn.input_to_seq
 
 
 def test_stale_outbound_commit_records_superseded_and_never_no_reply_or_failed(
@@ -191,7 +237,7 @@ def test_stale_outbound_commit_records_superseded_and_never_no_reply_or_failed(
     with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
         service.commit_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+            based_on_inbound_seq=turn.turn.input_to_seq,
             segments=["stale reply"],
         )
 
@@ -229,7 +275,7 @@ def test_stale_state_change_guard_rejects_before_business_commit(service):
     with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
         service.guard_state_change(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+            based_on_inbound_seq=turn.turn.input_to_seq,
         )
 
     assert service.get_disposition(turn.turn.id).disposition == "superseded"
@@ -253,7 +299,7 @@ def test_no_reply_is_only_intentional_and_not_failure_or_supersession(service):
 
     disposition = service.commit_no_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+        based_on_inbound_seq=turn.turn.input_to_seq,
         reason_code="intentional_no_reply",
     )
 
@@ -263,7 +309,7 @@ def test_no_reply_is_only_intentional_and_not_failure_or_supersession(service):
     with pytest.raises(ConversationRuntimeError, match="invalid_no_reply_reason"):
         service.commit_no_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+            based_on_inbound_seq=turn.turn.input_to_seq,
             reason_code="failure",
         )
 
@@ -286,12 +332,12 @@ def test_pending_async_reply_is_only_non_terminal_and_transitions_to_replied(ser
 
     pending = service.mark_pending_async_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+        based_on_inbound_seq=turn.turn.input_to_seq,
         reason_code="sync_timeout",
     )
     replied = service.commit_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+        based_on_inbound_seq=turn.turn.input_to_seq,
         segments=["final answer"],
     )
 
@@ -317,7 +363,7 @@ def test_outbound_segments_are_unique_by_turn_id_and_segment_index(service, repo
     )
     service.commit_reply(
         turn_id=turn.turn.id,
-        based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+        based_on_inbound_seq=turn.turn.input_to_seq,
         segments=["one", "two"],
     )
     existing = repository.outbound_messages_for_turn(turn.turn.id)[0]
@@ -362,6 +408,6 @@ def test_reply_requires_one_to_three_segments(service, segments):
     with pytest.raises(ConversationRuntimeError, match="invalid_segment_count"):
         service.commit_reply(
             turn_id=turn.turn.id,
-            based_on_inbound_seq=turn.turn.based_on_inbound_seq,
+            based_on_inbound_seq=turn.turn.input_to_seq,
             segments=segments,
         )

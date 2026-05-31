@@ -24,7 +24,6 @@ def test_conversation_runtime_schema_has_ordering_and_replay_constraints():
     assert _unique_columns(conversation, "uq_conversation_account") == ("account_id",)
 
     assert "trigger_id" in turn.c
-    assert "based_on_inbound_seq" in turn.c
     assert _unique_columns(turn, "uq_turn_trigger_id") == ("trigger_id",)
 
     assert "segment_index" in message.c
@@ -46,3 +45,31 @@ def test_conversation_runtime_schema_has_ordering_and_replay_constraints():
     assert "published_at" in outbox.c
     assert "processed_at" in outbox.c
     assert "acked_at" in outbox.c
+
+
+def test_conversation_runtime_schema_tracks_input_windows_and_staged_commands():
+    from coke.schema import metadata
+
+    conversation = metadata.tables["conversation"]
+    turn = metadata.tables["turn"]
+    staged_command = metadata.tables["staged_command"]
+
+    assert "latest_inbound_seq" in conversation.c
+    assert "last_closed_inbound_seq" in conversation.c
+    assert "input_from_seq" in turn.c
+    assert "input_to_seq" in turn.c
+    assert "superseded_by_inbound_seq" in turn.c
+    assert "based_on_inbound_seq" not in turn.c
+    assert {
+        "turn_id",
+        "domain",
+        "operation",
+        "idempotency_key",
+        "command_payload",
+        "preview_facts",
+        "status",
+        "materialized_at",
+    }.issubset(set(staged_command.c.keys()))
+    assert _unique_columns(staged_command, "uq_staged_command_idempotency") == (
+        "idempotency_key",
+    )

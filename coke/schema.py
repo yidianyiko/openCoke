@@ -17,7 +17,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
-
 metadata = MetaData(
     naming_convention={
         "ix": "ix_%(table_name)s_%(column_0_name)s",
@@ -50,7 +49,9 @@ account = Table(
     Column("lifecycle", String(32), nullable=False),
     _created_at(),
     _updated_at(),
-    CheckConstraint("origin in ('web_first', 'messaging_first')", name="account_origin"),
+    CheckConstraint(
+        "origin in ('web_first', 'messaging_first')", name="account_origin"
+    ),
     CheckConstraint("lifecycle in ('active', 'disabled')", name="account_lifecycle"),
 )
 
@@ -165,7 +166,12 @@ auth_artifact = Table(
     metadata,
     _id_column(),
     Column("account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=True),
-    Column("target_account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=True),
+    Column(
+        "target_account_id",
+        UUID(as_uuid=False),
+        ForeignKey("account.id"),
+        nullable=True,
+    ),
     Column("type", String(64), nullable=False),
     Column("purpose", String(128), nullable=False),
     Column("delivery", String(64), nullable=False),
@@ -223,32 +229,75 @@ conversation = Table(
     _id_column(),
     Column("account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
     Column("latest_inbound_seq", BigInteger(), nullable=False),
+    Column("last_closed_inbound_seq", BigInteger(), nullable=False),
     _created_at(),
     _updated_at(),
     UniqueConstraint("account_id", name="uq_conversation_account"),
+    CheckConstraint(
+        "last_closed_inbound_seq >= 0 and latest_inbound_seq >= last_closed_inbound_seq",
+        name="input_window_order",
+    ),
 )
 
 turn = Table(
     "turn",
     metadata,
     _id_column(),
-    Column("conversation_id", UUID(as_uuid=False), ForeignKey("conversation.id"), nullable=False),
+    Column(
+        "conversation_id",
+        UUID(as_uuid=False),
+        ForeignKey("conversation.id"),
+        nullable=False,
+    ),
     Column("trigger_id", String(255), nullable=False),
     Column("trigger_type", String(64), nullable=False),
     Column("mode", String(32), nullable=False),
-    Column("based_on_inbound_seq", BigInteger(), nullable=True),
+    Column("input_from_seq", BigInteger(), nullable=True),
+    Column("input_to_seq", BigInteger(), nullable=True),
+    Column("superseded_by_inbound_seq", BigInteger(), nullable=True),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("completed_at", DateTime(timezone=True), nullable=True),
     _created_at(),
     _updated_at(),
     UniqueConstraint("trigger_id", name="uq_turn_trigger_id"),
+    CheckConstraint(
+        "(input_from_seq is null and input_to_seq is null) or "
+        "(input_from_seq is not null and input_to_seq is not null and input_from_seq <= input_to_seq)",
+        name="input_window_order",
+    ),
+)
+
+staged_command = Table(
+    "staged_command",
+    metadata,
+    _id_column(),
+    Column("turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=False),
+    Column("domain", String(64), nullable=False),
+    Column("operation", String(128), nullable=False),
+    Column("idempotency_key", String(255), nullable=False),
+    Column("command_payload", JSONB(), nullable=False),
+    Column("preview_facts", JSONB(), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("materialized_at", DateTime(timezone=True), nullable=True),
+    _created_at(),
+    _updated_at(),
+    UniqueConstraint("idempotency_key", name="uq_staged_command_idempotency"),
+    CheckConstraint(
+        "status in ('staged', 'materialized', 'superseded')",
+        name="status",
+    ),
 )
 
 message = Table(
     "message",
     metadata,
     _id_column(),
-    Column("conversation_id", UUID(as_uuid=False), ForeignKey("conversation.id"), nullable=False),
+    Column(
+        "conversation_id",
+        UUID(as_uuid=False),
+        ForeignKey("conversation.id"),
+        nullable=False,
+    ),
     Column("turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=True),
     Column("direction", String(32), nullable=False),
     Column("segment_index", Integer(), nullable=True),
@@ -315,7 +364,9 @@ delivery_attempt = Table(
     "delivery_attempt",
     metadata,
     _id_column(),
-    Column("route_id", UUID(as_uuid=False), ForeignKey("delivery_route.id"), nullable=False),
+    Column(
+        "route_id", UUID(as_uuid=False), ForeignKey("delivery_route.id"), nullable=False
+    ),
     Column("turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=True),
     Column("message_id", UUID(as_uuid=False), ForeignKey("message.id"), nullable=True),
     Column("provider_type", String(64), nullable=False),
@@ -338,7 +389,12 @@ reminder = Table(
     "reminder",
     metadata,
     _id_column(),
-    Column("owner_account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
+    Column(
+        "owner_account_id",
+        UUID(as_uuid=False),
+        ForeignKey("account.id"),
+        nullable=False,
+    ),
     Column("content", Text(), nullable=False),
     Column("content_hash", String(128), nullable=False),
     Column("kind", String(64), nullable=False),
@@ -362,7 +418,9 @@ reminder_fire = Table(
     "reminder_fire",
     metadata,
     _id_column(),
-    Column("reminder_id", UUID(as_uuid=False), ForeignKey("reminder.id"), nullable=False),
+    Column(
+        "reminder_id", UUID(as_uuid=False), ForeignKey("reminder.id"), nullable=False
+    ),
     Column("occurrence_key", String(255), nullable=False),
     Column("due_at", DateTime(timezone=True), nullable=False),
     Column("fire_state", String(64), nullable=False),
@@ -383,7 +441,12 @@ friend_link = Table(
     "friend_link",
     metadata,
     _id_column(),
-    Column("owner_account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
+    Column(
+        "owner_account_id",
+        UUID(as_uuid=False),
+        ForeignKey("account.id"),
+        nullable=False,
+    ),
     Column("token_hash", String(255), nullable=False),
     Column("link_code_hash", String(255), nullable=False),
     Column("lifecycle", String(32), nullable=False),
@@ -399,8 +462,12 @@ friendship = Table(
     "friendship",
     metadata,
     _id_column(),
-    Column("account_low_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
-    Column("account_high_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
+    Column(
+        "account_low_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False
+    ),
+    Column(
+        "account_high_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False
+    ),
     Column("lifecycle", String(32), nullable=False),
     Column("established_at", DateTime(timezone=True), nullable=False),
     Column("removed_at", DateTime(timezone=True), nullable=True),
@@ -413,7 +480,12 @@ shared_reminder = Table(
     "shared_reminder",
     metadata,
     _id_column(),
-    Column("creator_account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
+    Column(
+        "creator_account_id",
+        UUID(as_uuid=False),
+        ForeignKey("account.id"),
+        nullable=False,
+    ),
     Column("participant_set_hash", String(128), nullable=False),
     Column("title", Text(), nullable=False),
     Column("title_hash", String(128), nullable=False),
@@ -437,7 +509,9 @@ reminder_projection = Table(
         nullable=False,
     ),
     Column("account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
-    Column("reminder_id", UUID(as_uuid=False), ForeignKey("reminder.id"), nullable=False),
+    Column(
+        "reminder_id", UUID(as_uuid=False), ForeignKey("reminder.id"), nullable=False
+    ),
     Column("lifecycle", String(32), nullable=False),
     Column("completion_status", String(64), nullable=False),
     _created_at(),
@@ -454,7 +528,9 @@ notification_fact = Table(
     metadata,
     _id_column(),
     Column("type", String(64), nullable=False),
-    Column("actor_account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=True),
+    Column(
+        "actor_account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=True
+    ),
     Column("object_type", String(64), nullable=False),
     Column("object_id", UUID(as_uuid=False), nullable=False),
     Column("status", String(64), nullable=False),
@@ -476,7 +552,12 @@ notification_recipient = Table(
         ForeignKey("notification_fact.id", name="fk_notification_recipient_fact"),
         nullable=False,
     ),
-    Column("recipient_account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
+    Column(
+        "recipient_account_id",
+        UUID(as_uuid=False),
+        ForeignKey("account.id"),
+        nullable=False,
+    ),
     Column("turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=True),
     Column("delivery_state", String(64), nullable=False),
     Column("error_facts", JSONB(), nullable=False),
@@ -496,7 +577,12 @@ calendar_import_run = Table(
     Column("account_id", UUID(as_uuid=False), ForeignKey("account.id"), nullable=False),
     Column("provider_type", String(64), nullable=False),
     Column("provider_account_id", String(255), nullable=True),
-    Column("auth_artifact_id", UUID(as_uuid=False), ForeignKey("auth_artifact.id"), nullable=True),
+    Column(
+        "auth_artifact_id",
+        UUID(as_uuid=False),
+        ForeignKey("auth_artifact.id"),
+        nullable=True,
+    ),
     Column("status", String(64), nullable=False),
     Column("imported_count", Integer(), nullable=False),
     Column("skipped_count", Integer(), nullable=False),
@@ -512,14 +598,21 @@ calendar_import_item = Table(
     "calendar_import_item",
     metadata,
     _id_column(),
-    Column("run_id", UUID(as_uuid=False), ForeignKey("calendar_import_run.id"), nullable=False),
+    Column(
+        "run_id",
+        UUID(as_uuid=False),
+        ForeignKey("calendar_import_run.id"),
+        nullable=False,
+    ),
     Column("provider_calendar_id", String(255), nullable=False),
     Column("source_event_id", String(255), nullable=False),
     Column("recurrence_instance_key", String(255), nullable=False),
     Column("status", String(64), nullable=False),
     Column("reason", Text(), nullable=True),
     Column("source_metadata", JSONB(), nullable=False),
-    Column("reminder_id", UUID(as_uuid=False), ForeignKey("reminder.id"), nullable=True),
+    Column(
+        "reminder_id", UUID(as_uuid=False), ForeignKey("reminder.id"), nullable=True
+    ),
     _created_at(),
     UniqueConstraint(
         "provider_calendar_id",
@@ -536,8 +629,7 @@ Index(
     reminder.c.next_fire_at,
     unique=True,
     postgresql_where=(
-        (reminder.c.lifecycle == "active")
-        & reminder.c.next_fire_at.is_not(None)
+        (reminder.c.lifecycle == "active") & reminder.c.next_fire_at.is_not(None)
     ),
 )
 Index(
@@ -546,8 +638,7 @@ Index(
     reminder.c.content_hash,
     unique=True,
     postgresql_where=(
-        (reminder.c.lifecycle == "active")
-        & reminder.c.next_fire_at.is_(None)
+        (reminder.c.lifecycle == "active") & reminder.c.next_fire_at.is_(None)
     ),
 )
 Index(

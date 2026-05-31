@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
-
 MessageDirection = Literal["inbound", "outbound"]
 OutputDispositionState = Literal[
     "replied",
@@ -15,9 +14,7 @@ OutputDispositionState = Literal[
     "superseded",
 ]
 
-TERMINAL_DISPOSITIONS = frozenset(
-    {"replied", "no_reply", "failed", "superseded"}
-)
+TERMINAL_DISPOSITIONS = frozenset({"replied", "no_reply", "failed", "superseded"})
 NON_TERMINAL_DISPOSITIONS = frozenset({"pending_async_reply"})
 
 
@@ -38,6 +35,7 @@ class Conversation:
     id: str
     account_id: str
     latest_inbound_seq: int
+    last_closed_inbound_seq: int
     created_at: datetime
     updated_at: datetime
 
@@ -78,9 +76,35 @@ class Turn:
     trigger_id: str
     trigger_type: str
     mode: str
-    based_on_inbound_seq: int | None
+    input_from_seq: int | None
+    input_to_seq: int | None
+    superseded_by_inbound_seq: int | None
     started_at: datetime
     completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class CurrentInputMessage:
+    message_id: str
+    seq: int
+    text: str | None
+    payload: Mapping[str, Any]
+    causal_inbound_event_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class StagedCommand:
+    id: str
+    turn_id: str
+    domain: str
+    operation: str
+    idempotency_key: str
+    command_payload: Mapping[str, Any]
+    preview_facts: Mapping[str, Any]
+    status: Literal["staged", "materialized", "superseded"]
+    materialized_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

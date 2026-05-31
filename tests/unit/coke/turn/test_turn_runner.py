@@ -578,7 +578,7 @@ def test_superseded_after_tool_entry_commits_no_domain_facts(harness):
             if self.calls == 1:
                 harness["runtime"].guard_state_change(
                     start.turn.id,
-                    start.turn.based_on_inbound_seq,
+                    start.turn.input_to_seq,
                 )
                 return
             harness["runtime"].record_inbound(
@@ -591,7 +591,7 @@ def test_superseded_after_tool_entry_commits_no_domain_facts(harness):
             )
             harness["runtime"].guard_state_change(
                 start.turn.id,
-                start.turn.based_on_inbound_seq,
+                start.turn.input_to_seq,
             )
 
     guard = SupersedeAfterEntryGuard()

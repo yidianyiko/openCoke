@@ -148,10 +148,11 @@ class TurnRunner:
             )
 
         try:
+            freshness_seq = start.turn.input_to_seq
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
                 turn_id=start.turn.id,
-                based_on_inbound_seq=start.turn.based_on_inbound_seq,
+                based_on_inbound_seq=freshness_seq,
             )
             focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
             semantic_decision = self.semantic_interpreter.interpret(
@@ -169,7 +170,7 @@ class TurnRunner:
             if semantic_decision.reply_necessity == "intentional_no_reply":
                 disposition = self.conversation_runtime.commit_no_reply(
                     turn_id=start.turn.id,
-                    based_on_inbound_seq=start.turn.based_on_inbound_seq,
+                    based_on_inbound_seq=freshness_seq,
                     reason_code="intentional_no_reply",
                 )
                 return self._result_from_disposition(
@@ -314,10 +315,11 @@ class TurnRunner:
                 reason_code=disposition.reason_code,
             )
         try:
+            freshness_seq = start.turn.input_to_seq
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
                 turn_id=start.turn.id,
-                based_on_inbound_seq=start.turn.based_on_inbound_seq,
+                based_on_inbound_seq=freshness_seq,
             )
             trusted_facts = _trusted_facts_for_agent(
                 gate.trust_facts,

@@ -21,15 +21,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects import postgresql
 
-
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = ROOT / "coke" / "schema.py"
 ENV_PATH = ROOT / "migrations" / "env.py"
 REVISION_PATH = (
-    ROOT
-    / "migrations"
-    / "versions"
-    / "20260529_0001_clean_rebuild_schema.py"
+    ROOT / "migrations" / "versions" / "20260529_0001_clean_rebuild_schema.py"
+)
+HEAD_REVISION_PATH = (
+    ROOT / "migrations" / "versions" / "20260531_0001_pre_reply_input_windows.py"
 )
 
 EXPECTED_TABLES = {
@@ -46,6 +45,7 @@ EXPECTED_TABLES = {
     "delivery_route",
     "delivery_attempt",
     "conversation",
+    "staged_command",
     "message",
     "inbound_media",
     "turn",
@@ -80,7 +80,10 @@ def _metadata():
 def _constraint_columns(table_name: str, constraint_name: str) -> tuple[str, ...]:
     table = _metadata().tables[table_name]
     for constraint in table.constraints:
-        if isinstance(constraint, UniqueConstraint) and constraint.name == constraint_name:
+        if (
+            isinstance(constraint, UniqueConstraint)
+            and constraint.name == constraint_name
+        ):
             return tuple(column.name for column in constraint.columns)
     raise AssertionError(f"{constraint_name} not found on {table_name}")
 
@@ -149,7 +152,9 @@ def _column_inventory(table: Table) -> dict[str, dict[str, object]]:
             "type": _type_family(column.type),
             "nullable": column.nullable,
             "foreign_keys": tuple(
-                sorted(foreign_key.target_fullname for foreign_key in column.foreign_keys)
+                sorted(
+                    foreign_key.target_fullname for foreign_key in column.foreign_keys
+                )
             ),
         }
         for column in table.columns
@@ -244,6 +249,45 @@ class RecordingOp:
     def drop_table(self, name: str, **kwargs) -> None:
         self.dropped_tables.append(name)
 
+    def add_column(self, table_name: str, column: sa.Column, **kwargs) -> None:
+        self.metadata.tables[table_name].append_column(column)
+
+    def drop_column(self, table_name: str, column_name: str, **kwargs) -> None:
+        table = self.metadata.tables[table_name]
+        table._columns.remove(table.c[column_name])
+
+    def alter_column(self, table_name: str, column_name: str, **kwargs) -> None:
+        column = self.metadata.tables[table_name].c[column_name]
+        if "server_default" in kwargs:
+            column.server_default = kwargs["server_default"]
+
+    def create_check_constraint(
+        self,
+        name: str,
+        table_name: str,
+        condition: str,
+        **kwargs,
+    ) -> None:
+        self.metadata.tables[table_name].append_constraint(
+            CheckConstraint(condition, name=name)
+        )
+
+    def drop_constraint(
+        self,
+        name: str,
+        table_name: str,
+        type_: str | None = None,
+        **kwargs,
+    ) -> None:
+        table = self.metadata.tables[table_name]
+        for constraint in list(table.constraints):
+            if constraint.name == name:
+                table.constraints.remove(constraint)
+                return
+
+    def execute(self, statement) -> None:
+        return None
+
     def f(self, name: str) -> str:
         return name
 
@@ -265,10 +309,13 @@ def _offline_sql() -> str:
     return result.stdout
 
 
-def _load_revision_module():
+def _load_revision_module(
+    revision_path: Path = REVISION_PATH,
+    module_name: str = "clean_rebuild_schema_revision_under_test",
+):
     spec = importlib.util.spec_from_file_location(
-        "clean_rebuild_schema_revision_under_test",
-        REVISION_PATH,
+        module_name,
+        revision_path,
     )
     assert spec is not None
     assert spec.loader is not None
@@ -276,6 +323,19 @@ def _load_revision_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_migration_chain():
+    return (
+        _load_revision_module(
+            REVISION_PATH,
+            "clean_rebuild_schema_initial_revision_under_test",
+        ),
+        _load_revision_module(
+            HEAD_REVISION_PATH,
+            "clean_rebuild_schema_head_revision_under_test",
+        ),
+    )
 
 
 def test_metadata_contains_exact_clean_target_tables():
@@ -419,7 +479,13 @@ def test_required_partial_unique_indexes_are_declared_for_postgres():
         ),
         (
             "conversation",
-            {"account_id", "latest_inbound_seq", "created_at", "updated_at"},
+            {
+                "account_id",
+                "latest_inbound_seq",
+                "last_closed_inbound_seq",
+                "created_at",
+                "updated_at",
+            },
         ),
         (
             "message",
@@ -443,9 +509,26 @@ def test_required_partial_unique_indexes_are_declared_for_postgres():
                 "trigger_id",
                 "trigger_type",
                 "mode",
-                "based_on_inbound_seq",
+                "input_from_seq",
+                "input_to_seq",
+                "superseded_by_inbound_seq",
                 "started_at",
                 "completed_at",
+            },
+        ),
+        (
+            "staged_command",
+            {
+                "turn_id",
+                "domain",
+                "operation",
+                "idempotency_key",
+                "command_payload",
+                "preview_facts",
+                "status",
+                "materialized_at",
+                "created_at",
+                "updated_at",
             },
         ),
         (
@@ -638,13 +721,32 @@ def test_initial_revision_has_deterministic_identity_and_no_schema_import():
     assert ".".join(["metadata", "drop_all"]) not in source
 
 
-def test_initial_revision_upgrade_matches_schema_metadata_without_live_db():
-    metadata = _metadata()
-    revision = _load_revision_module()
-    recorder = RecordingOp()
-    revision.op = recorder
+def test_pre_reply_input_window_revision_has_expected_identity():
+    source = HEAD_REVISION_PATH.read_text()
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".")[0])
 
-    revision.upgrade()
+    assert 'revision = "20260531_0001"' in source
+    assert 'down_revision = "20260529_0001"' in source
+    assert "coke" not in imported_roots
+    assert ".".join(["metadata", "create_all"]) not in source
+    assert ".".join(["metadata", "drop_all"]) not in source
+
+
+def test_migration_chain_upgrade_matches_schema_metadata_without_live_db():
+    metadata = _metadata()
+    initial_revision, head_revision = _load_migration_chain()
+    recorder = RecordingOp()
+    initial_revision.op = recorder
+    head_revision.op = recorder
+
+    initial_revision.upgrade()
+    head_revision.upgrade()
 
     assert set(recorder.metadata.tables) == set(metadata.tables)
     for table_name, expected_table in metadata.tables.items():
@@ -652,20 +754,27 @@ def test_initial_revision_upgrade_matches_schema_metadata_without_live_db():
         assert _column_inventory(recorded_table) == _column_inventory(expected_table)
         recorded_constraints = _constraint_inventory(recorded_table)
         expected_constraints = _constraint_inventory(expected_table)
-        assert recorded_constraints["primary_key"] == expected_constraints["primary_key"]
-        assert recorded_constraints["foreign_key"] == expected_constraints["foreign_key"]
+        assert (
+            recorded_constraints["primary_key"] == expected_constraints["primary_key"]
+        )
+        assert (
+            recorded_constraints["foreign_key"] == expected_constraints["foreign_key"]
+        )
         assert recorded_constraints == expected_constraints
 
     assert recorder.indexes == _index_inventory_from_metadata(metadata)
 
 
-def test_initial_revision_downgrade_drops_recorded_objects_in_reverse_order():
-    revision = _load_revision_module()
+def test_migration_chain_downgrade_drops_recorded_objects_in_reverse_order():
+    initial_revision, head_revision = _load_migration_chain()
     recorder = RecordingOp()
-    revision.op = recorder
+    initial_revision.op = recorder
+    head_revision.op = recorder
 
-    revision.upgrade()
-    revision.downgrade()
+    initial_revision.upgrade()
+    head_revision.upgrade()
+    head_revision.downgrade()
+    initial_revision.downgrade()
 
     assert [name for name, _table_name in recorder.dropped_indexes] == [
         "uq_reminder_active_no_trigger_duplicate",
@@ -674,7 +783,7 @@ def test_initial_revision_downgrade_drops_recorded_objects_in_reverse_order():
         "uq_friendship_one_active_pair",
         "uq_channel_one_active_per_account",
     ]
-    assert recorder.dropped_tables[0] == "calendar_import_item"
+    assert recorder.dropped_tables[0] == "staged_command"
     assert recorder.dropped_tables[-1] == "account"
     assert set(recorder.dropped_tables) == EXPECTED_TABLES
 
@@ -688,9 +797,9 @@ def test_initial_revision_downgrade_drops_recorded_objects_in_reverse_order():
                 continue
             for element in constraint.elements:
                 parent_name = element.column.table.name
-                assert drop_position[child_table.name] < drop_position[parent_name], (
-                    f"{child_table.name} must be dropped before {parent_name}"
-                )
+                assert (
+                    drop_position[child_table.name] < drop_position[parent_name]
+                ), f"{child_table.name} must be dropped before {parent_name}"
 
 
 def test_offline_sql_generation_smoke_contains_expected_objects():

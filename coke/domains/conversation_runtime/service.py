@@ -52,6 +52,7 @@ class ConversationRuntimeService:
                 id=self._id_factory("conversation"),
                 account_id=account_id,
                 latest_inbound_seq=0,
+                last_closed_inbound_seq=0,
                 created_at=now,
                 updated_at=now,
             )
@@ -147,7 +148,9 @@ class ConversationRuntimeService:
             trigger_id=trigger_id,
             trigger_type=trigger_type,
             mode=mode,
-            based_on_inbound_seq=conversation.latest_inbound_seq,
+            input_from_seq=conversation.latest_inbound_seq,
+            input_to_seq=conversation.latest_inbound_seq,
+            superseded_by_inbound_seq=None,
             started_at=now,
             completed_at=None,
             created_at=now,
@@ -194,6 +197,7 @@ class ConversationRuntimeService:
         disposition = self._new_disposition(turn.id, "replied", reason_code)
         self.repository.save_disposition(disposition)
         self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
+        self._advance_last_closed_inbound_seq(turn, now)
         return disposition
 
     def commit_no_reply(
@@ -214,6 +218,7 @@ class ConversationRuntimeService:
         disposition = self._new_disposition(turn.id, "no_reply", reason_code)
         self.repository.save_disposition(disposition)
         self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
+        self._advance_last_closed_inbound_seq(turn, now)
         return disposition
 
     def mark_pending_async_reply(
@@ -228,8 +233,10 @@ class ConversationRuntimeService:
             return existing
         self._ensure_turn_can_transition(existing, target="pending_async_reply")
         self._ensure_fresh(turn, based_on_inbound_seq)
+        now = self._now()
         disposition = self._new_disposition(turn.id, "pending_async_reply", reason_code)
         self.repository.save_disposition(disposition)
+        self._advance_last_closed_inbound_seq(turn, now)
         return disposition
 
     def mark_failed(self, turn_id: str, reason_code: str) -> OutputDisposition:
@@ -321,7 +328,7 @@ class ConversationRuntimeService:
         return outbox
 
     def _ensure_fresh(self, turn: Turn, based_on_inbound_seq: int | None) -> None:
-        if turn.based_on_inbound_seq != based_on_inbound_seq:
+        if turn.input_to_seq != based_on_inbound_seq:
             raise ConversationRuntimeError("based_on_inbound_seq_mismatch")
         conversation = self._lock_conversation(turn.conversation_id)
         if (
@@ -338,11 +345,33 @@ class ConversationRuntimeService:
                 },
             )
 
+    def _advance_last_closed_inbound_seq(self, turn: Turn, now: datetime) -> None:
+        if turn.input_to_seq is None:
+            return
+        conversation = self._require_conversation(turn.conversation_id)
+        if conversation.last_closed_inbound_seq >= turn.input_to_seq:
+            return
+        self.repository.save_conversation(
+            replace(
+                conversation,
+                last_closed_inbound_seq=turn.input_to_seq,
+                updated_at=now,
+            )
+        )
+
     def _record_superseded(self, turn: Turn, reason_code: str) -> OutputDisposition:
         now = self._now()
+        conversation = self._require_conversation(turn.conversation_id)
         disposition = self._new_disposition(turn.id, "superseded", reason_code)
         self.repository.save_disposition(disposition)
-        self.repository.save_turn(replace(turn, completed_at=now, updated_at=now))
+        self.repository.save_turn(
+            replace(
+                turn,
+                superseded_by_inbound_seq=conversation.latest_inbound_seq,
+                completed_at=now,
+                updated_at=now,
+            )
+        )
         return disposition
 
     def _ensure_turn_can_transition(

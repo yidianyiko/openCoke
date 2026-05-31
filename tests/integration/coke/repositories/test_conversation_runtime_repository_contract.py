@@ -20,12 +20,11 @@ from coke.domains.conversation_runtime.repository import (
 
 from .conftest import ACCOUNT_A, CONVERSATION_A, MESSAGE_A, NOW, TURN_A, seed_account
 
-
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
 def _conversation() -> Conversation:
-    return Conversation(CONVERSATION_A, ACCOUNT_A, 0, NOW, NOW)
+    return Conversation(CONVERSATION_A, ACCOUNT_A, 0, 0, NOW, NOW)
 
 
 def _message(direction: str = "inbound") -> Message:
@@ -84,6 +83,8 @@ def _turn() -> Turn:
         "inbound_message",
         "interactive",
         1,
+        1,
+        None,
         NOW,
         None,
         NOW,
@@ -99,7 +100,9 @@ def repository(request, postgres_session):
     return PostgresConversationRuntimeRepository(postgres_session)
 
 
-def test_conversation_inbound_media_turn_outbound_and_outbox_round_trip(repository) -> None:
+def test_conversation_inbound_media_turn_outbound_and_outbox_round_trip(
+    repository,
+) -> None:
     conversation = _conversation()
     repository.add_conversation(conversation)
     repository.add_inbound_message_with_media_and_outbox(
@@ -141,11 +144,14 @@ def test_conversation_uniqueness_errors_match_in_memory(repository) -> None:
     repository.add_outbound_message(_message("outbound"))
     repository.add_outbox(_outbox())
 
-    with pytest.raises(ConversationRuntimeError, match="duplicate_conversation_account"):
+    with pytest.raises(
+        ConversationRuntimeError, match="duplicate_conversation_account"
+    ):
         repository.add_conversation(
             Conversation(
                 "30000000000000000000000000000002",
                 ACCOUNT_A,
+                0,
                 0,
                 NOW,
                 NOW,
@@ -153,9 +159,7 @@ def test_conversation_uniqueness_errors_match_in_memory(repository) -> None:
         )
 
     with pytest.raises(ConversationRuntimeError, match="duplicate_turn_trigger_id"):
-        repository.add_turn(
-            replace(_turn(), id="40000000000000000000000000000002")
-        )
+        repository.add_turn(replace(_turn(), id="40000000000000000000000000000002"))
 
     with pytest.raises(ConversationRuntimeError, match="duplicate_outbound_segment"):
         repository.add_outbound_message(
@@ -165,6 +169,4 @@ def test_conversation_uniqueness_errors_match_in_memory(repository) -> None:
     with pytest.raises(
         ConversationRuntimeError, match="duplicate_outbox_idempotency_key"
     ):
-        repository.add_outbox(
-            replace(_outbox(), id="70000000000000000000000000000003")
-        )
+        repository.add_outbox(replace(_outbox(), id="70000000000000000000000000000003"))

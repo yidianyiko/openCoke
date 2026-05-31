@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from coke import schema
 
-
 NOW = datetime(2026, 5, 30, 12, 0, tzinfo=UTC)
 
 ACCOUNT_A = "00000000000000000000000000000001"
@@ -118,6 +117,7 @@ def seed_conversation(
             id=conversation_id,
             account_id=account_id,
             latest_inbound_seq=1,
+            last_closed_inbound_seq=0,
             created_at=NOW,
             updated_at=NOW,
         )
@@ -137,7 +137,9 @@ def seed_turn(
             trigger_id="trigger:seed",
             trigger_type="inbound_message",
             mode="interactive",
-            based_on_inbound_seq=1,
+            input_from_seq=1,
+            input_to_seq=1,
+            superseded_by_inbound_seq=None,
             started_at=NOW,
             completed_at=None,
             created_at=NOW,
