@@ -302,7 +302,6 @@ def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
 
 def test_ambiguous_shared_reminder_friend_request_asks_without_model():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
-    tool = FriendFollowupTool()
     agent = AgnoInteractionAgent(
         model=object(),
         agent_factory=FakeAgentFactory(fake_agent),
@@ -317,13 +316,11 @@ def test_ambiguous_shared_reminder_friend_request_asks_without_model():
         _request(
             memory_enabled=True,
             text="帮我和他约一个明天上午八点半的晨跑活动",
-            social_scheduling_tool=tool,
             current_input_messages=current_inputs,
         )
     )
 
     assert fake_agent.calls == []
-    assert tool.calls == []
     assert result.output == {
         "type": "reply",
         "segments": [

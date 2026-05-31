@@ -492,8 +492,6 @@ def _normalize_lookup_text(text: str) -> str:
 def _try_ambiguous_shared_reminder_friend_question(
     request: AgentRequest,
 ) -> AgentResult | None:
-    if request.tool_profile.social_scheduling_tool is None:
-        return None
     texts = _current_input_texts(request)
     if not any(_is_ambiguous_shared_reminder_friend_request(text) for text in texts):
         return None
