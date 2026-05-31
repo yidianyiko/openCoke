@@ -10,12 +10,11 @@
 
 ---
 
-**Plan Status:** in_progress
+**Plan Status:** complete
 **Status Date:** 2026-05-31
 **Blocker:** None. Bug A/B/C/D regression work, full unit tests, Postgres
-integration tests, clean-stack redeploy, and mocked Phase 4-6 live resume have
-fresh evidence. Bug E is open for the live shared-reminder time grounding
-regression where the agent supplied an ungrounded absolute `local_trigger_at`.
+integration tests, clean-stack redeploy, mocked Phase 4-6 live resume, and Bug
+E shared-reminder time-grounding fix all have fresh evidence.
 **Freshness Check:** Read `AGENTS.md`, `docs/design-docs/index.md`, `docs/design-docs/human-ai-working-contract.md`, master plan Task 9 and architecture-watch sections, requirements §§5.6/5.7/5.9, target architecture §§3.5/4/8/9/14/15, `coke/schema.py`, existing `identity_access`, `channel_reachability`, `coke/api/*_routes.py`, and `coke/app.py`.
 
 **Files:**
@@ -798,11 +797,14 @@ with non-blocking medium repo-OS/evidence-gap triggers.
 `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed with
 `530 passed in 16.55s` and `scripts/check` `check passed`.
 
-- [ ] **Step 6: Commit the fix**
+- [x] **Step 6: Commit the fix**
 
 Commit code, tests, and this plan update on the current `main` branch.
 
-- [ ] **Step 7: Redeploy coke-clean non-disruptively**
+Evidence:
+`7b944c32 fix: ground shared reminder time detection`
+
+- [x] **Step 7: Redeploy coke-clean non-disruptively**
 
 Take a rollback snapshot first, preserve `/home/whoami/coke-clean/.env`, run
 Alembic upgrade/check for the clean stack, deploy current `main`, and verify
@@ -810,15 +812,43 @@ clean API health, worker/scheduler/outbox-relay health, login endpoints, and
 connector session preservation. Do not recreate accounts/channels and do not
 touch evolution or connector stacks.
 
-- [ ] **Step 8: Live verify shared-reminder future times**
+Evidence:
+Rollback snapshot was captured under
+`/home/whoami/coke-clean-rollback/source-20260531T061743Z.tgz` and
+`/home/whoami/coke-clean-rollback/postgres-20260531T061743Z.dump`.
+`REMOTE_HOST=gcp-coke REMOTE_ROOT=/home/whoami/coke-clean REMOTE_OLD_ROOT=/home/whoami/coke-clean PROJECT_NAME=coke-clean COKE_CLEAN_API_PORT=8000 COKE_CLEAN_WEB_PORT=4042 COKE_CLEAN_POSTGRES_PORT=55432 COKE_CLEAN_REDIS_PORT=56379 scripts/deploy-compose-to-gcp.sh`
+completed with `clean deploy health checks passed`. Post-deploy checks:
+`api_health=200`, `web_auth_login=200`, `alembic current` reported
+`20260529_0001 (head)`, `alembic check` reported
+`No new upgrade operations detected`, clean service restart counts stayed `0`,
+and connector health was
+`{"connected":true,"connected_session_count":2,"ok":true,"status":"connected"}`.
+
+- [x] **Step 8: Live verify shared-reminder future times**
 
 Drive the connected WeChat/API path for `今天晚上10:30` and `明天晚上十点半`; confirm
 `shared_reminder.status = active`, `local_trigger_at` equals the correct future
 account-local 22:30 time, replies do not say the time has passed, logins still
 return 200, both channels remain connected, and connector `session_count = 2`.
 
-- [ ] **Step 9: Close the plan**
+Evidence:
+Connector-shaped inbound messages `codex_timefix_1780209036_today` and
+`codex_timefix_1780209036_tomorrow` were accepted with HTTP `202`.
+Production `shared_reminder` rows were created as `active` with
+`local_trigger_at=2026-05-31 22:30:00`, `captured_timezone=Asia/Shanghai`,
+`creator_account_id=ae02ff01-6fcd-4d39-a189-e51c8c8a31e6`, and
+`local_trigger_at=2026-06-01 22:30:00`, `captured_timezone=Asia/Shanghai`,
+`creator_account_id=635d3bdc-1b02-4a08-acf4-9940b91a9de5`. The outbound replies
+were confirmation text and did not include a past-time rejection; delivery
+attempts were `sent`. Both WeChat channels remained `connected`/`active` with
+active delivery routes, and connector `connected_session_count` remained `2`.
+
+- [x] **Step 9: Close the plan**
 
 Only after Steps 1-8 have evidence, update `Plan Status` to `complete`, set
 `Status Date` to the completion date, check off Task 13, and commit any plan
 closeout change.
+
+Evidence:
+Plan status is `complete` with no blocker after local verification, clean-stack
+redeploy, and live shared-reminder verification passed.
