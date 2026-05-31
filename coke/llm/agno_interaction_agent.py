@@ -440,13 +440,18 @@ def _try_resolved_shared_reminder_followup(request: AgentRequest) -> AgentResult
     assistant_question = str(pending.get("assistant_question") or "").strip()
     if _is_affirmative_followup(answer) and assistant_question:
         lookup_texts.append(assistant_question)
-    matches = [
+    candidate_friends = [
         friend
         for friend in friends
-        if isinstance(friend, Mapping)
-        and friend.get("account_id")
-        and any(_friend_name_matches_answer(friend, text) for text in lookup_texts)
+        if isinstance(friend, Mapping) and friend.get("account_id")
     ]
+    matches = [
+        friend
+        for friend in candidate_friends
+        if any(_friend_name_matches_answer(friend, text) for text in lookup_texts)
+    ]
+    if not matches and _is_affirmative_followup(answer) and len(candidate_friends) == 1:
+        matches = candidate_friends
     if len(matches) != 1:
         return None
     friend = matches[0]

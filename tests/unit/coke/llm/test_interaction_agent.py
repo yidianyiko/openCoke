@@ -337,6 +337,43 @@ def test_affirmative_shared_reminder_followup_uses_friend_named_in_question():
     ]
 
 
+def test_affirmative_shared_reminder_followup_uses_only_active_friend():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
+    tool = FriendFollowupTool()
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="是的",
+            social_scheduling_tool=tool,
+            trusted_facts={
+                "default_timezone": "Asia/Shanghai",
+                "current_time": "2026-05-31T14:02:00+08:00",
+                "pending_clarification_resolution": {
+                    "type": "shared_reminder_friend_answer",
+                    "answer": "是的",
+                    "original_user_text": "帮我和他约一个明天上午八点半的晨跑活动",
+                    "assistant_question": '约晨跑的话，"他"是哪位好友?',
+                },
+            },
+        )
+    )
+
+    assert fake_agent.calls == []
+    assert result.output == {
+        "type": "reply",
+        "segments": ["好的，已帮你和lizihao创建这个共享提醒"],
+    }
+    assert [call[0]["operation"] for call in tool.calls] == [
+        "list_friends",
+        "create_shared_reminder",
+    ]
+
+
 def test_ambiguous_shared_reminder_friend_request_asks_without_model():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
     agent = AgnoInteractionAgent(
