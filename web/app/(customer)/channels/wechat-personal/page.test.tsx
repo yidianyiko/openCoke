@@ -403,6 +403,36 @@ describe('CustomerWechatPersonalPage branded layout', () => {
       'data:image/png;base64,QR1',
     );
   });
+
+  it('does not show a stale connect failure alert when the channel is connected', async () => {
+    getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'connected',
+        channel_id: 'channel_1',
+      },
+    });
+    disconnectCustomerWechatChannelMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'Temporary connector failure',
+    });
+
+    renderWithLocale(root, 'en');
+    await waitForText(container, 'Your personal WeChat channel is connected and ready.');
+
+    const disconnectButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Disconnect WeChat'),
+    );
+    expect(disconnectButton).toBeTruthy();
+    disconnectButton?.click();
+
+    await flushTicks(5);
+
+    expect(container.textContent).toContain('Your personal WeChat channel is connected and ready.');
+    expect(container.textContent).not.toContain(
+      'The last connect attempt failed. Retry or archive this channel.',
+    );
+  });
 });
 
 describe('CustomerWechatPersonalPage sign out', () => {

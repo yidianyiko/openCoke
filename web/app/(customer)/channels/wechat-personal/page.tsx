@@ -480,6 +480,7 @@ export default function CustomerWechatPersonalPage() {
 
   const statusDescription = getChannelStatusDescription(channel.status, copy);
   const nextSteps = getChannelNextSteps(channel.status, copy);
+  const visibleActionError = channel.status === 'connected' ? null : actionError;
 
   return (
     <ChannelSetupCard
@@ -491,8 +492,8 @@ export default function CustomerWechatPersonalPage() {
           : ''
       }`}
     >
-      {actionError ? (
-        <div className="auth-alert auth-alert--warning customer-channel-page__alert">{actionError}</div>
+      {visibleActionError ? (
+        <div className="auth-alert auth-alert--warning customer-channel-page__alert">{visibleActionError}</div>
       ) : null}
 
       {statusDescription ? (
