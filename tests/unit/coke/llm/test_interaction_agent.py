@@ -92,6 +92,11 @@ class FriendFollowupTool:
                 ok=True,
                 facts={"status": "created", "shared_reminder_id": "shared_1"},
             )
+        if command["operation"] == "create_shared_reminder":
+            return ToolExecutionResult(
+                ok=True,
+                facts={"status": "created", "shared_reminder_id": "shared_1"},
+            )
         raise AssertionError(command)
 
 
@@ -270,10 +275,12 @@ def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
             text="lizihao",
             social_scheduling_tool=tool,
             trusted_facts={
+                "default_timezone": "Asia/Shanghai",
+                "current_time": "2026-05-31T14:02:00+08:00",
                 "pending_clarification_resolution": {
                     "type": "shared_reminder_friend_answer",
                     "answer": "lizihao",
-                    "original_user_text": "帮我和他约一个2029年1月1日上午八点半的晨跑活动",
+                    "original_user_text": "帮我和他约一个明天上午八点半的晨跑活动",
                 }
             },
         )
@@ -286,10 +293,11 @@ def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
     }
     assert [call[0]["operation"] for call in tool.calls] == [
         "list_friends",
-        "detect_and_create_shared_reminder",
+        "create_shared_reminder",
     ]
     assert tool.calls[1][0]["receiver_account_ids"] == ["friend_1"]
-    assert "好友是lizihao" in tool.calls[1][0]["raw_text"]
+    assert tool.calls[1][0]["title"] == "晨跑活动"
+    assert tool.calls[1][0]["local_trigger_at"] == "2026-06-01T08:30:00+08:00"
 
 
 def test_fenced_json_agno_response_maps_to_agent_result():

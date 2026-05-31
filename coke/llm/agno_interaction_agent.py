@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, is_dataclass
+from datetime import datetime, timedelta
 import json
+import re
 from typing import Any, Mapping
 from uuid import uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agno.agent import Agent
 from agno.db.postgres import PostgresDb
@@ -418,23 +421,31 @@ def _try_resolved_shared_reminder_followup(request: AgentRequest) -> AgentResult
         return None
     friend = matches[0]
     friend_name = str(friend.get("display_name") or answer)
-    create_result = port.execute(
-        {
-            "operation": "detect_and_create_shared_reminder",
-            "creator_account_id": request.account_id,
-            "receiver_account_ids": [str(friend["account_id"])],
-            "raw_text": f"{original_text}，好友是{friend_name}",
-            "captured_timezone": str(
-                request.trusted_facts.get("default_timezone") or "UTC"
-            ),
-            "context": {
-                "source": "conversation_followup",
-                "original_user_text": original_text,
-                "friend_answer": answer,
-            },
+    timezone_name = str(request.trusted_facts.get("default_timezone") or "UTC")
+    command = _direct_shared_reminder_create_command(
+        original_text,
+        creator_account_id=request.account_id,
+        receiver_account_ids=[str(friend["account_id"])],
+        captured_timezone=timezone_name,
+        current_time=str(request.trusted_facts.get("current_time") or ""),
+        context={
+            "source": "conversation_followup",
+            "original_user_text": original_text,
+            "friend_answer": answer,
         },
-        request.freshness_guard,
-    )
+    ) or {
+        "operation": "detect_and_create_shared_reminder",
+        "creator_account_id": request.account_id,
+        "receiver_account_ids": [str(friend["account_id"])],
+        "raw_text": f"{original_text}，好友是{friend_name}",
+        "captured_timezone": timezone_name,
+        "context": {
+            "source": "conversation_followup",
+            "original_user_text": original_text,
+            "friend_answer": answer,
+        },
+    }
+    create_result = port.execute(command, request.freshness_guard)
     if create_result.ok:
         return AgentResult.completed(
             {
@@ -470,6 +481,121 @@ def _friend_name_matches_answer(friend: Mapping[str, Any], answer: str) -> bool:
 
 def _normalize_lookup_text(text: str) -> str:
     return text.casefold().strip(" \t\r\n.!?。！？~～")
+
+
+def _direct_shared_reminder_create_command(
+    text: str,
+    *,
+    creator_account_id: str,
+    receiver_account_ids: list[str],
+    captured_timezone: str,
+    current_time: str,
+    context: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    local_trigger_at = _explicit_zh_local_datetime(
+        text, captured_timezone=captured_timezone, current_time=current_time
+    )
+    title = _shared_reminder_title(text)
+    if local_trigger_at is None or title is None:
+        return None
+    return {
+        "operation": "create_shared_reminder",
+        "creator_account_id": creator_account_id,
+        "receiver_account_ids": receiver_account_ids,
+        "title": title,
+        "local_trigger_at": local_trigger_at.isoformat(),
+        "captured_timezone": captured_timezone,
+        "duration_minutes": 15,
+        "context": dict(context),
+    }
+
+
+def _explicit_zh_local_datetime(
+    text: str, *, captured_timezone: str, current_time: str
+) -> datetime | None:
+    try:
+        zone = ZoneInfo(captured_timezone)
+        now = datetime.fromisoformat(current_time).astimezone(zone)
+    except (ValueError, ZoneInfoNotFoundError):
+        return None
+
+    date_match = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", text)
+    if date_match:
+        year, month, day = (int(part) for part in date_match.groups())
+        base_date = datetime(year, month, day, tzinfo=zone).date()
+    elif "明天" in text:
+        base_date = (now + timedelta(days=1)).date()
+    elif "后天" in text:
+        base_date = (now + timedelta(days=2)).date()
+    elif "今天" in text:
+        base_date = now.date()
+    else:
+        return None
+
+    time_match = re.search(
+        r"(凌晨|早上|上午|中午|下午|晚上|今晚)?\s*"
+        r"([零一二三四五六七八九十两\d]{1,3})点"
+        r"(半|[零一二三四五六七八九十两\d]{1,3}分?)?",
+        text,
+    )
+    if time_match is None:
+        return None
+    period, hour_text, minute_text = time_match.groups()
+    hour = _zh_number(hour_text)
+    if hour is None or hour > 24:
+        return None
+    minute = 30 if minute_text == "半" else 0
+    if minute_text and minute_text != "半":
+        minute = _zh_number(minute_text.removesuffix("分")) or -1
+    if minute < 0 or minute > 59:
+        return None
+    if period in {"下午", "晚上", "今晚"} and hour < 12:
+        hour += 12
+    if period == "中午" and hour < 11:
+        hour += 12
+    if hour == 24:
+        hour = 0
+    return datetime.combine(base_date, datetime.min.time(), tzinfo=zone).replace(
+        hour=hour, minute=minute
+    )
+
+
+def _zh_number(text: str) -> int | None:
+    if text.isdigit():
+        return int(text)
+    digits = {
+        "零": 0,
+        "一": 1,
+        "二": 2,
+        "两": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+    }
+    if text in digits:
+        return digits[text]
+    if text == "十":
+        return 10
+    if "十" in text:
+        left, _, right = text.partition("十")
+        tens = digits.get(left, 1) if left else 1
+        ones = digits.get(right, 0) if right else 0
+        return tens * 10 + ones
+    return None
+
+
+def _shared_reminder_title(text: str) -> str | None:
+    explicit = re.search(r"标题是(.+)$", text)
+    if explicit:
+        title = explicit.group(1).strip(" ，,。.!?？")
+        return title or None
+    if "晨跑" in text:
+        return "晨跑活动" if "活动" in text else "晨跑"
+    return None
 
 
 def _tool_doc(name: str) -> str:
