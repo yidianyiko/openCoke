@@ -156,6 +156,12 @@ class FakeInteractionAgent:
             }
         )
 
+    async def ainvoke(self, request: AgentRequest) -> AgentResult:
+        return self.invoke(request)
+
+    async def cancel(self, run_id: str) -> bool:
+        return True
+
     def complete_async(self, task_id: str) -> AgentResult:
         return AgentResult.completed(
             {
@@ -438,9 +444,7 @@ class ReminderToolAdapter:
             preflight_error = _validate_reminder_staged_write(command, operation)
             if preflight_error is not None:
                 return preflight_error
-            owner = _required_str(
-                command, "owner_account_id", default_key="account_id"
-            )
+            owner = _required_str(command, "owner_account_id", default_key="account_id")
             staged = _staged_command_result(
                 guard,
                 domain="reminder",
@@ -833,9 +837,7 @@ class CalendarImportToolAdapter:
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
         if _guard_can_stage(guard):
-            preflight_error = _validate_calendar_import_staged_write(
-                command, operation
-            )
+            preflight_error = _validate_calendar_import_staged_write(command, operation)
             if preflight_error is not None:
                 return preflight_error
             staged = _staged_command_result(
@@ -909,9 +911,7 @@ class IdentityAccessToolAdapter:
             return self.execute_without_staging(command, guard)
 
         if _guard_can_stage(guard):
-            preflight_error = _validate_identity_access_staged_write(
-                command, operation
-            )
+            preflight_error = _validate_identity_access_staged_write(command, operation)
             if preflight_error is not None:
                 return preflight_error
             staged = _staged_command_result(
@@ -1380,6 +1380,7 @@ def _llm_from_settings(settings: Settings):
         interaction_model=settings.interaction_model,
         interpreter_model=settings.interpreter_model,
         detector_model=settings.detector_model,
+        interaction_timeout_s=settings.interaction_timeout_s,
         agno_database_url=settings.agno_database_url,
         agno_create_schema=settings.agno_create_schema,
     )
@@ -1492,9 +1493,7 @@ def _validate_reminder_staged_write(
                     raise ValueError("items_invalid")
                 item_operation = _required_str(item, "operation")
                 if item_operation not in {"create", "detect_and_create"}:
-                    return _unsupported_tool_operation(
-                        "unsupported_reminder_operation"
-                    )
+                    return _unsupported_tool_operation("unsupported_reminder_operation")
                 _reminder_batch_item(item, turn_id=None, item_index=index)
                 if item_operation == "create" and not item.get("content"):
                     return _tool_validation_error("needs_content")

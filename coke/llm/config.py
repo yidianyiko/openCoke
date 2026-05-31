@@ -13,6 +13,7 @@ SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
 DEFAULT_INTERACTION_MODEL = "Pro/zai-org/GLM-5.1"
 DEFAULT_INTERPRETER_MODEL = "Pro/zai-org/GLM-5.1"
 DEFAULT_DETECTOR_MODEL = "Pro/zai-org/GLM-5.1"
+DEFAULT_INTERACTION_TIMEOUT_S = 45.0
 
 
 class LLMConfigurationError(RuntimeError):
@@ -26,6 +27,7 @@ class SiliconFlowLLMConfig:
     interaction_model: str = DEFAULT_INTERACTION_MODEL
     interpreter_model: str = DEFAULT_INTERPRETER_MODEL
     detector_model: str = DEFAULT_DETECTOR_MODEL
+    interaction_timeout_s: float = DEFAULT_INTERACTION_TIMEOUT_S
     agno_database_url: str | None = None
     agno_create_schema: bool = False
 
@@ -50,12 +52,20 @@ class SiliconFlowLLMConfig:
             detector_model=_optional_model(
                 source, "COKE_DETECTOR_MODEL", DEFAULT_DETECTOR_MODEL
             ),
+            interaction_timeout_s=_positive_float(
+                source,
+                "COKE_INTERACTION_TIMEOUT_S",
+                DEFAULT_INTERACTION_TIMEOUT_S,
+            ),
             agno_database_url=_optional_database_url(source),
             agno_create_schema=_bool_env(source, "COKE_AGNO_CREATE_SCHEMA"),
         )
 
     def create_interaction_model(self) -> OpenAILike:
-        return self._create_model(self.interaction_model)
+        return self._create_model(
+            self.interaction_model,
+            timeout=self.interaction_timeout_s,
+        )
 
     def create_interpreter_model(self) -> OpenAILike:
         return self._create_model(self.interpreter_model)
@@ -71,13 +81,17 @@ class SiliconFlowLLMConfig:
         model_id: str,
         *,
         extra_body: dict | None = None,
+        timeout: float | None = None,
     ) -> OpenAILike:
-        return OpenAILike(
-            id=model_id,
-            api_key=self.api_key,
-            base_url=self.base_url,
-            extra_body=extra_body,
-        )
+        kwargs = {
+            "id": model_id,
+            "api_key": self.api_key,
+            "base_url": self.base_url,
+            "extra_body": extra_body,
+        }
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        return OpenAILike(**kwargs)
 
 
 def _required(source: Mapping[str, str], key: str) -> str:
@@ -101,3 +115,16 @@ def _optional_database_url(source: Mapping[str, str]) -> str | None:
 def _bool_env(source: Mapping[str, str], key: str) -> bool:
     value = (source.get(key) or "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _positive_float(source: Mapping[str, str], key: str, default: float) -> float:
+    raw = (source.get(key) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise LLMConfigurationError(f"{key} must be a positive number") from error
+    if value <= 0:
+        raise LLMConfigurationError(f"{key} must be a positive number")
+    return value

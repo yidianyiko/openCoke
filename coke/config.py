@@ -7,6 +7,7 @@ from typing import Mapping
 from coke.llm.config import (
     DEFAULT_DETECTOR_MODEL,
     DEFAULT_INTERACTION_MODEL,
+    DEFAULT_INTERACTION_TIMEOUT_S,
     DEFAULT_INTERPRETER_MODEL,
     SILICONFLOW_BASE_URL,
 )
@@ -36,6 +37,7 @@ class Settings:
     interaction_model: str = DEFAULT_INTERACTION_MODEL
     interpreter_model: str = DEFAULT_INTERPRETER_MODEL
     detector_model: str = DEFAULT_DETECTOR_MODEL
+    interaction_timeout_s: float = DEFAULT_INTERACTION_TIMEOUT_S
     agno_database_url: str | None = None
     agno_create_schema: bool = False
     llm_fake: bool = False
@@ -61,7 +63,9 @@ class Settings:
         app_env = (source.get("APP_ENV") or "local").strip() or "local"
 
         if not database_url:
-            raise ConfigurationError("DATABASE_URL is required for Coke backend startup")
+            raise ConfigurationError(
+                "DATABASE_URL is required for Coke backend startup"
+            )
         if not redis_url:
             raise ConfigurationError("REDIS_URL is required for Coke backend startup")
 
@@ -89,7 +93,9 @@ class Settings:
                 source, "COKE_PROVIDER_WECHAT_ECLOUD_ENDPOINT_URL"
             ),
             wechat_ecloud_token=_optional(source, "COKE_PROVIDER_WECHAT_ECLOUD_TOKEN"),
-            wechat_ecloud_app_id=_optional(source, "COKE_PROVIDER_WECHAT_ECLOUD_APP_ID"),
+            wechat_ecloud_app_id=_optional(
+                source, "COKE_PROVIDER_WECHAT_ECLOUD_APP_ID"
+            ),
             linq_endpoint_url=_optional(source, "COKE_PROVIDER_LINQ_ENDPOINT_URL"),
             linq_api_key=_optional(source, "COKE_PROVIDER_LINQ_API_KEY"),
             siliconflow_api_key=siliconflow_api_key,
@@ -97,15 +103,18 @@ class Settings:
                 _optional(source, "SILICONFLOW_BASE_URL") or SILICONFLOW_BASE_URL
             ),
             interaction_model=(
-                _optional(source, "COKE_INTERACTION_MODEL")
-                or DEFAULT_INTERACTION_MODEL
+                _optional(source, "COKE_INTERACTION_MODEL") or DEFAULT_INTERACTION_MODEL
             ),
             interpreter_model=(
-                _optional(source, "COKE_INTERPRETER_MODEL")
-                or DEFAULT_INTERPRETER_MODEL
+                _optional(source, "COKE_INTERPRETER_MODEL") or DEFAULT_INTERPRETER_MODEL
             ),
             detector_model=(
                 _optional(source, "COKE_DETECTOR_MODEL") or DEFAULT_DETECTOR_MODEL
+            ),
+            interaction_timeout_s=_positive_float(
+                source,
+                "COKE_INTERACTION_TIMEOUT_S",
+                DEFAULT_INTERACTION_TIMEOUT_S,
             ),
             agno_database_url=(
                 _optional(source, "COKE_AGNO_DATABASE_URL") or database_url
@@ -114,13 +123,12 @@ class Settings:
             llm_fake=llm_fake,
             google_client_id=_optional(source, "COKE_GOOGLE_CLIENT_ID"),
             google_client_secret=_optional(source, "COKE_GOOGLE_CLIENT_SECRET"),
-            google_calendar_id=_optional(source, "COKE_GOOGLE_CALENDAR_ID") or "primary",
+            google_calendar_id=_optional(source, "COKE_GOOGLE_CALENDAR_ID")
+            or "primary",
             lock_ttl_ms=_positive_int(source, "COKE_LOCK_TTL_MS", 30_000),
             work_stream_name=_optional(source, "COKE_WORK_STREAM") or "coke.work",
             work_group_name=_optional(source, "COKE_WORK_GROUP") or "workers",
-            work_consumer_name=(
-                _optional(source, "COKE_WORK_CONSUMER") or "worker-1"
-            ),
+            work_consumer_name=(_optional(source, "COKE_WORK_CONSUMER") or "worker-1"),
             reply_channel_prefix=(
                 _optional(source, "COKE_REPLY_CHANNEL_PREFIX") or "coke:reply"
             ),
@@ -131,9 +139,7 @@ class Settings:
             worker_reclaim_idle_ms=_positive_int(
                 source, "COKE_WORKER_RECLAIM_IDLE_MS", 60_000
             ),
-            scheduler_interval_s=_positive_int(
-                source, "COKE_SCHEDULER_INTERVAL_S", 60
-            ),
+            scheduler_interval_s=_positive_int(source, "COKE_SCHEDULER_INTERVAL_S", 60),
         )
 
 

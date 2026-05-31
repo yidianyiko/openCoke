@@ -128,6 +128,12 @@ class AgnoInteractionAgent:
     def invoke(self, request: AgentRequest) -> AgentResult:
         return self._run_request(request, store_timeout=True)
 
+    async def ainvoke(self, request: AgentRequest) -> AgentResult:
+        return await self._arun_request(request, store_timeout=True)
+
+    async def cancel(self, run_id: str) -> bool:
+        return bool(await Agent.acancel_run(run_id))
+
     def complete_async(self, task_id: str) -> AgentResult:
         request = self._async_requests.pop(task_id, None)
         if request is None:
@@ -137,8 +143,35 @@ class AgnoInteractionAgent:
     def _run_request(
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
+        agent = self._build_agent(request)
+        try:
+            run_output = agent.run(
+                _agent_input(request),
+                **self._run_kwargs(request),
+            )
+        except TimeoutError:
+            return self._timeout_result(request, store_timeout=store_timeout)
+        return _agent_result_from_content(getattr(run_output, "content", None))
+
+    async def _arun_request(
+        self, request: AgentRequest, *, store_timeout: bool
+    ) -> AgentResult:
+        agent = self._build_agent(request)
+        try:
+            run_output = await agent.arun(
+                _agent_input(request),
+                **self._run_kwargs(
+                    request,
+                    run_id=request.run_id or request.turn_id,
+                ),
+            )
+        except TimeoutError:
+            return self._timeout_result(request, store_timeout=store_timeout)
+        return _agent_result_from_content(getattr(run_output, "content", None))
+
+    def _build_agent(self, request: AgentRequest):
         long_term_enabled = bool(request.trusted_facts.get("memory_enabled", True))
-        agent = self.agent_factory(
+        return self.agent_factory(
             model=self.model,
             db=self.db,
             memory_manager=self._memory_manager(long_term_enabled),
@@ -154,25 +187,38 @@ class AgnoInteractionAgent:
             use_json_mode=True,
             parse_response=False,
         )
-        try:
-            run_output = agent.run(
-                _agent_input(request),
-                user_id=request.account_id,
-                session_id=request.conversation_id,
-                metadata={
-                    "turn_id": request.turn_id,
-                    "trigger_type": request.trigger_type,
-                    "mode": str(request.mode),
-                },
-                add_session_state_to_context=False,
-            )
-        except TimeoutError:
-            if not store_timeout:
-                return AgentResult.timeout(self.task_id_factory())
-            task_id = self.task_id_factory()
-            self._async_requests[task_id] = request
-            return AgentResult.timeout(task_id)
-        return _agent_result_from_content(getattr(run_output, "content", None))
+
+    def _run_kwargs(
+        self,
+        request: AgentRequest,
+        *,
+        run_id: str | None = None,
+    ) -> dict[str, Any]:
+        kwargs = {
+            "user_id": request.account_id,
+            "session_id": request.conversation_id,
+            "metadata": {
+                "turn_id": request.turn_id,
+                "trigger_type": request.trigger_type,
+                "mode": str(request.mode),
+            },
+            "add_session_state_to_context": False,
+        }
+        if run_id is not None:
+            kwargs["run_id"] = run_id
+        return kwargs
+
+    def _timeout_result(
+        self,
+        request: AgentRequest,
+        *,
+        store_timeout: bool,
+    ) -> AgentResult:
+        if not store_timeout:
+            return AgentResult.timeout(self.task_id_factory())
+        task_id = self.task_id_factory()
+        self._async_requests[task_id] = request
+        return AgentResult.timeout(task_id)
 
     def _memory_manager(self, long_term_enabled: bool):
         if self.db is None:

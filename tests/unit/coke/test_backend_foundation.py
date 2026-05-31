@@ -49,6 +49,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     monkeypatch.setenv("COKE_INTERACTION_MODEL", "custom/interaction")
     monkeypatch.setenv("COKE_INTERPRETER_MODEL", "custom/interpreter")
     monkeypatch.setenv("COKE_DETECTOR_MODEL", "custom/detector")
+    monkeypatch.delenv("COKE_INTERACTION_TIMEOUT_S", raising=False)
     monkeypatch.setenv("COKE_GOOGLE_CLIENT_ID", "google-client")
     monkeypatch.setenv("COKE_GOOGLE_CLIENT_SECRET", "google-secret")
     monkeypatch.setenv("COKE_LOCK_TTL_MS", "45000")
@@ -67,6 +68,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     assert settings.interaction_model == "custom/interaction"
     assert settings.interpreter_model == "custom/interpreter"
     assert settings.detector_model == "custom/detector"
+    assert settings.interaction_timeout_s == 45.0
     assert settings.google_client_id == "google-client"
     assert settings.google_client_secret == "google-secret"
     assert settings.lock_ttl_ms == 45000
@@ -75,6 +77,19 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     assert settings.work_consumer_name == "worker-a"
     assert settings.reply_channel_prefix == "coke:reply:test"
     assert settings.llm_fake is False
+
+
+def test_settings_from_env_reads_interaction_timeout(monkeypatch):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.setenv("COKE_INTERACTION_TIMEOUT_S", "18.75")
+
+    settings = Settings.from_env()
+
+    assert settings.interaction_timeout_s == 18.75
 
 
 def test_settings_from_env_allows_fake_llm_without_siliconflow_key(monkeypatch):

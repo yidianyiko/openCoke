@@ -26,7 +26,14 @@ class FakeAgentInstance:
         self.calls = [] if self.calls is None else self.calls
 
     def run(self, input, **kwargs):
-        self.calls.append({"input": input, "kwargs": kwargs})
+        self.calls.append({"method": "run", "input": input, "kwargs": kwargs})
+        if self.raise_timeout_once:
+            self.raise_timeout_once = False
+            raise TimeoutError("budget exceeded")
+        return RunOutput(content=self.content)
+
+    async def arun(self, input, **kwargs):
+        self.calls.append({"method": "arun", "input": input, "kwargs": kwargs})
         if self.raise_timeout_once:
             self.raise_timeout_once = False
             raise TimeoutError("budget exceeded")
@@ -124,6 +131,41 @@ def test_invoke_maps_valid_agno_response_to_agent_result():
     assert factory.agent_kwargs[0]["add_memories_to_context"] is True
     assert factory.agent_kwargs[0]["enable_agentic_memory"] is False
     assert factory.agent_kwargs[0]["update_memory_on_run"] is False
+
+
+async def test_ainvoke_uses_arun_with_deterministic_run_id():
+    fake_agent = FakeAgentInstance(
+        content={"type": "reply", "segments": ["hello async"]}
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    result = await agent.ainvoke(
+        _request(memory_enabled=True, run_id="run_from_request")
+    )
+
+    assert result.output == {"type": "reply", "segments": ["hello async"]}
+    assert result.timed_out is False
+    assert fake_agent.calls[0]["method"] == "arun"
+    assert fake_agent.calls[0]["kwargs"]["run_id"] == "run_from_request"
+    assert fake_agent.calls[0]["kwargs"]["session_id"] == "conversation_1"
+    assert fake_agent.calls[0]["kwargs"]["user_id"] == "account_1"
+
+
+async def test_cancel_run_calls_agno_cancel_hook(monkeypatch):
+    calls = []
+
+    async def fake_cancel_run(run_id: str) -> bool:
+        calls.append(run_id)
+        return True
+
+    monkeypatch.setattr(agno_agent_module.Agent, "acancel_run", fake_cancel_run)
+    agent = AgnoInteractionAgent(model=object())
+
+    cancelled = await agent.cancel("run_to_cancel")
+
+    assert cancelled is True
+    assert calls == ["run_to_cancel"]
 
 
 def test_malformed_agno_response_is_not_rewritten_to_prose():
@@ -1434,6 +1476,7 @@ def _request(
     trusted_facts: dict[str, Any] | None = None,
     context: Any | None = None,
     current_input_messages: tuple[Any, ...] = (),
+    run_id: str | None = None,
 ) -> AgentRequest:
     tool_kwargs = {
         "reminder_tool": reminder_tool,
@@ -1462,6 +1505,7 @@ def _request(
         freshness_guard=guard or object(),
         context={"memory": ["recent"]} if context is None else context,
         current_input_messages=current_input_messages,
+        run_id=run_id,
     )
 
 
