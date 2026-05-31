@@ -1163,6 +1163,50 @@ def test_denied_access_gate_yields_access_denied_turn_rendered_in_constrained_mo
     assert conversation.last_closed_inbound_seq == 1
 
 
+@pytest.mark.asyncio
+async def test_async_denied_access_gate_uses_async_agent_path(harness):
+    class AsyncOnlyAgent(FakeAgent):
+        def invoke(self, request):
+            raise AssertionError("async access-denied turns must not call invoke")
+
+        async def ainvoke(self, request):
+            self.invocations += 1
+            self.requests.append(request)
+            return self.next_result
+
+    agent = AsyncOnlyAgent()
+    agent.next_result = AgentResult.completed(
+        {"type": "reply", "segments": ["Your access needs attention."]}
+    )
+    harness["gate_port"].allowed = False
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-async-denied",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=agent,
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+    )
+
+    result = await runner.run_inbound_turn_async(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.trigger_type == "AccessDeniedTurn"
+    assert agent.invocations == 1
+    request = agent.requests[-1]
+    assert request.mode == TurnMode.RENDER
+    assert request.tool_profile == ToolProfile.render(constrained=True)
+
+
 def test_render_mode_exposes_no_intent_or_business_mutation_tools(harness):
     result = harness["runner"].run_render_turn(
         TurnTrigger(

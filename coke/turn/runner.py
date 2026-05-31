@@ -182,6 +182,7 @@ class TurnRunner:
                 turn_id=start.turn.id,
                 input_from_seq=start.turn.input_from_seq,
                 input_to_seq=start.turn.input_to_seq,
+                current_input_messages=start.input_messages,
             )
 
         lock = self.lock_manager.acquire(trigger.conversation_id)
@@ -298,12 +299,13 @@ class TurnRunner:
                 return replay_result
             gate = self.pre_llm_gate.evaluate(trigger)
             if not gate.permitted:
-                return self._run_access_denied_turn(
+                return await self._run_access_denied_turn_async(
                     trigger=trigger,
                     gate=gate,
                     turn_id=start.turn.id,
                     input_from_seq=start.turn.input_from_seq,
                     input_to_seq=start.turn.input_to_seq,
+                    current_input_messages=start.input_messages,
                 )
 
             lock = self.lock_manager.acquire(trigger.conversation_id)
@@ -447,6 +449,7 @@ class TurnRunner:
         turn_id: str,
         input_from_seq: int | None = None,
         input_to_seq: int | None = None,
+        current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
         render_trigger = TurnTrigger(
             trigger_id=f"{trigger.trigger_id}:access_denied",
@@ -503,8 +506,88 @@ class TurnRunner:
                 freshness_guard=freshness_guard,
                 tool_profile=ToolProfile.render(constrained=True),
                 turn_source=trusted_facts["turn_source"],
+                current_input_messages=current_input_messages,
             )
             return self._invoke_agent_and_record(
+                render_trigger,
+                context,
+                semantic_decision=None,
+            )
+        except ConversationRuntimeError as error:
+            return self._conversation_runtime_error_result(
+                turn_id, render_trigger, error
+            )
+        finally:
+            lock.release()
+
+    async def _run_access_denied_turn_async(
+        self,
+        *,
+        trigger: TurnTrigger,
+        gate: GateDecision,
+        turn_id: str,
+        input_from_seq: int | None = None,
+        input_to_seq: int | None = None,
+        current_input_messages: tuple[Any, ...] = (),
+    ) -> TurnRunResult:
+        render_trigger = TurnTrigger(
+            trigger_id=f"{trigger.trigger_id}:access_denied",
+            trigger_type="AccessDeniedTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=trigger.conversation_id,
+            account_id=trigger.account_id,
+            channel_identity_id=trigger.channel_identity_id,
+            payload={
+                "access_denied": True,
+                "denial_reason": gate.denial_reason,
+                "facts": gate.access_facts,
+            },
+        )
+        render_gate = GateDecision.allowed(
+            trust_facts={
+                "account_id": trigger.account_id,
+                "denial_reason": gate.denial_reason,
+                **gate.access_facts,
+            }
+        )
+        lock = self.lock_manager.acquire(trigger.conversation_id)
+        if lock is None:
+            disposition = self.conversation_runtime.mark_failed(
+                turn_id, "conversation_lock_unavailable"
+            )
+            return self._result_from_disposition(
+                turn_id=turn_id,
+                trigger=render_trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+            )
+        try:
+            freshness_guard = FreshnessGuard(
+                conversation_runtime=self.conversation_runtime,
+                turn_id=turn_id,
+                input_from_seq=input_from_seq,
+                input_to_seq=input_to_seq,
+            )
+            trusted_facts = _trusted_facts_for_agent(
+                render_gate.trust_facts,
+                trigger=render_trigger,
+                semantic_decision=None,
+                now=self._now,
+                account_timezone=self._account_timezone,
+            )
+            context = self.context_assembler.build(
+                trigger=render_trigger,
+                trusted_facts=trusted_facts,
+                semantic_decision=None,
+                focus_subject=None,
+                reference_resolution=None,
+                memory_context=None,
+                freshness_guard=freshness_guard,
+                tool_profile=ToolProfile.render(constrained=True),
+                turn_source=trusted_facts["turn_source"],
+                current_input_messages=current_input_messages,
+            )
+            return await self._invoke_agent_and_record_async(
                 render_trigger,
                 context,
                 semantic_decision=None,
