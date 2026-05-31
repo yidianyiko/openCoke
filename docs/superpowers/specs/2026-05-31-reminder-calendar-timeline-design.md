@@ -87,6 +87,24 @@ timeline. This matches the common planning window and follows the same product
 lesson as TickTick's hidden overnight hours: the calendar should not spend most
 of the screen on low-value time.
 
+Slot placement uses reminder-local values exactly as returned by the customer
+reminders API:
+
+- `localDate` chooses the day column. The frontend must not convert the reminder
+  through UTC before choosing a column.
+- `localTime.slice(0, 2)` chooses the hour slot for reminders in the visible
+  range.
+- Cards inside a day/hour slot are sorted by full `localTime` ascending, then
+  by title, then by id for deterministic ordering.
+- Cards preserve the full minute display, so `06:15` and `06:45` both appear in
+  the `06:00` slot but still render their exact times.
+
+Timezone and daylight-saving behavior stays reminder-local for this iteration.
+The page treats `localDate`, `localTime`, and `timezone` as display/read-model
+facts from the Reminder domain; it does not recompute the local occurrence from
+UTC in the browser. A reminder on a daylight-saving boundary still renders in
+the day/hour given by its own local fields.
+
 Each day column has:
 
 - A day header with weekday, date, and a visual today marker.
@@ -124,6 +142,14 @@ API is renamed; this design does not require a backend rename.
 Multiple reminders at the same hour stack vertically inside the hour slot. This
 avoids a first-iteration collision layout and keeps dense days readable.
 
+Outside-hours reminders use the same card component and the same `Edit`,
+`Complete`, and `Delete` actions as visible-hour reminders. The strip appears
+below the day header and above the `06:00` slot. Items are sorted by full
+`localTime` ascending. Show at most three outside-hours cards by default; if
+more exist, show a passive `+N more outside visible hours` line after the third
+card. The first iteration does not need to expand that collapsed count because
+editing those hidden cards would require a secondary interaction model.
+
 ## 5. Component design
 
 The implementation can stay inside
@@ -159,6 +185,10 @@ listCustomerReminders({ from, to, states: ['active'] })
 The selected week continues to be Monday through Sunday using the existing
 `startOfLocalWeek` behavior. Reminders are grouped by `localDate`, then split
 into outside-visible-hours and visible-hour buckets.
+
+The grouping logic must not parse `timezone` to shift reminder placement. It
+uses `timezone` only for display and for the existing create/edit form value.
+This keeps the web page aligned with the Reminder domain's calendar read model.
 
 Create, update, complete, and delete continue to use the existing helper
 functions from `web/lib/customer-reminders.ts`:
@@ -217,6 +247,12 @@ management tool, so density and scanability matter more than decorative layout.
 - Reminder cards expose the reminder title and local time.
 - Inline actions remain real buttons and do not depend on hover-only affordance.
 - Focus outlines must be visible on slots, cards, and action buttons.
+- The first iteration uses ordinary document tab order rather than custom grid
+  keyboard handling. Users can tab through toolbar controls, time-slot buttons,
+  reminder cards, and inline actions in visual order.
+- Arrow-key navigation is out of scope unless the implementation chooses
+  semantic grid roles. If semantic grid roles are used, arrow keys must move
+  between adjacent day/hour cells without trapping focus.
 
 ## 10. Verification
 
@@ -226,10 +262,16 @@ cover:
 - Loads active reminders for the selected Monday-Sunday week.
 - Shows the new `Reminder calendar` title and week summary.
 - Places visible-hour reminders inside the matching day/hour slot.
+- Places non-hour reminders by hour bucket and sorts them by full local time.
 - Places before-06:00 or at/after-23:00 reminders in the outside-hours strip.
+- Keeps reminder placement based on `localDate` and `localTime` without
+  UTC-shifting across timezones or daylight-saving boundary dates.
+- Shows at most three outside-hours reminders and a passive overflow count when
+  a day has more than three.
 - Opens create drawer from an empty slot with the selected date and time.
 - Keeps top-level `New reminder` defaulting to the next future slot for today.
-- Keeps edit, complete, and delete/cancel actions working.
+- Keeps edit, complete, and visible `Delete` actions working while the delete
+  action continues calling `cancelCustomerReminder`.
 - Preserves auth redirect and conversation-required behavior.
 - Ignores stale list responses after week navigation.
 
@@ -237,17 +279,19 @@ Run:
 
 ```sh
 cd web && pnpm test -- app/\(customer\)/account/reminders/page.test.tsx
+cd web && pnpm build
 ```
 
 Then run diff-aware repository verification:
 
 ```sh
-zsh scripts/suggest-verification --base HEAD~1
-zsh scripts/review-trigger --base HEAD~1
+zsh scripts/suggest-verification --base HEAD
+zsh scripts/review-trigger --base HEAD
 ```
 
-If only the web reminders page and its tests change, the expected broader check
-is the web test/build surface suggested by the verification router.
+If the router suggests a web surface, run that surface rather than relying only
+on the focused test file. If the router suggests additional repo-OS checks
+because the spec or plan changed, run those checks too.
 
 ## 11. References
 
