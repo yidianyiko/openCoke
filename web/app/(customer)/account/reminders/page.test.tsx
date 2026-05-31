@@ -166,6 +166,30 @@ describe('CustomerRemindersPage', () => {
     expect(thu0600Slot?.textContent).toContain('06:15');
   });
 
+  it('limits outside-hours reminders and shows a passive overflow count', async () => {
+    listMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        reminders: [
+          makeReminder({ id: 'early-1', title: 'Early one', localDate: '2026-05-13', localTime: '01:00' }),
+          makeReminder({ id: 'early-2', title: 'Early two', localDate: '2026-05-13', localTime: '02:00' }),
+          makeReminder({ id: 'early-3', title: 'Early three', localDate: '2026-05-13', localTime: '03:00' }),
+          makeReminder({ id: 'early-4', title: 'Early four', localDate: '2026-05-13', localTime: '04:00' }),
+        ],
+      },
+    });
+
+    renderPage();
+    await flushTicks(3);
+
+    const outside = container.querySelector('[data-testid="outside-2026-05-13"]') as HTMLElement | null;
+    expect(outside?.textContent).toContain('Outside visible hours');
+    expect(outside?.textContent).toContain('Early one');
+    expect(outside?.textContent).toContain('Early three');
+    expect(outside?.textContent).not.toContain('Early four');
+    expect(outside?.textContent).toContain('+1 more outside visible hours');
+  });
+
   it('resets the selected week to the current week from the Today control', async () => {
     renderPage();
     await flushTicks(3);
@@ -358,7 +382,7 @@ describe('CustomerRemindersPage', () => {
     expect(container.textContent).toContain('Reminder time is in the past. Choose a future time.');
   });
 
-  it('edits, completes, and cancels existing reminders through their action wrappers', async () => {
+  it('edits, completes, and deletes existing reminders through their action wrappers', async () => {
     renderPage();
     await flushTicks(3);
 
@@ -390,10 +414,10 @@ describe('CustomerRemindersPage', () => {
       (button) => button.textContent === 'Complete',
     );
     completeButton?.click();
-    const cancelButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
-      (button) => button.textContent === 'Cancel',
+    const deleteButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Delete',
     );
-    cancelButton?.click();
+    deleteButton?.click();
     await flushTicks(3);
 
     expect(completeMock).toHaveBeenCalledWith('rem-1');
@@ -410,8 +434,8 @@ describe('CustomerRemindersPage', () => {
     const completeButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
       (button) => button.textContent === 'Complete',
     );
-    const cancelButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
-      (button) => button.textContent === 'Cancel',
+    const deleteButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Delete',
     );
 
     completeButton?.click();
@@ -420,11 +444,11 @@ describe('CustomerRemindersPage', () => {
     expect(completeMock).toHaveBeenCalledWith('rem-1');
     expect(container.querySelector('.customer-reminder-drawer')).toBeNull();
 
-    cancelButton?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    deleteButton?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await flushTicks(1);
     expect(container.querySelector('.customer-reminder-drawer')).toBeNull();
 
-    cancelButton?.click();
+    deleteButton?.click();
     await flushTicks(3);
     expect(cancelMock).toHaveBeenCalledWith('rem-1');
     expect(container.querySelector('.customer-reminder-drawer')).toBeNull();
@@ -432,6 +456,7 @@ describe('CustomerRemindersPage', () => {
 
   it('shows a retryable inline error when lifecycle action requests reject', async () => {
     completeMock.mockRejectedValueOnce(new Error('network down'));
+    cancelMock.mockRejectedValueOnce(new Error('network down'));
 
     renderPage();
     await flushTicks(3);
@@ -447,9 +472,18 @@ describe('CustomerRemindersPage', () => {
 
     expect(completeMock).toHaveBeenCalledWith('rem-1');
     expect(container.textContent).toContain('Unable to complete this reminder right now.');
+
+    const deleteButton = [...(reminderCard?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Delete',
+    );
+    deleteButton?.click();
+    await flushTicks(3);
+
+    expect(cancelMock).toHaveBeenCalledWith('rem-1');
+    expect(container.textContent).toContain('Unable to delete this reminder right now.');
   });
 
-  it('shows complete and cancel actions inside the edit drawer', async () => {
+  it('shows complete and delete actions inside the edit drawer', async () => {
     renderPage();
     await flushTicks(3);
 
@@ -462,7 +496,7 @@ describe('CustomerRemindersPage', () => {
 
     const drawer = container.querySelector('.customer-reminder-drawer') as HTMLElement | null;
     expect(drawer?.textContent).toContain('Complete');
-    expect(drawer?.textContent).toContain('Cancel');
+    expect(drawer?.textContent).toContain('Delete');
 
     const drawerCompleteButton = [...(drawer?.querySelectorAll('button') ?? [])].find(
       (button) => button.textContent === 'Complete',
@@ -474,10 +508,10 @@ describe('CustomerRemindersPage', () => {
     editButton?.click();
     await flushTicks(1);
     const reopenedDrawer = container.querySelector('.customer-reminder-drawer') as HTMLElement | null;
-    const drawerCancelButton = [...(reopenedDrawer?.querySelectorAll('button') ?? [])].find(
-      (button) => button.textContent === 'Cancel',
+    const drawerDeleteButton = [...(reopenedDrawer?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Delete',
     );
-    drawerCancelButton?.click();
+    drawerDeleteButton?.click();
     await flushTicks(3);
     expect(cancelMock).toHaveBeenCalledWith('rem-1');
   });

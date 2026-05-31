@@ -302,7 +302,7 @@ function ReminderForm({
                 className="customer-action customer-action--secondary"
                 onClick={() => onAction('cancel', drawer.reminder.id)}
               >
-                Cancel
+                Delete
               </button>
             </>
           ) : null}
@@ -341,7 +341,7 @@ function ReminderCalendarItem({
           Complete
         </button>
         <button type="button" onClick={() => void onAction('cancel', reminder.id)}>
-          Cancel
+          Delete
         </button>
       </div>
     </article>
@@ -460,6 +460,7 @@ export default function CustomerRemindersPage() {
 
   async function runAction(action: 'complete' | 'cancel', reminderId: string) {
     setError('');
+    const actionLabel = action === 'cancel' ? 'delete' : action;
     try {
       const res =
         action === 'complete' ? await completeCustomerReminder(reminderId) : await cancelCustomerReminder(reminderId);
@@ -468,13 +469,13 @@ export default function CustomerRemindersPage() {
           router.replace('/auth/login?next=/account/reminders');
           return;
         }
-        setError(`Unable to ${action} this reminder right now.`);
+        setError(`Unable to ${actionLabel} this reminder right now.`);
         return;
       }
       setDrawer({ mode: 'closed' });
       await loadWeek();
     } catch {
-      setError(`Unable to ${action} this reminder right now.`);
+      setError(`Unable to ${actionLabel} this reminder right now.`);
     }
   }
 
