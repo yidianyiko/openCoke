@@ -429,7 +429,7 @@ async def test_cancelled_async_inbound_turn_records_superseded_disposition(harne
         traceparent=TRACEPARENT,
     )
 
-    task.cancel()
+    task.cancel("replaced_by_newer_inbound")
     with pytest.raises(asyncio.CancelledError):
         await task
 
@@ -447,6 +447,58 @@ async def test_cancelled_async_inbound_turn_records_superseded_disposition(harne
         )
         == []
     )
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancelled_async_inbound_turn_does_not_mark_superseded(harness):
+    class BlockingAgent(FakeAgent):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.requests = []
+
+        def invoke(self, request):
+            raise AssertionError("async cancellation test must not call invoke")
+
+        async def ainvoke(self, request):
+            self.requests.append(request)
+            self.started.set()
+            await asyncio.Event().wait()
+            return self.next_result
+
+    agent = BlockingAgent()
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-shutdown-cancelled",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=agent,
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+        close_boundary_committer=lambda: None,
+    )
+    task = asyncio.create_task(runner.run_inbound_turn_async(harness["trigger"]))
+    await agent.started.wait()
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    turn_id = agent.requests[-1].turn_id
+    with pytest.raises(ConversationRuntimeError, match="disposition_not_found"):
+        harness["runtime"].get_disposition(turn_id)
+    turn = harness["repository"].get_turn(turn_id)
+    assert turn is not None
+    assert turn.completed_at is None
+    assert turn.superseded_by_inbound_seq is None
 
 
 def test_inbound_reply_delivery_carries_trigger_context_token(harness):

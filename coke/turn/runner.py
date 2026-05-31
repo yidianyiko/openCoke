@@ -28,6 +28,7 @@ from coke.turn.semantic_interpreter import (
 
 WAITING_TEXT = "Still working on it."
 NOTIFICATION_VISIBLE_REPLY_REQUIRED = "notification_requires_visible_reply"
+INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON = "replaced_by_newer_inbound"
 _CLOSE_BOUNDARY_OBSERVER: ContextVar[Callable[[], None] | None] = ContextVar(
     "coke_close_boundary_observer",
     default=None,
@@ -47,6 +48,10 @@ def notify_close_boundary_committed() -> None:
     observer = _CLOSE_BOUNDARY_OBSERVER.get()
     if observer is not None:
         observer()
+
+
+def is_newer_inbound_cancellation(error: asyncio.CancelledError) -> bool:
+    return error.args[:1] == (INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON,)
 
 
 class OutboundDeliveryPort(Protocol):
@@ -388,8 +393,9 @@ class TurnRunner:
                 )
             finally:
                 lock.release()
-        except asyncio.CancelledError:
-            self._record_interrupted_turn(start.turn.id)
+        except asyncio.CancelledError as error:
+            if is_newer_inbound_cancellation(error):
+                self._record_interrupted_turn(start.turn.id)
             raise
 
     def run_render_turn(self, trigger: TurnTrigger) -> TurnRunResult:

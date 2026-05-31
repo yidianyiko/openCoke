@@ -32,6 +32,7 @@ RENDER_TURN_TOPICS = frozenset(
     }
 )
 TURN_TOPICS = frozenset({"turn.inbound", *RENDER_TURN_TOPICS})
+SUPERVISED_TURN_FAILURE_RETRY_LIMIT = 1
 
 
 def run_worker_loop(
@@ -44,6 +45,7 @@ def run_worker_loop(
     runtime = runtime or build_runtime_from_settings(settings)
     if runtime.work_stream is None or runtime.session is None:
         raise RuntimeError("runtime is missing worker stream or session")
+    interactive_runtime_factory = _require_interactive_runtime_factory(runtime)
     relay = OutboxRelay(
         repository=runtime.repositories.conversation_runtime,
         redis_stream=runtime.work_stream,
@@ -69,7 +71,7 @@ def run_worker_loop(
     supervisor = InteractiveTurnSupervisor(
         turn_runner=runtime.turn_runner,
         interaction_agent=runtime.turn_runner.interaction_agent,
-        runtime_factory=_require_interactive_runtime_factory(runtime),
+        runtime_factory=interactive_runtime_factory,
     )
     _recover_open_inbound_windows(runtime, supervisor, supervisor_loop=supervisor_loop)
     attempts = 0
@@ -224,7 +226,8 @@ def _drain_supervisor_failures(
         drain_failures(),
         supervisor_loop=supervisor_loop,
     )
-    for trigger, error in failures:
+    for failure in failures:
+        trigger, error, source = _supervisor_failure_parts(failure)
         trigger_id = getattr(trigger, "trigger_id", None)
         conversation_id = getattr(trigger, "conversation_id", None)
         LOGGER.error(
@@ -237,6 +240,50 @@ def _drain_supervisor_failures(
             },
             exc_info=(type(error), error, error.__traceback__),
         )
+        retry_trigger = _retry_trigger_for_supervisor_failure(trigger, source)
+        if retry_trigger is not None:
+            _submit_interactive_trigger(
+                supervisor,
+                retry_trigger,
+                supervisor_loop=supervisor_loop,
+            )
+
+
+def _supervisor_failure_parts(failure: Any) -> tuple[Any | None, Exception, str]:
+    trigger = getattr(failure, "trigger", None)
+    error = getattr(failure, "error", None)
+    source = str(getattr(failure, "source", "unknown"))
+    if isinstance(error, Exception):
+        return trigger, error, source
+    if isinstance(failure, tuple) and len(failure) >= 2:
+        trigger = failure[0]
+        error = failure[1]
+        source = str(failure[2]) if len(failure) >= 3 else "unknown"
+        if isinstance(error, Exception):
+            return trigger, error, source
+    raise TypeError("invalid supervisor failure")
+
+
+def _retry_trigger_for_supervisor_failure(
+    trigger: TurnTrigger | None,
+    source: str,
+) -> TurnTrigger | None:
+    if source != "turn_task" or trigger is None or trigger.mode != TurnMode.INTERACTIVE:
+        return None
+    retry_count = _worker_retry_count(trigger.payload)
+    if retry_count >= SUPERVISED_TURN_FAILURE_RETRY_LIMIT:
+        return None
+    payload = dict(trigger.payload)
+    payload["_worker_retry_count"] = retry_count + 1
+    return replace(trigger, payload=payload)
+
+
+def _worker_retry_count(payload: Mapping[str, Any]) -> int:
+    raw = payload.get("_worker_retry_count", 0)
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _publish_reply(

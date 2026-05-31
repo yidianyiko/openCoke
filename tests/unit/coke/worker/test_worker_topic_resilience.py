@@ -7,6 +7,7 @@ from typing import Any
 import fakeredis
 import pytest
 
+import coke.worker.__main__ as worker_main
 from coke.infra.redis import RedisWorkStream
 from coke.turn.context import TurnMode, TurnTrigger
 from coke.worker.__main__ import (
@@ -59,6 +60,7 @@ class FakeTurnRunner:
     def __init__(self) -> None:
         self.inbound_triggers = []
         self.render_triggers = []
+        self.interaction_agent = SimpleNamespace()
         self.next_inbound_result = SimpleNamespace(
             turn_id="turn_inbound_1",
             disposition="replied",
@@ -97,6 +99,9 @@ class FakeRuntime:
         self.session = FakeSession()
         self.turn_runner = FakeTurnRunner()
         self.reply_pubsub = FakeReplyPubSub()
+        self.work_stream = None
+        self.repositories = SimpleNamespace(conversation_runtime=SimpleNamespace())
+        self.interactive_runtime_factory = None
 
 
 class FakeSupervisor:
@@ -330,6 +335,95 @@ def test_worker_requires_interactive_runtime_factory_for_supervised_turns():
         _require_interactive_runtime_factory(
             SimpleNamespace(interactive_runtime_factory=None)
         )
+
+
+def test_worker_validates_runtime_factory_before_starting_supervisor_loop(monkeypatch):
+    class FakeWorkStream:
+        def ensure_group(self) -> None:
+            pass
+
+    class RecordingSupervisorLoop:
+        started = False
+        stopped = False
+
+        def start(self) -> None:
+            RecordingSupervisorLoop.started = True
+
+        def stop(self) -> None:
+            RecordingSupervisorLoop.stopped = True
+
+    runtime = FakeRuntime()
+    runtime.work_stream = FakeWorkStream()
+    settings = SimpleNamespace(
+        work_stream_name="coke.work",
+        work_group_name="workers",
+        work_consumer_name="worker-1",
+        worker_block_ms=1,
+        worker_reclaim_idle_ms=1,
+    )
+    monkeypatch.setattr(worker_main, "_SupervisorLoop", RecordingSupervisorLoop)
+
+    with pytest.raises(RuntimeError, match="interactive runtime factory"):
+        worker_main.run_worker_loop(settings=settings, runtime=runtime, iterations=0)
+
+    assert RecordingSupervisorLoop.started is False
+    assert RecordingSupervisorLoop.stopped is False
+
+
+def test_drain_supervisor_failures_resubmits_failed_turn_once(caplog):
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider_message_1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id="conversation_1",
+        account_id="account_1",
+        payload={
+            "_worker_event_id": "outbox_inbound_1",
+            "causal_inbound_event_id": "provider_message_1",
+        },
+    )
+    supervisor.failures = [
+        SimpleNamespace(
+            trigger=trigger,
+            error=RuntimeError("agent_failed"),
+            source="turn_task",
+        )
+    ]
+
+    with caplog.at_level(logging.ERROR):
+        _drain_supervisor_completions(runtime, supervisor)
+
+    assert [submitted.trigger_id for submitted in supervisor.submitted] == [
+        "inbound:provider_message_1"
+    ]
+    assert supervisor.submitted[0].payload["_worker_retry_count"] == 1
+    assert "interactive_turn_task_failed" in caplog.text
+
+
+def test_drain_supervisor_failures_does_not_resubmit_provider_cancel_failure():
+    runtime = FakeRuntime()
+    supervisor = FakeSupervisor()
+    trigger = TurnTrigger(
+        trigger_id="inbound:provider_message_1",
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE,
+        conversation_id="conversation_1",
+        account_id="account_1",
+        payload={"causal_inbound_event_id": "provider_message_1"},
+    )
+    supervisor.failures = [
+        SimpleNamespace(
+            trigger=trigger,
+            error=RuntimeError("cancel_failed"),
+            source="provider_cancel",
+        )
+    ]
+
+    _drain_supervisor_completions(runtime, supervisor)
+
+    assert supervisor.submitted == []
 
 
 def test_drain_supervisor_completions_requeues_when_reply_publish_fails():

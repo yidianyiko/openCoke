@@ -5,7 +5,10 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from coke.turn.context import TurnTrigger
-from coke.turn.runner import close_boundary_observer
+from coke.turn.runner import (
+    INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON,
+    close_boundary_observer,
+)
 
 
 @dataclass(slots=True)
@@ -33,6 +36,17 @@ class ProviderCancelTask:
     task: asyncio.Task[Any]
 
 
+@dataclass(frozen=True, slots=True)
+class InteractiveTurnFailure:
+    trigger: TurnTrigger | None
+    error: Exception
+    source: str
+
+    def __iter__(self):
+        yield self.trigger
+        yield self.error
+
+
 class InteractiveTurnSupervisor:
     def __init__(
         self,
@@ -50,7 +64,7 @@ class InteractiveTurnSupervisor:
         self._retired: list[RetiredInteractiveTurn] = []
         self._cancel_tasks: list[ProviderCancelTask] = []
         self._completed: list[tuple[TurnTrigger, Any]] = []
-        self._failures: list[tuple[TurnTrigger | None, Exception]] = []
+        self._failures: list[InteractiveTurnFailure] = []
 
     async def submit(self, trigger: TurnTrigger) -> None:
         run_id = trigger.agent_run_id or trigger.trigger_id
@@ -64,7 +78,7 @@ class InteractiveTurnSupervisor:
                     RetiredInteractiveTurn(existing, publish_completion=True)
                 )
             else:
-                existing.task.cancel()
+                existing.task.cancel(INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON)
                 self._retired.append(
                     RetiredInteractiveTurn(existing, publish_completion=False)
                 )
@@ -99,7 +113,7 @@ class InteractiveTurnSupervisor:
     async def restore_completed(self, completed: list[tuple[TurnTrigger, Any]]) -> None:
         self._completed = list(completed) + self._completed
 
-    async def drain_failures(self) -> list[tuple[TurnTrigger | None, Exception]]:
+    async def drain_failures(self) -> list[InteractiveTurnFailure]:
         self._collect_done_retired()
         self._collect_done_cancel_tasks()
         for conversation_id, active in list(self._active.items()):
@@ -136,7 +150,13 @@ class InteractiveTurnSupervisor:
                 except asyncio.CancelledError:
                     pass
                 except Exception as error:
-                    self._failures.append((cancel_task.active.trigger, error))
+                    self._failures.append(
+                        InteractiveTurnFailure(
+                            trigger=cancel_task.active.trigger,
+                            error=error,
+                            source="provider_cancel",
+                        )
+                    )
             else:
                 pending.append(cancel_task)
         self._cancel_tasks = pending
@@ -152,7 +172,13 @@ class InteractiveTurnSupervisor:
         except asyncio.CancelledError:
             return
         except Exception as error:
-            self._failures.append((active.trigger, error))
+            self._failures.append(
+                InteractiveTurnFailure(
+                    trigger=active.trigger,
+                    error=error,
+                    source="turn_task",
+                )
+            )
             return
         if publish_completion:
             self._completed.append((active.trigger, result))
