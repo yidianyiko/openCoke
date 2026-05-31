@@ -10,7 +10,7 @@
 
 ---
 
-**Plan Status:** in_progress
+**Plan Status:** blocked
 **Status Date:** 2026-05-31
 
 ### Task 1: Web Customer API Auth And Route Alignment
@@ -99,11 +99,11 @@ Expected after implementation: all tests pass.
 - Remote read: `/home/whoami/coke-clean/.env`
 - Remote read: `/home/whoami/coke-clean/docker-compose.prod.yml`
 
-- [ ] **Step 1: Compare local Alembic head to metadata**
+- [x] **Step 1: Compare local Alembic head to metadata**
 
 Run local schema/autogenerate checks without modifying the live database. If Alembic reports missing schema changes, add a deterministic revision before deployment; otherwise record that no new revision is needed.
 
-- [ ] **Step 2: Inspect live stack and capture rollback state**
+- [x] **Step 2: Inspect live stack and capture rollback state**
 
 On `gcp-coke`, record current `coke-clean` git commit/image ids, service list, API health, connector health, and the two connected account/channel rows before deployment.
 
@@ -124,6 +124,13 @@ Evidence:
 - `cd web && pnpm build` -> production build completed successfully.
 - `/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke -q` -> 453 passed.
 - `zsh scripts/check` -> check passed.
+- Live `alembic upgrade head` ran through `coke-migrate` before service restart.
+- Live `alembic check` then failed with schema drift: `apscheduler_jobs` table and
+  `ix_apscheduler_jobs_next_run_time` index exist in live runtime use but are not
+  defined in `coke/schema.py`.
+- Current scheduler code imports `SQLAlchemyJobStore` and configures the Postgres
+  job store, so this is a real schema gap under the "build only on coke/schema.py"
+  constraint, not a harmless stale table assumption.
 
 ### Task 4: Commit Local Changes
 
@@ -135,7 +142,7 @@ Evidence:
 
 Update this plan incrementally as each verified task completes.
 
-- [ ] **Step 2: Commit coherent local changes on current branch**
+- [x] **Step 2: Commit coherent local changes on current branch**
 
 Run:
 
@@ -145,6 +152,9 @@ git commit -m "fix: align customer web auth for clean redeploy"
 ```
 
 Expected: one local commit containing the web adapter fixes, migration script, tests, and plan progress.
+
+Evidence:
+- Commit: `dcbb74ed fix: align customer web auth for clean redeploy`.
 
 ### Task 5: In-Place Live Credential Migration
 
@@ -164,6 +174,21 @@ DATABASE_URL=<from preserved env> /data/projects/coke/.venv/bin/python -m alembi
 ```
 
 Expected: live DB reaches Alembic head without dropping/recreating product data.
+
+Blocked evidence:
+- `alembic upgrade head` completed with no application service restart.
+- `alembic check` failed because live/current scheduler behavior depends on
+  `apscheduler_jobs`, which is not present in `coke/schema.py`.
+- Per the task hard constraint, deployment stopped before credential migration
+  and before recreating `coke-api`, `coke-worker`, `coke-scheduler`,
+  `coke-outbox-relay`, or `coke-web`.
+- Remote rollback bundle: `/home/whoami/coke-clean-rollback-20260531T033638Z.tgz`.
+- Remote source was restored from that bundle with `.env` preserved, and app
+  image tags were rebuilt from the restored source after the blocked build.
+- Post-stop health: `/healthz` returned `{"ok":true}` and connector `/healthz`
+  returned `connected_session_count=2`.
+- Session preservation proof after stop: both real provider subjects remained
+  `connection_state=connected` with active delivery routes.
 
 - [ ] **Step 3: Run credential migration against live Postgres**
 
