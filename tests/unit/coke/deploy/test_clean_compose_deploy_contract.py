@@ -102,6 +102,8 @@ def test_deploy_script_tracks_last_deployed_sha_for_differential_plan() -> None:
     assert 'printf \'%s\\n\' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"' in script
     assert "record_deployed_sha()" in script
     assert script.count("record_deployed_sha") >= 3
+    assert "write_remote_deployed_sha()" in script
+    assert script.count("write_remote_deployed_sha") >= 2
 
 
 def test_deploy_script_backend_only_plan_skips_coke_web_recreate() -> None:

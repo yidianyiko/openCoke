@@ -92,6 +92,13 @@ fi
 REMOTE_SHA
 }
 
+write_remote_deployed_sha() {
+  ssh "$REMOTE_HOST" "DEPLOYED_SHA_FILE='$DEPLOYED_SHA_FILE' LOCAL_SHA='$LOCAL_SHA' bash -se" <<'REMOTE_MARKER'
+set -euo pipefail
+printf '%s\n' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"
+REMOTE_MARKER
+}
+
 is_local_commit() {
   local sha="$1"
   [[ -n "$sha" ]] && git -C "$LOCAL_ROOT" cat-file -e "${sha}^{commit}" >/dev/null 2>&1
@@ -379,4 +386,5 @@ curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"
 record_deployed_sha
 REMOTE_DEPLOY
 
+write_remote_deployed_sha
 log "clean deploy health checks passed"
