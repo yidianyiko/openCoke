@@ -71,3 +71,41 @@ zsh scripts/review-trigger --base HEAD~1
 Result: `human_review_required: no`. Remaining medium risk triggers were
 repo-OS issue-record changes; the evidence gap was resolved after this evidence
 file was added to the indexed diff.
+
+```text
+scripts/deploy-compose-to-gcp.sh
+```
+
+Result: deployed local SHA `ba4c005cc4e2aa220e6fd9b2fd3bfac3f24ec58a` to
+`gcp-coke`; clean deploy health checks passed. Remote `.deployed-sha` returned
+`ba4c005cc4e2aa220e6fd9b2fd3bfac3f24ec58a`.
+
+```text
+ssh gcp-coke 'cd /home/whoami/coke-clean && docker compose -p coke-clean -f docker-compose.prod.yml -f docker-compose.clean.yml ps coke-api coke-worker coke-outbox-relay coke-scheduler'
+```
+
+Result: `coke-api` was healthy; `coke-worker`, `coke-outbox-relay`, and
+`coke-scheduler` were up after deploy.
+
+```text
+runtime.adapters.reminder_tool.execute(
+    {'operation': 'list_reminders', 'account_id': 'ae02ff01-6fcd-4d39-a189-e51c8c8a31e6'},
+    object(),
+)
+```
+
+Result: production direct tool check returned `ok=True`, `reason_code=None`,
+`action=list_reminders`, and `count=28`.
+
+```text
+POST /webhooks/wechat/personal
+raw_event_id=codex-reminder-list-smoke-20260531T133138Z-retrybody
+text=现在我一共有几个提醒？
+```
+
+Result: production user-path smoke created turn
+`9d6bf3e5-780c-4f4a-a010-49f4bf6ebeca` with disposition
+`replied / reply_ready`. Outbound message
+`d109fd5f-4b48-4ee7-bcff-6527991411ee` was `你目前一共有 28 个提醒。`;
+delivery attempt status was `sent` with provider id
+`coke-1780234489305-3e06d9d15c26`.
