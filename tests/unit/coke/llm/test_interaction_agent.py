@@ -171,6 +171,35 @@ def test_inbound_text_is_sent_as_current_input_block_with_context_supporting():
     assert '"payload"' not in _block_text(prompt, "current_input")
 
 
+def test_current_input_block_renders_ordered_inbound_window():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            current_input_messages=(
+                {"seq": 1, "text": "first", "message_id": "message_1"},
+                {
+                    "seq": 2,
+                    "text": "actually second",
+                    "message_id": "message_2",
+                },
+            ),
+        )
+    )
+
+    current_input = _block_text(fake_agent.calls[0]["input"], "current_input")
+    assert "kind: user_message_window" in current_input
+    assert "seq: 1" in current_input
+    assert "text: first" in current_input
+    assert "seq: 2" in current_input
+    assert "text: actually second" in current_input
+
+
 def test_prompt_builder_uses_ordered_conditional_blocks_and_output_contract_last():
     request = _request(
         memory_enabled=True,
@@ -1404,6 +1433,7 @@ def _request(
     guard=None,
     trusted_facts: dict[str, Any] | None = None,
     context: Any | None = None,
+    current_input_messages: tuple[Any, ...] = (),
 ) -> AgentRequest:
     tool_kwargs = {
         "reminder_tool": reminder_tool,
@@ -1431,6 +1461,7 @@ def _request(
         tool_profile=ToolProfile.interactive(tool_ports),
         freshness_guard=guard or object(),
         context={"memory": ["recent"]} if context is None else context,
+        current_input_messages=current_input_messages,
     )
 
 

@@ -53,6 +53,8 @@ class AgentRequest:
     tool_profile: ToolProfile
     freshness_guard: Any
     context: Any
+    current_input_messages: tuple[Any, ...] = ()
+    run_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

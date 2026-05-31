@@ -357,6 +357,27 @@ def test_inbound_reply_delivery_carries_trigger_context_token(harness):
     assert harness["delivery"].deliveries[-1].context_token == "ctx-message-1"
 
 
+def test_inbound_turn_sends_ordered_input_window_to_agent(harness):
+    harness["runtime"].record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="second",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[0]
+    assert [message.seq for message in request.current_input_messages] == [1, 2]
+    assert [message.text for message in request.current_input_messages] == [
+        "hello",
+        "second",
+    ]
+
+
 def test_malformed_agent_output_fails_closed_without_rewrite(harness):
     harness["agent"].next_result = AgentResult.completed({"invalid": "shape"})
 

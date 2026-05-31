@@ -749,20 +749,49 @@ def _turn_source_from_request(request: AgentRequest) -> Mapping[str, Any]:
 
 def _current_input_block(request: AgentRequest) -> str:
     if request.trigger_type == "InboundTurn":
-        return "\n".join(
-            [
-                "kind: user_message",
-                f"text: {_user_text(request)}",
-                "instruction: This is the actual current user input.",
-            ]
+        messages = request.current_input_messages or (
+            {"seq": None, "text": _user_text(request)},
         )
+        lines = [
+            "kind: user_message_window",
+            (
+                "instruction: These are adjacent user messages in the current "
+                "open input window. Answer the combined intent in sequence order."
+            ),
+        ]
+        for message in messages:
+            lines.extend(
+                [
+                    "---",
+                    f"seq: {_input_message_seq(message)}",
+                    f"text: {_input_message_text(message)}",
+                ]
+            )
+        return "\n".join(lines)
+    return _render_trigger_input_block(request)
+
+
+def _render_trigger_input_block(request: AgentRequest) -> str:
     return "\n".join(
         [
-            "kind: trusted_trigger_fact",
-            "payload:",
-            _json_block(request.payload),
+            "kind: trusted_turn_fact",
+            f"trigger_type: {request.trigger_type}",
+            f"payload: {json.dumps(dict(request.payload), ensure_ascii=False, sort_keys=True)}",
+            "instruction: Render the trusted turn fact according to its source.",
         ]
     )
+
+
+def _input_message_seq(message: Any) -> Any:
+    if isinstance(message, Mapping):
+        return message.get("seq")
+    return getattr(message, "seq", None)
+
+
+def _input_message_text(message: Any) -> str:
+    if isinstance(message, Mapping):
+        return str(message.get("text") or "")
+    return str(getattr(message, "text", "") or "")
 
 
 def _identity_block(request: AgentRequest) -> str:

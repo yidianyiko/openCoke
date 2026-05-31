@@ -95,6 +95,7 @@ class TurnContext:
     onboarding_guidance_required: bool = False
     payload: dict[str, Any] = field(default_factory=dict)
     turn_source: dict[str, Any] = field(default_factory=dict)
+    current_input_messages: tuple[Any, ...] = ()
     domain_result: dict[str, Any] | None = None
 
 
@@ -112,6 +113,7 @@ class ContextAssembler:
         tool_profile: ToolProfile,
         onboarding_guidance_required: bool = False,
         turn_source: dict[str, Any] | None = None,
+        current_input_messages: tuple[Any, ...] = (),
         domain_result: dict[str, Any] | None = None,
     ) -> TurnContext:
         return TurnContext(
@@ -127,5 +129,6 @@ class ContextAssembler:
             onboarding_guidance_required=onboarding_guidance_required,
             payload=dict(trigger.payload),
             turn_source=dict(turn_source or {}),
+            current_input_messages=tuple(current_input_messages),
             domain_result=dict(domain_result) if domain_result is not None else None,
         )

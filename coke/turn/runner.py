@@ -151,6 +151,8 @@ class TurnRunner:
                 trigger=trigger,
                 gate=gate,
                 turn_id=start.turn.id,
+                input_from_seq=start.turn.input_from_seq,
+                input_to_seq=start.turn.input_to_seq,
             )
 
         lock = self.lock_manager.acquire(trigger.conversation_id)
@@ -169,6 +171,8 @@ class TurnRunner:
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
                 turn_id=start.turn.id,
+                input_from_seq=start.turn.input_from_seq,
+                input_to_seq=start.turn.input_to_seq,
             )
             focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
             semantic_decision = self.semantic_interpreter.interpret(
@@ -224,8 +228,13 @@ class TurnRunner:
                 ),
                 onboarding_guidance_required=gate.activation_guidance_required,
                 turn_source=trusted_facts["turn_source"],
+                current_input_messages=start.input_messages,
             )
-            return self._invoke_agent_and_record(trigger, context, semantic_decision)
+            return self._invoke_agent_and_record(
+                trigger,
+                context,
+                semantic_decision,
+            )
         except ConversationRuntimeError as error:
             return self._conversation_runtime_error_result(
                 start.turn.id, trigger, error
@@ -280,6 +289,8 @@ class TurnRunner:
         trigger: TurnTrigger,
         gate: GateDecision,
         turn_id: str,
+        input_from_seq: int | None = None,
+        input_to_seq: int | None = None,
     ) -> TurnRunResult:
         render_trigger = TurnTrigger(
             trigger_id=f"{trigger.trigger_id}:access_denied",
@@ -316,6 +327,8 @@ class TurnRunner:
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
                 turn_id=turn_id,
+                input_from_seq=input_from_seq,
+                input_to_seq=input_to_seq,
             )
             trusted_facts = _trusted_facts_for_agent(
                 render_gate.trust_facts,
@@ -336,7 +349,9 @@ class TurnRunner:
                 turn_source=trusted_facts["turn_source"],
             )
             return self._invoke_agent_and_record(
-                render_trigger, context, semantic_decision=None
+                render_trigger,
+                context,
+                semantic_decision=None,
             )
         except ConversationRuntimeError as error:
             return self._conversation_runtime_error_result(
@@ -376,6 +391,8 @@ class TurnRunner:
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
                 turn_id=start.turn.id,
+                input_from_seq=start.turn.input_from_seq,
+                input_to_seq=start.turn.input_to_seq,
             )
             trusted_facts = _trusted_facts_for_agent(
                 gate.trust_facts,
@@ -410,6 +427,8 @@ class TurnRunner:
         trigger: TurnTrigger,
         context: Any,
         semantic_decision: SemanticDecision | None,
+        *,
+        current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
         agent_request = AgentRequest(
             turn_id=context.freshness_guard.turn_id,
@@ -422,6 +441,10 @@ class TurnRunner:
             tool_profile=context.tool_profile,
             freshness_guard=context.freshness_guard,
             context=context,
+            current_input_messages=tuple(
+                current_input_messages or getattr(context, "current_input_messages", ())
+            ),
+            run_id=context.freshness_guard.turn_id,
         )
         agent_result = self.interaction_agent.invoke(agent_request)
         if agent_result.timed_out:
