@@ -1,6 +1,6 @@
 # Coke Clean-Rebuild Target Architecture
 
-Status: proposed (rewritten from first principles)
+Status: implemented (clean rebuild complete + deployed/live-verified on gcp-coke at SHA d5ef1d0f, 2026-05-31)
 Created: 2026-05-28
 Updated: 2026-05-29 (full first-principles rewrite: The Turn as the unifying
 runtime abstraction; data model derived from requirement invariants as six

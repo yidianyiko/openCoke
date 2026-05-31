@@ -1,6 +1,6 @@
 # Coke Requirements and User Journey Matrix
 
-Status: review pass
+Status: implemented (clean rebuild complete + deployed/live-verified on gcp-coke at SHA d5ef1d0f, 2026-05-31)
 Created: 2026-05-28  
 Updated: 2026-05-29 (web-first vs messaging-first activation; requirement-language cleanup; proactive undelivered = discard; shared-reminder creator channel precondition; shared-reminder duplicate duration/timezone; WhatsApp sender-identity binding; messaging-first identity + web claim §5.13; friendship requires authenticated/claimed users with channels; recurring-window timezone pinning; downtime catch-up; account access gate; shared WhatsApp-only auto-provisioning; messaging-first channel removal boundary; out-of-scope notes; review pass; spec path restored; account-identity channel cardinality cleanup)
 Scope: Current product: personal accountability companionship, friend system, shared reminders, Product notifications, account/data lifecycle

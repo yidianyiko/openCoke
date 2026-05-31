@@ -1,10 +1,17 @@
 ---
-status: draft
+status: implemented
 created_at: 2026-05-31
 updated_at: 2026-05-31
 owner: agent-runtime
 kind: design
 ---
+
+> **Status note (2026-05-31):** Implemented and merged to `main` (commits
+> `8c2bd4ec feat: migrate prompt decision and voice contracts`, `61ff87a7 merge:
+> selective legacy prompt migration`) and deployed to gcp-coke at SHA
+> `d5ef1d0f`: enriched semantic-decision prompt, `turn_source` framing, the
+> prompt-builder blocks, domain-result narration, dynamic current-time injection,
+> and the voice policy. See [[2026-05-29-coke-clean-rebuild-prompt-migration]].
 
 # Legacy Prompt Selective Migration Design
 
