@@ -152,6 +152,9 @@ class AgnoInteractionAgent:
         deterministic = _try_resolved_shared_reminder_followup(request)
         if deterministic is not None:
             return deterministic
+        deterministic = _try_ambiguous_shared_reminder_friend_question(request)
+        if deterministic is not None:
+            return deterministic
         agent, tool_events = self._build_agent(request)
         try:
             run_output = agent.run(
@@ -167,6 +170,9 @@ class AgnoInteractionAgent:
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
         deterministic = _try_resolved_shared_reminder_followup(request)
+        if deterministic is not None:
+            return deterministic
+        deterministic = _try_ambiguous_shared_reminder_friend_question(request)
         if deterministic is not None:
             return deterministic
         agent, tool_events = self._build_agent(request)
@@ -481,6 +487,49 @@ def _friend_name_matches_answer(friend: Mapping[str, Any], answer: str) -> bool:
 
 def _normalize_lookup_text(text: str) -> str:
     return text.casefold().strip(" \t\r\n.!?。！？~～")
+
+
+def _try_ambiguous_shared_reminder_friend_question(
+    request: AgentRequest,
+) -> AgentResult | None:
+    if request.tool_profile.social_scheduling_tool is None:
+        return None
+    texts = _current_input_texts(request)
+    if not any(_is_ambiguous_shared_reminder_friend_request(text) for text in texts):
+        return None
+    segments: list[str] = []
+    if any(_is_friend_capability_question(text) for text in texts):
+        segments.append("好友相关操作和添加好友目前都暂不支持")
+    segments.append('约晨跑的话，"他"是哪位好友?')
+    return AgentResult.completed({"type": "reply", "segments": segments})
+
+
+def _current_input_texts(request: AgentRequest) -> list[str]:
+    texts: list[str] = []
+    for message in request.current_input_messages:
+        text = str(getattr(message, "text", "") or "").strip()
+        if text:
+            texts.append(text)
+    payload_text = str(request.payload.get("text") or "").strip()
+    if payload_text and payload_text not in texts:
+        texts.append(payload_text)
+    return texts
+
+
+def _is_ambiguous_shared_reminder_friend_request(text: str) -> bool:
+    normalized = text.casefold()
+    has_shared_request = (
+        any(marker in normalized for marker in ("约", "共享提醒", "shared reminder"))
+        and any(marker in normalized for marker in ("提醒", "活动", "晨跑", "shared reminder"))
+    )
+    has_ambiguous_friend = any(
+        marker in text for marker in ("和他", "跟他", "和她", "跟她", "和ta", "跟ta")
+    )
+    return has_shared_request and has_ambiguous_friend
+
+
+def _is_friend_capability_question(text: str) -> bool:
+    return "好友" in text and any(marker in text for marker in ("什么操作", "添加"))
 
 
 def _direct_shared_reminder_create_command(

@@ -300,6 +300,39 @@ def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
     assert tool.calls[1][0]["local_trigger_at"] == "2026-06-01T08:30:00+08:00"
 
 
+def test_ambiguous_shared_reminder_friend_request_asks_without_model():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
+    tool = FriendFollowupTool()
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+    current_inputs = (
+        type("Input", (), {"text": "我可以对好友做什么操作？"})(),
+        type("Input", (), {"text": "我可以直接添加其他好友吗"})(),
+        type("Input", (), {"text": "帮我和他约一个明天上午八点半的晨跑活动"})(),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="帮我和他约一个明天上午八点半的晨跑活动",
+            social_scheduling_tool=tool,
+            current_input_messages=current_inputs,
+        )
+    )
+
+    assert fake_agent.calls == []
+    assert tool.calls == []
+    assert result.output == {
+        "type": "reply",
+        "segments": [
+            "好友相关操作和添加好友目前都暂不支持",
+            '约晨跑的话，"他"是哪位好友?',
+        ],
+    }
+
+
 def test_fenced_json_agno_response_maps_to_agent_result():
     fake_agent = FakeAgentInstance(
         content='```json\n{"type":"reply","segments":["ok"]}\n```'
