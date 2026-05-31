@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -19,6 +20,12 @@ def _service_env(service: dict) -> dict:
     if isinstance(environment, list):
         return dict(item.split("=", 1) for item in environment)
     return environment
+
+
+def _script_array(script: str, name: str) -> str:
+    match = re.search(rf"{name}=\(\n(?P<body>.*?)\n\)", script, re.DOTALL)
+    assert match is not None, f"missing {name} array"
+    return match.group("body")
 
 
 def test_clean_compose_binds_only_non_disruptive_localhost_ports() -> None:
@@ -76,7 +83,7 @@ def test_clean_api_and_worker_can_reach_host_evolution_instance() -> None:
     ]
 
 
-def test_clean_web_is_part_of_default_deploy() -> None:
+def test_clean_web_is_part_of_default_compose_stack() -> None:
     services = _clean_compose()["services"]
     script = DEPLOY_SCRIPT.read_text()
 
@@ -86,14 +93,67 @@ def test_clean_web_is_part_of_default_deploy() -> None:
     assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"' in script
 
 
-def test_deploy_script_preserves_and_recreates_next_build_output() -> None:
+def test_deploy_script_tracks_last_deployed_sha_for_differential_plan() -> None:
+    script = DEPLOY_SCRIPT.read_text()
+
+    assert 'DEPLOYED_SHA_FILE="${REMOTE_ROOT}/.deployed-sha"' in script
+    assert 'LOCAL_SHA="$(git -C "$LOCAL_ROOT" rev-parse HEAD)"' in script
+    assert 'git -C "$LOCAL_ROOT" diff --name-only' in script
+    assert 'printf \'%s\\n\' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"' in script
+
+
+def test_deploy_script_backend_only_plan_skips_coke_web_recreate() -> None:
+    script = DEPLOY_SCRIPT.read_text()
+
+    backend_services = _script_array(script, "BACKEND_DEPLOY_SERVICES")
+
+    for service in ("coke-api", "coke-worker", "coke-scheduler", "coke-outbox-relay"):
+        assert f'"{service}"' in backend_services
+    assert "coke-web" not in backend_services
+    assert "DEPLOY_TIER=backend" in script
+    assert 'recreate_services "${BACKEND_DEPLOY_SERVICES[@]}"' in script
+
+
+def test_deploy_script_recreates_coke_web_only_for_web_or_full_plan() -> None:
+    script = DEPLOY_SCRIPT.read_text()
+
+    web_services = _script_array(script, "WEB_DEPLOY_SERVICES")
+
+    assert web_services.strip() == '"coke-web"'
+    assert "DEPLOY_TIER=web" in script
+    assert "DEPLOY_TIER=full" in script
+    assert 'recreate_services "${WEB_DEPLOY_SERVICES[@]}"' in script
+    assert 'force-recreate coke-web' not in script
+
+
+def test_deploy_script_noops_when_no_relevant_paths_changed() -> None:
+    script = DEPLOY_SCRIPT.read_text()
+
+    assert "DEPLOY_TIER=none" in script
+    assert "no relevant deploy changes detected" in script
+    assert "exit 0" in script
+
+
+def test_deploy_script_has_no_rollback_snapshot_commands() -> None:
+    script = DEPLOY_SCRIPT.read_text().lower()
+
+    for forbidden in (
+        "pg_dump",
+        "tar -",
+        "tar czf",
+        "tar -czf",
+        "snapshot",
+        "rollback",
+    ):
+        assert forbidden not in script
+
+
+def test_backend_only_deploy_preserves_next_build_output_without_web_rebuild() -> None:
     script = DEPLOY_SCRIPT.read_text()
 
     assert "--exclude=.next" in script
-    assert (
-        'docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml '
-        '-f docker-compose.clean.yml up -d --no-deps --force-recreate coke-web'
-    ) in script
+    assert '"web/"' not in _script_array(script, "BACKEND_RSYNC_SOURCES")
+    assert '"web/"' in _script_array(script, "WEB_RSYNC_SOURCES")
 
 
 def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> None:
@@ -132,14 +192,13 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
         ".next",
     ):
         assert f"--exclude={excluded}" in script
-    assert (
-        'docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml '
-        "-f docker-compose.clean.yml up -d --build"
-    ) in script
+    assert "compose up -d postgres redis" in script
+    assert "compose up -d --build --no-deps --force-recreate" in script
     assert "alembic upgrade head" in script
     assert "alembic check" in script
     assert script.index("alembic upgrade head") < script.index("alembic check")
     assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"' in script
+    assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"' in script
     lowered = script.lower()
     for legacy_term in (
         "verify_gateway_submodule_match",

@@ -40,9 +40,20 @@ USAGE
 done
 
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RSYNC_SOURCES=(
+LOCAL_SHA="$(git -C "$LOCAL_ROOT" rev-parse HEAD)"
+DEPLOYED_SHA_FILE="${REMOTE_ROOT}/.deployed-sha"
+
+BACKEND_DEPLOY_SERVICES=(
+  "coke-api"
+  "coke-worker"
+  "coke-scheduler"
+  "coke-outbox-relay"
+)
+WEB_DEPLOY_SERVICES=(
+  "coke-web"
+)
+BACKEND_RSYNC_SOURCES=(
   "coke/"
-  "web/"
   "migrations/"
   "docker-compose.prod.yml"
   "docker-compose.clean.yml"
@@ -53,6 +64,10 @@ RSYNC_SOURCES=(
   "deploy/"
   "scripts/"
 )
+WEB_RSYNC_SOURCES=(
+  "web/"
+)
+RSYNC_SOURCES=()
 RSYNC_EXCLUDES=(
   "--exclude=.git"
   "--exclude=.venv"
@@ -68,9 +83,80 @@ log() {
   printf '[deploy-clean] %s\n' "$*"
 }
 
+read_remote_deployed_sha() {
+  ssh "$REMOTE_HOST" "DEPLOYED_SHA_FILE='$DEPLOYED_SHA_FILE' bash -se" <<'REMOTE_SHA'
+set -euo pipefail
+if [[ -r "$DEPLOYED_SHA_FILE" ]]; then
+  sed -n '1p' "$DEPLOYED_SHA_FILE"
+fi
+REMOTE_SHA
+}
+
+is_local_commit() {
+  local sha="$1"
+  [[ -n "$sha" ]] && git -C "$LOCAL_ROOT" cat-file -e "${sha}^{commit}" >/dev/null 2>&1
+}
+
+classify_deploy() {
+  local last_sha="$1"
+  local has_backend=0
+  local has_web=0
+  local path
+
+  CHANGED_PATHS=()
+  if ! is_local_commit "$last_sha"; then
+    DEPLOY_TIER=full
+    RSYNC_SOURCES=("${BACKEND_RSYNC_SOURCES[@]}" "${WEB_RSYNC_SOURCES[@]}")
+    return
+  fi
+
+  mapfile -t CHANGED_PATHS < <(git -C "$LOCAL_ROOT" diff --name-only "$last_sha" "$LOCAL_SHA")
+  for path in "${CHANGED_PATHS[@]}"; do
+    case "$path" in
+      web/*)
+        has_web=1
+        ;;
+      coke/*|migrations/*|requirements.txt|alembic.ini|scripts/*|docker-compose*|Dockerfile|.dockerignore|deploy/*)
+        has_backend=1
+        ;;
+    esac
+  done
+
+  if [[ "$has_backend" == "1" && "$has_web" == "1" ]]; then
+    DEPLOY_TIER=full
+    RSYNC_SOURCES=("${BACKEND_RSYNC_SOURCES[@]}" "${WEB_RSYNC_SOURCES[@]}")
+  elif [[ "$has_backend" == "1" ]]; then
+    DEPLOY_TIER=backend
+    RSYNC_SOURCES=("${BACKEND_RSYNC_SOURCES[@]}")
+  elif [[ "$has_web" == "1" ]]; then
+    DEPLOY_TIER=web
+    RSYNC_SOURCES=("${WEB_RSYNC_SOURCES[@]}")
+  else
+    DEPLOY_TIER=none
+    RSYNC_SOURCES=()
+  fi
+}
+
+LAST_DEPLOYED_SHA=""
+if [[ "$DRY_RUN" == "0" ]]; then
+  LAST_DEPLOYED_SHA="$(read_remote_deployed_sha | tr -d '\r' | head -n 1)"
+fi
+classify_deploy "$LAST_DEPLOYED_SHA"
+
 if [[ "$DRY_RUN" == "1" ]]; then
+  log "dry run: local sha ${LOCAL_SHA}"
+  if [[ -n "$LAST_DEPLOYED_SHA" ]]; then
+    log "dry run: last deployed sha ${LAST_DEPLOYED_SHA}"
+  else
+    log "dry run: no readable deployed sha; would use full deploy"
+  fi
+  log "dry run: deploy tier ${DEPLOY_TIER}"
+  if [[ "$DEPLOY_TIER" == "none" ]]; then
+    log "dry run: no relevant deploy changes detected"
+    exit 0
+  fi
   log "dry run: would create ${REMOTE_HOST}:${REMOTE_ROOT}"
-  log "dry run: would rsync clean stack sources"
+  log "dry run: would rsync selected clean stack sources"
   (
     cd "$LOCAL_ROOT"
     printf 'rsync -az --delete --relative --dry-run'
@@ -79,10 +165,26 @@ if [[ "$DRY_RUN" == "1" ]]; then
     printf ' %q\n' "${REMOTE_HOST}:${REMOTE_ROOT}/"
   )
   log "dry run: would write ${REMOTE_ROOT}/.env from existing clean env and ${REMOTE_OLD_ROOT}/.env without printing secrets"
-  log "dry run: would run docker compose -p \"$PROJECT_NAME\" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --build"
-  log "dry run: would force-recreate coke-web so bind-mounted Next output is rebuilt"
+  log "dry run: would run alembic upgrade head and alembic check"
+  log "dry run: would recreate services for tier ${DEPLOY_TIER}"
   log "dry run: would run alembic upgrade head, alembic check, and curl -fsS \"http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz\""
   log "dry run: would curl -fsS \"http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login\""
+  exit 0
+fi
+
+log "local sha ${LOCAL_SHA}"
+if [[ -n "$LAST_DEPLOYED_SHA" ]]; then
+  log "last deployed sha ${LAST_DEPLOYED_SHA}"
+else
+  log "no readable deployed sha; using full deploy"
+fi
+log "deploy tier ${DEPLOY_TIER}"
+if [[ "${#CHANGED_PATHS[@]}" -gt 0 ]]; then
+  log "changed paths since deployed sha:"
+  printf '  %s\n' "${CHANGED_PATHS[@]}"
+fi
+if [[ "$DEPLOY_TIER" == "none" ]]; then
+  log "no relevant deploy changes detected; nothing to recreate"
   exit 0
 fi
 
@@ -207,8 +309,10 @@ echo "Clean env written to $clean_env"
 REMOTE_ENV
 
 log "starting clean compose project ${PROJECT_NAME}"
+BACKEND_SERVICE_ARGS="${BACKEND_DEPLOY_SERVICES[*]}"
+WEB_SERVICE_ARGS="${WEB_DEPLOY_SERVICES[*]}"
 ssh "$REMOTE_HOST" \
-  "REMOTE_ROOT='$REMOTE_ROOT' PROJECT_NAME='$PROJECT_NAME' COKE_CLEAN_API_PORT='$COKE_CLEAN_API_PORT' COKE_CLEAN_WEB_PORT='$COKE_CLEAN_WEB_PORT' COKE_CLEAN_POSTGRES_PORT='$COKE_CLEAN_POSTGRES_PORT' COKE_CLEAN_REDIS_PORT='$COKE_CLEAN_REDIS_PORT' bash -se" <<'REMOTE_DEPLOY'
+  "REMOTE_ROOT='$REMOTE_ROOT' PROJECT_NAME='$PROJECT_NAME' COKE_CLEAN_API_PORT='$COKE_CLEAN_API_PORT' COKE_CLEAN_WEB_PORT='$COKE_CLEAN_WEB_PORT' COKE_CLEAN_POSTGRES_PORT='$COKE_CLEAN_POSTGRES_PORT' COKE_CLEAN_REDIS_PORT='$COKE_CLEAN_REDIS_PORT' DEPLOY_TIER='$DEPLOY_TIER' LOCAL_SHA='$LOCAL_SHA' DEPLOYED_SHA_FILE='$DEPLOYED_SHA_FILE' BACKEND_SERVICE_ARGS='$BACKEND_SERVICE_ARGS' WEB_SERVICE_ARGS='$WEB_SERVICE_ARGS' bash -se" <<'REMOTE_DEPLOY'
 set -euo pipefail
 
 cd "$REMOTE_ROOT"
@@ -216,16 +320,50 @@ export COKE_CLEAN_API_PORT COKE_CLEAN_WEB_PORT COKE_CLEAN_POSTGRES_PORT COKE_CLE
 export COKE_API_PORT="$COKE_CLEAN_API_PORT"
 export COKE_WEB_PORT="$COKE_CLEAN_WEB_PORT"
 
-docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --build
-docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic upgrade head
-docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml run --rm coke-migrate alembic check
-docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml up -d --no-deps --force-recreate coke-web
+read -r -a BACKEND_DEPLOY_SERVICES <<< "$BACKEND_SERVICE_ARGS"
+read -r -a WEB_DEPLOY_SERVICES <<< "$WEB_SERVICE_ARGS"
+
+compose() {
+  docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml -f docker-compose.clean.yml "$@"
+}
+
+recreate_services() {
+  if [[ "$#" == "0" ]]; then
+    return
+  fi
+  compose up -d --build --no-deps --force-recreate "$@"
+}
+
+compose up -d postgres redis
+case "$DEPLOY_TIER" in
+  backend|full)
+    compose build coke-migrate
+    compose run --rm coke-migrate alembic upgrade head
+    compose run --rm coke-migrate alembic check
+    recreate_services "${BACKEND_DEPLOY_SERVICES[@]}"
+    ;;
+  web)
+    compose run --rm coke-migrate alembic upgrade head
+    compose run --rm coke-migrate alembic check
+    ;;
+  *)
+    echo "Unsupported deploy tier: $DEPLOY_TIER" >&2
+    exit 1
+    ;;
+esac
+
+case "$DEPLOY_TIER" in
+  web|full)
+    recreate_services "${WEB_DEPLOY_SERVICES[@]}"
+    ;;
+esac
 
 for _ in $(seq 1 60); do
   if curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz" >/dev/null \
     && curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login" >/dev/null; then
     curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"
     printf '\n'
+    printf '%s\n' "$LOCAL_SHA" > "$DEPLOYED_SHA_FILE"
     exit 0
   fi
   sleep 2
