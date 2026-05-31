@@ -88,6 +88,34 @@ def test_extract_prompt_requires_full_local_wall_clock_time_in_captured_timezone
     )
 
 
+def test_extract_prompt_includes_field_specific_few_shot_boundaries():
+    client = FakeJSONClient(
+        {
+            "content": "跑步",
+            "trigger_time": None,
+            "recurrence_rule": {},
+            "duration_minutes": None,
+            "kind": "no_trigger_time",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    detector.extract(
+        "提醒我待会跑步",
+        "Asia/Tokyo",
+        datetime(2026, 5, 30, 10, 10, tzinfo=UTC),
+    )
+
+    system = client.calls[0]["system"]
+    assert "待会/晚点/过一会" in system
+    assert "must not become a concrete trigger_time" in system
+    assert "batch" in system
+    assert "a follow-up that only supplies the missing time" in system
+    assert "new topic does not reopen" in system
+    assert "Positive examples" in system
+    assert "Negative examples" in system
+
+
 class GroundedRelativeClient:
     def __init__(self) -> None:
         self.calls = []

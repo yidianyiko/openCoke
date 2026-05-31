@@ -72,6 +72,14 @@ class ToolProfile:
             constrained=constrained,
         )
 
+    @classmethod
+    def clarification(cls) -> ToolProfile:
+        return cls(
+            intent_tools_enabled=False,
+            tool_names=(),
+            constrained=True,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class TurnContext:
@@ -86,6 +94,8 @@ class TurnContext:
     tool_profile: ToolProfile
     onboarding_guidance_required: bool = False
     payload: dict[str, Any] = field(default_factory=dict)
+    turn_source: dict[str, Any] = field(default_factory=dict)
+    domain_result: dict[str, Any] | None = None
 
 
 class ContextAssembler:
@@ -101,6 +111,8 @@ class ContextAssembler:
         freshness_guard: Any,
         tool_profile: ToolProfile,
         onboarding_guidance_required: bool = False,
+        turn_source: dict[str, Any] | None = None,
+        domain_result: dict[str, Any] | None = None,
     ) -> TurnContext:
         return TurnContext(
             trigger=trigger,
@@ -114,4 +126,6 @@ class ContextAssembler:
             tool_profile=tool_profile,
             onboarding_guidance_required=onboarding_guidance_required,
             payload=dict(trigger.payload),
+            turn_source=dict(turn_source or {}),
+            domain_result=dict(domain_result) if domain_result is not None else None,
         )

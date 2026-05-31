@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import asdict, dataclass, is_dataclass
 import json
 from typing import Any, Mapping
 from uuid import uuid4
@@ -10,7 +11,12 @@ from agno.db.postgres import PostgresDb
 from agno.memory.manager import MemoryManager as AgnoMemoryManager
 
 from coke.llm.config import SiliconFlowLLMConfig
-from coke.turn.agent import AgentRequest, AgentResult, StateChangingToolPort
+from coke.turn.agent import (
+    AgentRequest,
+    AgentResult,
+    DomainExecutionResult,
+    StateChangingToolPort,
+)
 from coke.turn.context import TurnMode
 
 AgentFactory = Callable[..., Any]
@@ -41,6 +47,40 @@ _SETTINGS_OP_ALIASES = {
     "reset": "reset_agent_settings",
     "reset_settings": "reset_agent_settings",
 }
+
+
+@dataclass(frozen=True, slots=True)
+class PromptBlock:
+    name: str
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
+class CokeVoicePolicy:
+    normal_segment_limit: str = "1-3 short segments"
+    role_texture: str = "WeChat friend or supervisor"
+    challenge_examples: tuple[str, ...] = ("我没设过这个", "你是不是搞错了")
+
+    def render(self) -> str:
+        examples = " / ".join(self.challenge_examples)
+        return "\n".join(
+            [
+                f"Speak like Coke as a {self.role_texture}: concise, direct, and warm when useful.",
+                f"Use {self.normal_segment_limit}; match the user's language and rough message length.",
+                "Avoid generic closers such as 还有什么可以帮您吗.",
+                "Do not expose internal tools, agents, logs, or architecture.",
+                "do not invent facts or times; use trusted facts and domain_result for product state.",
+                (
+                    f"When the user challenges system behavior, for example {examples}, "
+                    "acknowledge the confusion, check trusted facts, state only what is known, "
+                    "and do not blame the user."
+                ),
+                (
+                    "Do not hard-refuse coding or deep-research chat solely because of Coke's role; "
+                    "chat naturally unless a trusted product boundary says an action is unsupported."
+                ),
+            ]
+        )
 
 
 class ToolArgumentError(ValueError):
@@ -238,11 +278,30 @@ def _tool_callable(
                 "ok": False,
                 "facts": {"type": error.reason_code},
                 "reason_code": error.reason_code,
+                "domain_result": _jsonable(
+                    _domain_result_from_parts(
+                        domain=name,
+                        intent=str(error.reason_code),
+                        action=str(error.reason_code),
+                        ok=False,
+                        facts={"type": error.reason_code},
+                        reason_code=error.reason_code,
+                    )
+                ),
             }
+        domain_result = result.domain_result or _domain_result_from_parts(
+            domain=name,
+            intent=str(command_payload.get("operation") or name),
+            action=str(command_payload.get("operation") or name),
+            ok=result.ok,
+            facts=result.facts,
+            reason_code=result.reason_code,
+        )
         return {
             "ok": result.ok,
             "facts": dict(result.facts),
             "reason_code": result.reason_code,
+            "domain_result": _jsonable(domain_result),
         }
 
     tool.__name__ = f"{name}_tool"
@@ -488,46 +547,397 @@ def _agent_result_from_content(content: Any) -> AgentResult:
     return AgentResult.completed(_mapping_or_none(content))
 
 
+def build_prompt_blocks(request: AgentRequest) -> tuple[PromptBlock, ...]:
+    blocks: list[PromptBlock] = [
+        PromptBlock("turn_source", _turn_source_block(request)),
+        PromptBlock("current_input", _current_input_block(request)),
+        PromptBlock("identity", _identity_block(request)),
+    ]
+
+    persona = _persona_block(request)
+    if persona:
+        blocks.append(PromptBlock("persona", persona))
+
+    environment = _environment_block(request)
+    if environment:
+        blocks.append(PromptBlock("environment", environment))
+
+    semantic_decision = _semantic_decision_payload(request)
+    if semantic_decision:
+        semantic_block_payload: dict[str, Any] = {
+            "trusted_semantic_decision": semantic_decision,
+            "instruction": (
+                "Use this for routing and clarification. It is not "
+                "a source for executable fields."
+            ),
+        }
+        required_clarification = request.trusted_facts.get("required_clarification")
+        if isinstance(required_clarification, Mapping):
+            semantic_block_payload["required_clarification_instruction"] = dict(
+                required_clarification
+            )
+        blocks.append(
+            PromptBlock(
+                "semantic_decision",
+                _json_block(semantic_block_payload),
+            )
+        )
+
+    focus = _context_value(request.context, "focus_subject")
+    if focus:
+        blocks.append(PromptBlock("focus", _json_block(focus)))
+
+    domain_result = _domain_result_payload(request)
+    if domain_result:
+        blocks.append(PromptBlock("domain_result", _domain_result_block(domain_result)))
+
+    memory = _memory_payload(request)
+    if memory:
+        blocks.append(PromptBlock("memory", _json_block(memory)))
+
+    conversation = _conversation_payload(request)
+    if conversation:
+        blocks.append(
+            PromptBlock(
+                "conversation",
+                "Advisory language evidence only:\n" + _json_block(conversation),
+            )
+        )
+
+    blocks.append(PromptBlock("voice_policy", CokeVoicePolicy().render()))
+    blocks.append(PromptBlock("output_contract", _output_contract_block(request)))
+    return tuple(blocks)
+
+
+def render_prompt_blocks(blocks: tuple[PromptBlock, ...]) -> str:
+    return "\n\n".join(
+        f'<trusted_block name="{block.name}">\n{block.content}\n</trusted_block>'
+        for block in blocks
+        if block.content
+    )
+
+
 def _agent_input(request: AgentRequest) -> str:
-    parts = [
-        f"User message:\n{_user_text(request)}",
+    return render_prompt_blocks(build_prompt_blocks(request))
+
+
+def _turn_source_block(request: AgentRequest) -> str:
+    source = request.trusted_facts.get("turn_source")
+    if not isinstance(source, Mapping):
+        source = _turn_source_from_request(request)
+    return _plain_mapping(source)
+
+
+def _turn_source_from_request(request: AgentRequest) -> Mapping[str, Any]:
+    trigger_type = request.trigger_type
+    if trigger_type == "InboundTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": True,
+            "instruction": (
+                "This is a real message from the user. Reply to the user's latest message."
+            ),
+        }
+    if trigger_type == "ReminderFireTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "Render the reminder fact to the user. Do not answer the reminder "
+                "title as if the user said it."
+            ),
+        }
+    if trigger_type == "ProactiveFireTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "This turn was initiated by Coke. The planned action is what Coke "
+                "intends to say or check. Do not answer it as a user question."
+            ),
+        }
+    if trigger_type == "NotificationTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": (
+                "Render the notification fact; do not answer it as if the user said it."
+            ),
+        }
+    if trigger_type == "AccessDeniedTurn":
+        return {
+            "trigger_type": trigger_type,
+            "user_spoke_this_turn": False,
+            "instruction": "Render the access recovery fact; do not continue normal intent execution.",
+        }
+    return {
+        "trigger_type": trigger_type,
+        "user_spoke_this_turn": request.mode == TurnMode.INTERACTIVE,
+        "instruction": "Render the trusted turn fact according to its source.",
+    }
+
+
+def _current_input_block(request: AgentRequest) -> str:
+    if request.trigger_type == "InboundTurn":
+        return "\n".join(
+            [
+                "kind: user_message",
+                f"text: {_user_text(request)}",
+                "instruction: This is the actual current user input.",
+            ]
+        )
+    return "\n".join(
+        [
+            "kind: trusted_trigger_fact",
+            "payload:",
+            _json_block(request.payload),
+        ]
+    )
+
+
+def _identity_block(request: AgentRequest) -> str:
+    facts = request.trusted_facts
+    identity = {
+        "account_id": facts.get("account_id") or request.account_id,
+        "conversation_id": request.conversation_id,
+        "assistant_name": facts.get("assistant_name") or "Coke",
+    }
+    if facts.get("user_address_name"):
+        identity["user_address_name"] = facts["user_address_name"]
+    if facts.get("channel_identity_id"):
+        identity["channel_identity_id"] = facts["channel_identity_id"]
+    return _plain_mapping(identity)
+
+
+def _persona_block(request: AgentRequest) -> str:
+    facts = request.trusted_facts
+    persona = {
+        key: facts.get(key)
+        for key in ("persona", "background", "speaking_style", "extra_rules")
+        if facts.get(key)
+    }
+    if not persona:
+        return ""
+    return (
+        "User-configured persona and speaking preferences layer on top of "
+        "CokeVoicePolicy:\n"
+        + _json_block(persona)
+    )
+
+
+def _environment_block(request: AgentRequest) -> str:
+    facts = request.trusted_facts
+    environment = {
+        key: facts.get(key)
+        for key in (
+            "default_timezone",
+            "timezone",
+            "current_time",
+            "now",
+            "locale",
+            "provider_type",
+        )
+        if facts.get(key)
+    }
+    if not environment:
+        return ""
+    return _json_block(environment)
+
+
+def _semantic_decision_payload(request: AgentRequest) -> Mapping[str, Any] | None:
+    semantic = request.trusted_facts.get("semantic_decision")
+    if isinstance(semantic, Mapping):
+        return dict(semantic)
+    semantic = _context_value(request.context, "semantic_decision")
+    if semantic is None:
+        return None
+    return _jsonable(semantic)
+
+
+def _domain_result_payload(request: AgentRequest) -> Mapping[str, Any] | None:
+    domain_result = request.trusted_facts.get("domain_result")
+    if isinstance(domain_result, Mapping):
+        return dict(domain_result)
+    context_domain_result = _context_value(request.context, "domain_result")
+    if context_domain_result:
+        return _jsonable(context_domain_result)
+    notification_result = _notification_domain_result(request)
+    if notification_result:
+        return notification_result
+    return None
+
+
+def _notification_domain_result(request: AgentRequest) -> Mapping[str, Any] | None:
+    if request.mode != TurnMode.RENDER or request.trigger_type != "NotificationTurn":
+        return None
+    render_context = _render_context_payload(request)
+    facts = render_context.get("notification_facts")
+    if not isinstance(facts, Mapping):
+        return None
+    status = str(facts.get("status") or "notification")
+    return {
+        "domain": "notification",
+        "intent": "render notification fact",
+        "action": str(render_context.get("trigger_type") or "NotificationTurn"),
+        "effect": status,
+        "intent_fulfilled": True,
+        "visible_summary": json.dumps(facts, ensure_ascii=False, default=str),
+        "reply_contract": "render_fact",
+        "privacy_notes": ["Do not expose raw channel errors or internal codes."],
+        "facts": facts,
+        **(
+            {"error_facts": render_context["error_facts"]}
+            if isinstance(render_context.get("error_facts"), Mapping)
+            else {}
+        ),
+    }
+
+
+def _domain_result_block(domain_result: Mapping[str, Any]) -> str:
+    lines = [
+        "trusted domain execution result:",
+        _json_block(domain_result),
+        "Do not infer success from the transcript or from the mere existence of a requested operation.",
+    ]
+    if domain_result.get("intent_fulfilled") is False:
+        lines.append("Do not claim the action succeeded; ask for missing information or report the trusted failure reason.")
+    return "\n".join(lines)
+
+
+def _memory_payload(request: AgentRequest) -> Mapping[str, Any] | None:
+    memory_context = _context_value(request.context, "memory_context")
+    if memory_context is not None:
+        memory = _jsonable(memory_context)
+        if isinstance(memory, Mapping):
+            long_term = memory.get("long_term")
+            if long_term:
+                return {"long_term": long_term}
+        return memory if memory else None
+    memory = _context_value(request.context, "memory")
+    if memory:
+        return {"memory": memory}
+    return None
+
+
+def _conversation_payload(request: AgentRequest) -> Mapping[str, Any] | None:
+    recent = _context_value(request.context, "recent_conversation")
+    if recent:
+        return {"recent_conversation": recent}
+    memory_context = _context_value(request.context, "memory_context")
+    if memory_context is not None:
+        memory = _jsonable(memory_context)
+        if isinstance(memory, Mapping) and memory.get("short_term"):
+            return {"short_term": memory["short_term"]}
+    return None
+
+
+def _output_contract_block(request: AgentRequest) -> str:
+    lines = [
+        "Return only the Coke JSON output protocol.",
+        'Valid reply: {"type":"reply","segments":["text"]}.',
+        'Valid no-reply: {"type":"no_reply","reason":"intentional_no_reply"}.',
+        "Text output is limited to 1-3 non-empty segments.",
+        "A requested action without a trusted domain_result is not success. Do not claim it succeeded.",
+        "If domain_result.intent_fulfilled is false, ask only for missing information or state the trusted failure.",
+        "Do not create or imply a duplicate proactive follow-up when a timed reminder was already created.",
+        "Invalid final output fails closed; do not emit parser repair text, fallback prose, or template summaries.",
     ]
     protocol_retry = request.trusted_facts.get("protocol_retry")
     if protocol_retry:
-        guidance = ""
+        lines.extend(
+            [
+                "Protocol retry instruction:",
+                (
+                    "The previous assistant answer for this same turn was rejected "
+                    "because it was not a valid Coke output protocol object. Do not "
+                    "rewrite or summarize that prior answer. Use trusted facts, "
+                    "conversation history, and tool results to produce one final JSON "
+                    'object only: {"type":"reply","segments":["..."]} or '
+                    '{"type":"no_reply","reason":"intentional_no_reply"}.'
+                ),
+                (
+                    "Reply JSON must contain one to three non-empty string segments; "
+                    "combine lines into fewer segments when needed."
+                ),
+            ]
+        )
         if isinstance(protocol_retry, Mapping) and protocol_retry.get("guidance"):
-            guidance = f"\nSpecific protocol violation: {protocol_retry['guidance']}."
-        parts.append(
-            "Protocol retry instruction:\n"
-            "The previous assistant answer for this same turn was rejected "
-            "because it was not a valid Coke output protocol object. Do not "
-            "rewrite or summarize that prior answer. Use trusted facts, "
-            "conversation history, and tool results to produce one final JSON "
-            'object only: {"type":"reply","segments":["..."]} or '
-            '{"type":"no_reply","reason":"intentional_no_reply"}. '
-            "Reply JSON must contain one to three non-empty string segments; "
-            "combine lines into fewer segments when needed."
-            f"{guidance}"
-        )
-    render_context = _render_context_payload(request)
-    if render_context:
-        parts.append(
-            "Render context:\n"
-            + json.dumps(
-                render_context,
-                ensure_ascii=False,
-                default=str,
+            lines.append(
+                f"Specific protocol violation: {protocol_retry['guidance']}."
             )
-        )
-    parts.append(
-        "Trusted context:\n"
-        + json.dumps(
-            _support_payload(request),
-            ensure_ascii=False,
-            default=str,
-        )
+    return "\n".join(lines)
+
+
+def _plain_mapping(mapping: Mapping[str, Any]) -> str:
+    return "\n".join(
+        f"{key}: {_plain_value(value)}" for key, value in mapping.items()
     )
-    return "\n\n".join(parts)
+
+
+def _plain_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int | float):
+        return str(value)
+    return _json_block(value)
+
+
+def _json_block(value: Any) -> str:
+    return json.dumps(_jsonable(value), ensure_ascii=False, default=str, indent=2)
+
+
+def _context_value(context: Any, key: str) -> Any:
+    if isinstance(context, Mapping):
+        return context.get(key)
+    return getattr(context, key, None)
+
+
+def _jsonable(value: Any) -> Any:
+    if is_dataclass(value):
+        return _jsonable(asdict(value))
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, tuple | list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, set | frozenset):
+        return [_jsonable(item) for item in sorted(value, key=str)]
+    if hasattr(value, "__dict__"):
+        return {
+            key: _jsonable(item)
+            for key, item in vars(value).items()
+            if not key.startswith("_")
+        }
+    return value
+
+
+def _domain_result_from_parts(
+    *,
+    domain: str,
+    intent: str,
+    action: str,
+    ok: bool,
+    facts: Mapping[str, Any],
+    reason_code: str | None,
+) -> DomainExecutionResult:
+    effect = "succeeded" if ok else (reason_code or "failed")
+    if reason_code and reason_code.startswith("needs_"):
+        reply_contract = "ask_missing_info"
+    else:
+        reply_contract = "confirm_success" if ok else "report_failure"
+    return DomainExecutionResult(
+        domain=domain,
+        intent=intent,
+        action=action,
+        effect=effect,
+        intent_fulfilled=ok,
+        visible_summary=json.dumps(dict(facts), ensure_ascii=False, default=str),
+        reply_contract=reply_contract,
+        privacy_notes=(),
+    )
 
 
 def _support_payload(request: AgentRequest) -> dict[str, Any]:
@@ -599,12 +1009,4 @@ def _json_text(content: str) -> str:
 
 
 def _jsonable_context(context: Any) -> Any:
-    if isinstance(context, Mapping):
-        return dict(context)
-    if hasattr(context, "__dict__"):
-        return {
-            key: value
-            for key, value in vars(context).items()
-            if not key.startswith("_")
-        }
-    return str(context)
+    return _jsonable(context)

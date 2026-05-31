@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import pytest
 from agno.run.agent import RunOutput
 
+import coke.llm.agno_interaction_agent as agno_agent_module
 from coke.composition import ReminderToolAdapter, SocialSchedulingToolAdapter
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
@@ -138,7 +140,7 @@ def test_fenced_json_agno_response_maps_to_agent_result():
     assert result.timed_out is False
 
 
-def test_inbound_text_is_sent_as_primary_agent_input_with_context_supporting():
+def test_inbound_text_is_sent_as_current_input_block_with_context_supporting():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     agent = AgnoInteractionAgent(
         model=object(),
@@ -148,9 +150,292 @@ def test_inbound_text_is_sent_as_primary_agent_input_with_context_supporting():
     agent.invoke(_request(memory_enabled=True, text="提醒我明天早上9点跑步"))
 
     prompt = fake_agent.calls[0]["input"]
-    assert prompt.startswith("User message:\n提醒我明天早上9点跑步")
-    assert "Trusted context:" in prompt
-    assert '"payload"' not in prompt.split("Trusted context:", 1)[0]
+    assert prompt.startswith('<trusted_block name="turn_source">')
+    assert '<trusted_block name="current_input">' in prompt
+    assert "提醒我明天早上9点跑步" in _block_text(prompt, "current_input")
+    assert "This is a real message from the user" in _block_text(
+        prompt, "turn_source"
+    )
+    assert '"payload"' not in _block_text(prompt, "current_input")
+
+
+def test_prompt_builder_uses_ordered_conditional_blocks_and_output_contract_last():
+    request = _request(
+        memory_enabled=True,
+        text="提醒我明天早上9点跑步",
+        trusted_facts={
+            "account_id": "account_1",
+            "assistant_name": "可乐",
+            "user_address_name": "小鱼",
+            "speaking_style": "直接一点",
+            "semantic_decision": {
+                "reply_necessity": "reply_needed",
+                "intent_family": "reminder_op",
+                "intent_action": "create_reminder",
+                "ambiguity": "clear",
+                "required_clarification": "none",
+                "language_hint": "zh",
+            },
+            "domain_result": {
+                "domain": "reminder",
+                "intent": "create reminder",
+                "action": "create_reminder",
+                "effect": "created",
+                "intent_fulfilled": True,
+                "visible_summary": (
+                    "Created reminder 跑步 at 2026-06-01T09:00:00+09:00."
+                ),
+                "reply_contract": "confirm_success",
+                "privacy_notes": [],
+            },
+        },
+        context={
+            "focus_subject": {"subject_type": "reminder", "object_ids": ["r1"]},
+            "memory_context": {
+                "short_term": ["用户刚刚问过提醒。"],
+                "long_term": ["用户喜欢简短回复。"],
+            },
+            "recent_conversation": ["user: 提醒我明天早上9点跑步"],
+        },
+    )
+
+    blocks = agno_agent_module.build_prompt_blocks(request)
+
+    assert [block.name for block in blocks] == [
+        "turn_source",
+        "current_input",
+        "identity",
+        "persona",
+        "environment",
+        "semantic_decision",
+        "focus",
+        "domain_result",
+        "memory",
+        "conversation",
+        "voice_policy",
+        "output_contract",
+    ]
+    rendered = agno_agent_module.render_prompt_blocks(blocks)
+    assert rendered.rfind('name="output_contract"') > rendered.rfind(
+        'name="voice_policy"'
+    )
+    assert "1-3" in _block_text(rendered, "output_contract")
+    assert '{"type":"reply","segments":["text"]}' in _block_text(
+        rendered, "output_contract"
+    )
+
+
+def test_prompt_builder_omits_empty_optional_blocks():
+    blocks = agno_agent_module.build_prompt_blocks(
+        _request(
+            memory_enabled=True,
+            trusted_facts={"persona": "", "speaking_style": "", "extra_rules": ""},
+            context={},
+        )
+    )
+
+    names = [block.name for block in blocks]
+    assert "focus" not in names
+    assert "domain_result" not in names
+    assert "memory" not in names
+    assert "conversation" not in names
+    assert names[-1] == "output_contract"
+
+
+def test_prompt_builder_renders_required_clarification_instruction():
+    request = _request(
+        memory_enabled=True,
+        trusted_facts={
+            "semantic_decision": {
+                "reply_necessity": "reply_needed",
+                "intent_family": "reminder_op",
+                "intent_action": "create_reminder",
+                "ambiguity": "missing_time",
+                "required_clarification": "ask_trigger_time",
+                "language_hint": "zh",
+            },
+            "required_clarification": {
+                "signal": "ask_trigger_time",
+                "ambiguity": "missing_time",
+                "instruction": (
+                    "Ask exactly this clarification before any domain action."
+                ),
+            },
+        },
+    )
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    semantic_block = _block_text(rendered, "semantic_decision")
+    assert "ask_trigger_time" in semantic_block
+    assert "Ask exactly this clarification before any domain action." in semantic_block
+
+
+@pytest.mark.parametrize(
+    ("trigger_type", "payload", "expected"),
+    [
+        (
+            "ReminderFireTurn",
+            {"title": "提交周报", "fire_ids": ["fire_1"]},
+            "Do not answer the reminder title as if the user said it.",
+        ),
+        (
+            "ProactiveFireTurn",
+            {"planned_action": "问问用户复习进度"},
+            "Do not answer it as a user question.",
+        ),
+    ],
+)
+def test_prompt_builder_frames_system_sources_as_not_user_speech(
+    trigger_type,
+    payload,
+    expected,
+):
+    request = _render_request(
+        trigger_type=trigger_type,
+        payload=payload,
+    )
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    turn_source = _block_text(rendered, "turn_source")
+    current_input = _block_text(rendered, "current_input")
+    assert "user_spoke_this_turn: false" in turn_source
+    assert expected in turn_source
+    assert "This is a real message from the user" not in turn_source
+    assert "提交周报" in current_input or "复习进度" in current_input
+
+
+def test_voice_policy_contains_coke_texture_and_challenge_handling():
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(_request(memory_enabled=True))
+    )
+
+    voice = _block_text(rendered, "voice_policy")
+    assert "WeChat friend or supervisor" in voice
+    assert "1-3 short segments" in voice
+    assert "match the user's language" in voice
+    assert "generic closers" in voice
+    assert "还有什么可以帮您吗" in voice
+    assert "Do not expose internal tools, agents, logs, or architecture" in voice
+    assert "do not invent facts or times" in voice
+    assert "When the user challenges" in voice
+    assert "我没设过这个" in voice
+    assert "Do not hard-refuse coding or deep-research chat" in voice
+
+
+def test_domain_result_block_is_trusted_and_gates_success_claims():
+    request = _request(
+        memory_enabled=True,
+        text="提醒我明天9点跑步",
+        trusted_facts={
+            "domain_result": {
+                "domain": "reminder",
+                "intent": "create reminder",
+                "action": "create_reminder",
+                "effect": "created",
+                "intent_fulfilled": True,
+                "visible_summary": "Created reminder 跑步 at 2026-06-01T09:00:00+09:00.",
+                "reply_contract": "confirm_success",
+                "privacy_notes": [],
+            }
+        },
+    )
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    domain_result = _block_text(rendered, "domain_result")
+    assert "trusted domain execution result" in domain_result
+    assert "Created reminder 跑步" in domain_result
+    assert "Do not infer success from the transcript" in domain_result
+    assert "confirm_success" in domain_result
+
+
+def test_requested_action_without_domain_result_must_not_be_claimed_successful():
+    request = _request(
+        memory_enabled=True,
+        text="提醒我明天9点跑步",
+        trusted_facts={
+            "semantic_decision": {
+                "reply_necessity": "reply_needed",
+                "intent_family": "reminder_op",
+                "intent_action": "create_reminder",
+                "ambiguity": "clear",
+                "required_clarification": "none",
+                "language_hint": "zh",
+            }
+        },
+    )
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    output_contract = _block_text(rendered, "output_contract")
+    assert "A requested action without a trusted domain_result is not success" in (
+        output_contract
+    )
+    assert "Do not claim it succeeded" in output_contract
+
+
+def test_output_contract_forbids_duplicate_proactive_after_timed_reminder():
+    request = _request(
+        memory_enabled=True,
+        trusted_facts={
+            "domain_result": {
+                "domain": "reminder",
+                "intent": "create reminder",
+                "action": "create_reminder",
+                "effect": "created_timed_reminder",
+                "intent_fulfilled": True,
+                "visible_summary": "Created timed reminder for 2026-06-01T09:00:00+09:00.",
+                "reply_contract": "confirm_success",
+                "privacy_notes": [],
+            }
+        },
+    )
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    assert "Do not create or imply a duplicate proactive follow-up" in _block_text(
+        rendered, "output_contract"
+    )
+
+
+def test_domain_failure_or_missing_info_prompt_forbids_success_claim():
+    request = _request(
+        memory_enabled=True,
+        trusted_facts={
+            "domain_result": {
+                "domain": "reminder",
+                "intent": "create reminder",
+                "action": "create_reminder",
+                "effect": "needs_time",
+                "intent_fulfilled": False,
+                "visible_summary": "Need a trigger time before creating the reminder.",
+                "reply_contract": "ask_missing_info",
+                "privacy_notes": [],
+            }
+        },
+    )
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    domain_result = _block_text(rendered, "domain_result")
+    assert "intent_fulfilled" in domain_result
+    assert "false" in domain_result
+    assert "Do not claim the action succeeded" in domain_result
+    assert "ask_missing_info" in domain_result
 
 
 def test_agent_instructions_direct_state_changing_intents_to_tools():
@@ -254,12 +539,14 @@ def test_protocol_retry_instruction_is_sent_as_retry_context():
     )
 
     prompt = fake_agent.calls[0]["input"]
-    assert "Protocol retry instruction:" in prompt
+    output_contract = _block_text(prompt, "output_contract")
+    assert "Protocol retry instruction:" in output_contract
     assert "previous assistant answer for this same turn was rejected" in prompt
     assert '{"type":"reply","segments":["..."]}' in prompt
     assert "one to three non-empty string segments" in prompt
-    assert prompt.index("Protocol retry instruction:") < prompt.index(
-        "Trusted context:"
+    assert prompt.rstrip().endswith('</trusted_block>')
+    assert prompt.rfind('name="output_contract"') > prompt.rfind(
+        'name="voice_policy"'
     )
 
 
@@ -287,7 +574,7 @@ def test_protocol_retry_instruction_includes_specific_violation_guidance():
     assert (
         "Specific protocol violation: "
         "reply_segments_must_contain_1_to_3_non_empty_strings."
-    ) in prompt
+    ) in _block_text(prompt, "output_contract")
 
 
 def test_agent_instructions_name_real_social_scheduling_operations():
@@ -384,14 +671,12 @@ def test_render_notification_context_exposes_structured_facts_to_agent():
     )
 
     prompt = fake_agent.calls[0]["input"]
-    render_context = prompt.split("Trusted context:", 1)[0]
-    assert "Render context:" in render_context
-    assert "NotificationTurn" in render_context
-    assert "Alice" in render_context
-    assert "Lunch" in render_context
-    assert "2026-06-01T12:00:00" in render_context
-    assert "Asia/Tokyo" in render_context
-    assert "45" in render_context
+    assert "NotificationTurn" in _block_text(prompt, "turn_source")
+    assert "Alice" in _block_text(prompt, "domain_result")
+    assert "Lunch" in _block_text(prompt, "domain_result")
+    assert "2026-06-01T12:00:00" in _block_text(prompt, "domain_result")
+    assert "Asia/Tokyo" in _block_text(prompt, "domain_result")
+    assert "45" in _block_text(prompt, "domain_result")
     reply_text = "".join(result.output["segments"])
     assert "Lunch" in reply_text
     assert "2026-06-01T12:00:00" in reply_text
@@ -457,11 +742,15 @@ def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
     assert "detect_and_create" in (tools[0].__doc__ or "")
     assert "owner_account_id" in (tools[0].__doc__ or "")
     assert "raw_text" in (tools[0].__doc__ or "")
-    assert tools[0]({"operation": "create", "content": "pay rent"}) == {
+    result = tools[0]({"operation": "create", "content": "pay rent"})
+    assert _base_tool_result(result) == {
         "ok": True,
         "facts": {"reminder_id": "reminder_1"},
         "reason_code": None,
     }
+    assert result["domain_result"]["domain"] == "reminder"
+    assert result["domain_result"]["action"] == "create"
+    assert result["domain_result"]["intent_fulfilled"] is True
     assert reminder_tool.calls == [
         (
             {
@@ -474,6 +763,46 @@ def test_tool_ports_are_exposed_as_agno_tools_and_execute_with_guard():
             guard,
         )
     ]
+
+
+def test_tool_callable_exposes_domain_execution_result_when_adapter_provides_it():
+    class DomainResultTool:
+        def execute(self, command, guard):
+            return ToolExecutionResult(
+                ok=True,
+                facts={"reminder_id": "reminder_1"},
+                domain_result=agno_agent_module.DomainExecutionResult(
+                    domain="reminder",
+                    intent="create reminder",
+                    action="create_reminder",
+                    effect="created",
+                    intent_fulfilled=True,
+                    visible_summary="Created reminder pay rent.",
+                    reply_contract="confirm_success",
+                    privacy_notes=(),
+                ),
+            )
+
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=DomainResultTool()))
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    result = tool({"operation": "create", "content": "pay rent"})
+
+    assert result["ok"] is True
+    assert result["domain_result"] == {
+        "domain": "reminder",
+        "intent": "create reminder",
+        "action": "create_reminder",
+        "effect": "created",
+        "intent_fulfilled": True,
+        "visible_summary": "Created reminder pay rent.",
+        "reply_contract": "confirm_success",
+        "privacy_notes": [],
+    }
 
 
 def test_settings_tool_doc_and_defaults_use_trusted_account():
@@ -497,13 +826,17 @@ def test_settings_tool_doc_and_defaults_use_trusted_account():
     assert "proactive_enabled" in doc
     assert "memory_enabled" in doc
     assert "trusted_facts.account_id" in doc
-    assert tools[0](
+    result = tools[0](
         {"operation": "set_timezone", "default_timezone": "Asia/Tokyo"}
-    ) == {
+    )
+    assert _base_tool_result(result) == {
         "ok": True,
         "facts": {"default_timezone": "Asia/Tokyo"},
         "reason_code": None,
     }
+    assert result["domain_result"]["domain"] == "settings"
+    assert result["domain_result"]["action"] == "set_timezone"
+    assert result["domain_result"]["intent_fulfilled"] is True
     assert settings_tool.calls == [
         (
             {
@@ -596,11 +929,14 @@ def test_empty_reminder_tool_call_defaults_to_detecting_current_user_message():
     )
 
     tools = factory.agent_kwargs[0]["tools"]
-    assert tools[0]() == {
+    result = tools[0]()
+    assert _base_tool_result(result) == {
         "ok": True,
         "facts": {"reminder_id": "reminder_1"},
         "reason_code": None,
     }
+    assert result["domain_result"]["action"] == "detect_and_create"
+    assert result["domain_result"]["intent_fulfilled"] is True
     assert reminder_tool.calls == [
         (
             {
@@ -667,11 +1003,13 @@ def test_tool_callable_accepts_command_as_json_string_envelope():
         '{"operation":"create","owner_account_id":"owner_2","content":"pay rent"}'
     )
 
-    assert result == {
+    assert _base_tool_result(result) == {
         "ok": True,
         "facts": {"reminder_id": "reminder_1"},
         "reason_code": None,
     }
+    assert result["domain_result"]["domain"] == "reminder"
+    assert result["domain_result"]["action"] == "create"
     assert reminder_tool.calls == [
         (
             {
@@ -818,7 +1156,7 @@ def test_social_scheduling_tool_normalizes_live_agno_kwargs_string_shape():
         }
     )
 
-    assert result == {
+    assert _base_tool_result(result) == {
         "ok": True,
         "facts": {
             "status": "created",
@@ -828,6 +1166,9 @@ def test_social_scheduling_tool_normalizes_live_agno_kwargs_string_shape():
         },
         "reason_code": None,
     }
+    assert result["domain_result"]["domain"] == "social_scheduling"
+    assert result["domain_result"]["action"] == "create_shared_reminder"
+    assert result["domain_result"]["intent_fulfilled"] is True
     assert service.calls == [
         {
             "creator_account_id": "94a66a76ad4247ff87400bda8ec5012c",
@@ -918,6 +1259,7 @@ def _request(
     settings_tool=None,
     guard=None,
     trusted_facts: dict[str, Any] | None = None,
+    context: Any | None = None,
 ) -> AgentRequest:
     tool_kwargs = {
         "reminder_tool": reminder_tool,
@@ -944,12 +1286,13 @@ def _request(
         trusted_facts=facts,
         tool_profile=ToolProfile.interactive(tool_ports),
         freshness_guard=guard or object(),
-        context={"memory": ["recent"]},
+        context={"memory": ["recent"]} if context is None else context,
     )
 
 
 def _render_request(
     *,
+    trigger_type: str = "NotificationTurn",
     payload: dict[str, Any] | None = None,
     trusted_facts: dict[str, Any] | None = None,
     trigger_type: str = "NotificationTurn",
@@ -987,3 +1330,15 @@ def _render_request(
         freshness_guard=object(),
         context={},
     )
+
+
+def _block_text(prompt: str, name: str) -> str:
+    start_marker = f'<trusted_block name="{name}">'
+    end_marker = "</trusted_block>"
+    start = prompt.index(start_marker) + len(start_marker)
+    end = prompt.index(end_marker, start)
+    return prompt[start:end]
+
+
+def _base_tool_result(result: dict[str, Any]) -> dict[str, Any]:
+    return {key: result[key] for key in ("ok", "facts", "reason_code")}
