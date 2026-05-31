@@ -50,6 +50,7 @@ class WeChatPersonalAdapter:
                 self.provider_type, payload, "message_id"
             ),
             received_at=self._now(),
+            sender_display_name=_sender_display_name(payload),
             account_id=optional_string_field(self.provider_type, payload, "account_id"),
             connector_session_id=optional_string_field(
                 self.provider_type, payload, "session_id"
@@ -78,7 +79,9 @@ class WeChatPersonalAdapter:
         body = response.json()
         return body if isinstance(body, dict) else {}
 
-    def poll_login_status(self, *, account_id: str, session_id: str) -> dict[str, object]:
+    def poll_login_status(
+        self, *, account_id: str, session_id: str
+    ) -> dict[str, object]:
         if not self.endpoint_url:
             raise invalid_provider_payload(
                 self.provider_type, "endpoint_url", "provider_not_configured"
@@ -144,3 +147,11 @@ class WeChatPersonalAdapter:
         if endpoint_url.endswith("/send"):
             return endpoint_url[: -len("/send")]
         return endpoint_url
+
+
+def _sender_display_name(payload: Mapping[str, object]) -> str | None:
+    for field in ("sender_name", "senderName", "nickname", "name"):
+        value = optional_string_field("wechat_personal", payload, field)
+        if value:
+            return value
+    return None

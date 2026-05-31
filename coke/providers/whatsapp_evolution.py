@@ -80,6 +80,9 @@ class WhatsAppEvolutionAdapter:
             pairing_code=optional_string_field(
                 self.provider_type, payload, "pairing_code"
             ),
+            sender_display_name=optional_string_field(
+                self.provider_type, data, "pushName"
+            ),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
         )
 

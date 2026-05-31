@@ -198,6 +198,7 @@ export function registerCustomer(
     .post<CleanAuthResult | CleanAuthError>('/api/auth/register', {
       email: input.email,
       password: input.password,
+      display_name: input.displayName,
       default_timezone: currentTimezone(),
     })
     .then((result) => {

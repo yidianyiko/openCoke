@@ -89,7 +89,13 @@ class FakeSocialSchedulingService:
 
     def list_friends(self, account_id):
         self.calls.append(("list_friends", {"account_id": account_id}))
-        return [SimpleNamespace(account_id="friend", friendship_id="friendship_1")]
+        return [
+            SimpleNamespace(
+                account_id="friend",
+                friendship_id="friendship_1",
+                display_name="Alice Push",
+            )
+        ]
 
     def remove_friend(self, account_id, friend_account_id):
         self.calls.append(
@@ -303,6 +309,21 @@ def test_friend_routes_are_thin_service_adapters():
     ]
 
 
+def test_friend_list_route_returns_display_name():
+    client, _service, _identity = make_client()
+
+    response = client.get("/api/friends")
+
+    assert response.status_code == 200
+    assert response.get_json()["friends"] == [
+        {
+            "account_id": "friend",
+            "friendship_id": "friendship_1",
+            "display_name": "Alice Push",
+        }
+    ]
+
+
 def test_friend_routes_reject_missing_session_before_service_call():
     client, service, identity = make_client()
 
@@ -323,7 +344,9 @@ def test_friend_routes_reject_missing_session_before_service_call():
 
 
 def test_shared_reminder_routes_are_thin_service_adapters():
-    client, service, identity = make_client(identity_service=FakeIdentityService("creator"))
+    client, service, identity = make_client(
+        identity_service=FakeIdentityService("creator")
+    )
 
     create = client.post(
         "/api/shared-reminders",
@@ -338,14 +361,20 @@ def test_shared_reminder_routes_are_thin_service_adapters():
         },
     )
     assert create.status_code == 201
-    assert client.get("/api/shared-reminders?account_id=spoofed_account").status_code == 200
     assert (
-        client.get("/api/shared-reminders/shared_1?account_id=spoofed_account").status_code
+        client.get("/api/shared-reminders?account_id=spoofed_account").status_code
+        == 200
+    )
+    assert (
+        client.get(
+            "/api/shared-reminders/shared_1?account_id=spoofed_account"
+        ).status_code
         == 200
     )
     assert (
         client.post(
-            "/api/shared-reminders/shared_1/cancel", json={"account_id": "spoofed_account"}
+            "/api/shared-reminders/shared_1/cancel",
+            json={"account_id": "spoofed_account"},
         ).status_code
         == 200
     )

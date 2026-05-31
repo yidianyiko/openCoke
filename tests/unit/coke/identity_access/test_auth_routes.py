@@ -19,15 +19,20 @@ class FakeService:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict]] = []
         self.account = FakeObject(id="acct_1", origin="web_first")
-        self.session = FakeObject(id="sess_1", account_id="acct_1", token="session_token")
+        self.session = FakeObject(
+            id="sess_1", account_id="acct_1", token="session_token"
+        )
 
-    def register_web_account(self, email, password, default_timezone="UTC"):
+    def register_web_account(
+        self, email, password, display_name=None, default_timezone="UTC"
+    ):
         self.calls.append(
             (
                 "register_web_account",
                 {
                     "email": email,
                     "password": password,
+                    "display_name": display_name,
                     "default_timezone": default_timezone,
                 },
             )
@@ -86,7 +91,11 @@ class FakeService:
                 },
             )
         )
-        return FakeObject(account_id="acct_1", session=self.session, continuation={"next": "/channels"})
+        return FakeObject(
+            account_id="acct_1",
+            session=self.session,
+            continuation={"next": "/channels"},
+        )
 
     def issue_web_claim_code(self, browser_session, continuation=None):
         self.calls.append(
@@ -140,13 +149,19 @@ class FakeService:
                 },
             )
         )
-        return FakeObject(account_id="acct_1", session=self.session, continuation={"friend_link_id": "fl_1"})
+        return FakeObject(
+            account_id="acct_1",
+            session=self.session,
+            continuation={"friend_link_id": "fl_1"},
+        )
 
     def issue_pairing_code(self, account_id):
         self.calls.append(("issue_pairing_code", {"account_id": account_id}))
         return FakeObject(code="pairing_code", artifact=FakeObject(id="artifact_4"))
 
-    def resolve_or_create_channel_identity(self, provider_type, provider_subject, pairing_code=None):
+    def resolve_or_create_channel_identity(
+        self, provider_type, provider_subject, pairing_code=None
+    ):
         self.calls.append(
             (
                 "resolve_or_create_channel_identity",
@@ -157,7 +172,10 @@ class FakeService:
                 },
             )
         )
-        return FakeObject(account=self.account, channel_identity=FakeObject(id="ci_1", account_id="acct_1"))
+        return FakeObject(
+            account=self.account,
+            channel_identity=FakeObject(id="ci_1", account_id="acct_1"),
+        )
 
 
 class ErrorService(FakeService):
@@ -185,7 +203,9 @@ class AccessDeniedService(FakeService):
 
 
 class PairingRedemptionAccessDeniedService(FakeService):
-    def resolve_or_create_channel_identity(self, provider_type, provider_subject, pairing_code=None):
+    def resolve_or_create_channel_identity(
+        self, provider_type, provider_subject, pairing_code=None
+    ):
         raise IdentityAccessError(
             "access_denied",
             fact={
@@ -198,7 +218,9 @@ class PairingRedemptionAccessDeniedService(FakeService):
 
 
 class PairingRedemptionWriteConflictService(FakeService):
-    def resolve_or_create_channel_identity(self, provider_type, provider_subject, pairing_code=None):
+    def resolve_or_create_channel_identity(
+        self, provider_type, provider_subject, pairing_code=None
+    ):
         raise IdentityAccessError(
             "channel_identity_write_conflict",
             fact={
@@ -242,9 +264,15 @@ def test_create_app_registers_auth_and_claim_routes_with_identity_service():
     )
 
     assert auth_response.status_code == 200
-    assert auth_response.get_json() == {"account_id": "acct_1", "session_token": "session_token"}
+    assert auth_response.get_json() == {
+        "account_id": "acct_1",
+        "session_token": "session_token",
+    }
     assert claim_response.status_code == 201
-    assert claim_response.get_json() == {"code": "claim_code", "artifact_id": "artifact_3"}
+    assert claim_response.get_json() == {
+        "code": "claim_code",
+        "artifact_id": "artifact_3",
+    }
     assert service.calls == [
         ("login", {"email": "a@example.com", "password": "hash_1"}),
         (
@@ -265,6 +293,7 @@ def test_register_route_calls_service_and_returns_json():
         json={
             "email": "a@example.com",
             "password": "hash_1",
+            "display_name": "Alice",
             "default_timezone": "Asia/Tokyo",
         },
     )
@@ -280,9 +309,37 @@ def test_register_route_calls_service_and_returns_json():
         {
             "email": "a@example.com",
             "password": "hash_1",
+            "display_name": "Alice",
             "default_timezone": "Asia/Tokyo",
         },
     )
+
+
+def test_register_route_rejects_missing_display_name_before_service_call():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "a@example.com",
+            "password": "hash_1",
+            "default_timezone": "Asia/Tokyo",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": {
+            "code": "invalid_request",
+            "fact": {
+                "type": "invalid_request",
+                "location": "body",
+                "field": "display_name",
+                "reason": "required_field_missing",
+            },
+        }
+    }
+    assert service.calls == []
 
 
 def test_login_and_current_user_routes_call_service():
@@ -298,9 +355,15 @@ def test_login_and_current_user_routes_call_service():
     )
 
     assert login_response.status_code == 200
-    assert login_response.get_json() == {"account_id": "acct_1", "session_token": "session_token"}
+    assert login_response.get_json() == {
+        "account_id": "acct_1",
+        "session_token": "session_token",
+    }
     assert current_response.status_code == 200
-    assert current_response.get_json() == {"account_id": "acct_1", "origin": "web_first"}
+    assert current_response.get_json() == {
+        "account_id": "acct_1",
+        "origin": "web_first",
+    }
     assert service.calls[-1] == ("current_user", {"session_token": "session_token"})
 
 
@@ -345,8 +408,12 @@ def test_access_status_route_rejects_missing_session_before_service_call():
 def test_verification_and_password_reset_routes_call_service():
     client, service = make_client()
 
-    verify_response = client.post("/api/auth/email-verification/verify", json={"token": "verify_token"})
-    request_response = client.post("/api/auth/password-reset/request", json={"email": "a@example.com"})
+    verify_response = client.post(
+        "/api/auth/email-verification/verify", json={"token": "verify_token"}
+    )
+    request_response = client.post(
+        "/api/auth/password-reset/request", json={"email": "a@example.com"}
+    )
     complete_response = client.post(
         "/api/auth/password-reset/complete",
         json={"token": "reset_token", "password": "hash_2"},
@@ -390,7 +457,10 @@ def test_claim_code_issue_and_redeem_routes_call_service():
 
     issue_response = client.post(
         "/api/claim/code",
-        json={"browser_session": "browser_1", "continuation": {"friend_link_id": "fl_1"}},
+        json={
+            "browser_session": "browser_1",
+            "continuation": {"friend_link_id": "fl_1"},
+        },
     )
     redeem_response = client.post(
         "/api/claim/code/redeem",
@@ -402,7 +472,10 @@ def test_claim_code_issue_and_redeem_routes_call_service():
     )
 
     assert issue_response.status_code == 201
-    assert issue_response.get_json() == {"code": "claim_code", "artifact_id": "artifact_3"}
+    assert issue_response.get_json() == {
+        "code": "claim_code",
+        "artifact_id": "artifact_3",
+    }
     assert redeem_response.status_code == 200
     assert redeem_response.get_json() == {
         "account_id": "acct_1",
@@ -687,9 +760,15 @@ def test_pairing_code_issue_and_redeem_routes_call_service():
     )
 
     assert issue_response.status_code == 201
-    assert issue_response.get_json() == {"code": "pairing_code", "artifact_id": "artifact_4"}
+    assert issue_response.get_json() == {
+        "code": "pairing_code",
+        "artifact_id": "artifact_4",
+    }
     assert redeem_response.status_code == 200
-    assert redeem_response.get_json() == {"account_id": "acct_1", "channel_identity_id": "ci_1"}
+    assert redeem_response.get_json() == {
+        "account_id": "acct_1",
+        "channel_identity_id": "ci_1",
+    }
     assert service.calls[:2] == [
         ("current_user", {"session_token": "session_token"}),
         ("issue_pairing_code", {"account_id": "acct_1"}),

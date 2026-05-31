@@ -25,6 +25,7 @@ from coke.domains.identity_access.models import (
     LoginResult,
     RegistrationResult,
     Session,
+    UserProfile,
 )
 from coke.domains.identity_access.passwords import PasswordHasher
 from coke.domains.identity_access.repository import IdentityAccessRepository
@@ -55,13 +56,19 @@ class IdentityAccessService:
         self,
         email: str,
         password: str,
+        display_name: str | None = None,
         default_timezone: str = "UTC",
     ) -> RegistrationResult:
         if self.repository.get_credential_by_email(email):
             raise IdentityAccessError("email_already_registered")
+        profile_name = _normalize_display_name(display_name)
+        if profile_name is None:
+            profile_name = _display_name_from_email(email)
 
         account = self._create_account(
-            origin="web_first", default_timezone=default_timezone
+            origin="web_first",
+            default_timezone=default_timezone,
+            display_name=profile_name,
         )
         credential = Credential(
             id=self._id_factory("credential"),
@@ -84,6 +91,7 @@ class IdentityAccessService:
         ).artifact
         return RegistrationResult(
             account=account,
+            user_profile=self._require_user_profile(account.id),
             credential=credential,
             session=session,
             email_verification=email_verification,
@@ -154,6 +162,7 @@ class IdentityAccessService:
         provider_type: str,
         provider_subject: str,
         pairing_code: str | None = None,
+        sender_display_name: str | None = None,
     ) -> ChannelIdentityResolution:
         if pairing_code is not None:
             artifact = self._require_unconsumed_artifact(
@@ -218,7 +227,13 @@ class IdentityAccessService:
         if provider_type != "whatsapp_evolution":
             raise IdentityAccessError("identity_pairing_required")
 
-        account = self._create_account(origin="messaging_first", default_timezone="UTC")
+        account = self._create_account(
+            origin="messaging_first",
+            default_timezone="UTC",
+            display_name=_display_name_for_provider_subject(
+                provider_subject, sender_display_name
+            ),
+        )
         identity = self._create_channel_identity(
             account_id=account.id,
             provider_type=provider_type,
@@ -520,6 +535,18 @@ class IdentityAccessService:
             raise IdentityAccessError("activation_not_found")
         return activation
 
+    def get_display_name(self, account_id: str) -> str:
+        profile = self._require_user_profile(account_id)
+        return _profile_display_name(profile) or _fallback_display_name(account_id)
+
+    def get_display_names(self, account_ids: list[str]) -> dict[str, str]:
+        profiles = self.repository.get_user_profiles(account_ids)
+        return {
+            account_id: _profile_display_name(profiles.get(account_id))
+            or _fallback_display_name(account_id)
+            for account_id in account_ids
+        }
+
     def can_remove_channel_identity(
         self, account_id: str, channel_identity_id: str
     ) -> bool:
@@ -571,7 +598,9 @@ class IdentityAccessService:
             raise IdentityAccessError("access_denied", fact=access_decision.fact)
         return account
 
-    def _create_account(self, origin: str, default_timezone: str) -> Account:
+    def _create_account(
+        self, origin: str, default_timezone: str, display_name: str
+    ) -> Account:
         account = Account(
             id=self._id_factory("account"),
             origin=origin,
@@ -581,6 +610,18 @@ class IdentityAccessService:
             updated_at=self._now(),
         )
         self.repository.add_account(account)
+        self.repository.add_user_profile(
+            UserProfile(
+                id=self._id_factory("user_profile"),
+                account_id=account.id,
+                real_name=None,
+                nickname=display_name,
+                description=None,
+                relationship_description=None,
+                created_at=self._now(),
+                updated_at=self._now(),
+            )
+        )
         self.repository.add_activation(
             AccountActivation(
                 id=self._id_factory("activation"),
@@ -612,6 +653,12 @@ class IdentityAccessService:
             )
         )
         return account
+
+    def _require_user_profile(self, account_id: str) -> UserProfile:
+        profile = self.repository.get_user_profile(account_id)
+        if profile is None:
+            raise IdentityAccessError("user_profile_not_found")
+        return profile
 
     def _create_channel_identity(
         self,
@@ -811,3 +858,53 @@ class IdentityAccessService:
 
     def _default_id(self, prefix: str) -> str:
         return uuid4().hex
+
+
+def _normalize_display_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = " ".join(value.strip().split())
+    if not normalized:
+        raise IdentityAccessError("display_name_required")
+    return normalized[:160]
+
+
+def _display_name_from_email(email: str) -> str:
+    local_part = email.split("@", 1)[0].strip()
+    return _fallback_display_name(local_part or email)
+
+
+def _display_name_for_provider_subject(
+    provider_subject: str, sender_display_name: str | None
+) -> str:
+    try:
+        normalized = _normalize_display_name(sender_display_name)
+    except IdentityAccessError:
+        normalized = None
+    return normalized or _fallback_display_name(provider_subject)
+
+
+def _profile_display_name(profile: UserProfile | None) -> str | None:
+    if profile is None:
+        return None
+    for value in (profile.nickname, profile.real_name):
+        normalized = _normalize_display_name_or_none(value)
+        if normalized:
+            return normalized
+    return None
+
+
+def _normalize_display_name_or_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = " ".join(value.strip().split())
+    return normalized[:160] if normalized else None
+
+
+def _fallback_display_name(value: str) -> str:
+    candidate = value.strip()
+    for separator in ("@", ":", "/"):
+        if separator in candidate:
+            candidate = candidate.rsplit(separator, 1)[-1]
+    candidate = " ".join(candidate.split())
+    return (candidate or "Coke user")[:160]

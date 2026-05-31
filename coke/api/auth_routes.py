@@ -22,6 +22,7 @@ def create_auth_blueprint(identity_service) -> Blueprint:
         result = identity_service.register_web_account(
             email=_body_field(payload, "email"),
             password=_body_field(payload, "password"),
+            display_name=_body_field(payload, "display_name"),
             default_timezone=payload.get("default_timezone", "UTC"),
         )
         return (
@@ -42,7 +43,9 @@ def create_auth_blueprint(identity_service) -> Blueprint:
             email=_body_field(payload, "email"),
             password=_body_field(payload, "password"),
         )
-        return jsonify({"account_id": result.account.id, "session_token": result.session.token})
+        return jsonify(
+            {"account_id": result.account.id, "session_token": result.session.token}
+        )
 
     @blueprint.post("/email-verification/verify")
     def verify_email():

@@ -40,12 +40,14 @@ class ReminderService:
         delivery: ReminderDeliveryPort | None = None,
         now: Callable[[], datetime] | None = None,
         id_factory: Callable[[str], str] | None = None,
+        friend_identifiers: Callable[[str, str], list[str]] | None = None,
     ) -> None:
         self.repository = repository
         self.detector = detector
         self.delivery = delivery
         self._now = now or (lambda: datetime.now(UTC))
         self._id_factory = id_factory or (lambda prefix: uuid4().hex)
+        self._friend_identifiers = friend_identifiers
 
     def execute_batch(
         self,
@@ -417,7 +419,10 @@ class ReminderService:
         visible_end: datetime,
         display_timezone: str,
     ) -> CalendarQueryResult:
-        return ReminderCalendarReadModel(self.repository).query(
+        return ReminderCalendarReadModel(
+            self.repository,
+            friend_identifiers=self._friend_identifiers,
+        ).query(
             owner_account_id=owner_account_id,
             visible_start=visible_start,
             visible_end=visible_end,

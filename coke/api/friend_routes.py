@@ -89,6 +89,7 @@ def create_friend_blueprint(social_scheduling_service, identity_service) -> Blue
                     {
                         "account_id": friend.account_id,
                         "friendship_id": friend.friendship_id,
+                        "display_name": friend.display_name,
                     }
                     for friend in friends
                 ]
