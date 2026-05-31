@@ -79,6 +79,13 @@ The page has three visible regions:
    remaining reminders today, and the next upcoming reminder if one exists.
 3. A week timeline with seven day columns and hourly rows.
 
+The summary uses browser-local `now` only to decide which reminders are still
+upcoming. `Remaining today` counts active reminders whose `localDate` equals the
+browser-local current date and whose `localTime` is greater than or equal to the
+current `HH:mm`. `Next` is the first active reminder in the selected week whose
+`localDate` is after today or whose `localDate` is today and `localTime` has not
+passed. The summary does not exclude outside-visible-hours reminders.
+
 ### Timeline
 
 The default visible range is hour slots `06:00` through `22:00`, inclusive.
