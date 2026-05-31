@@ -145,3 +145,47 @@ check passed; `verify-surface` passed clean-rebuild-backend with 589 tests in
 `clean-rebuild-backend repo-os-docs`. Risk report returned
 `human_review_required: no`; the only risk trigger was the medium
 `sensitive_repo_os_change` for updating the incident record.
+
+```text
+scripts/deploy-compose-to-gcp.sh
+```
+
+Result: deployed `202d13084e108674958aa6b1ad7e6dc9988a9833`. Service health
+checks passed and remote `.deployed-sha` matched that commit.
+
+```text
+runtime.adapters.reminder_tool.execute(
+    {'operation': 'list_reminders', 'account_id': 'ae02ff01-6fcd-4d39-a189-e51c8c8a31e6'},
+    object(),
+)
+```
+
+Result: production direct tool check returned `ok=True`, `count=28`,
+`display_line_count=28`, and `reply_contract=render_reminder_list`.
+
+```text
+POST /webhooks/wechat/personal
+raw_event_id=codex-reminder-list-detail-smoke-20260531T135815Z
+text=现在我一共有几个提醒？
+```
+
+Result: the prompt/tool-contract-only deployment still produced a count-only
+outbound message `你现在一共有 28 个提醒。` with provider status `sent`. This
+confirmed the need for a runtime guard rather than prompt-only enforcement.
+
+```text
+.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py::test_reminder_list_tool_result_overrides_count_only_final_reply -q
+.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/llm/test_interaction_agent.py tests/integration/coke/test_composition_turn_integration.py -q
+.venv/bin/python -m pytest tests/unit/coke -q
+zsh scripts/check
+zsh scripts/verify-surface clean-rebuild-backend repo-os-docs
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
+
+Result: the runtime guard focused test passed; the affected set passed with
+83 tests in 2.26s; full unit passed with 590 tests in 17.59s; `scripts/check`
+passed; `verify-surface` passed clean-rebuild-backend with 590 tests in 18.32s
+and repo-os-docs; verification suggestion remained
+`clean-rebuild-backend repo-os-docs`; risk report returned
+`human_review_required: no`.

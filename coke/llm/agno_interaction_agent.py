@@ -140,6 +140,7 @@ class AgnoInteractionAgent:
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
         long_term_enabled = bool(request.trusted_facts.get("memory_enabled", True))
+        tool_events: list[dict[str, Any]] = []
         agent = self.agent_factory(
             model=self.model,
             db=self.db,
@@ -150,7 +151,7 @@ class AgnoInteractionAgent:
             add_memories_to_context=long_term_enabled,
             add_history_to_context=True,
             add_session_state_to_context=False,
-            tools=self._tools(request),
+            tools=self._tools(request, tool_events=tool_events),
             system_message=self._system_message(request),
             instructions=self._instructions(),
             use_json_mode=True,
@@ -174,7 +175,8 @@ class AgnoInteractionAgent:
             task_id = self.task_id_factory()
             self._async_requests[task_id] = request
             return AgentResult.timeout(task_id)
-        return _agent_result_from_content(getattr(run_output, "content", None))
+        result = _agent_result_from_content(getattr(run_output, "content", None))
+        return _enforce_tool_reply_contracts(result, tool_events, request)
 
     def _memory_manager(self, long_term_enabled: bool):
         if self.db is None:
@@ -185,12 +187,14 @@ class AgnoInteractionAgent:
             long_term_enabled=long_term_enabled,
         )
 
-    def _tools(self, request: AgentRequest) -> list[Callable]:
+    def _tools(
+        self, request: AgentRequest, *, tool_events: list[dict[str, Any]] | None = None
+    ) -> list[Callable]:
         tools: list[Callable] = []
         for name in request.tool_profile.tool_names:
             port = getattr(request.tool_profile, f"{name}_tool")
             if port is not None:
-                tools.append(_tool_callable(name, port, request))
+                tools.append(_tool_callable(name, port, request, tool_events))
         return tools
 
     def _system_message(self, request: AgentRequest) -> str:
@@ -278,6 +282,7 @@ def _tool_callable(
     name: str,
     port: StateChangingToolPort,
     request: AgentRequest,
+    tool_events: list[dict[str, Any]] | None = None,
 ) -> Callable[..., dict]:
     def tool(command: dict | None = None, **kwargs) -> dict:
         try:
@@ -311,12 +316,15 @@ def _tool_callable(
             facts=result.facts,
             reason_code=result.reason_code,
         )
-        return {
+        payload = {
             "ok": result.ok,
             "facts": dict(result.facts),
             "reason_code": result.reason_code,
             "domain_result": _jsonable(domain_result),
         }
+        if tool_events is not None:
+            tool_events.append(payload)
+        return payload
 
     tool.__name__ = f"{name}_tool"
     tool.__doc__ = _tool_doc(name)
@@ -624,6 +632,93 @@ def _agent_result_from_content(content: Any) -> AgentResult:
     if isinstance(content, str) and not content.strip():
         return AgentResult.completed(None, blank_output=True)
     return AgentResult.completed(_mapping_or_none(content))
+
+
+def _enforce_tool_reply_contracts(
+    result: AgentResult,
+    tool_events: list[dict[str, Any]],
+    request: AgentRequest,
+) -> AgentResult:
+    reminder_list = _latest_render_reminder_list_event(tool_events)
+    if reminder_list is None or _reminder_list_reply_is_complete(result, reminder_list):
+        return result
+    return AgentResult.completed(
+        {
+            "type": "reply",
+            "segments": [_render_reminder_list_reply(reminder_list, request)],
+        }
+    )
+
+
+def _latest_render_reminder_list_event(
+    tool_events: list[dict[str, Any]],
+) -> Mapping[str, Any] | None:
+    for event in reversed(tool_events):
+        domain_result = event.get("domain_result")
+        if (
+            event.get("ok") is True
+            and isinstance(domain_result, Mapping)
+            and domain_result.get("reply_contract") == "render_reminder_list"
+        ):
+            facts = event.get("facts")
+            if isinstance(facts, Mapping):
+                return facts
+    return None
+
+
+def _reminder_list_reply_is_complete(
+    result: AgentResult, facts: Mapping[str, Any]
+) -> bool:
+    output = result.output
+    if not isinstance(output, Mapping) or output.get("type") != "reply":
+        return False
+    segments = output.get("segments")
+    if not isinstance(segments, list):
+        return False
+    text = "\n".join(segment for segment in segments if isinstance(segment, str))
+    reminders = facts.get("reminders")
+    if not isinstance(reminders, list):
+        return False
+    for reminder in reminders:
+        if not isinstance(reminder, Mapping):
+            return False
+        content = str(reminder.get("content") or "").strip()
+        if content and content not in text:
+            return False
+    return True
+
+
+def _render_reminder_list_reply(facts: Mapping[str, Any], request: AgentRequest) -> str:
+    count = facts.get("count", 0)
+    chinese = _looks_chinese(_user_text(request))
+    if chinese:
+        lines = [f"你现在一共有 {count} 个提醒："]
+    else:
+        lines = [f"You currently have {count} reminders:"]
+
+    reminders = facts.get("reminders")
+    if isinstance(reminders, list):
+        for index, reminder in enumerate(reminders, start=1):
+            if isinstance(reminder, Mapping):
+                lines.append(_render_reminder_list_line(index, reminder, chinese))
+    return "\n".join(lines)
+
+
+def _render_reminder_list_line(
+    index: int, reminder: Mapping[str, Any], chinese: bool
+) -> str:
+    content = str(reminder.get("content") or "").strip()
+    time_value = reminder.get("next_fire_at")
+    time_label = (
+        str(time_value) if time_value else ("未设定时间" if chinese else "unscheduled")
+    )
+    if chinese:
+        return f"{index}. {content}（{time_label}）"
+    return f"{index}. {content} ({time_label})"
+
+
+def _looks_chinese(text: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in text)
 
 
 def build_prompt_blocks(request: AgentRequest) -> tuple[PromptBlock, ...]:

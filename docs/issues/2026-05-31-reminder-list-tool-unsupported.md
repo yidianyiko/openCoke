@@ -53,6 +53,13 @@ The follow-up fix tightens the successful `list_reminders` reply contract:
   count-only answers are incomplete and the final reply must include every
   returned active reminder.
 
+Production smoke of the prompt/tool-contract-only fix still produced
+`你现在一共有 28 个提醒。`. The final fix therefore adds a runtime contract
+guard in the Interaction Agent: if a successful tool call returns
+`reply_contract=render_reminder_list` and the model's final reply does not
+contain every returned reminder content, the runtime renders the list directly
+from trusted tool facts.
+
 ## Evidence
 
 - Focused tests failed before implementation because `list_reminders` was not
@@ -72,3 +79,10 @@ The follow-up fix tightens the successful `list_reminders` reply contract:
   `你目前一共有 28 个提醒。` and provider delivery status was `sent`.
 - Follow-up focused tests for the reminder tool facts, Agent instructions, and
   composition visible reply pass with the expanded list contract.
+- Production smoke
+  `codex-reminder-list-detail-smoke-20260531T135815Z` on deployed
+  `202d13084e108674958aa6b1ad7e6dc9988a9833` still produced the count-only
+  reply, confirming that prompt-only enforcement was insufficient.
+- The runtime guard test covers the exact failure mode: a model that calls the
+  list tool but returns only `你现在一共有 2 个提醒。` is replaced with a reply
+  containing the total count and every reminder line.

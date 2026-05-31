@@ -816,6 +816,70 @@ def test_reminder_list_instructions_require_full_list_not_count_only():
     assert "label reminders without next_fire_at" in instructions
 
 
+def test_reminder_list_tool_result_overrides_count_only_final_reply():
+    class CountOnlyAgentInstance:
+        def __init__(self, tools):
+            self.tools = tools
+
+        def run(self, input, **kwargs):
+            self.tools[0]({"operation": "list_reminders"})
+            return RunOutput(
+                content={"type": "reply", "segments": ["你现在一共有 2 个提醒。"]}
+            )
+
+    class ReminderListTool:
+        def execute(self, command, guard):
+            return ToolExecutionResult(
+                ok=True,
+                facts={
+                    "count": 2,
+                    "reminders": [
+                        {
+                            "content": "pay rent",
+                            "next_fire_at": "2026-05-30T12:00:00+00:00",
+                        },
+                        {"content": "buy milk", "next_fire_at": None},
+                    ],
+                    "display_lines": [
+                        "1. pay rent (2026-05-30T12:00:00+00:00)",
+                        "2. buy milk (unscheduled)",
+                    ],
+                },
+                domain_result=agno_agent_module.DomainExecutionResult(
+                    domain="reminder",
+                    intent="list reminders",
+                    action="list_reminders",
+                    effect="listed",
+                    intent_fulfilled=True,
+                    visible_summary=(
+                        "Active reminder count: 2.\n"
+                        "1. pay rent (2026-05-30T12:00:00+00:00)\n"
+                        "2. buy milk (unscheduled)"
+                    ),
+                    reply_contract="render_reminder_list",
+                    privacy_notes=(),
+                ),
+            )
+
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=lambda **kwargs: CountOnlyAgentInstance(kwargs["tools"]),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="现在我一共有几个提醒？",
+            reminder_tool=ReminderListTool(),
+        )
+    )
+
+    reply = result.output["segments"][0]
+    assert reply.startswith("你现在一共有 2 个提醒：")
+    assert "1. pay rent（2026-05-30T12:00:00+00:00）" in reply
+    assert "2. buy milk（未设定时间）" in reply
+
+
 def test_tool_callable_exposes_domain_execution_result_when_adapter_provides_it():
     class DomainResultTool:
         def execute(self, command, guard):
