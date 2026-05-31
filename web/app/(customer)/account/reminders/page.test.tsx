@@ -185,6 +185,7 @@ describe('CustomerRemindersPage', () => {
     const outside = container.querySelector('[data-testid="outside-2026-05-13"]') as HTMLElement | null;
     expect(outside?.textContent).toContain('Outside visible hours');
     expect(outside?.textContent).toContain('Early one');
+    expect(outside?.textContent).toContain('Early two');
     expect(outside?.textContent).toContain('Early three');
     expect(outside?.textContent).not.toContain('Early four');
     expect(outside?.textContent).toContain('+1 more outside visible hours');
