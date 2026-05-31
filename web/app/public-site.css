@@ -3757,7 +3757,7 @@ html[data-locale-ready="true"] .coke-site-splash {
 
 .coke-site .customer-reminder-timeline {
   --customer-reminder-day-head-height: 45px;
-  --customer-reminder-outside-height: 164px;
+  --customer-reminder-outside-height: 244px;
   --customer-reminder-hour-height: 74px;
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
@@ -3821,9 +3821,9 @@ html[data-locale-ready="true"] .coke-site-splash {
 .coke-site .customer-reminder-outside {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   height: var(--customer-reminder-outside-height);
-  overflow-y: auto;
+  overflow: hidden;
   padding: 8px;
   border-bottom: 1px solid rgba(27, 20, 16, 0.08);
 }
@@ -3877,6 +3877,11 @@ html[data-locale-ready="true"] .coke-site-splash {
 
 .coke-site .customer-reminder-hour__items .customer-reminder-card {
   pointer-events: auto;
+}
+
+.coke-site .customer-reminder-outside .customer-reminder-card {
+  gap: 6px;
+  padding: 8px;
 }
 
 .coke-site .customer-reminder-card {
