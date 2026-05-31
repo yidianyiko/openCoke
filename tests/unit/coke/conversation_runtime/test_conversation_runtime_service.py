@@ -305,6 +305,71 @@ def test_close_advances_last_closed_inbound_seq(service, repository):
     assert saved.last_closed_inbound_seq == 1
 
 
+def test_stage_command_keeps_distinct_same_operation_payloads_without_item_index(
+    service,
+    repository,
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="set two reminders",
+        payload={"provider": "whatsapp_evolution"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    first = service.stage_command(
+        turn_id=turn.turn.id,
+        domain="reminder",
+        operation="create",
+        command_payload={
+            "operation": "create",
+            "owner_account_id": "account_1",
+            "content": "pay rent",
+        },
+        preview_facts={"status": "staged", "content": "pay rent"},
+        item_index=1,
+    )
+    second = service.stage_command(
+        turn_id=turn.turn.id,
+        domain="reminder",
+        operation="create",
+        command_payload={
+            "operation": "create",
+            "owner_account_id": "account_1",
+            "content": "call mom",
+        },
+        preview_facts={"status": "staged", "content": "call mom"},
+        item_index=1,
+    )
+    retry = service.stage_command(
+        turn_id=turn.turn.id,
+        domain="reminder",
+        operation="create",
+        command_payload={
+            "operation": "create",
+            "owner_account_id": "account_1",
+            "content": "pay rent",
+        },
+        preview_facts={"status": "staged", "content": "pay rent"},
+        item_index=1,
+    )
+
+    staged = repository.staged_commands_for_turn(turn.turn.id)
+    assert first.id != second.id
+    assert retry.id == first.id
+    assert [command.command_payload["content"] for command in staged] == [
+        "pay rent",
+        "call mom",
+    ]
+
+
 def test_newer_inbound_before_close_supersedes_old_turn_without_closing(
     service,
     repository,

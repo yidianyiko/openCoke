@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -308,9 +310,11 @@ class ConversationRuntimeService:
     ) -> StagedCommand:
         turn = self._require_turn(turn_id)
         self._ensure_turn_can_close(turn)
+        payload_digest = _payload_digest(command_payload)
         idempotency_key = (
             f"staged:{turn.conversation_id}:{turn.input_from_seq}:"
-            f"{turn.input_to_seq}:{domain}:{operation}:{item_index}"
+            f"{turn.input_to_seq}:{domain}:{operation}:{item_index}:"
+            f"{payload_digest}"
         )
         for existing in self.repository.staged_commands_for_turn(turn_id):
             if existing.idempotency_key == idempotency_key:
@@ -568,3 +572,24 @@ class ConversationRuntimeService:
         if turn is None:
             raise ConversationRuntimeError("turn_not_found")
         return turn
+
+
+def _payload_digest(payload: Mapping[str, Any]) -> str:
+    encoded = json.dumps(
+        _canonical_payload(payload),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()[:24]
+
+
+def _canonical_payload(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _canonical_payload(item) for key, item in value.items()}
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        return [_canonical_payload(item) for item in value]
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    return repr(value)

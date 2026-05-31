@@ -365,7 +365,9 @@ def test_interactive_shared_reminder_tool_stages_before_close():
             "creator_account_id": "account_1",
             "receiver_account_ids": ["account_2"],
             "title": "Dinner",
+            "local_trigger_at": "2026-06-01T19:00:00",
             "captured_timezone": "UTC",
+            "context": {"source": "unit"},
         },
         guard,
     )
