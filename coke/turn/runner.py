@@ -328,7 +328,7 @@ class TurnRunner:
                     input_to_seq=start.turn.input_to_seq,
                 )
                 focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
-                semantic_decision = self.semantic_interpreter.interpret(
+                semantic_decision = await self._interpret_semantic_async(
                     SemanticInterpreterRequest(
                         account_id=trigger.account_id,
                         conversation_id=trigger.conversation_id,
@@ -458,6 +458,7 @@ class TurnRunner:
             conversation_id=trigger.conversation_id,
             account_id=trigger.account_id,
             channel_identity_id=trigger.channel_identity_id,
+            agent_run_id=trigger.agent_run_id,
             payload={
                 "access_denied": True,
                 "denial_reason": gate.denial_reason,
@@ -537,6 +538,7 @@ class TurnRunner:
             conversation_id=trigger.conversation_id,
             account_id=trigger.account_id,
             channel_identity_id=trigger.channel_identity_id,
+            agent_run_id=trigger.agent_run_id,
             payload={
                 "access_denied": True,
                 "denial_reason": gate.denial_reason,
@@ -752,6 +754,11 @@ class TurnRunner:
             trigger=trigger,
             validated=validated,
         )
+
+    async def _interpret_semantic_async(
+        self, request: SemanticInterpreterRequest
+    ) -> SemanticDecision:
+        return await asyncio.to_thread(self.semantic_interpreter.interpret, request)
 
     def _record_pending_async(
         self,

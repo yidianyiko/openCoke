@@ -152,7 +152,9 @@ async def test_new_inbound_submit_does_not_wait_for_provider_cancel():
         "inbound:2",
     ]
     agent.release.set()
+    runner.released.set()
     await asyncio.sleep(0)
+    await supervisor.drain_completed()
 
 
 @pytest.mark.asyncio

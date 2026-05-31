@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
+from contextlib import suppress
 from dataclasses import replace
 from datetime import UTC, datetime
 from itertools import count
@@ -380,6 +383,50 @@ async def test_async_inbound_turn_uses_async_interaction_agent_path(harness):
     assert result.disposition == "replied"
     assert agent.invocations == 1
     assert agent.requests[-1].run_id == "agent-run:provider-message-1"
+
+
+@pytest.mark.asyncio
+async def test_async_inbound_turn_does_not_block_event_loop_on_semantic_interpreter(
+    harness,
+):
+    class BlockingSemanticInterpreter(FakeSemanticInterpreter):
+        def __init__(self) -> None:
+            super().__init__()
+            self.release = threading.Event()
+
+        def interpret(self, request):
+            self.release.wait(timeout=0.2)
+            return super().interpret(request)
+
+    semantic = BlockingSemanticInterpreter()
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-async-semantic",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=semantic,
+        memory_port=harness["memory"],
+        interaction_agent=harness["agent"],
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+    )
+    task = asyncio.create_task(runner.run_inbound_turn_async(harness["trigger"]))
+    started_at = time.monotonic()
+
+    try:
+        await asyncio.sleep(0.02)
+        assert time.monotonic() - started_at < 0.1
+    finally:
+        semantic.release.set()
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 @pytest.mark.asyncio
@@ -1197,7 +1244,9 @@ async def test_async_denied_access_gate_uses_async_agent_path(harness):
         account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
     )
 
-    result = await runner.run_inbound_turn_async(harness["trigger"])
+    trigger = replace(harness["trigger"], agent_run_id="agent-run:provider-message-1")
+
+    result = await runner.run_inbound_turn_async(trigger)
 
     assert result.disposition == "replied"
     assert result.trigger_type == "AccessDeniedTurn"
@@ -1205,6 +1254,7 @@ async def test_async_denied_access_gate_uses_async_agent_path(harness):
     request = agent.requests[-1]
     assert request.mode == TurnMode.RENDER
     assert request.tool_profile == ToolProfile.render(constrained=True)
+    assert request.run_id == "agent-run:provider-message-1"
 
 
 def test_render_mode_exposes_no_intent_or_business_mutation_tools(harness):
