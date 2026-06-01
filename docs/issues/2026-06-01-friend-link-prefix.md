@@ -49,6 +49,3 @@ the public resolver route, and this incident record.
 - `zsh scripts/check` passed for the final Task 5 repository-docs state after
   adding the required ownership registry route entry.
 - `git diff --check` passed for the final Task 5 diff.
-
-Task 6 will add the exact final command evidence for the full public
-friend-link change set.
