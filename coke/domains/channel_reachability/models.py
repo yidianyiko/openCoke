@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, TypeAlias
 
+from coke.domains.conversation_runtime.models import InboundMediaInput
+
 ChannelConnectionState = Literal[
     "not_connected",
     "connecting",
@@ -115,6 +117,7 @@ class NormalizedInbound:
     connector_session_id: str | None = None
     context_token: str | None = None
     payload: Mapping[str, ImmutableJsonValue] | None = None
+    media: tuple[InboundMediaInput, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

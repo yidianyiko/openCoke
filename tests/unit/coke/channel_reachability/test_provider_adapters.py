@@ -520,6 +520,92 @@ def test_wechat_personal_rejects_malformed_ilink_optional_fields(field):
     }
 
 
+def test_wechat_personal_normalizes_media_into_inbound_media_input():
+    inbound = WeChatPersonalAdapter(now=lambda: NOW).normalize_inbound(
+        {
+            "account_id": "acct_1",
+            "session_id": "session_1",
+            "message_id": "wx_msg_image_1",
+            "wxid": "wxid_alice",
+            "text": "",
+            "context_token": "ctx-image-1",
+            "media": [
+                {
+                    "media_type": "image",
+                    "storage_uri": "data:image/jpeg;base64,/9j/2w==",
+                    "mime": "image/jpeg",
+                    "agent_label": "image",
+                }
+            ],
+        }
+    )
+
+    assert inbound.text == ""
+    assert len(inbound.media) == 1
+    assert inbound.media[0].media_type == "image"
+    assert inbound.media[0].storage_uri == "data:image/jpeg;base64,/9j/2w=="
+    assert inbound.media[0].mime == "image/jpeg"
+    assert inbound.media[0].agent_label == "image"
+
+
+@pytest.mark.parametrize(
+    "media",
+    [
+        [
+            {
+                "media_type": "image",
+                "storage_uri": "",
+                "mime": "image/jpeg",
+                "agent_label": "image",
+            }
+        ],
+        [
+            {
+                "media_type": "video",
+                "storage_uri": "data:video/mp4;base64,AAAA",
+                "mime": "video/mp4",
+                "agent_label": "video",
+            }
+        ],
+        [
+            {
+                "media_type": "image",
+                "storage_uri": "data:image/jpeg;base64,/9j/2w==",
+                "mime": {"bad": "value"},
+                "agent_label": "image",
+            }
+        ],
+        [
+            {
+                "media_type": "image",
+                "storage_uri": "data:image/jpeg;base64,/9j/2w==",
+                "mime": "image/jpeg",
+                "agent_label": "",
+            }
+        ],
+    ],
+)
+def test_wechat_personal_rejects_malformed_media(media):
+    payload = {
+        "account_id": "acct_1",
+        "session_id": "session_1",
+        "message_id": "wx_msg_image_bad",
+        "wxid": "wxid_alice",
+        "text": "",
+        "context_token": "ctx-image-bad",
+        "media": media,
+    }
+
+    with pytest.raises(
+        ChannelReachabilityError, match="invalid_provider_payload"
+    ) as exc_info:
+        WeChatPersonalAdapter(now=lambda: NOW).normalize_inbound(payload)
+
+    assert exc_info.value.fact["type"] == "invalid_provider_payload"
+    assert exc_info.value.fact["provider_type"] == "wechat_personal"
+    assert exc_info.value.fact["field"] == "media"
+
+
 def test_registry_contains_all_retained_provider_adapters():
     registry = provider_registry(
         [

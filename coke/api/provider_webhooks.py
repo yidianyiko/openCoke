@@ -68,6 +68,7 @@ def create_provider_webhook_blueprint(
                 text=inbound_event.text,
                 payload=dict(inbound_event.payload or {}),
                 traceparent=_request_traceparent(),
+                media=inbound_event.media,
             )
             _enqueue_undelivered_resend(
                 conversation_runtime_service=conversation_runtime_service,

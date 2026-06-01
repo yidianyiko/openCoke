@@ -72,6 +72,7 @@ class FakeConversationRuntimeService:
         text,
         payload,
         traceparent,
+        media=None,
     ):
         self.calls.append(
             {
@@ -81,6 +82,7 @@ class FakeConversationRuntimeService:
                 "text": text,
                 "payload": payload,
                 "traceparent": traceparent,
+                "media": tuple(media or ()),
             }
         )
         return SimpleNamespace(
@@ -335,6 +337,52 @@ def test_wechat_personal_webhook_accepts_account_bound_ilink_payload():
     assert inbound.connector_session_id == "session_1"
     assert inbound.context_token == "ctx-1"
     assert inbound.pairing_code is None
+
+
+def test_wechat_personal_webhook_records_media_with_durable_inbound_turn():
+    conversation_runtime = FakeConversationRuntimeService()
+    commits = []
+    client, _service, _adapters = make_client(
+        adapters={
+            "wechat_personal": WeChatPersonalAdapter(
+                now=lambda: datetime(2026, 5, 29, tzinfo=UTC)
+            )
+        },
+        conversation_runtime_service=conversation_runtime,
+        commit_callback=lambda: commits.append("committed"),
+    )
+
+    response = client.post(
+        "/webhooks/wechat/personal",
+        json={
+            "account_id": "acct_1",
+            "session_id": "session_1",
+            "message_id": "wx_msg_image_1",
+            "wxid": "wxid_lizihao",
+            "text": "",
+            "context_token": "ctx-image-1",
+            "media": [
+                {
+                    "media_type": "image",
+                    "storage_uri": "data:image/jpeg;base64,/9j/2w==",
+                    "mime": "image/jpeg",
+                    "agent_label": "image",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    assert conversation_runtime.calls[0]["text"] == ""
+    assert len(conversation_runtime.calls[0]["media"]) == 1
+    assert conversation_runtime.calls[0]["media"][0].media_type == "image"
+    assert (
+        conversation_runtime.calls[0]["media"][0].storage_uri
+        == "data:image/jpeg;base64,/9j/2w=="
+    )
+    assert conversation_runtime.calls[0]["media"][0].mime == "image/jpeg"
+    assert conversation_runtime.calls[0]["media"][0].agent_label == "image"
+    assert commits == ["committed"]
 
 
 def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():

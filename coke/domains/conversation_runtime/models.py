@@ -149,6 +149,13 @@ class InboundMediaInput:
     media_type: str
     storage_uri: str
     agent_label: str
+    mime: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class InboundMediaStatusUpdate:
+    media_id: str
+    processing_status: str
 
 
 @dataclass(frozen=True, slots=True)

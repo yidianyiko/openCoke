@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
@@ -10,6 +11,7 @@ from coke.domains.channel_reachability.models import (
     DeliveryRoute,
     NormalizedInbound,
 )
+from coke.domains.conversation_runtime.models import InboundMediaInput
 from coke.providers.base import (
     configured_http_client,
     freeze_json,
@@ -59,6 +61,7 @@ class WeChatPersonalAdapter:
                 self.provider_type, payload, "context_token"
             ),
             payload=freeze_json(dict(payload), provider_type=self.provider_type),
+            media=_media_inputs(payload),
         )
 
     def start_login(self, *, account_id: str) -> dict[str, object]:
@@ -155,3 +158,46 @@ def _sender_display_name(payload: Mapping[str, object]) -> str | None:
         if value:
             return value
     return None
+
+
+def _media_inputs(payload: Mapping[str, object]) -> tuple[InboundMediaInput, ...]:
+    raw_media = payload.get("media")
+    if raw_media is None:
+        return ()
+    if not isinstance(raw_media, list | tuple):
+        raise invalid_provider_payload("wechat_personal", "media", "invalid_media")
+    media: list[InboundMediaInput] = []
+    for item in raw_media:
+        if not isinstance(item, Mapping):
+            raise invalid_provider_payload("wechat_personal", "media", "invalid_media")
+        media_type = _required_media_string(item, "media_type")
+        if media_type not in {"voice", "image"}:
+            raise invalid_provider_payload("wechat_personal", "media", "invalid_media")
+        storage_uri = _required_media_string(item, "storage_uri")
+        mime = _optional_media_string(item, "mime")
+        agent_label = _required_media_string(item, "agent_label")
+        media.append(
+            InboundMediaInput(
+                media_type=media_type,
+                storage_uri=storage_uri,
+                mime=mime,
+                agent_label=agent_label,
+            )
+        )
+    return tuple(media)
+
+
+def _required_media_string(item: Mapping[str, object], field: str) -> str:
+    value = item.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise invalid_provider_payload("wechat_personal", "media", "invalid_media")
+    return value.strip()
+
+
+def _optional_media_string(item: Mapping[str, object], field: str) -> str | None:
+    value = item.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise invalid_provider_payload("wechat_personal", "media", "invalid_media")
+    return value.strip() or None
