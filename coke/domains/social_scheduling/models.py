@@ -48,6 +48,13 @@ class FriendLinkView:
 
 
 @dataclass(frozen=True, slots=True)
+class PublicFriendLinkView:
+    link_code: str
+    status: Literal["active"]
+    owner_display_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class Friendship:
     id: str
     account_low_id: str

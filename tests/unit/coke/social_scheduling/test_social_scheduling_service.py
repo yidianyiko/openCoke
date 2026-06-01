@@ -96,6 +96,35 @@ def test_friend_link_payload_uses_public_base_url_and_link_code():
     assert link.qr_payload == "https://web.example.com/u/friend_code_token_2"
 
 
+def test_resolve_public_friend_link_returns_active_reachable_owner_display_name():
+    service, _repo, _reachability, _availability = make_service({"owner"})
+    service.display_name_resolver = lambda account_id: {"owner": "Mina Owner"}[
+        account_id
+    ]
+    link = service.get_or_create_friend_link("owner")
+
+    resolved = service.resolve_public_friend_link(link.link_code)
+
+    assert resolved is not None
+    assert resolved.link_code == link.link_code
+    assert resolved.status == "active"
+    assert resolved.owner_display_name == "Mina Owner"
+
+
+def test_resolve_public_friend_link_returns_none_for_missing_disabled_or_unreachable():
+    service, _repo, reachability, _availability = make_service({"owner"})
+    link = service.get_or_create_friend_link("owner")
+
+    assert service.resolve_public_friend_link("missing-code") is None
+
+    service.disable_friend_link("owner")
+    assert service.resolve_public_friend_link(link.link_code) is None
+
+    reset = service.reset_friend_link("owner")
+    reachability.reachable.clear()
+    assert service.resolve_public_friend_link(reset.link_code) is None
+
+
 def test_direct_friendship_is_active_and_has_no_pending_request_model():
     service, repo, _, _ = make_service({"owner", "joiner"})
 

@@ -116,6 +116,13 @@ def create_app(
             create_settings_blueprint(settings_service, identity_access_service)
         )
 
+    if social_scheduling_service is not None:
+        from coke.api.public_friend_routes import create_public_friend_blueprint
+
+        app.register_blueprint(
+            create_public_friend_blueprint(social_scheduling_service)
+        )
+
     if social_scheduling_service is not None and identity_access_service is not None:
         from coke.api.friend_routes import create_friend_blueprint
         from coke.api.shared_reminder_routes import create_shared_reminder_blueprint

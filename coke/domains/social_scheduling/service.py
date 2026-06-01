@@ -24,6 +24,7 @@ from coke.domains.social_scheduling.models import (
     NotificationDeliveryState,
     NotificationFact,
     NotificationRecipient,
+    PublicFriendLinkView,
     ReminderProjection,
     SharedReminder,
     SharedReminderCancellationResult,
@@ -171,6 +172,20 @@ class SocialSchedulingService:
             raise SocialSchedulingError("friend_link_not_found")
         return self._establish_from_link(
             joiner_account_id, link, commit_guard=commit_guard
+        )
+
+    def resolve_public_friend_link(
+        self, link_code: str
+    ) -> PublicFriendLinkView | None:
+        link = self.repository.get_friend_link_by_code_hash(_hash_token(link_code))
+        if link is None or link.lifecycle != "active":
+            return None
+        if not self.reachability.has_usable_channel(link.owner_account_id):
+            return None
+        return PublicFriendLinkView(
+            link_code=link_code,
+            status="active",
+            owner_display_name=self.display_name_resolver(link.owner_account_id),
         )
 
     def complete_deferred_friend_link(

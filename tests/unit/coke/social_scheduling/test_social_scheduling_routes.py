@@ -70,6 +70,16 @@ class FakeSocialSchedulingService:
             continuation={},
         )
 
+    def resolve_public_friend_link(self, link_code):
+        self.calls.append(("resolve_public_friend_link", {"link_code": link_code}))
+        if link_code == "missing":
+            return None
+        return SimpleNamespace(
+            link_code=link_code,
+            status="active",
+            owner_display_name="Alice Push",
+        )
+
     def complete_deferred_friend_link(self, joiner_account_id, friend_link_id):
         self.calls.append(
             (
@@ -235,6 +245,41 @@ def make_client(service=None, identity_service=None):
         social_scheduling_service=service,
     )
     return AuthenticatedClient(app.test_client()), service, identity_service
+
+
+def test_public_friend_link_route_is_registered_without_identity_service():
+    service = FakeSocialSchedulingService()
+    app = create_app(
+        Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
+        social_scheduling_service=service,
+    )
+
+    response = app.test_client().get("/api/public/user-links/code_1")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "code": "code_1",
+        "status": "active",
+        "profile": {
+            "displayName": "Alice Push",
+            "tagline": None,
+            "avatarUrl": None,
+        },
+    }
+    assert service.calls == [("resolve_public_friend_link", {"link_code": "code_1"})]
+
+
+def test_public_friend_link_route_returns_404_for_missing_or_inactive_link():
+    service = FakeSocialSchedulingService()
+    app = create_app(
+        Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
+        social_scheduling_service=service,
+    )
+
+    response = app.test_client().get("/api/public/user-links/missing")
+
+    assert response.status_code == 404
+    assert response.get_json() == {"error": {"code": "friend_link_not_active"}}
 
 
 def test_friend_routes_are_thin_service_adapters():
