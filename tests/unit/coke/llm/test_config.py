@@ -88,3 +88,25 @@ def test_openai_like_model_uses_siliconflow_settings_and_interaction_timeout():
     assert model.api_key == "test-key"
     assert model.timeout is None
     assert model.extra_body == {"enable_thinking": False}
+
+
+def test_siliconflow_config_reads_media_model_ids_without_defaults():
+    config = SiliconFlowLLMConfig.from_env(
+        {
+            "SiliconFlow_API_KEY": "test-key",
+            "COKE_ASR_MODEL": "sensevoice-candidate",
+            "COKE_VISION_TEXT_MODEL": "qwen-vl-candidate",
+            "COKE_MEDIA_MODEL_TIMEOUT_S": "70",
+        }
+    )
+
+    assert config.asr_model == "sensevoice-candidate"
+    assert config.vision_text_model == "qwen-vl-candidate"
+    assert config.media_model_timeout_s == 70.0
+
+
+def test_siliconflow_config_leaves_media_model_ids_unset_until_subset_eval_selects_them():
+    config = SiliconFlowLLMConfig.from_env({"SiliconFlow_API_KEY": "test-key"})
+
+    assert config.asr_model is None
+    assert config.vision_text_model is None
