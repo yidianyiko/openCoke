@@ -199,6 +199,7 @@ type CustomerPagesMessages = {
     resetLink: string;
     disableLink: string;
     linkDisabled: string;
+    linkRequiresChannel: string;
     inviteTitle: string;
     inviteDescription: string;
     inviteTargetLabel: string;
@@ -206,6 +207,8 @@ type CustomerPagesMessages = {
     inviteSending: string;
     inviteSent: string;
     inviteAlreadyFriend: string;
+    inviteNeedsChannel: string;
+    inviteSelf: string;
     inviteLoadFailure: string;
     inviteUnavailable: string;
     friendsTitle: string;
@@ -689,6 +692,7 @@ export const messages: MessagesCatalog = {
         resetLink: 'Reset link',
         disableLink: 'Disable current link',
         linkDisabled: 'The current link was disabled. A new link can be created when you refresh this page.',
+        linkRequiresChannel: 'Connect a messaging channel to get your shareable friend link.',
         inviteTitle: 'Add friend',
         inviteDescription: 'Confirm this link from your account to add this person as a friend.',
         inviteTargetLabel: 'Target account',
@@ -696,6 +700,8 @@ export const messages: MessagesCatalog = {
         inviteSending: 'Adding...',
         inviteSent: 'Friend added.',
         inviteAlreadyFriend: 'This account is already in your friends list.',
+        inviteNeedsChannel: 'Connect a messaging channel first, then open this friend link again.',
+        inviteSelf: 'You cannot add yourself as a friend.',
         inviteLoadFailure: 'Unable to load this friend link right now.',
         inviteUnavailable: 'This invitation can no longer add a friend.',
         friendsTitle: 'Current friends',
@@ -1127,6 +1133,7 @@ export const messages: MessagesCatalog = {
         resetLink: '重置链接',
         disableLink: '停用当前链接',
         linkDisabled: '当前链接已停用。刷新页面时可以按现有规则创建新的链接。',
+        linkRequiresChannel: '先连接一个消息通道，之后才能获得可分享的好友链接。',
         inviteTitle: '添加好友',
         inviteDescription: '在你的账号面板里确认这条链接，然后直接添加对方为好友。',
         inviteTargetLabel: '目标账号',
@@ -1134,6 +1141,8 @@ export const messages: MessagesCatalog = {
         inviteSending: '添加中...',
         inviteSent: '好友已添加。',
         inviteAlreadyFriend: '这个账号已经在你的好友列表中。',
+        inviteNeedsChannel: '请先连接消息通道，然后再打开这条好友链接。',
+        inviteSelf: '不能把自己添加为好友。',
         inviteLoadFailure: '暂时无法加载这条好友链接。',
         inviteUnavailable: '这条邀请已不能再添加好友。',
         friendsTitle: '当前好友',

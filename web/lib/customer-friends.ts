@@ -28,6 +28,18 @@ type FriendshipActionResult = {
   status: string;
 };
 
+export type CustomerFriendshipJoin = {
+  status: 'created' | 'already_active' | 'deferred_channel_required';
+  friendship_id: string | null;
+  continuation?: Record<string, unknown>;
+};
+
+type CleanRouteError = {
+  error: {
+    code: string;
+  };
+};
+
 type CleanFriendLink = {
   friend_link_id: string;
   owner_account_id: string;
@@ -41,6 +53,7 @@ type CleanFriendList = {
   friends: {
     account_id: string;
     friendship_id: string;
+    display_name?: string;
   }[];
 };
 
@@ -50,47 +63,70 @@ type CleanFriendAction = {
 };
 
 export function getCustomerFriendLink(): Promise<ApiResponse<CustomerFriendLink>> {
-  return customerApi.get<CleanFriendLink>('/api/friends/link').then((link) => ({
-    ok: true,
-    data: cleanFriendLink(link),
-  }));
+  return customerApi
+    .get<CleanFriendLink | CleanRouteError>('/api/friends/link')
+    .then((link) => okOrError(link, cleanFriendLink));
 }
 
 export function resetCustomerFriendLink(): Promise<ApiResponse<CustomerFriendLink>> {
-  return customerApi.post<CleanFriendLink>('/api/friends/link/reset').then((link) => ({
-    ok: true,
-    data: cleanFriendLink(link),
-  }));
+  return customerApi
+    .post<CleanFriendLink | CleanRouteError>('/api/friends/link/reset')
+    .then((link) => okOrError(link, cleanFriendLink));
 }
 
 export function disableCustomerFriendLink(): Promise<ApiResponse<{ count: number }>> {
-  return customerApi.post<CleanFriendLink>('/api/friends/link/disable').then(() => ({
-    ok: true,
-    data: { count: 1 },
-  }));
+  return customerApi
+    .post<CleanFriendLink | CleanRouteError>('/api/friends/link/disable')
+    .then((link) => okOrError(link, () => ({ count: 1 })));
 }
 
 export function listCustomerFriends(): Promise<ApiResponse<CustomerFriend[]>> {
-  return customerApi.get<CleanFriendList>('/api/friends').then((result) => ({
-    ok: true,
-    data: result.friends.map((friend) => ({
-      id: friend.friendship_id,
-      status: 'active',
-      counterpartAccountId: friend.account_id,
-    })),
-  }));
+  return customerApi.get<CleanFriendList | CleanRouteError>('/api/friends').then((result) =>
+    okOrError(result, (friendList) =>
+      friendList.friends.map((friend) => ({
+        id: friend.friendship_id,
+        status: 'active',
+        counterpartAccountId: friend.account_id,
+        counterpartProfile: {
+          displayName: friend.display_name || friend.account_id,
+          avatarUrl: null,
+        },
+      })),
+    ),
+  );
 }
 
 export function removeCustomerFriend(friendAccountId: string): Promise<ApiResponse<FriendshipActionResult>> {
   return customerApi
-    .post<CleanFriendAction>(`/api/friends/${encodeURIComponent(friendAccountId)}/remove`)
-    .then((result) => ({
-      ok: true,
-      data: {
-        id: result.friendship_id,
-        status: result.lifecycle,
-      },
-    }));
+    .post<CleanFriendAction | CleanRouteError>(`/api/friends/${encodeURIComponent(friendAccountId)}/remove`)
+    .then((result) =>
+      okOrError(result, (action) => ({
+        id: action.friendship_id,
+        status: action.lifecycle,
+      })),
+    );
+}
+
+export function joinFriendByCode(code: string): Promise<ApiResponse<CustomerFriendshipJoin>> {
+  return customerApi
+    .post<CustomerFriendshipJoin | CleanRouteError>('/api/friends/join', { link_code: code })
+    .then((result) => okOrError(result, (join) => join));
+}
+
+function isCleanRouteError(value: unknown): value is CleanRouteError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as CleanRouteError).error?.code === 'string'
+  );
+}
+
+function okOrError<T, U>(value: T | CleanRouteError, map: (value: T) => U): ApiResponse<U> {
+  if (isCleanRouteError(value)) {
+    return { ok: false, error: value.error.code };
+  }
+  return { ok: true, data: map(value) };
 }
 
 function cleanFriendLink(link: CleanFriendLink): CustomerFriendLink {

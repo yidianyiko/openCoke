@@ -11,8 +11,7 @@ const listFriendsMock = vi.hoisted(() => vi.fn());
 const removeMock = vi.hoisted(() => vi.fn());
 const resetLinkMock = vi.hoisted(() => vi.fn());
 const disableLinkMock = vi.hoisted(() => vi.fn());
-const getLinkSessionStatusMock = vi.hoisted(() => vi.fn());
-const createFriendshipMock = vi.hoisted(() => vi.fn());
+const joinFriendByCodeMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock }),
@@ -25,11 +24,7 @@ vi.mock('../../../../lib/customer-friends', () => ({
   removeCustomerFriend: (...args: unknown[]) => removeMock(...args),
   resetCustomerFriendLink: (...args: unknown[]) => resetLinkMock(...args),
   disableCustomerFriendLink: (...args: unknown[]) => disableLinkMock(...args),
-}));
-
-vi.mock('../../../../lib/user-link-api', () => ({
-  getLinkSessionStatus: (...args: unknown[]) => getLinkSessionStatusMock(...args),
-  createFriendship: (...args: unknown[]) => createFriendshipMock(...args),
+  joinFriendByCode: (...args: unknown[]) => joinFriendByCodeMock(...args),
 }));
 
 import FriendsPage from './page';
@@ -95,26 +90,16 @@ describe('CustomerFriendsPage', () => {
     removeMock.mockReset();
     resetLinkMock.mockReset();
     disableLinkMock.mockReset();
-    getLinkSessionStatusMock.mockReset();
-    createFriendshipMock.mockReset();
+    joinFriendByCodeMock.mockReset();
     searchParamsMock.mockReturnValue(new URLSearchParams());
     getLinkMock.mockResolvedValue({ ok: true, data: friendLink() });
     listFriendsMock.mockResolvedValue({ ok: true, data: [friend()] });
     removeMock.mockResolvedValue({ ok: true, data: { id: 'friendship-1', status: 'removed' } });
     resetLinkMock.mockResolvedValue({ ok: true, data: friendLink({ code: 'new-code' }) });
     disableLinkMock.mockResolvedValue({ ok: true, data: { count: 1 } });
-    getLinkSessionStatusMock.mockResolvedValue({
+    joinFriendByCodeMock.mockResolvedValue({
       ok: true,
-      data: {
-        providerAccountId: 'acct_target',
-        consumerAccountId: null,
-        status: 'opened',
-        expiresAt: '2026-06-21T00:00:00.000Z',
-      },
-    });
-    createFriendshipMock.mockResolvedValue({
-      ok: true,
-      data: { id: 'friendship-new', status: 'active', friend_account_id: 'acct_target', created: true },
+      data: { status: 'already_active', friendship_id: 'friendship-existing', continuation: {} },
     });
     writeTextMock = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -150,47 +135,64 @@ describe('CustomerFriendsPage', () => {
     expect(findButton(container, 'Remove friend')).toBeTruthy();
   });
 
-  it('redirects auth failures on load to login with the friends next path', async () => {
+  it('redirects auth failures on load to login with the join code next path', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
     getLinkMock.mockResolvedValueOnce({ ok: false, error: 'claim_inactive' });
 
     renderPage();
     await flushTicks();
 
-    expect(replaceMock).toHaveBeenCalledWith('/auth/login?next=/account/friends');
+    expect(replaceMock).toHaveBeenCalledWith('/auth/login?next=%2Faccount%2Ffriends%3Fjoin%3Dcode_1');
+    expect(joinFriendByCodeMock).not.toHaveBeenCalled();
   });
 
-  it('creates a direct friendship from a preserved public-link session', async () => {
-    searchParamsMock.mockReturnValue(new URLSearchParams('link_session=session-token'));
+  it('joins by public friend link code once and scrubs the URL', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
     listFriendsMock.mockResolvedValueOnce({ ok: true, data: [] }).mockResolvedValue({
       ok: true,
       data: [friend({ id: 'friendship-new', counterpartAccountId: 'acct_target' })],
+    });
+    joinFriendByCodeMock.mockResolvedValueOnce({
+      ok: true,
+      data: { status: 'created', friendship_id: 'friendship-new', continuation: {} },
     });
 
     renderPage();
     await flushTicks();
 
-    expect(getLinkSessionStatusMock).toHaveBeenCalledWith('session-token');
-    expect(container.textContent).toContain('Add friend');
-    expect(container.textContent).toContain('acct_target');
-
-    expect(container.querySelector('textarea')).toBeNull();
-    findButton(container, 'Add friend')?.click();
-    await flushTicks();
-
-    expect(createFriendshipMock).toHaveBeenCalledWith({ token: 'session-token' });
-    expect(listFriendsMock).toHaveBeenCalledTimes(2);
+    expect(joinFriendByCodeMock).toHaveBeenCalledWith('code_1');
+    expect(replaceMock).toHaveBeenCalledWith('/account/friends');
     expect(container.textContent).toContain('Friend added.');
+    expect(listFriendsMock).toHaveBeenCalledTimes(2);
   });
 
-  it('does not show pending request status for a preserved public-link session', async () => {
-    searchParamsMock.mockReturnValue(new URLSearchParams('link_session=session-token'));
+  it('shows a channel-required notice when the clean join is deferred', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    joinFriendByCodeMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'deferred_channel_required',
+        friendship_id: null,
+        continuation: { friend_link_id: 'fl_1' },
+      },
+    });
 
     renderPage();
     await flushTicks();
 
-    expect(container.textContent).not.toContain('You already sent a request to this account.');
-    expect(container.textContent).not.toContain('Pending');
-    expect(findButton(container, 'Add friend')).toBeTruthy();
+    expect(container.textContent).toContain('Connect a messaging channel first');
+    expect(replaceMock).toHaveBeenCalledWith('/account/friends');
+  });
+
+  it('keeps friends visible when the current account has no shareable link yet', async () => {
+    getLinkMock.mockResolvedValueOnce({ ok: false, error: 'owner_channel_required' });
+
+    renderPage();
+    await flushTicks();
+
+    expect(container.textContent).toContain('Connect a messaging channel to get your shareable friend link.');
+    expect(container.textContent).toContain('Rin');
+    expect(container.textContent).not.toContain('Unable to load friend data right now.');
   });
 
   it('shows quiet empty state when the friend list is empty', async () => {
@@ -278,25 +280,27 @@ describe('CustomerFriendsPage', () => {
     expect(disableLinkMock).toHaveBeenCalledOnce();
   });
 
-  it('redirects auth failures from mutations and shows action failures without leaving the page', async () => {
-    searchParamsMock.mockReturnValue(new URLSearchParams('link_session=session-token'));
-    createFriendshipMock.mockResolvedValueOnce({ ok: false, error: 'unauthorized' });
+  it('does not scrub the URL after a join auth redirect', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    joinFriendByCodeMock.mockResolvedValueOnce({ ok: false, error: 'unauthorized' });
 
     renderPage();
     await flushTicks();
-    findButton(container, 'Add friend')?.click();
-    await flushTicks();
 
     expect(replaceMock).toHaveBeenCalledWith(
-      '/auth/login?next=%2Faccount%2Ffriends%3Flink_session%3Dsession-token',
+      '/auth/login?next=%2Faccount%2Ffriends%3Fjoin%3Dcode_1',
     );
+    expect(replaceMock).not.toHaveBeenCalledWith('/account/friends');
+  });
 
-    replaceMock.mockReset();
-    createFriendshipMock.mockResolvedValueOnce({ ok: false, error: 'upstream_unavailable' });
-    findButton(container, 'Add friend')?.click();
+  it('shows self-invite errors from clean join failures and scrubs the URL', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    joinFriendByCodeMock.mockResolvedValueOnce({ ok: false, error: 'self_friendship_forbidden' });
+
+    renderPage();
     await flushTicks();
 
-    expect(replaceMock).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Unable to update friend data right now.');
+    expect(container.textContent).toContain('You cannot add yourself as a friend.');
+    expect(replaceMock).toHaveBeenCalledWith('/account/friends');
   });
 });
