@@ -6,17 +6,24 @@ import random
 import threading
 import time
 import uuid
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from urllib.parse import quote
 
 import httpx
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.padding import PKCS7
 from flask import Flask, jsonify, request
 
 DEFAULT_ILINK_BASE_URL = "https://ilinkai.weixin.qq.com"
 DEFAULT_STATE_PATH = "/data/wechat_personal_state.json"
+
+# Shared HTTP client for WeChat CDN media downloads (no iLink token required;
+# media is fetched via the per-file encrypted query param).
+_CDN_HTTP = httpx.Client()
 
 
 @dataclass(frozen=True)
@@ -535,14 +542,113 @@ def _extract_text(message: dict[str, Any]) -> str | None:
     return ""
 
 
-def _extract_media(message: dict[str, Any]) -> list[ConnectorMediaPayload]:
+def _decrypt_aes_128_ecb(ciphertext: bytes, key: bytes) -> bytes:
+    decryptor = Cipher(algorithms.AES(key), modes.ECB()).decryptor()
+    padded = decryptor.update(ciphertext) + decryptor.finalize()
+    unpadder = PKCS7(128).unpadder()
+    return unpadder.update(padded) + unpadder.finalize()
+
+
+def _media_aes_key(item: dict[str, Any], media: dict[str, Any]) -> bytes | None:
+    # Reverse-engineered iLink contract (zongrongjin/weixin-ilink):
+    # media.aes_key is base64 of either 16 raw bytes or a 32-char hex string;
+    # item.aeskey is a hex fallback.
+    raw = media.get("aes_key")
+    if raw:
+        try:
+            decoded = b64decode(str(raw))
+        except (ValueError, TypeError):
+            decoded = b""
+        if len(decoded) == 16:
+            return decoded
+        if len(decoded) == 32:
+            try:
+                return bytes.fromhex(decoded.decode("ascii"))
+            except (ValueError, UnicodeDecodeError):
+                return None
+    hex_key = item.get("aeskey")
+    if hex_key:
+        try:
+            key = bytes.fromhex(str(hex_key))
+        except ValueError:
+            return None
+        if len(key) == 16:
+            return key
+    return None
+
+
+def _download_media_bytes(item: dict[str, Any]) -> bytes | None:
+    """Download + AES-128-ECB decrypt an inbound CDN media item; plaintext bytes."""
+    media = item.get("media")
+    if not isinstance(media, dict):
+        return None
+    key = _media_aes_key(item, media)
+    if key is None:
+        return None
+    url = str(media.get("full_url") or "").strip()
+    if not url:
+        encrypt_query_param = str(media.get("encrypt_query_param") or "").strip()
+        cdn_base = str(media.get("cdn_url") or media.get("cdn_base_url") or "").strip()
+        if encrypt_query_param and cdn_base:
+            url = (
+                f"{cdn_base.rstrip('/')}/download"
+                f"?encrypted_query_param={quote(encrypt_query_param, safe='')}"
+            )
+    if not url:
+        return None
+    response = _CDN_HTTP.get(url, timeout=60.0)
+    response.raise_for_status()
+    return _decrypt_aes_128_ecb(response.content, key)
+
+
+def _log_media_structure(kind: str, item: dict[str, Any], sub: Any) -> None:
+    # Temporary diagnostic so live iLink media field names can be confirmed
+    # against the reverse-engineered contract. Logs key names only, never the
+    # ciphertext, aes_key, or URLs.
+    media = sub.get("media") if isinstance(sub, dict) else None
+    print(
+        "[connector-media-debug] "
+        + json.dumps(
+            {
+                "kind": kind,
+                "item_keys": sorted(k for k in item.keys()),
+                "sub_keys": sorted(sub.keys()) if isinstance(sub, dict) else None,
+                "media_keys": (
+                    sorted(media.keys()) if isinstance(media, dict) else None
+                ),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        flush=True,
+    )
+
+
+def _extract_media(
+    message: dict[str, Any],
+    *,
+    downloader: Callable[[dict[str, Any]], bytes | None] | None = None,
+) -> list[ConnectorMediaPayload]:
+    download = downloader or _download_media_bytes
     media: list[ConnectorMediaPayload] = []
     for item in message.get("item_list") or []:
         item_type = item.get("type")
         if item_type == 2:
             image_item = item.get("image_item") or {}
+            _log_media_structure("image", item, image_item)
             mime = _media_mime(image_item, default="image/jpeg")
             storage_uri = _readable_storage_uri(image_item, mime=mime)
+            if not storage_uri:
+                try:
+                    raw = download(image_item)
+                except Exception as exc:  # best-effort: never break the poll loop
+                    print(
+                        f"[connector-media-debug] image download failed: {exc!r}",
+                        flush=True,
+                    )
+                    raw = None
+                if raw:
+                    storage_uri = f"data:{mime};base64,{b64encode(raw).decode('ascii')}"
             if storage_uri:
                 media.append(
                     ConnectorMediaPayload(
@@ -553,18 +659,10 @@ def _extract_media(message: dict[str, Any]) -> list[ConnectorMediaPayload]:
                     )
                 )
         if item_type == 3:
-            voice_item = item.get("voice_item") or {}
-            mime = _media_mime(voice_item, default="audio/wav")
-            storage_uri = _readable_storage_uri(voice_item, mime=mime)
-            if storage_uri:
-                media.append(
-                    ConnectorMediaPayload(
-                        media_type="voice",
-                        storage_uri=storage_uri,
-                        mime=mime,
-                        agent_label="voice message",
-                    )
-                )
+            # Voice primary path is WeChat's native transcript (handled by
+            # _extract_text). Forwarding the SILK audio for ASR fallback needs a
+            # SILK->WAV decoder and is deliberately out of this iteration.
+            _log_media_structure("voice", item, item.get("voice_item") or {})
     return media
 
 

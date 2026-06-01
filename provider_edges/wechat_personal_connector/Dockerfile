@@ -6,7 +6,8 @@ RUN pip install --no-cache-dir \
     "flask==3.1.3" \
     "gunicorn==23.0.0" \
     "httpx>=0.27.0" \
-    "qrcode[pil]>=8.0"
+    "qrcode[pil]>=8.0" \
+    "cryptography>=43.0"
 
 COPY provider_edges /app/provider_edges
 

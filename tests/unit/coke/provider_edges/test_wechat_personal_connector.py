@@ -616,7 +616,9 @@ def test_poll_once_posts_image_media_payload_with_blank_text(state):
     }
 
 
-def test_poll_once_posts_voice_transcript_and_media_payload(state):
+def test_poll_once_posts_voice_native_transcript_as_text_without_media(state):
+    # Voice primary path: WeChat's native transcript becomes the message text;
+    # the SILK audio is not forwarded this iteration, so no media is attached.
     ilink = FakeIlinkClient(
         updates={
             "get_updates_buf": "cursor-1",
@@ -629,8 +631,10 @@ def test_poll_once_posts_voice_transcript_and_media_payload(state):
                             "type": 3,
                             "voice_item": {
                                 "text": "remind me at nine",
-                                "data_uri": "data:audio/wav;base64,UklGRg==",
-                                "mime": "audio/wav",
+                                "media": {
+                                    "full_url": "https://cdn.example/voice",
+                                    "aes_key": "MDEyMzQ1Njc4OWFiY2RlZg==",
+                                },
                             },
                         }
                     ],
@@ -660,15 +664,85 @@ def test_poll_once_posts_voice_transcript_and_media_payload(state):
         "wxid": "wxid_alice",
         "text": "remind me at nine",
         "context_token": "ctx-voice-1",
-        "media": [
-            {
-                "media_type": "voice",
-                "storage_uri": "data:audio/wav;base64,UklGRg==",
-                "mime": "audio/wav",
-                "agent_label": "voice message",
-            }
-        ],
     }
+
+
+def test_poll_once_downloads_and_decrypts_cdn_image_into_data_uri(state, monkeypatch):
+    from base64 import b64encode
+
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives.padding import PKCS7
+
+    from provider_edges.wechat_personal_connector import app as connector_app
+
+    plaintext = b"\xff\xd8\xff\xe0fake-jpeg-bytes"
+    key = b"0123456789abcdef"  # 16 raw bytes
+    padder = PKCS7(128).padder()
+    padded = padder.update(plaintext) + padder.finalize()
+    encryptor = Cipher(algorithms.AES(key), modes.ECB()).encryptor()
+    ciphertext = encryptor.update(padded) + encryptor.finalize()
+
+    class FakeCdnResponse:
+        content = ciphertext
+
+        def raise_for_status(self):
+            return None
+
+    captured = {}
+
+    def fake_get(url, timeout=60.0):
+        captured["url"] = url
+        return FakeCdnResponse()
+
+    monkeypatch.setattr(connector_app._CDN_HTTP, "get", fake_get)
+
+    ilink = FakeIlinkClient(
+        updates={
+            "get_updates_buf": "cursor-1",
+            "msgs": [
+                {
+                    "from_user_id": "wxid_alice",
+                    "context_token": "ctx-image-cdn",
+                    "item_list": [
+                        {
+                            "type": 2,
+                            "image_item": {
+                                "mime": "image/jpeg",
+                                "media": {
+                                    "full_url": "https://cdn.example/img?q=1",
+                                    "aes_key": b64encode(key).decode("ascii"),
+                                },
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    webhook = FakeWebhookClient()
+
+    delivered = poll_once(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=webhook,
+    )
+
+    assert delivered == 1
+    assert captured["url"] == "https://cdn.example/img?q=1"
+    expected_uri = f"data:image/jpeg;base64,{b64encode(plaintext).decode('ascii')}"
+    assert webhook.posts[0]["json"]["text"] == ""
+    assert webhook.posts[0]["json"]["media"] == [
+        {
+            "media_type": "image",
+            "storage_uri": expected_uri,
+            "mime": "image/jpeg",
+            "agent_label": "image",
+        }
+    ]
 
 
 def test_poll_once_skips_malformed_image_without_readable_media(state):
