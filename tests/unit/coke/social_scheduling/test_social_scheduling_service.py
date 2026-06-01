@@ -77,6 +77,17 @@ def create_active_friendship(service, owner: str, joiner: str):
     return service.establish_friendship_from_token(joiner, link.public_token)
 
 
+def test_friend_link_payload_uses_public_base_url_and_link_code():
+    service, _repo, _reachability, _availability = make_service({"owner"})
+    service._public_base_url = "https://web.example.com"
+
+    link = service.get_or_create_friend_link("owner")
+
+    assert link.public_token == "friend_link_token_1"
+    assert link.link_code == "friend_code_token_2"
+    assert link.qr_payload == "https://web.example.com/u/friend_code_token_2"
+
+
 def test_direct_friendship_is_active_and_has_no_pending_request_model():
     service, repo, _, _ = make_service({"owner", "joiner"})
 

@@ -37,6 +37,46 @@ def test_settings_from_env_reads_app_env(monkeypatch):
     assert settings.app_env == "test"
 
 
+def test_settings_from_env_reads_public_base_url_and_strips_trailing_slash(
+    monkeypatch,
+):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_PUBLIC_BASE_URL", "https://coke.example.com///")
+
+    settings = Settings.from_env()
+
+    assert settings.public_base_url == "https://coke.example.com"
+
+
+def test_settings_from_env_defaults_public_base_url_for_non_production(monkeypatch):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.delenv("COKE_PUBLIC_BASE_URL", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.public_base_url == "http://localhost:4040"
+
+
+def test_settings_from_env_requires_public_base_url_for_production(monkeypatch):
+    from coke.config import ConfigurationError, Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.delenv("COKE_PUBLIC_BASE_URL", raising=False)
+
+    with pytest.raises(ConfigurationError, match="COKE_PUBLIC_BASE_URL"):
+        Settings.from_env()
+
+
 def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     from coke.config import Settings
 
@@ -146,6 +186,7 @@ def test_settings_from_env_requires_siliconflow_key_for_real_llm(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
     monkeypatch.setenv("REDIS_URL", REDIS_URL)
     monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("COKE_PUBLIC_BASE_URL", "https://coke.example.com")
     monkeypatch.delenv("COKE_LLM_FAKE", raising=False)
     monkeypatch.delenv("SiliconFlow_API_KEY", raising=False)
 

@@ -25,6 +25,7 @@ class Settings:
     database_url: str
     redis_url: str
     app_env: str = "local"
+    public_base_url: str = "http://localhost:4040"
     evolution_base_url: str | None = None
     evolution_api_key: str | None = None
     evolution_instance: str | None = None
@@ -69,6 +70,7 @@ class Settings:
         database_url = (source.get("DATABASE_URL") or "").strip()
         redis_url = (source.get("REDIS_URL") or "").strip()
         app_env = (source.get("APP_ENV") or "local").strip() or "local"
+        public_base_url = _optional(source, "COKE_PUBLIC_BASE_URL")
 
         if not database_url:
             raise ConfigurationError(
@@ -76,6 +78,10 @@ class Settings:
             )
         if not redis_url:
             raise ConfigurationError("REDIS_URL is required for Coke backend startup")
+        if app_env == "production" and public_base_url is None:
+            raise ConfigurationError(
+                "COKE_PUBLIC_BASE_URL is required for production public links"
+            )
 
         llm_fake = _bool_env(source, "COKE_LLM_FAKE")
         siliconflow_api_key = _optional(source, "SiliconFlow_API_KEY")
@@ -88,6 +94,7 @@ class Settings:
             database_url=database_url,
             redis_url=redis_url,
             app_env=app_env,
+            public_base_url=(public_base_url or "http://localhost:4040").rstrip("/"),
             evolution_base_url=_optional(source, "COKE_PROVIDER_EVOLUTION_BASE_URL"),
             evolution_api_key=_optional(source, "COKE_PROVIDER_EVOLUTION_API_KEY"),
             evolution_instance=_optional(source, "COKE_PROVIDER_EVOLUTION_INSTANCE"),

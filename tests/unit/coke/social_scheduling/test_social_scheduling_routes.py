@@ -24,7 +24,7 @@ class FakeSocialSchedulingService:
             owner_account_id=owner_account_id,
             public_token="public_token",
             link_code="link_code",
-            qr_payload="https://coke.example/friends/public_token",
+            qr_payload="http://localhost:4040/u/link_code",
             lifecycle="active",
         )
 
@@ -195,6 +195,8 @@ class FakeSocialSchedulingService:
 
 class ErrorService(FakeSocialSchedulingService):
     def remove_friend(self, account_id, friend_account_id):
+        from coke.domains.social_scheduling.models import SocialSchedulingError
+
         raise SocialSchedulingError(
             "friendship_not_found", fact={"type": "not_active_friend"}
         )

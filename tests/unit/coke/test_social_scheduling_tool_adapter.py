@@ -65,7 +65,12 @@ class FakeSocialSchedulingService:
         self, owner_account_id: str, commit_guard=None
     ) -> FriendLinkView:
         self.calls.append(("reset_friend_link", {"owner_account_id": owner_account_id}))
-        return _friend_link_view(owner_account_id, "active", token="reset_token")
+        return _friend_link_view(
+            owner_account_id,
+            "active",
+            token="reset_token",
+            code="reset_code",
+        )
 
     def disable_friend_link(
         self,
@@ -160,14 +165,13 @@ def test_social_scheduling_tool_routes_friend_link_operations_to_service():
         "lifecycle": "active",
         "public_token": "public_token",
         "link_code": "invite_code",
-        "public_link_url": "https://coke.example/friends/public_token",
-        "qr_payload": "https://coke.example/friends/public_token",
+        "public_link_url": "http://localhost:4040/u/invite_code",
+        "qr_payload": "http://localhost:4040/u/invite_code",
     }
     assert reset_result.ok is True
     assert reset_result.facts["public_token"] == "reset_token"
     assert (
-        reset_result.facts["public_link_url"]
-        == "https://coke.example/friends/reset_token"
+        reset_result.facts["public_link_url"] == "http://localhost:4040/u/reset_code"
     )
     assert disable_result.ok is True
     assert disable_result.facts["lifecycle"] == "disabled"
@@ -437,8 +441,8 @@ def _friend_link_view(
     code: str | None = "invite_code",
     qr_payload: str | None = None,
 ) -> FriendLinkView:
-    if qr_payload is None and token is not None:
-        qr_payload = f"https://coke.example/friends/{token}"
+    if qr_payload is None and code is not None:
+        qr_payload = f"http://localhost:4040/u/{code}"
     return FriendLinkView(
         id=f"link_{owner_account_id}",
         owner_account_id=owner_account_id,

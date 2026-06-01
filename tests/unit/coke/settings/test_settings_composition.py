@@ -75,6 +75,23 @@ def test_composition_exposes_settings_tool_and_pre_llm_trusted_settings_facts():
     assert decision.trust_facts["memory_enabled"] is False
 
 
+def test_composition_threads_public_base_url_to_social_scheduling():
+    runtime = compose_coke_runtime(
+        semantic_interpreter=FakeSemanticInterpreter(),
+        interaction_agent=FakeInteractionAgent(),
+        redis_client=object(),
+        outbound_delivery=FakeOutboundDelivery(),
+        now=lambda: NOW,
+        id_factory=_id_factory(),
+        public_base_url="https://web.example.com/",
+    )
+
+    assert (
+        runtime.social_scheduling_service._public_base_url
+        == "https://web.example.com"
+    )
+
+
 class _Guard:
     def guard_state_change(self) -> None:
         return None

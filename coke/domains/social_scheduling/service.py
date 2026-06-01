@@ -54,6 +54,7 @@ class SocialSchedulingService:
         id_factory: Callable[[str], str] | None = None,
         token_factory: Callable[[str], str] | None = None,
         display_name_resolver: Callable[[str], str] | None = None,
+        public_base_url: str = "http://localhost:4040",
     ) -> None:
         self.repository = repository
         self.reachability = reachability
@@ -65,6 +66,7 @@ class SocialSchedulingService:
             lambda prefix: f"{prefix}_{token_urlsafe(24)}"
         )
         self.display_name_resolver = display_name_resolver or _default_display_name
+        self._public_base_url = public_base_url.rstrip("/") or "http://localhost:4040"
         self._notifications = NotificationFactWriter(
             repository=repository,
             now=self._now,
@@ -770,7 +772,7 @@ class SocialSchedulingService:
             lifecycle=link.lifecycle,
             public_token=token,
             link_code=code,
-            qr_payload=f"https://coke.example/friends/{token}" if token else None,
+            qr_payload=f"{self._public_base_url}/u/{code}" if code else None,
         )
 
     def _require_usable_channel(self, account_id: str, code: str) -> None:

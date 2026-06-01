@@ -1183,6 +1183,7 @@ def compose_coke_runtime(
     id_factory: Callable[[str], str] | None = None,
     lock_token_factory: Callable[[], str] | None = None,
     lock_ttl_ms: int = 30_000,
+    public_base_url: str = "http://localhost:4040",
     claim_boundary_committer: Callable[[], None] | None = None,
     close_boundary_committer: Callable[[], None] | None = None,
 ) -> CokeRuntime:
@@ -1242,6 +1243,7 @@ def compose_coke_runtime(
         detector=reminder_detector,
         now=now,
         id_factory=id_factory,
+        public_base_url=public_base_url,
         display_name_resolver=identity_access_service.get_display_name,
     )
     channel_reachability_service.set_deferred_friend_link_completion(
@@ -1401,6 +1403,7 @@ def build_runtime_from_settings(
             now=now,
             id_factory=id_factory,
             lock_ttl_ms=settings.lock_ttl_ms,
+            public_base_url=settings.public_base_url,
             claim_boundary_committer=child_session.commit,
             close_boundary_committer=child_session.commit,
         )
@@ -1448,6 +1451,7 @@ def build_runtime_from_settings(
         now=now,
         id_factory=id_factory,
         lock_ttl_ms=settings.lock_ttl_ms,
+        public_base_url=settings.public_base_url,
         claim_boundary_committer=session.commit,
         close_boundary_committer=session.commit,
     )
