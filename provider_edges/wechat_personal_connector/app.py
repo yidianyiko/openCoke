@@ -20,6 +20,22 @@ DEFAULT_STATE_PATH = "/data/wechat_personal_state.json"
 
 
 @dataclass(frozen=True)
+class ConnectorMediaPayload:
+    media_type: str
+    storage_uri: str
+    mime: str
+    agent_label: str
+
+    def as_payload(self) -> dict[str, str]:
+        return {
+            "media_type": self.media_type,
+            "storage_uri": self.storage_uri,
+            "mime": self.mime,
+            "agent_label": self.agent_label,
+        }
+
+
+@dataclass(frozen=True)
 class ConnectorConfig:
     api_key: str | None = None
     webhook_url: str = ""
@@ -481,7 +497,10 @@ def _clean_webhook_payload(
     if not wxid:
         return None
     text = _extract_text(message)
+    media = _extract_media(message)
     if text is None:
+        return None
+    if text == "" and _has_media_item(message) and not media:
         return None
     message_id = str(message.get("context_token") or "").strip()
     if not message_id:
@@ -489,7 +508,7 @@ def _clean_webhook_payload(
     context_token = str(message.get("context_token") or "").strip()
     if not context_token:
         return None
-    return {
+    payload: dict[str, Any] = {
         "account_id": str(session.get("account_id") or ""),
         "session_id": session_id,
         "message_id": message_id,
@@ -497,6 +516,9 @@ def _clean_webhook_payload(
         "text": text,
         "context_token": context_token,
     }
+    if media:
+        payload["media"] = [item.as_payload() for item in media]
+    return payload
 
 
 def _extract_text(message: dict[str, Any]) -> str | None:
@@ -511,6 +533,67 @@ def _extract_text(message: dict[str, Any]) -> str | None:
             if text:
                 return text
     return ""
+
+
+def _extract_media(message: dict[str, Any]) -> list[ConnectorMediaPayload]:
+    media: list[ConnectorMediaPayload] = []
+    for item in message.get("item_list") or []:
+        item_type = item.get("type")
+        if item_type == 2:
+            image_item = item.get("image_item") or {}
+            mime = _media_mime(image_item, default="image/jpeg")
+            storage_uri = _readable_storage_uri(image_item, mime=mime)
+            if storage_uri:
+                media.append(
+                    ConnectorMediaPayload(
+                        media_type="image",
+                        storage_uri=storage_uri,
+                        mime=mime,
+                        agent_label="image",
+                    )
+                )
+        if item_type == 3:
+            voice_item = item.get("voice_item") or {}
+            mime = _media_mime(voice_item, default="audio/wav")
+            storage_uri = _readable_storage_uri(voice_item, mime=mime)
+            if storage_uri:
+                media.append(
+                    ConnectorMediaPayload(
+                        media_type="voice",
+                        storage_uri=storage_uri,
+                        mime=mime,
+                        agent_label="voice message",
+                    )
+                )
+    return media
+
+
+def _has_media_item(message: dict[str, Any]) -> bool:
+    return any((item.get("type") in {2, 3}) for item in message.get("item_list") or [])
+
+
+def _media_mime(item: Any, *, default: str) -> str:
+    if not isinstance(item, dict):
+        return default
+    for key in ("mime", "mimetype", "content_type"):
+        value = str(item.get(key) or "").strip()
+        if value:
+            return value
+    return default
+
+
+def _readable_storage_uri(item: Any, *, mime: str) -> str | None:
+    if not isinstance(item, dict):
+        return None
+    for key in ("storage_uri", "data_uri", "media_data_uri", "decoded_data_uri"):
+        value = str(item.get(key) or "").strip()
+        if value.startswith(("data:", "https://", "http://", "s3://")):
+            return value
+    for key in ("data_base64", "media_base64", "decoded_base64"):
+        value = str(item.get(key) or "").strip()
+        if value:
+            return f"data:{mime};base64,{value}"
+    return None
 
 
 def _validated_ilink_response(response: httpx.Response) -> dict[str, Any]:

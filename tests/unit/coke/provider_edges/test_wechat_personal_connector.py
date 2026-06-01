@@ -562,6 +562,149 @@ def test_poll_once_posts_account_bound_payload_and_context_token(state):
     assert session["context_tokens"] == {"wxid_alice": "ctx-1"}
 
 
+def test_poll_once_posts_image_media_payload_with_blank_text(state):
+    ilink = FakeIlinkClient(
+        updates={
+            "get_updates_buf": "cursor-1",
+            "msgs": [
+                {
+                    "from_user_id": "wxid_alice",
+                    "context_token": "ctx-image-1",
+                    "item_list": [
+                        {
+                            "type": 2,
+                            "image_item": {
+                                "data_uri": "data:image/jpeg;base64,/9j/2w==",
+                                "mime": "image/jpeg",
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    webhook = FakeWebhookClient()
+
+    delivered = poll_once(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+            webhook_api_key="clean-webhook-key",
+            webhook_inbound_secret="clean-webhook-secret",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=webhook,
+    )
+
+    assert delivered == 1
+    assert webhook.posts[0]["json"] == {
+        "account_id": "acct_1",
+        "session_id": "session-1",
+        "message_id": "ctx-image-1",
+        "wxid": "wxid_alice",
+        "text": "",
+        "context_token": "ctx-image-1",
+        "media": [
+            {
+                "media_type": "image",
+                "storage_uri": "data:image/jpeg;base64,/9j/2w==",
+                "mime": "image/jpeg",
+                "agent_label": "image",
+            }
+        ],
+    }
+
+
+def test_poll_once_posts_voice_transcript_and_media_payload(state):
+    ilink = FakeIlinkClient(
+        updates={
+            "get_updates_buf": "cursor-1",
+            "msgs": [
+                {
+                    "from_user_id": "wxid_alice",
+                    "context_token": "ctx-voice-1",
+                    "item_list": [
+                        {
+                            "type": 3,
+                            "voice_item": {
+                                "text": "remind me at nine",
+                                "data_uri": "data:audio/wav;base64,UklGRg==",
+                                "mime": "audio/wav",
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    webhook = FakeWebhookClient()
+
+    delivered = poll_once(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+            webhook_api_key="clean-webhook-key",
+            webhook_inbound_secret="clean-webhook-secret",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=webhook,
+    )
+
+    assert delivered == 1
+    assert webhook.posts[0]["json"] == {
+        "account_id": "acct_1",
+        "session_id": "session-1",
+        "message_id": "ctx-voice-1",
+        "wxid": "wxid_alice",
+        "text": "remind me at nine",
+        "context_token": "ctx-voice-1",
+        "media": [
+            {
+                "media_type": "voice",
+                "storage_uri": "data:audio/wav;base64,UklGRg==",
+                "mime": "audio/wav",
+                "agent_label": "voice message",
+            }
+        ],
+    }
+
+
+def test_poll_once_skips_malformed_image_without_readable_media(state):
+    ilink = FakeIlinkClient(
+        updates={
+            "get_updates_buf": "cursor-1",
+            "msgs": [
+                {
+                    "from_user_id": "wxid_alice",
+                    "context_token": "ctx-image-bad",
+                    "item_list": [
+                        {
+                            "type": 2,
+                            "image_item": {"cdn_url": "https://cdn.invalid/image"},
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    webhook = FakeWebhookClient()
+
+    delivered = poll_once(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=webhook,
+    )
+
+    assert delivered == 0
+    assert webhook.posts == []
+
+
 def test_config_from_env_reads_webhook_inbound_secret(monkeypatch):
     monkeypatch.setenv("WECHAT_CONNECTOR_API_KEY", "connector-key")
     monkeypatch.setenv(
