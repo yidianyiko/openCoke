@@ -2132,11 +2132,11 @@ from coke.domains.conversation_runtime.models import (
 )
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run the new integration tests**
 
 Run: `.venv/bin/python -m pytest tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py::test_wechat_personal_image_media_resolves_into_current_input_text tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py::test_wechat_personal_native_voice_transcript_skips_media_resolution_path -v`
 
-Expected: FAIL with `NameError: name 'InboundMediaStatusUpdate' is not defined` when run before the conversation-runtime write-back task exists.
+This task is additive integration coverage, not a RED-first unit task: it exercises the production behavior already built in Tasks 1-6. Executed in order, these tests are EXPECTED TO PASS immediately (`2 passed`). A pass here is success, not a violation — proceed to commit. (Only if run in isolation before Task 3 would they fail on `NameError: name 'InboundMediaStatusUpdate' is not defined`.)
 
 - [ ] **Step 3: Write minimal implementation**
 
