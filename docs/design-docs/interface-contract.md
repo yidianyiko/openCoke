@@ -39,6 +39,7 @@ ClawScale bridge.
 
 ## Python Public API
 
+- `/api/public/user-links/:code`
 - `/api/auth/*`
 - `/api/account/*`
 - `/api/channels/*`
@@ -67,8 +68,10 @@ ClawScale bridge.
 - Public web routes provide explanation, FAQ, demo, policy, terms, and public
   friend-link entry.
 - Customer web routes are thin client pages over the Python API.
-- Python public API routes enforce auth/access gates, validate request shape,
-  and call domain services.
+- Python public API routes validate request shape and call domain services.
+  Customer/account routes enforce auth/access gates. Explicit public discovery
+  routes such as `/api/public/user-links/:code` remain unauthenticated and must
+  return only product-safe public projections.
 - Provider webhooks normalize provider payloads into canonical inbound events.
 - Internal runtime routes are private operational edges for delivery callbacks
   and synchronous reply waiting.

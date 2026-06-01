@@ -47,14 +47,17 @@ Final verification for the full public friend-link change set:
 - `.venv/bin/python -m pytest tests/unit/coke/test_backend_foundation.py tests/unit/coke/settings/test_settings_composition.py tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/social_scheduling/test_social_scheduling_routes.py tests/unit/coke/test_social_scheduling_tool_adapter.py -v`
   passed: 85 tests.
 - `cd web && pnpm test lib/user-link-api.test.ts lib/customer-friends.test.ts 'app/u/[code]/page.test.tsx' 'app/(customer)/account/friends/page.test.tsx' lib/i18n.test.ts`
-  passed: 33 tests.
+  passed: 33 tests before the final review fix.
+- `cd web && pnpm test 'app/(customer)/account/friends/page.test.tsx' lib/customer-friends.test.ts lib/i18n.test.ts`
+  passed after the final review fix: 29 tests.
 - `zsh scripts/suggest-verification --base HEAD~1` completed and suggested
   `zsh scripts/verify-surface repo-os-docs` for the final evidence commit.
 - `zsh scripts/review-trigger --base HEAD~1` completed with no human review
   required; it reported the final issue-record edit as a medium repo-OS risk.
 - `PATH="$PWD/.venv/bin:$PATH" zsh scripts/verify-surface clean-rebuild-backend`
   passed: 732 tests.
-- `zsh scripts/verify-surface clean-rebuild-web` passed: 217 tests and
+- `zsh scripts/verify-surface clean-rebuild-web` passed after the final review
+  fix: 218 tests and
   `pnpm build`.
 - `zsh scripts/verify-surface deploy` passed.
 - `zsh scripts/verify-surface repo-os-docs` passed.

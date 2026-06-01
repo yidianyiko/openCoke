@@ -42,12 +42,17 @@ function CustomerFriendsPageContent() {
   const requestIdRef = useRef(0);
   const joinAttemptedRef = useRef<string | null>(null);
   const authRedirectedRef = useRef(false);
+  const preserveActionErrorRef = useRef(false);
 
   const loadData = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     setLoading(true);
-    setError('');
+    if (preserveActionErrorRef.current) {
+      preserveActionErrorRef.current = false;
+    } else {
+      setError('');
+    }
 
     try {
       const [linkRes, friendsRes] = await Promise.all([
@@ -116,6 +121,7 @@ function CustomerFriendsPageContent() {
             replace(loginNextPath(code));
             return;
           }
+          preserveActionErrorRef.current = true;
           setError(res.error === 'self_friendship_forbidden' ? copy.inviteSelf : copy.actionFailure);
           return;
         }

@@ -323,4 +323,19 @@ describe('CustomerFriendsPage', () => {
     expect(container.textContent).toContain('You cannot add yourself as a friend.');
     expect(replaceMock).toHaveBeenCalledWith('/account/friends');
   });
+
+  it('keeps self-invite errors visible after the scrubbed URL rerenders', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    joinFriendByCodeMock.mockResolvedValueOnce({ ok: false, error: 'self_friendship_forbidden' });
+
+    renderPage();
+    await flushTicks();
+    expect(container.textContent).toContain('You cannot add yourself as a friend.');
+
+    searchParamsMock.mockReturnValue(new URLSearchParams());
+    renderPage();
+    await flushTicks();
+
+    expect(container.textContent).toContain('You cannot add yourself as a friend.');
+  });
 });
