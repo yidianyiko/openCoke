@@ -1,0 +1,68 @@
+#!/usr/bin/env python
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--asr-model", required=True)
+    parser.add_argument("--vision-model", required=True)
+    parser.add_argument("--asr-manifest", required=True)
+    parser.add_argument("--vision-manifest", required=True)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
+    asr_cases = _load_manifest(Path(args.asr_manifest), label="asr")
+    vision_cases = _load_manifest(Path(args.vision_manifest), label="vision")
+    _validate_case_count(asr_cases, label="asr")
+    _validate_case_count(vision_cases, label="vision")
+
+    print(f"asr_model={args.asr_model} cases={len(asr_cases)}")
+    print(f"vision_model={args.vision_model} cases={len(vision_cases)}")
+    if args.dry_run:
+        return 0
+    print(
+        "Run this command with real representative media manifests and SiliconFlow_API_KEY set."
+    )
+    return 0
+
+
+def _load_manifest(path: Path, *, label: str) -> list[dict]:
+    rows: list[dict] = []
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise SystemExit(
+                f"{label} manifest line {line_number} is not valid JSON: {error}"
+            ) from error
+        if not isinstance(row, dict):
+            raise SystemExit(f"{label} manifest line {line_number} must be an object")
+        for field in ("id", "storage_uri", "expected_text"):
+            if not isinstance(row.get(field), str) or not row[field].strip():
+                raise SystemExit(f"{label} manifest line {line_number} missing {field}")
+        rows.append(row)
+    return rows
+
+
+def _validate_case_count(rows: list[dict], *, label: str) -> None:
+    if not 30 <= len(rows) <= 50:
+        raise SystemExit(f"{label} manifest must contain 30-50 cases; got {len(rows)}")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except SystemExit as error:
+        if isinstance(error.code, str):
+            print(error.code, file=sys.stderr)
+            raise SystemExit(2)
+        raise
