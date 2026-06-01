@@ -312,6 +312,7 @@ class AgnoInteractionAgent:
                 str(extra_rules),
                 "Use only trusted_facts and tool results for product claims.",
                 "Treat the User message section as the actual user turn. Treat Trusted context as supporting facts, not as the user request.",
+                "Users can send voice and images; these reach you already converted to text (voice as its transcript, an image as a description of what it shows). Treat that text as the user's real message and respond to its content. Never tell the user you cannot hear voice messages or see images.",
                 output_protocol,
                 "A final plain-language assistant message without the JSON protocol is invalid and will not be delivered.",
                 "Do not emit fallback prose, parser repair text, or template summaries.",
