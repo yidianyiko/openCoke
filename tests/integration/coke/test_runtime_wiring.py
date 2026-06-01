@@ -56,6 +56,25 @@ def test_build_runtime_from_settings_wires_postgres_redis_providers_and_app():
     }
 
 
+def test_runtime_wires_media_text_resolver_when_media_models_are_configured(monkeypatch):
+    from coke.composition import build_runtime_from_settings
+
+    settings = Settings(
+        database_url="sqlite://",
+        redis_url="redis://localhost:6379/0",
+        siliconflow_api_key="sf-key",
+        llm_fake=False,
+        asr_model="sensevoice-candidate",
+        vision_text_model="qwen-vl-candidate",
+    )
+
+    runtime = build_runtime_from_settings(
+        settings, redis_client=fakeredis.FakeRedis(decode_responses=True)
+    )
+
+    assert runtime.media_text_resolver is not None
+
+
 def test_wsgi_import_builds_app_with_fake_llm_without_live_model(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", _database_url())
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/15")

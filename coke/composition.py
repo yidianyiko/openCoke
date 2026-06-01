@@ -62,6 +62,11 @@ from coke.infra.redis import (
 )
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
 from coke.llm.config import SiliconFlowLLMConfig
+from coke.llm.media_text import (
+    MediaTextResolver,
+    SiliconFlowAsrClient,
+    SiliconFlowVisionTextClient,
+)
 from coke.llm.reminder_detector import SiliconFlowReminderDetector
 from coke.llm.semantic_interpreter import SiliconFlowSemanticInterpreter
 from coke.providers.base import provider_registry
@@ -124,6 +129,7 @@ class CokeRuntime:
     redis_client: Any | None = None
     work_stream: Any | None = None
     reply_pubsub: Any | None = None
+    media_text_resolver: MediaTextResolver | None = None
     interactive_runtime_factory: Callable[[], "CokeRuntime"] | None = None
 
 
@@ -1362,9 +1368,12 @@ def build_runtime_from_settings(
     )
     provider_adapters = _provider_adapters_from_settings(settings, now=now)
     repositories = _postgres_repositories(session)
-    semantic_interpreter, interaction_agent, reminder_detector = _llm_from_settings(
-        settings
-    )
+    (
+        semantic_interpreter,
+        interaction_agent,
+        reminder_detector,
+        media_text_resolver,
+    ) = _llm_from_settings(settings)
     google_calendar_client = GoogleCalendarClientAdapter(
         calendar_id=settings.google_calendar_id,
         now=now,
@@ -1417,6 +1426,7 @@ def build_runtime_from_settings(
             session=child_session,
             redis_client=redis_client,
             reply_pubsub=reply_pubsub,
+            media_text_resolver=media_text_resolver,
         )
 
     runtime = compose_coke_runtime(
@@ -1464,6 +1474,7 @@ def build_runtime_from_settings(
         redis_client=redis_client,
         work_stream=work_stream,
         reply_pubsub=reply_pubsub,
+        media_text_resolver=media_text_resolver,
         interactive_runtime_factory=interactive_runtime_factory,
     )
 
@@ -1520,7 +1531,7 @@ def _provider_adapters_from_settings(
 
 def _llm_from_settings(settings: Settings):
     if settings.llm_fake:
-        return FakeSemanticInterpreter(), FakeInteractionAgent(), FakeReminderDetector()
+        return FakeSemanticInterpreter(), FakeInteractionAgent(), FakeReminderDetector(), None
     if not settings.siliconflow_api_key:
         raise ConfigurationError("SiliconFlow_API_KEY is required for LLM composition")
     llm_config = SiliconFlowLLMConfig(
@@ -1532,13 +1543,41 @@ def _llm_from_settings(settings: Settings):
         interaction_timeout_s=settings.interaction_timeout_s,
         agno_database_url=settings.agno_database_url,
         agno_create_schema=settings.agno_create_schema,
+        asr_model=settings.asr_model,
+        vision_text_model=settings.vision_text_model,
+        media_model_timeout_s=settings.media_model_timeout_s,
     )
+    media_text_resolver = None
+    if llm_config.asr_model or llm_config.vision_text_model:
+        media_text_resolver = MediaTextResolver(
+            asr_client=(
+                SiliconFlowAsrClient(
+                    api_key=llm_config.api_key,
+                    base_url=llm_config.base_url,
+                    model_id=llm_config.asr_model,
+                    timeout_s=llm_config.media_model_timeout_s,
+                )
+                if llm_config.asr_model
+                else None
+            ),
+            vision_text_client=(
+                SiliconFlowVisionTextClient(
+                    api_key=llm_config.api_key,
+                    base_url=llm_config.base_url,
+                    model_id=llm_config.vision_text_model,
+                    timeout_s=llm_config.media_model_timeout_s,
+                )
+                if llm_config.vision_text_model
+                else None
+            ),
+        )
     return (
         SiliconFlowSemanticInterpreter.from_model(
             llm_config.create_interpreter_model()
         ),
         AgnoInteractionAgent.from_config(llm_config),
         SiliconFlowReminderDetector.from_model(llm_config.create_detector_model()),
+        media_text_resolver,
     )
 
 

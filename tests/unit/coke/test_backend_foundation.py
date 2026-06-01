@@ -96,6 +96,24 @@ def test_settings_from_env_reads_interaction_timeout(monkeypatch):
     assert settings.interaction_timeout_s == 18.75
 
 
+def test_settings_from_env_reads_media_model_configuration(monkeypatch):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
+    monkeypatch.setenv("COKE_ASR_MODEL", "sensevoice-candidate")
+    monkeypatch.setenv("COKE_VISION_TEXT_MODEL", "qwen-vl-candidate")
+    monkeypatch.setenv("COKE_MEDIA_MODEL_TIMEOUT_S", "75")
+
+    settings = Settings.from_env()
+
+    assert settings.asr_model == "sensevoice-candidate"
+    assert settings.vision_text_model == "qwen-vl-candidate"
+    assert settings.media_model_timeout_s == 75.0
+
+
 def test_settings_from_env_rejects_invalid_interaction_timeout(monkeypatch):
     from coke.config import ConfigurationError, Settings
 
