@@ -105,8 +105,8 @@ def test_siliconflow_config_reads_media_model_ids_without_defaults():
     assert config.media_model_timeout_s == 70.0
 
 
-def test_siliconflow_config_leaves_media_model_ids_unset_until_subset_eval_selects_them():
+def test_siliconflow_config_defaults_media_model_ids_to_verified_siliconflow_models():
     config = SiliconFlowLLMConfig.from_env({"SiliconFlow_API_KEY": "test-key"})
 
-    assert config.asr_model is None
-    assert config.vision_text_model is None
+    assert config.asr_model == "FunAudioLLM/SenseVoiceSmall"
+    assert config.vision_text_model == "Qwen/Qwen3-VL-32B-Instruct"

@@ -15,6 +15,13 @@ DEFAULT_INTERPRETER_MODEL = "Pro/zai-org/GLM-5.1"
 DEFAULT_DETECTOR_MODEL = "Pro/zai-org/GLM-5.1"
 DEFAULT_INTERACTION_TIMEOUT_S = 45.0
 DEFAULT_MEDIA_MODEL_TIMEOUT_S = 60.0
+# Media-model defaults verified live against /v1/models on 2026-06-01 using the
+# actual client request shapes: Qwen3-VL-32B-Instruct returned a correct image
+# caption via /chat/completions, and SenseVoiceSmall returned HTTP 200 on
+# /audio/transcriptions. Voice's primary path is WeChat's native transcript;
+# SenseVoiceSmall is the fallback. Tunable later via the media subset eval.
+DEFAULT_ASR_MODEL = "FunAudioLLM/SenseVoiceSmall"
+DEFAULT_VISION_TEXT_MODEL = "Qwen/Qwen3-VL-32B-Instruct"
 
 
 class LLMConfigurationError(RuntimeError):
@@ -31,8 +38,8 @@ class SiliconFlowLLMConfig:
     interaction_timeout_s: float = DEFAULT_INTERACTION_TIMEOUT_S
     agno_database_url: str | None = None
     agno_create_schema: bool = False
-    asr_model: str | None = None
-    vision_text_model: str | None = None
+    asr_model: str | None = DEFAULT_ASR_MODEL
+    vision_text_model: str | None = DEFAULT_VISION_TEXT_MODEL
     media_model_timeout_s: float = DEFAULT_MEDIA_MODEL_TIMEOUT_S
 
     @classmethod
@@ -63,8 +70,10 @@ class SiliconFlowLLMConfig:
             ),
             agno_database_url=_optional_database_url(source),
             agno_create_schema=_bool_env(source, "COKE_AGNO_CREATE_SCHEMA"),
-            asr_model=_optional(source, "COKE_ASR_MODEL"),
-            vision_text_model=_optional(source, "COKE_VISION_TEXT_MODEL"),
+            asr_model=_optional_model(source, "COKE_ASR_MODEL", DEFAULT_ASR_MODEL),
+            vision_text_model=_optional_model(
+                source, "COKE_VISION_TEXT_MODEL", DEFAULT_VISION_TEXT_MODEL
+            ),
             media_model_timeout_s=_positive_float(
                 source,
                 "COKE_MEDIA_MODEL_TIMEOUT_S",
@@ -114,11 +123,6 @@ def _required(source: Mapping[str, str], key: str) -> str:
 
 def _optional_model(source: Mapping[str, str], key: str, default: str) -> str:
     return (source.get(key) or default).strip() or default
-
-
-def _optional(source: Mapping[str, str], key: str) -> str | None:
-    value = (source.get(key) or "").strip()
-    return value or None
 
 
 def _optional_database_url(source: Mapping[str, str]) -> str | None:

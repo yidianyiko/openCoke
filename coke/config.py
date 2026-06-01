@@ -5,11 +5,13 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from coke.llm.config import (
+    DEFAULT_ASR_MODEL,
     DEFAULT_DETECTOR_MODEL,
     DEFAULT_INTERACTION_MODEL,
     DEFAULT_INTERACTION_TIMEOUT_S,
     DEFAULT_INTERPRETER_MODEL,
     DEFAULT_MEDIA_MODEL_TIMEOUT_S,
+    DEFAULT_VISION_TEXT_MODEL,
     SILICONFLOW_BASE_URL,
 )
 
@@ -41,8 +43,8 @@ class Settings:
     interaction_timeout_s: float = DEFAULT_INTERACTION_TIMEOUT_S
     agno_database_url: str | None = None
     agno_create_schema: bool = False
-    asr_model: str | None = None
-    vision_text_model: str | None = None
+    asr_model: str | None = DEFAULT_ASR_MODEL
+    vision_text_model: str | None = DEFAULT_VISION_TEXT_MODEL
     media_model_timeout_s: float = DEFAULT_MEDIA_MODEL_TIMEOUT_S
     llm_fake: bool = False
     google_client_id: str | None = None
@@ -126,8 +128,10 @@ class Settings:
                 _optional(source, "COKE_AGNO_DATABASE_URL") or database_url
             ),
             agno_create_schema=_bool_env(source, "COKE_AGNO_CREATE_SCHEMA"),
-            asr_model=_optional(source, "COKE_ASR_MODEL"),
-            vision_text_model=_optional(source, "COKE_VISION_TEXT_MODEL"),
+            asr_model=_optional(source, "COKE_ASR_MODEL") or DEFAULT_ASR_MODEL,
+            vision_text_model=(
+                _optional(source, "COKE_VISION_TEXT_MODEL") or DEFAULT_VISION_TEXT_MODEL
+            ),
             media_model_timeout_s=_positive_float(
                 source,
                 "COKE_MEDIA_MODEL_TIMEOUT_S",
