@@ -14,6 +14,7 @@ from coke.domains.conversation_runtime.models import (
     CurrentInputMessage,
     InboundMedia,
     InboundMediaInput,
+    InboundMediaStatusUpdate,
     InboundRecordResult,
     Message,
     OutboxRecord,
@@ -103,6 +104,7 @@ class ConversationRuntimeService:
                 agent_reference={
                     "type": item.media_type,
                     "label": item.agent_label,
+                    **({"mime": item.mime} if item.mime else {}),
                 },
                 created_at=now,
                 updated_at=now,
@@ -263,7 +265,7 @@ class ConversationRuntimeService:
         reason_code: str = "intentional_no_reply",
         materialize_staged_command: Callable[[StagedCommand], Any] | None = None,
     ) -> OutputDisposition:
-        if reason_code != "intentional_no_reply":
+        if reason_code not in {"intentional_no_reply", "media_resolution_failed"}:
             raise ConversationRuntimeError("invalid_no_reply_reason")
         turn = self._require_turn(turn_id)
         existing = self.repository.get_disposition(turn_id)
@@ -390,6 +392,30 @@ class ConversationRuntimeService:
         if disposition is None:
             raise ConversationRuntimeError("disposition_not_found")
         return disposition
+
+    def get_message(self, message_id: str) -> Message:
+        message = self.repository.get_message(message_id)
+        if message is None:
+            raise ConversationRuntimeError("message_not_found")
+        return message
+
+    def inbound_media_for_message(self, message_id: str) -> tuple[InboundMedia, ...]:
+        self.get_message(message_id)
+        return tuple(self.repository.inbound_media_for_message(message_id))
+
+    def resolve_inbound_media(
+        self,
+        message_id: str,
+        resolved_text: str | None,
+        media_status_updates: Sequence[InboundMediaStatusUpdate],
+    ) -> Message:
+        self.get_message(message_id)
+        return self.repository.resolve_inbound_media(
+            message_id,
+            resolved_text,
+            tuple(media_status_updates),
+            self._now(),
+        )
 
     def outbound_messages_for_turn(self, turn_id: str) -> list[Message]:
         self._require_turn(turn_id)

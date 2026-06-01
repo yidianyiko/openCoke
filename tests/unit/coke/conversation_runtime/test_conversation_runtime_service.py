@@ -10,6 +10,7 @@ import pytest
 from coke.domains.conversation_runtime.models import (
     ConversationRuntimeError,
     InboundMediaInput,
+    InboundMediaStatusUpdate,
     Message,
     OutboxRecord,
 )
@@ -768,3 +769,101 @@ def test_reply_requires_one_to_three_segments(service, segments):
             turn_id=turn.turn.id,
             segments=segments,
         )
+
+
+def test_resolve_inbound_media_updates_message_text_and_media_status(
+    service, repository
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:image-1",
+        text="",
+        payload={"provider": "wechat_personal"},
+        media=[
+            InboundMediaInput(
+                media_type="image",
+                storage_uri="data:image/jpeg;base64,/9j/2w==",
+                mime="image/jpeg",
+                agent_label="image",
+            )
+        ],
+        traceparent=TRACEPARENT,
+    )
+
+    updated = service.resolve_inbound_media(
+        message_id=inbound.message.id,
+        resolved_text="The image says buy milk at 6 PM.",
+        media_status_updates=[
+            InboundMediaStatusUpdate(
+                media_id=inbound.media[0].id,
+                processing_status="resolved",
+            )
+        ],
+    )
+    started = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:image-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    assert updated.text == "The image says buy milk at 6 PM."
+    assert (
+        repository.messages_by_id[inbound.message.id].text
+        == "The image says buy milk at 6 PM."
+    )
+    assert (
+        repository.inbound_media_by_id[inbound.media[0].id].processing_status
+        == "resolved"
+    )
+    assert started.input_messages[0].text == "The image says buy milk at 6 PM."
+
+
+def test_media_resolution_failed_no_reply_closes_window_without_reply(
+    service, repository
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:image-failed",
+        text="",
+        payload={"provider": "wechat_personal"},
+        media=[
+            InboundMediaInput(
+                media_type="image",
+                storage_uri="data:image/jpeg;base64,bad",
+                mime="image/jpeg",
+                agent_label="image",
+            )
+        ],
+        traceparent=TRACEPARENT,
+    )
+    service.resolve_inbound_media(
+        message_id=inbound.message.id,
+        resolved_text="",
+        media_status_updates=[
+            InboundMediaStatusUpdate(
+                media_id=inbound.media[0].id,
+                processing_status="failed",
+            )
+        ],
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:image-failed",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    disposition = service.commit_no_reply(
+        turn_id=turn.turn.id,
+        reason_code="media_resolution_failed",
+    )
+
+    saved_conversation = repository.get_conversation(inbound.conversation.id)
+    assert disposition.disposition == "no_reply"
+    assert disposition.reason_code == "media_resolution_failed"
+    assert saved_conversation is not None
+    assert saved_conversation.last_closed_inbound_seq == inbound.message.seq
+    assert service.repository.outbound_messages_for_turn(turn.turn.id) == []

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Protocol
@@ -21,6 +21,7 @@ from coke.domains.conversation_runtime.models import (
     Conversation,
     ConversationRuntimeError,
     InboundMedia,
+    InboundMediaStatusUpdate,
     Message,
     OutboxRecord,
     OutputDisposition,
@@ -36,6 +37,18 @@ class ConversationRuntimeRepository(Protocol):
     def lock_conversation(self, conversation_id: str) -> Conversation | None: ...
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None: ...
+
+    def get_message(self, message_id: str) -> Message | None: ...
+
+    def inbound_media_for_message(self, message_id: str) -> list[InboundMedia]: ...
+
+    def resolve_inbound_media(
+        self,
+        message_id: str,
+        resolved_text: str | None,
+        media_status_updates: Sequence[InboundMediaStatusUpdate],
+        resolved_at: datetime,
+    ) -> Message: ...
 
     def list_open_inbound_conversations(self) -> list[Conversation]: ...
 
@@ -132,6 +145,52 @@ class InMemoryConversationRuntimeRepository:
 
     def get_conversation_by_account(self, account_id: str) -> Conversation | None:
         return self.conversations_by_account.get(account_id)
+
+    def get_message(self, message_id: str) -> Message | None:
+        return self.messages_by_id.get(message_id)
+
+    def inbound_media_for_message(self, message_id: str) -> list[InboundMedia]:
+        media = [
+            item
+            for item in self.inbound_media_by_id.values()
+            if item.message_id == message_id
+        ]
+        media.sort(key=lambda item: (item.created_at, item.id))
+        return media
+
+    def resolve_inbound_media(
+        self,
+        message_id: str,
+        resolved_text: str | None,
+        media_status_updates: Sequence[InboundMediaStatusUpdate],
+        resolved_at: datetime,
+    ) -> Message:
+        message = self.messages_by_id.get(message_id)
+        if message is None:
+            raise ConversationRuntimeError("message_not_found")
+        update_by_id = {item.media_id: item for item in media_status_updates}
+        for media_id, update in update_by_id.items():
+            media = self.inbound_media_by_id.get(media_id)
+            if media is None:
+                raise ConversationRuntimeError("inbound_media_not_found")
+            if media.message_id != message_id:
+                raise ConversationRuntimeError("media_message_mismatch")
+            if update.processing_status not in {"preserved", "resolved", "failed"}:
+                raise ConversationRuntimeError("invalid_media_processing_status")
+        updated_message = replace(
+            message,
+            text=resolved_text,
+            updated_at=resolved_at,
+        )
+        self.messages_by_id[message_id] = updated_message
+        for media_id, update in update_by_id.items():
+            media = self.inbound_media_by_id[media_id]
+            self.inbound_media_by_id[media_id] = replace(
+                media,
+                processing_status=update.processing_status,
+                updated_at=resolved_at,
+            )
+        return updated_message
 
     def list_open_inbound_conversations(self) -> list[Conversation]:
         conversations = [
@@ -481,6 +540,77 @@ class PostgresConversationRuntimeRepository:
         )
         row = self.session.execute(statement).mappings().one_or_none()
         return _conversation(dict(row)) if row else None
+
+    def get_message(self, message_id: str) -> Message | None:
+        row = one_or_none(
+            self.session,
+            schema.message,
+            schema.message.c.id == db_id(message_id),
+        )
+        return _message(row) if row else None
+
+    def inbound_media_for_message(self, message_id: str) -> list[InboundMedia]:
+        rows = self.session.execute(
+            sa.select(schema.inbound_media)
+            .where(schema.inbound_media.c.message_id == db_id(message_id))
+            .order_by(
+                schema.inbound_media.c.created_at.asc(),
+                schema.inbound_media.c.id.asc(),
+            )
+        ).mappings()
+        return [_media(dict(row)) for row in rows]
+
+    def resolve_inbound_media(
+        self,
+        message_id: str,
+        resolved_text: str | None,
+        media_status_updates: Sequence[InboundMediaStatusUpdate],
+        resolved_at: datetime,
+    ) -> Message:
+        update_by_id = {item.media_id: item for item in media_status_updates}
+        for update in update_by_id.values():
+            if update.processing_status not in {"preserved", "resolved", "failed"}:
+                raise ConversationRuntimeError("invalid_media_processing_status")
+
+        def _write() -> Message:
+            message_row = self.session.execute(
+                sa.select(schema.message)
+                .where(schema.message.c.id == db_id(message_id))
+                .with_for_update()
+            ).mappings().one_or_none()
+            if message_row is None:
+                raise ConversationRuntimeError("message_not_found")
+            for update in update_by_id.values():
+                media_row = self.session.execute(
+                    sa.select(schema.inbound_media)
+                    .where(schema.inbound_media.c.id == db_id(update.media_id))
+                    .with_for_update()
+                ).mappings().one_or_none()
+                if media_row is None:
+                    raise ConversationRuntimeError("inbound_media_not_found")
+                if db_id(media_row["message_id"]) != message_id:
+                    raise ConversationRuntimeError("media_message_mismatch")
+                self.session.execute(
+                    schema.inbound_media.update()
+                    .where(schema.inbound_media.c.id == db_id(update.media_id))
+                    .values(
+                        processing_status=update.processing_status,
+                        updated_at=resolved_at,
+                    )
+                )
+            self.session.execute(
+                schema.message.update()
+                .where(schema.message.c.id == db_id(message_id))
+                .values(text=resolved_text, updated_at=resolved_at)
+            )
+            updated_row = self.session.execute(
+                sa.select(schema.message).where(
+                    schema.message.c.id == db_id(message_id)
+                )
+            ).mappings().one()
+            return _message(dict(updated_row))
+
+        return _write()
 
     def list_open_inbound_conversations(self) -> list[Conversation]:
         rows = self.session.execute(
@@ -982,6 +1112,19 @@ def _media_values(media: InboundMedia) -> dict:
         "created_at": media.created_at,
         "updated_at": media.updated_at,
     }
+
+
+def _media(row: Mapping) -> InboundMedia:
+    return InboundMedia(
+        id=db_id(row["id"]),
+        message_id=db_id(row["message_id"]),
+        media_type=row["media_type"],
+        storage_uri=row["storage_uri"],
+        processing_status=row["processing_status"],
+        agent_reference=dict(row["agent_reference"]),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
 
 
 def _turn_values(turn: Turn) -> dict:
