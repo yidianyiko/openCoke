@@ -625,7 +625,7 @@ def _silk_to_wav(silk_bytes: bytes, *, rate: int) -> bytes | None:
         with open(wav_path, "rb") as handle:
             return handle.read()
     except Exception as exc:  # best-effort: never break the poll loop
-        print(f"[connector-media-debug] silk->wav failed: {exc!r}", flush=True)
+        print(f"[connector] silk->wav failed: {exc!r}", flush=True)
         return None
     finally:
         for path in (silk_path, wav_path):
@@ -637,29 +637,6 @@ def _silk_to_wav(silk_bytes: bytes, *, rate: int) -> bytes | None:
             os.rmdir(tmp_dir)
         except OSError:
             pass
-
-
-def _log_media_structure(kind: str, item: dict[str, Any], sub: Any) -> None:
-    # Temporary diagnostic so live iLink media field names can be confirmed
-    # against the reverse-engineered contract. Logs key names only, never the
-    # ciphertext, aes_key, or URLs.
-    media = sub.get("media") if isinstance(sub, dict) else None
-    print(
-        "[connector-media-debug] "
-        + json.dumps(
-            {
-                "kind": kind,
-                "item_keys": sorted(k for k in item.keys()),
-                "sub_keys": sorted(sub.keys()) if isinstance(sub, dict) else None,
-                "media_keys": (
-                    sorted(media.keys()) if isinstance(media, dict) else None
-                ),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        ),
-        flush=True,
-    )
 
 
 def _extract_media(
@@ -675,7 +652,6 @@ def _extract_media(
         item_type = item.get("type")
         if item_type == 2:
             image_item = item.get("image_item") or {}
-            _log_media_structure("image", item, image_item)
             mime = _media_mime(image_item, default="image/jpeg")
             storage_uri = _readable_storage_uri(image_item, mime=mime)
             if not storage_uri:
@@ -683,7 +659,7 @@ def _extract_media(
                     raw = download(image_item)
                 except Exception as exc:  # best-effort: never break the poll loop
                     print(
-                        f"[connector-media-debug] image download failed: {exc!r}",
+                        f"[connector] image download failed: {exc!r}",
                         flush=True,
                     )
                     raw = None
@@ -704,14 +680,13 @@ def _extract_media(
             # the SILK audio (downloaded+decrypted, converted to WAV) so Coke's
             # SenseVoice ASR fallback can run.
             voice_item = item.get("voice_item") or {}
-            _log_media_structure("voice", item, voice_item)
             transcript = str(voice_item.get("text") or "").strip()
             if not transcript:
                 try:
                     silk_raw = download(voice_item)
                 except Exception as exc:  # best-effort: never break the poll loop
                     print(
-                        f"[connector-media-debug] voice download failed: {exc!r}",
+                        f"[connector] voice download failed: {exc!r}",
                         flush=True,
                     )
                     silk_raw = None
