@@ -182,10 +182,14 @@ class SocialSchedulingService:
             return None
         if not self.reachability.has_usable_channel(link.owner_account_id):
             return None
+        try:
+            owner_display_name = self.display_name_resolver(link.owner_account_id)
+        except Exception:
+            return None
         return PublicFriendLinkView(
             link_code=link_code,
             status="active",
-            owner_display_name=self.display_name_resolver(link.owner_account_id),
+            owner_display_name=owner_display_name,
         )
 
     def complete_deferred_friend_link(

@@ -125,6 +125,16 @@ def test_resolve_public_friend_link_returns_none_for_missing_disabled_or_unreach
     assert service.resolve_public_friend_link(reset.link_code) is None
 
 
+def test_resolve_public_friend_link_returns_none_when_display_name_missing():
+    service, _repo, _reachability, _availability = make_service({"owner"})
+    service.display_name_resolver = lambda _account_id: (_ for _ in ()).throw(
+        RuntimeError("user_profile_not_found")
+    )
+    link = service.get_or_create_friend_link("owner")
+
+    assert service.resolve_public_friend_link(link.link_code) is None
+
+
 def test_direct_friendship_is_active_and_has_no_pending_request_model():
     service, repo, _, _ = make_service({"owner", "joiner"})
 

@@ -269,6 +269,23 @@ def test_public_friend_link_route_is_registered_without_identity_service():
     assert service.calls == [("resolve_public_friend_link", {"link_code": "code_1"})]
 
 
+def test_public_friend_link_route_ignores_auth_when_identity_service_is_present():
+    service = FakeSocialSchedulingService()
+    identity = FakeIdentityService()
+    app = create_app(
+        Settings(database_url=DATABASE_URL, redis_url=REDIS_URL),
+        identity_access_service=identity,
+        social_scheduling_service=service,
+    )
+
+    response = app.test_client().get("/api/public/user-links/code_1")
+
+    assert response.status_code == 200
+    assert response.get_json()["profile"]["displayName"] == "Alice Push"
+    assert identity.calls == []
+    assert service.calls == [("resolve_public_friend_link", {"link_code": "code_1"})]
+
+
 def test_public_friend_link_route_returns_404_for_missing_or_inactive_link():
     service = FakeSocialSchedulingService()
     app = create_app(
