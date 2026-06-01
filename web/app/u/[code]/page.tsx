@@ -1,31 +1,18 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { fetchUserLink, openLinkSession } from '../../../lib/user-link-api';
+import { fetchUserLink } from '../../../lib/user-link-api';
 
-function firstSearchParam(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function dashboardAuthHref(path: '/auth/login' | '/auth/register', token: string): string {
-  const next = `/account/friends?link_session=${encodeURIComponent(token)}`;
+function dashboardAuthHref(path: '/auth/login' | '/auth/register', code: string): string {
+  const next = `/account/friends?join=${encodeURIComponent(code)}`;
   return `${path}?next=${encodeURIComponent(next)}`;
 }
 
 export default async function UserLinkPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ code: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { code } = await params;
-  const query = searchParams ? await searchParams : {};
-  const linkSessionToken = firstSearchParam(query.link_session);
-
-  if (linkSessionToken) {
-    redirect(`/account/friends?link_session=${encodeURIComponent(linkSessionToken)}`);
-  }
-
   const result = await fetchUserLink(code);
 
   if (!result.ok) {
@@ -41,9 +28,6 @@ export default async function UserLinkPage({
 
   const link = result.data;
   const { profile } = link;
-  const linkSession = !linkSessionToken ? await openLinkSession(code) : null;
-  const openedLinkSession = linkSession?.ok ? linkSession.data : null;
-  const linkSessionFailed = linkSession?.ok === false;
 
   return (
     <main className="coke-site public-user-link">
@@ -66,19 +50,10 @@ export default async function UserLinkPage({
           width={160}
           height={160}
         />
-        {openedLinkSession ? (
-          <div className="public-user-link__actions">
-            <Link href={dashboardAuthHref('/auth/login', openedLinkSession.token)}>Log in to add friend</Link>
-            <Link href={dashboardAuthHref('/auth/register', openedLinkSession.token)}>
-              Create account to add friend
-            </Link>
-          </div>
-        ) : null}
-        {linkSessionFailed ? (
-          <p className="public-user-link__status">
-            Friendship setup is temporarily unavailable. Please refresh this page and try again.
-          </p>
-        ) : null}
+        <div className="public-user-link__actions">
+          <Link href={dashboardAuthHref('/auth/login', code)}>Log in to add friend</Link>
+          <Link href={dashboardAuthHref('/auth/register', code)}>Create account to add friend</Link>
+        </div>
       </section>
     </main>
   );
