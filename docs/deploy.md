@@ -46,6 +46,19 @@ webhook must present the same shared secret before Coke reads the JSON payload.
 Do not enable the API secret until the connector and Evolution side are updated
 with the same value.
 
+## Clean Production Environment
+
+The clean production backend must start with the public web origin configured:
+
+```bash
+COKE_PUBLIC_BASE_URL=https://coke.keep4oforever.com
+```
+
+Production backend startup fails without `COKE_PUBLIC_BASE_URL` because copied
+friend links are user-visible public URLs and must not fall back to localhost.
+The canonical compose deployment writes this value alongside
+`NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_COKE_WEB_URL`.
+
 ## State And Restart Semantics
 
 - Postgres is durable product, runtime, outbox, Agno, and pgvector state.

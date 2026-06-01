@@ -15,7 +15,8 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
   output disposition, waiting/async reply, and stale-reply safety.
 - Reminder: personal reminders, proactive follow-ups, recurrence, due fires,
   nightly summaries, undelivered reminders, and reminder calendar read models.
-- SocialScheduling: friend links, friendships, availability queries, shared
+- SocialScheduling: friend links, public active/reachable friend-link
+  resolution, authenticated friendship creation, availability queries, shared
   reminders, projections, and product notifications.
 - CalendarImport: Google authorization, import runs, per-occurrence import
   items, and imported Coke reminders.
@@ -43,6 +44,7 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 
 ## Python Public API
 
+- `/api/public/user-links/:code`
 - `/api/auth/*`
 - `/api/account/*`
 - `/api/channels/*`
@@ -53,6 +55,10 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 - `/api/calendar-import/*`
 - `/api/subscription/*`
 - `/api/claim/*`
+
+The public user-link route resolves active reachable friend links for the
+public `/u/:code` web landing. Authenticated friendship creation remains
+`/api/friends/join`.
 
 ## Provider Webhooks
 

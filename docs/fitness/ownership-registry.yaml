@@ -34,6 +34,8 @@ routes:
   - path: coke/api/provider_webhooks.py
     owner: provider-adapters
     secondary_owner: channel-reachability
+  - path: coke/api/public_friend_routes.py
+    owner: social-scheduling
   - path: coke/api/reminder_routes.py
     owner: reminder
   - path: coke/api/shared_reminder_routes.py
