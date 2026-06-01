@@ -667,6 +667,74 @@ def test_poll_once_posts_voice_native_transcript_as_text_without_media(state):
     }
 
 
+def test_poll_once_forwards_voice_wav_when_native_transcript_is_empty(
+    state, monkeypatch
+):
+    from base64 import b64encode
+
+    from provider_edges.wechat_personal_connector import app as connector_app
+
+    monkeypatch.setattr(connector_app, "_download_media_bytes", lambda item: b"SILK")
+    captured = {}
+
+    def fake_silk_to_wav(silk_bytes, *, rate):
+        captured["silk"] = silk_bytes
+        captured["rate"] = rate
+        return b"WAVDATA"
+
+    monkeypatch.setattr(connector_app, "_silk_to_wav", fake_silk_to_wav)
+
+    ilink = FakeIlinkClient(
+        updates={
+            "get_updates_buf": "cursor-1",
+            "msgs": [
+                {
+                    "from_user_id": "wxid_alice",
+                    "context_token": "ctx-voice-asr",
+                    "item_list": [
+                        {
+                            "type": 3,
+                            "voice_item": {
+                                "text": "",
+                                "sample_rate": 16000,
+                                "media": {
+                                    "full_url": "https://cdn.example/voice",
+                                    "aes_key": b64encode(b"0123456789abcdef").decode(
+                                        "ascii"
+                                    ),
+                                },
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    webhook = FakeWebhookClient()
+
+    delivered = poll_once(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=webhook,
+    )
+
+    assert delivered == 1
+    assert captured == {"silk": b"SILK", "rate": 16000}
+    assert webhook.posts[0]["json"]["text"] == ""
+    assert webhook.posts[0]["json"]["media"] == [
+        {
+            "media_type": "voice",
+            "storage_uri": f"data:audio/wav;base64,{b64encode(b'WAVDATA').decode('ascii')}",
+            "mime": "audio/wav",
+            "agent_label": "voice message",
+        }
+    ]
+
+
 def test_poll_once_downloads_and_decrypts_cdn_image_into_data_uri(state, monkeypatch):
     from base64 import b64encode
 

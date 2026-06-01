@@ -601,6 +601,44 @@ def _download_media_bytes(item: dict[str, Any]) -> bytes | None:
     return _decrypt_aes_128_ecb(response.content, key)
 
 
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return default
+    return result if result > 0 else default
+
+
+def _silk_to_wav(silk_bytes: bytes, *, rate: int) -> bytes | None:
+    """Convert WeChat SILK voice bytes to WAV. Returns None on failure."""
+    import tempfile
+
+    import pilk
+
+    tmp_dir = tempfile.mkdtemp(prefix="connector-voice-")
+    silk_path = os.path.join(tmp_dir, "in.silk")
+    wav_path = os.path.join(tmp_dir, "out.wav")
+    try:
+        with open(silk_path, "wb") as handle:
+            handle.write(silk_bytes)
+        pilk.silk_to_wav(silk_path, wav_path, rate=rate)
+        with open(wav_path, "rb") as handle:
+            return handle.read()
+    except Exception as exc:  # best-effort: never break the poll loop
+        print(f"[connector-media-debug] silk->wav failed: {exc!r}", flush=True)
+        return None
+    finally:
+        for path in (silk_path, wav_path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        try:
+            os.rmdir(tmp_dir)
+        except OSError:
+            pass
+
+
 def _log_media_structure(kind: str, item: dict[str, Any], sub: Any) -> None:
     # Temporary diagnostic so live iLink media field names can be confirmed
     # against the reverse-engineered contract. Logs key names only, never the
@@ -628,8 +666,10 @@ def _extract_media(
     message: dict[str, Any],
     *,
     downloader: Callable[[dict[str, Any]], bytes | None] | None = None,
+    silk_converter: Callable[..., bytes | None] | None = None,
 ) -> list[ConnectorMediaPayload]:
     download = downloader or _download_media_bytes
+    convert_silk = silk_converter or _silk_to_wav
     media: list[ConnectorMediaPayload] = []
     for item in message.get("item_list") or []:
         item_type = item.get("type")
@@ -660,9 +700,36 @@ def _extract_media(
                 )
         if item_type == 3:
             # Voice primary path is WeChat's native transcript (handled by
-            # _extract_text). Forwarding the SILK audio for ASR fallback needs a
-            # SILK->WAV decoder and is deliberately out of this iteration.
-            _log_media_structure("voice", item, item.get("voice_item") or {})
+            # _extract_text). Only when that transcript is empty do we forward
+            # the SILK audio (downloaded+decrypted, converted to WAV) so Coke's
+            # SenseVoice ASR fallback can run.
+            voice_item = item.get("voice_item") or {}
+            _log_media_structure("voice", item, voice_item)
+            transcript = str(voice_item.get("text") or "").strip()
+            if not transcript:
+                try:
+                    silk_raw = download(voice_item)
+                except Exception as exc:  # best-effort: never break the poll loop
+                    print(
+                        f"[connector-media-debug] voice download failed: {exc!r}",
+                        flush=True,
+                    )
+                    silk_raw = None
+                if silk_raw:
+                    rate = _safe_int(voice_item.get("sample_rate"), 24000)
+                    wav = convert_silk(silk_raw, rate=rate)
+                    if wav:
+                        storage_uri = "data:audio/wav;base64," + b64encode(wav).decode(
+                            "ascii"
+                        )
+                        media.append(
+                            ConnectorMediaPayload(
+                                media_type="voice",
+                                storage_uri=storage_uri,
+                                mime="audio/wav",
+                                agent_label="voice message",
+                            )
+                        )
     return media
 
 
