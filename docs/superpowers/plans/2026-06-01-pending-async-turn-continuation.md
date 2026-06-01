@@ -96,7 +96,7 @@ Update `docs/ARCHITECTURE.md` so `pending_async_reply` is described as a
 non-terminal intermediate disposition that does not close the input window by
 itself. Final reply, no-reply, failure, or supersession closes the turn.
 
-- [ ] **Step 3: Update issue status after verification**
+- [x] **Step 3: Update issue status after verification**
 
 Record the fix commit and verification commands in the issue after the commit
 exists.
@@ -123,7 +123,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 Run the backend and docs checks suggested by the routing output.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add coke/domains/conversation_runtime/service.py coke/domains/conversation_runtime/repository.py coke/worker/waiting_reply.py tests/unit/coke/conversation_runtime/test_conversation_runtime_service.py tests/unit/coke/worker/test_waiting_reply.py docs/ARCHITECTURE.md docs/issues/2026-06-01-pending-async-closes-stateful-turn.md docs/superpowers/plans/2026-06-01-pending-async-turn-continuation.md

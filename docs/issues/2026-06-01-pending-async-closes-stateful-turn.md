@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: open
+status: resolved
 surface:
   - conversation-runtime
   - worker-runtime
@@ -55,11 +55,46 @@ old turn so stale background work cannot create the wrong reminder.
 
 ## Current Status
 
-- Open.
-- The immediate product failure is understood.
-- The fix must preserve real interruption safety and must not introduce blind
-  WeChat retries that duplicate visible messages.
+- Resolved and deployed to the clean production stack on 2026-06-01.
+- Fix commit: `fb92c7f0d6a8448c8c4ae88b10e60c2ec64635ef`.
+- The fix preserves real interruption safety and does not introduce blind
+  WeChat retries that could duplicate visible messages.
 
 ## Resolution
 
-Record the fix commit and final verification when resolved.
+`pending_async_reply` is now an intermediate visibility disposition instead of
+a conversation close. Recording the waiting message still validates the turn is
+fresh, but it no longer materializes staged commands, sets `turn.completed_at`,
+or advances `conversation.last_closed_inbound_seq`.
+
+Pending async turns remain active and interruptible. If the original worker
+returns before any newer inbound, it can still stage/materialize the shared
+reminder and commit the final reply. If a newer inbound arrives first, the
+pending turn transitions to `superseded`, and stale state-changing commands are
+rejected before mutation.
+
+Waiting delivery failures are now logged as `waiting_reply_delivery_failed`
+with the provider error code. This keeps the operational signal visible without
+adding a retry loop that could duplicate WeChat messages.
+
+## Verification
+
+- `git diff --check` passed.
+- `.venv/bin/python -m pytest tests/unit/coke/conversation_runtime/test_conversation_runtime_service.py tests/unit/coke/worker/test_waiting_reply.py -q`
+  passed: 29 tests.
+- `.venv/bin/python -m pytest tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/conversation_runtime/test_outbox_relay.py -q`
+  passed: 49 tests.
+- `zsh scripts/suggest-verification --base HEAD~1` suggested
+  `clean-rebuild-docs clean-rebuild-backend repo-os-docs`.
+- `zsh scripts/review-trigger --base HEAD~1` reported
+  `human_review_required: no`.
+- `PATH="$PWD/.venv/bin:$PATH" zsh scripts/verify-surface clean-rebuild-docs clean-rebuild-backend repo-os-docs`
+  passed, including 714 backend unit tests and repo-OS docs checks.
+- `scripts/deploy-compose-to-gcp.sh` deployed backend tier to
+  `/home/whoami/coke-clean`, ran Alembic upgrade/check, recreated `coke-api`,
+  `coke-worker`, `coke-scheduler`, and `coke-outbox-relay`, and passed deploy
+  health checks.
+- Remote `.deployed-sha` is
+  `fb92c7f0d6a8448c8c4ae88b10e60c2ec64635ef`; remote `docker compose ps`
+  showed `coke-api` healthy and the worker, scheduler, relay, web, Postgres,
+  and Redis running.
