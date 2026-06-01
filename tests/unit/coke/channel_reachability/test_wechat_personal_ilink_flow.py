@@ -11,12 +11,21 @@ from coke.domains.channel_reachability.repository import (
     InMemoryChannelReachabilityRepository,
 )
 from coke.domains.channel_reachability.service import ChannelReachabilityService
+from coke.domains.conversation_runtime.models import (
+    InboundMediaStatusUpdate,
+)
+from coke.domains.conversation_runtime.repository import (
+    InMemoryConversationRuntimeRepository,
+)
+from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
 from coke.domains.identity_access.service import IdentityAccessService
 from coke.composition import ChannelReachabilityOutboundDelivery
+from coke.providers.wechat_personal import WeChatPersonalAdapter
 from coke.turn.runner import DeliveryRequest
 
 NOW = datetime(2026, 5, 30, 9, 0, tzinfo=UTC)
+TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
 def sequence_factory(kind: str):
@@ -114,6 +123,20 @@ def make_services():
         id_factory=sequence_factory("channel"),
     )
     return identity, reachability, adapter, registered.account.id
+
+
+def make_wechat_personal_harness():
+    _identity, reachability, _adapter, account_id = make_services()
+    conversation_runtime = ConversationRuntimeService(
+        repository=InMemoryConversationRuntimeRepository(now=lambda: NOW),
+        now=lambda: NOW,
+        id_factory=sequence_factory("conversation"),
+    )
+    return {
+        "account_id": account_id,
+        "reachability": reachability,
+        "conversation_runtime": conversation_runtime,
+    }
 
 
 def test_wechat_personal_connect_starts_per_account_ilink_login():
@@ -333,3 +356,104 @@ def test_outbound_delivery_uses_latest_context_token_for_render_without_trigger_
     )
 
     assert adapter.send_calls[-1]["context_token"] == "ctx-latest"
+
+
+def test_wechat_personal_image_media_resolves_into_current_input_text():
+    harness = make_wechat_personal_harness()
+    account_id = harness["account_id"]
+    pending = harness["reachability"].start_wechat_personal_connection(account_id)
+    harness["reachability"].poll_wechat_personal_login(account_id, pending.session_id)
+    adapter = WeChatPersonalAdapter(now=lambda: datetime(2026, 6, 1, tzinfo=UTC))
+    inbound_event = adapter.normalize_inbound(
+        {
+            "account_id": account_id,
+            "session_id": pending.session_id,
+            "message_id": "wx_msg_image_1",
+            "wxid": "wxid_alice",
+            "text": "",
+            "context_token": "ctx-image-1",
+            "media": [
+                {
+                    "media_type": "image",
+                    "storage_uri": "data:image/jpeg;base64,/9j/2w==",
+                    "mime": "image/jpeg",
+                    "agent_label": "image",
+                }
+            ],
+        }
+    )
+    accepted = harness["reachability"].accept_provider_inbound(inbound_event)
+    inbound = harness["conversation_runtime"].record_inbound(
+        account_id=accepted.account_id,
+        channel_identity_id=accepted.channel_identity_id,
+        causal_inbound_event_id=accepted.raw_event_id,
+        text=inbound_event.text,
+        payload=dict(inbound_event.payload or {}),
+        media=inbound_event.media,
+        traceparent=TRACEPARENT,
+    )
+    harness["conversation_runtime"].resolve_inbound_media(
+        message_id=inbound.message.id,
+        resolved_text="The image says dinner at 7 PM.",
+        media_status_updates=[
+            InboundMediaStatusUpdate(
+                media_id=inbound.media[0].id,
+                processing_status="resolved",
+            )
+        ],
+    )
+
+    turn = harness["conversation_runtime"].start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:wx_msg_image_1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    assert turn.input_messages[0].text == "The image says dinner at 7 PM."
+
+
+def test_wechat_personal_native_voice_transcript_skips_media_resolution_path():
+    harness = make_wechat_personal_harness()
+    account_id = harness["account_id"]
+    pending = harness["reachability"].start_wechat_personal_connection(account_id)
+    harness["reachability"].poll_wechat_personal_login(account_id, pending.session_id)
+    adapter = WeChatPersonalAdapter(now=lambda: datetime(2026, 6, 1, tzinfo=UTC))
+    inbound_event = adapter.normalize_inbound(
+        {
+            "account_id": account_id,
+            "session_id": pending.session_id,
+            "message_id": "wx_msg_voice_1",
+            "wxid": "wxid_alice",
+            "text": "remind me at nine",
+            "context_token": "ctx-voice-1",
+            "media": [
+                {
+                    "media_type": "voice",
+                    "storage_uri": "data:audio/wav;base64,UklGRg==",
+                    "mime": "audio/wav",
+                    "agent_label": "voice message",
+                }
+            ],
+        }
+    )
+    accepted = harness["reachability"].accept_provider_inbound(inbound_event)
+    inbound = harness["conversation_runtime"].record_inbound(
+        account_id=accepted.account_id,
+        channel_identity_id=accepted.channel_identity_id,
+        causal_inbound_event_id=accepted.raw_event_id,
+        text=inbound_event.text,
+        payload=dict(inbound_event.payload or {}),
+        media=inbound_event.media,
+        traceparent=TRACEPARENT,
+    )
+
+    turn = harness["conversation_runtime"].start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:wx_msg_voice_1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    assert turn.input_messages[0].text == "remind me at nine"
+    assert inbound.media[0].processing_status == "preserved"
