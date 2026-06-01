@@ -166,6 +166,26 @@ describe('CustomerFriendsPage', () => {
     expect(listFriendsMock).toHaveBeenCalledTimes(2);
   });
 
+  it('preserves auth redirects from the reload after a successful public friend join', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    listFriendsMock
+      .mockResolvedValueOnce({ ok: true, data: [] })
+      .mockResolvedValueOnce({ ok: false, error: 'unauthorized' });
+    joinFriendByCodeMock.mockResolvedValueOnce({
+      ok: true,
+      data: { status: 'created', friendship_id: 'friendship-new', continuation: {} },
+    });
+
+    renderPage();
+    await flushTicks();
+
+    expect(joinFriendByCodeMock).toHaveBeenCalledWith('code_1');
+    expect(replaceMock).toHaveBeenLastCalledWith(
+      '/auth/login?next=%2Faccount%2Ffriends%3Fjoin%3Dcode_1',
+    );
+    expect(replaceMock).not.toHaveBeenLastCalledWith('/account/friends');
+  });
+
   it('shows a channel-required notice when the clean join is deferred', async () => {
     searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
     joinFriendByCodeMock.mockResolvedValueOnce({

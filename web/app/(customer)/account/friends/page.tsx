@@ -129,7 +129,7 @@ function CustomerFriendsPageContent() {
         setError(copy.actionFailure);
       } finally {
         setActionPending(false);
-        if (!redirectedToAuth) {
+        if (!redirectedToAuth && !authRedirectedRef.current) {
           replace('/account/friends');
         }
       }
