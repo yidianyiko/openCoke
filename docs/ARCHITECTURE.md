@@ -123,20 +123,30 @@ through the new `latest_inbound_seq`. The older user message is not discarded;
 the replacement turn processes the old and new messages together in sequence
 order.
 
-The close boundary is close-result persistence, not provider delivery. A close
-decision is `replied`, product-approved terminal `no_reply`, or
-`pending_async_reply` with visible waiting text. The close transaction must
-atomically verify that no newer inbound has arrived for the claimed window,
-materialize staged interactive commands, persist the close result, and advance
-`last_closed_inbound_seq` to the turn's `input_to_seq`.
+The close boundary is close-result persistence, not provider delivery. A
+conversation-closing decision for a claimed input window is `replied` or
+product-approved terminal `no_reply`. The close transaction must atomically
+verify that no newer inbound has arrived for the claimed window, materialize
+staged interactive commands, persist the close result, and advance
+`last_closed_inbound_seq` to the turn's `input_to_seq`. `failed` and
+`superseded` complete the stale or failed turn audit without claiming the input
+window as product-handled.
+
+`pending_async_reply` is an intermediate visibility disposition, not a close
+decision. It records that runtime-owned waiting text was attempted, but it must
+not materialize staged commands, set `turn.completed_at`, or advance
+`last_closed_inbound_seq`.
 
 Runtime-owned waiting text is emitted independently of the blocked Interaction
 Agent call. `coke-outbox-relay` scans active inbound turns and, after
 `COKE_WAITING_REPLY_AFTER_SECONDS` (default 20 seconds), persists
 `pending_async_reply`, records a segment `0` waiting message, and delivers that
-waiting text through the same channel route. The original worker turn keeps
-running; when the Interaction Agent eventually returns, the same turn may still
-transition from `pending_async_reply` to `replied` or `failed`.
+waiting text through the same channel route. The original worker turn remains
+active and interruptible. When the Interaction Agent eventually returns, the
+same turn may still transition from `pending_async_reply` to `replied` or
+`failed` if no newer inbound has arrived. If a newer inbound arrives first, the
+pending turn is superseded and any later state-changing command from that stale
+turn is rejected before materialization.
 
 Interactive state-changing tools must stage commands before the close boundary.
 They may validate intent, read state, and create turn-local drafts, but they

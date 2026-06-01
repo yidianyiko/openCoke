@@ -313,7 +313,11 @@ class InMemoryConversationRuntimeRepository:
                 turn.conversation_id == conversation_id
                 and turn.mode == "interactive"
                 and turn.completed_at is None
-                and turn.id not in self.dispositions_by_turn_id
+                and (
+                    turn.id not in self.dispositions_by_turn_id
+                    or self.dispositions_by_turn_id[turn.id].disposition
+                    == "pending_async_reply"
+                )
             )
         ]
         turns.sort(key=lambda turn: (turn.started_at, turn.created_at, turn.id))
@@ -337,6 +341,8 @@ class InMemoryConversationRuntimeRepository:
                 continue
             conversation = self.conversations_by_id.get(turn.conversation_id)
             if conversation is None:
+                continue
+            if conversation.latest_inbound_seq != turn.input_to_seq:
                 continue
             candidates.append(
                 WaitingReplyCandidate(
@@ -771,7 +777,10 @@ class PostgresConversationRuntimeRepository:
                 schema.turn.c.conversation_id == db_id(conversation_id),
                 schema.turn.c.mode == "interactive",
                 schema.turn.c.completed_at.is_(None),
-                schema.output_disposition.c.turn_id.is_(None),
+                sa.or_(
+                    schema.output_disposition.c.turn_id.is_(None),
+                    schema.output_disposition.c.disposition == "pending_async_reply",
+                ),
             )
             .order_by(
                 schema.turn.c.started_at.asc(),
@@ -806,6 +815,7 @@ class PostgresConversationRuntimeRepository:
                 schema.turn.c.trigger_type == "InboundTurn",
                 schema.turn.c.completed_at.is_(None),
                 schema.turn.c.started_at <= cutoff,
+                schema.conversation.c.latest_inbound_seq == schema.turn.c.input_to_seq,
                 schema.output_disposition.c.id.is_(None),
             )
             .order_by(

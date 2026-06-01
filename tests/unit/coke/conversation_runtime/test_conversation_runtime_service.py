@@ -532,7 +532,7 @@ def test_duplicate_close_of_already_closed_window_is_superseded(service):
     assert disposition.reason_code == "window_already_closed"
 
 
-@pytest.mark.parametrize("close_path", ["reply", "no_reply", "pending_async_reply"])
+@pytest.mark.parametrize("close_path", ["reply", "no_reply"])
 def test_successful_close_advances_last_closed_inbound_seq(
     service,
     repository,
@@ -572,6 +572,131 @@ def test_successful_close_advances_last_closed_inbound_seq(
     assert saved is not None
     assert turn.turn.input_to_seq == 1
     assert saved.last_closed_inbound_seq == turn.turn.input_to_seq
+
+
+def test_pending_async_reply_allows_original_turn_to_stage_and_commit_final_reply(
+    service,
+    repository,
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="create a shared reminder",
+        payload={"provider": "wechat_personal"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    pending = service.mark_pending_async_reply(
+        turn_id=turn.turn.id,
+        reason_code="waiting_timer_elapsed",
+    )
+    pending_conversation = repository.get_conversation(inbound.conversation.id)
+    pending_turn = repository.get_turn(turn.turn.id)
+    assert pending_conversation is not None
+    assert pending_conversation.last_closed_inbound_seq == 0
+    assert pending_turn is not None
+    assert pending_turn.completed_at is None
+
+    staged = service.stage_command(
+        turn_id=turn.turn.id,
+        domain="social_scheduling",
+        operation="create_shared_reminder",
+        command_payload={
+            "title": "music lesson",
+            "local_trigger_at": "2026-06-01T22:30:00+08:00",
+        },
+        preview_facts={"status": "staged"},
+        item_index=0,
+    )
+    materialized = []
+
+    replied = service.commit_reply(
+        turn_id=turn.turn.id,
+        segments=["created"],
+        materialize_staged_command=materialized.append,
+    )
+
+    saved = repository.get_conversation(inbound.conversation.id)
+    saved_turn = repository.get_turn(turn.turn.id)
+    saved_staged = repository.staged_commands_for_turn(turn.turn.id)
+
+    assert pending.disposition == "pending_async_reply"
+    assert replied.disposition == "replied"
+    assert materialized == [staged]
+    assert saved is not None
+    assert saved.last_closed_inbound_seq == turn.turn.input_to_seq
+    assert saved_turn is not None
+    assert saved_turn.completed_at == NOW
+    assert saved_staged[0].status == "materialized"
+
+
+def test_new_inbound_supersedes_pending_async_turn_before_state_change(
+    service,
+    repository,
+):
+    inbound = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-1",
+        text="create a shared reminder",
+        payload={"provider": "wechat_personal"},
+        traceparent=TRACEPARENT,
+    )
+    turn = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-1",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+    service.mark_pending_async_reply(
+        turn_id=turn.turn.id,
+        reason_code="waiting_timer_elapsed",
+    )
+
+    newer = service.record_inbound(
+        account_id="account_1",
+        channel_identity_id="channel_identity_1",
+        causal_inbound_event_id="provider:message-2",
+        text="actually make that 11 PM",
+        payload={"provider": "wechat_personal"},
+        traceparent=TRACEPARENT,
+    )
+
+    with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
+        service.stage_command(
+            turn_id=turn.turn.id,
+            domain="social_scheduling",
+            operation="create_shared_reminder",
+            command_payload={
+                "title": "music lesson",
+                "local_trigger_at": "2026-06-01T22:30:00+08:00",
+            },
+            preview_facts={"status": "staged"},
+            item_index=0,
+        )
+
+    saved = repository.get_conversation(inbound.conversation.id)
+    disposition = service.get_disposition(turn.turn.id)
+    replacement = service.start_turn(
+        conversation_id=inbound.conversation.id,
+        trigger_id="inbound:provider:message-2",
+        trigger_type="InboundTurn",
+        mode="interactive",
+    )
+
+    assert newer.interrupted_turns[0].id == turn.turn.id
+    assert disposition.disposition == "superseded"
+    assert disposition.reason_code == "interrupted_by_newer_inbound"
+    assert saved is not None
+    assert saved.last_closed_inbound_seq == 0
+    assert [message.seq for message in replacement.input_messages] == [1, 2]
 
 
 def test_stale_outbound_commit_records_superseded_and_never_no_reply_or_failed(

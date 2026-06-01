@@ -217,17 +217,14 @@ class ConversationRuntimeService:
         if existing is not None and existing.disposition == "replied":
             return existing
         self._ensure_turn_can_transition(existing, target="replied")
-        conversation = None
-        if existing is None:
-            conversation = self._ensure_turn_can_close(turn)
+        conversation = self._ensure_turn_can_close(turn)
 
         now = self._now()
-        if existing is None:
-            self._materialize_staged_commands(
-                turn,
-                now,
-                materialize_staged_command,
-            )
+        self._materialize_staged_commands(
+            turn,
+            now,
+            materialize_staged_command,
+        )
         for index, text in enumerate(segments, start=1):
             self.repository.add_outbound_message(
                 Message(
@@ -293,16 +290,11 @@ class ConversationRuntimeService:
         if existing is not None and existing.disposition == "pending_async_reply":
             return existing
         self._ensure_turn_can_transition(existing, target="pending_async_reply")
-        conversation = self._ensure_turn_can_close(turn)
+        self._ensure_turn_can_close(turn)
         now = self._now()
-        self._materialize_staged_commands(turn, now, materialize_staged_command)
         disposition = self._new_disposition(turn.id, "pending_async_reply", reason_code)
         self.repository.save_disposition(disposition)
-        self._save_close_state(
-            conversation,
-            replace(turn, completed_at=now, updated_at=now),
-            now,
-        )
+        self.repository.save_turn(replace(turn, updated_at=now))
         return disposition
 
     def mark_failed(self, turn_id: str, reason_code: str) -> OutputDisposition:
@@ -500,10 +492,18 @@ class ConversationRuntimeService:
                 "turn_superseded",
                 fact={"turn_id": turn.id},
             )
+        existing_pending = (
+            existing is not None and existing.disposition == "pending_async_reply"
+        )
         conversation = self._lock_conversation(turn.conversation_id)
         if turn.input_from_seq is None or turn.input_to_seq is None:
             return conversation
-        if conversation.last_closed_inbound_seq != turn.input_from_seq - 1:
+        window_open = conversation.last_closed_inbound_seq == turn.input_from_seq - 1
+        own_pending_window_already_marked = (
+            existing_pending
+            and conversation.last_closed_inbound_seq == turn.input_to_seq
+        )
+        if not window_open and not own_pending_window_already_marked:
             self._record_superseded(turn, reason_code="window_already_closed")
             raise ConversationRuntimeError(
                 "turn_superseded",
@@ -601,7 +601,7 @@ class ConversationRuntimeService:
 
     def _record_superseded(self, turn: Turn, reason_code: str) -> OutputDisposition:
         existing = self.repository.get_disposition(turn.id)
-        if existing is not None:
+        if existing is not None and existing.disposition != "pending_async_reply":
             return existing
         now = self._now()
         conversation = self._require_conversation(turn.conversation_id)
@@ -610,7 +610,12 @@ class ConversationRuntimeService:
                 self.repository.save_staged_command(
                     replace(command, status="superseded", updated_at=now)
                 )
-        disposition = self._new_disposition(turn.id, "superseded", reason_code)
+        disposition = self._disposition_for_transition(
+            existing,
+            turn.id,
+            "superseded",
+            reason_code,
+        )
         self.repository.save_disposition(disposition)
         self.repository.save_turn(
             replace(
@@ -631,7 +636,7 @@ class ConversationRuntimeService:
         interrupted: list[Turn] = []
         for turn in turns:
             existing = self.repository.get_disposition(turn.id)
-            if existing is not None:
+            if existing is not None and existing.disposition != "pending_async_reply":
                 continue
             self._record_superseded(turn, reason_code)
             interrupted.append(turn)

@@ -78,7 +78,7 @@ class WaitingReplyDispatcher:
                 segment_index=0,
                 payload={"message_type": "waiting"},
             )
-            self.outbound_delivery.deliver(
+            outcome = self.outbound_delivery.deliver(
                 DeliveryRequest(
                     account_id=candidate.account_id,
                     conversation_id=candidate.conversation_id,
@@ -93,11 +93,33 @@ class WaitingReplyDispatcher:
                     ),
                 )
             )
+            delivery_status = str(getattr(outcome, "status", "delivered"))
+            error_code = getattr(outcome, "error_code", None)
+            if delivery_status == "failed":
+                LOGGER.warning(
+                    "waiting_reply_delivery_failed",
+                    extra={
+                        "turn_id": candidate.turn_id,
+                        "conversation_id": candidate.conversation_id,
+                        "error_code": error_code,
+                    },
+                )
+            else:
+                LOGGER.info(
+                    "waiting_reply_delivery_scheduled",
+                    extra={
+                        "turn_id": candidate.turn_id,
+                        "conversation_id": candidate.conversation_id,
+                        "delivery_status": delivery_status,
+                    },
+                )
             LOGGER.info(
                 "waiting_reply_dispatched",
                 extra={
                     "turn_id": candidate.turn_id,
                     "conversation_id": candidate.conversation_id,
+                    "delivery_status": delivery_status,
+                    "error_code": error_code,
                 },
             )
             return True
