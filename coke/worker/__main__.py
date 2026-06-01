@@ -475,13 +475,62 @@ def _turn_triggers_from_event(
     topic = event.topic
     payload = dict(event.payload)
     if topic == "turn.inbound":
-        return [_inbound_trigger(runtime, payload)]
+        trigger = _inbound_trigger_after_media_resolution(runtime, payload)
+        return [trigger] if trigger is not None else []
     if topic in RENDER_TURN_TOPICS:
         return [
             _render_trigger(runtime, topic, render_payload)
             for render_payload in _render_payloads(runtime, topic, payload)
         ]
     raise RuntimeError(f"unsupported_worker_topic:{topic}")
+
+
+def _inbound_trigger_after_media_resolution(
+    runtime: CokeRuntime,
+    payload: Mapping[str, Any],
+) -> TurnTrigger | None:
+    if _resolve_media_before_inbound_trigger(runtime, payload):
+        return None
+    return _inbound_trigger(runtime, payload)
+
+
+def _resolve_media_before_inbound_trigger(
+    runtime: CokeRuntime,
+    payload: Mapping[str, Any],
+) -> bool:
+    resolver = getattr(runtime, "media_text_resolver", None)
+    if resolver is None:
+        return False
+    message_id = _required_str(payload, "message_id")
+    conversation_id = _required_str(payload, "conversation_id")
+    trigger_id = _required_str(payload, "trigger_id")
+    service = runtime.conversation_runtime_service
+    message = service.get_message(message_id)
+    if str(message.text or "").strip():
+        return False
+    media = service.inbound_media_for_message(message_id)
+    if not media:
+        return False
+    resolution = resolver.resolve(message=message, media=media)
+    if resolution.media_status_updates or resolution.resolved_text is not None:
+        service.resolve_inbound_media(
+            message_id,
+            resolution.resolved_text,
+            resolution.media_status_updates,
+        )
+    if not resolution.suppress_turn:
+        return False
+    start = service.start_turn(
+        conversation_id=conversation_id,
+        trigger_id=trigger_id,
+        trigger_type="InboundTurn",
+        mode=TurnMode.INTERACTIVE.value,
+    )
+    service.commit_no_reply(
+        turn_id=start.turn.id,
+        reason_code="media_resolution_failed",
+    )
+    return True
 
 
 def _inbound_trigger(runtime: CokeRuntime, payload: Mapping[str, Any]) -> TurnTrigger:
