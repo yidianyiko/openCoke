@@ -45,7 +45,9 @@ def _link(owner_account_id: str = ACCOUNT_A) -> FriendLink:
 
 
 def _friendship(friendship_id: str = "a1000000000000000000000000000001") -> Friendship:
-    return Friendship(friendship_id, ACCOUNT_A, ACCOUNT_B, "active", NOW, None, NOW, NOW)
+    return Friendship(
+        friendship_id, ACCOUNT_A, ACCOUNT_B, "active", NOW, None, NOW, NOW
+    )
 
 
 def _shared(shared_id: str = "a2000000000000000000000000000001") -> SharedReminder:
@@ -99,7 +101,9 @@ def _fact(fact_id: str = "a4000000000000000000000000000001") -> NotificationFact
     )
 
 
-def _recipient(recipient_id: str = "a5000000000000000000000000000001") -> NotificationRecipient:
+def _recipient(
+    recipient_id: str = "a5000000000000000000000000000001",
+) -> NotificationRecipient:
     return NotificationRecipient(
         recipient_id,
         "a4000000000000000000000000000001",
@@ -152,20 +156,28 @@ def test_social_scheduling_records_round_trip(repository) -> None:
     assert repository.get_active_friendship(ACCOUNT_A, ACCOUNT_B) == friendship
     assert repository.list_active_friendships(ACCOUNT_A) == [friendship]
     assert repository.get_shared_reminder(shared.id) == shared
-    assert repository.get_duplicate_active_shared_reminder(
-        shared.creator_account_id,
-        shared.participant_set_hash,
-        shared.title_hash,
-        shared.local_trigger_at,
-        shared.captured_timezone,
-        shared.duration_minutes,
-    ) == shared
+    assert (
+        repository.get_duplicate_active_shared_reminder(
+            shared.creator_account_id,
+            shared.participant_set_hash,
+            shared.title_hash,
+            shared.local_trigger_at,
+            shared.captured_timezone,
+            shared.duration_minutes,
+        )
+        == shared
+    )
     assert repository.list_shared_reminders_for_participant(ACCOUNT_B) == [shared]
     assert repository.get_projection(shared.id, ACCOUNT_A) == projection
     assert repository.list_projections(shared.id) == [projection, projection_b]
-    assert repository.shared_busy_intervals(
-        ACCOUNT_A, shared.local_trigger_at, shared.local_trigger_at + timedelta(hours=1)
-    )[0].detail_id == shared.id
+    assert (
+        repository.shared_busy_intervals(
+            ACCOUNT_A,
+            shared.local_trigger_at,
+            shared.local_trigger_at + timedelta(hours=1),
+        )[0].detail_id
+        == shared.id
+    )
     assert repository.list_notification_facts() == [fact]
     assert repository.get_notification_recipient(fact.id, ACCOUNT_B) == recipient
     assert repository.list_notification_recipients(fact.id) == [recipient]
@@ -197,5 +209,9 @@ def test_social_scheduling_uniqueness_errors_match_in_memory(repository) -> None
         repository.add_notification_fact(_fact("a4000000000000000000000000000002"))
 
     repository.add_notification_recipient(_recipient())
-    with pytest.raises(ValueError, match="duplicate_notification_recipient_fact_account"):
-        repository.add_notification_recipient(_recipient("a5000000000000000000000000000002"))
+    with pytest.raises(
+        ValueError, match="duplicate_notification_recipient_fact_account"
+    ):
+        repository.add_notification_recipient(
+            _recipient("a5000000000000000000000000000002")
+        )

@@ -4,8 +4,8 @@ from flask import Blueprint, jsonify, request
 
 from coke.api.auth_helpers import require_customer_account_id
 from coke.domains.channel_reachability.models import (
-    ChannelReachabilityError,
     PRODUCT_CHANNEL_PROVIDER_TYPES,
+    ChannelReachabilityError,
 )
 
 

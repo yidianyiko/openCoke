@@ -1,14 +1,13 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-import math
 from types import MappingProxyType
 from typing import Any, Mapping
 
 from coke.infra.tracing import is_valid_traceparent
-
 
 JSONPrimitive = str | int | float | bool | None
 JSONLike = JSONPrimitive | Mapping[str, Any] | list[Any]

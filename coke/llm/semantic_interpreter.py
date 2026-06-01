@@ -7,8 +7,8 @@ from agno.models.message import Message
 
 from coke.turn.semantic_interpreter import (
     AmbiguityState,
-    IntentFamily,
     IntentAction,
+    IntentFamily,
     ReplyNecessity,
     RequiredClarification,
     SemanticDecision,
@@ -177,9 +177,7 @@ class SiliconFlowSemanticInterpreter:
             },
             schema_name="semantic_decision",
         )
-        reply_necessity = _required_enum(
-            payload, "reply_necessity", REPLY_NECESSITIES
-        )
+        reply_necessity = _required_enum(payload, "reply_necessity", REPLY_NECESSITIES)
         intent_family = _required_enum(payload, "intent_family", INTENT_FAMILIES)
         intent_action = _required_enum(payload, "intent_action", INTENT_ACTIONS)
         ambiguity = _required_enum(payload, "ambiguity", AMBIGUITIES)

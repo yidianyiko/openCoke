@@ -6,10 +6,10 @@ import httpx
 import pytest
 
 from coke.domains.channel_reachability.models import (
-    ChannelReachabilityError,
-    DeliveryRoute,
     PRODUCT_CHANNEL_PROVIDER_TYPES,
     RETAINED_PROVIDER_TYPES,
+    ChannelReachabilityError,
+    DeliveryRoute,
 )
 from coke.providers.base import provider_registry
 from coke.providers.linq import LinqAdapter

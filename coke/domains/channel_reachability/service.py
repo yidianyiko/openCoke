@@ -8,13 +8,13 @@ from typing import Protocol, TypeVar
 from uuid import uuid4
 
 from coke.domains.channel_reachability.models import (
+    PRODUCT_CHANNEL_PROVIDER_TYPES,
     Channel,
     ChannelReachabilityError,
     ChannelStatus,
     DeliveryAttempt,
     DeliveryRoute,
     NormalizedInbound,
-    PRODUCT_CHANNEL_PROVIDER_TYPES,
     ProviderWebhookAcceptance,
 )
 from coke.domains.channel_reachability.repository import (

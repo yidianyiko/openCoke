@@ -1,8 +1,8 @@
-from dataclasses import FrozenInstanceError
 import builtins
 import importlib
 import re
 import sys
+from dataclasses import FrozenInstanceError
 
 import pytest
 

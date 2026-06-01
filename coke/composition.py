@@ -1,27 +1,29 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-import json
 from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.config import ConfigurationError, Settings
-from coke.domains.calendar_import.google import GoogleCalendarClientPort
-from coke.domains.calendar_import.google import GoogleCalendarClientAdapter
+from coke.domains.calendar_import.google import (
+    GoogleCalendarClientAdapter,
+    GoogleCalendarClientPort,
+)
 from coke.domains.calendar_import.models import CalendarSourceEvent
 from coke.domains.calendar_import.service import (
     CalendarImportService,
     InMemoryCalendarImportRepository,
     PostgresCalendarImportRepository,
 )
+from coke.domains.channel_reachability.models import ChannelReachabilityError
 from coke.domains.channel_reachability.repository import (
     InMemoryChannelReachabilityRepository,
     PostgresChannelReachabilityRepository,
 )
-from coke.domains.channel_reachability.models import ChannelReachabilityError
 from coke.domains.channel_reachability.service import ChannelReachabilityService
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
@@ -47,12 +49,12 @@ from coke.domains.settings.repository import (
 )
 from coke.domains.settings.service import SettingsService
 from coke.domains.social_scheduling.availability import BusyInterval
+from coke.domains.social_scheduling.models import SocialSchedulingError
 from coke.domains.social_scheduling.repository import (
     InMemorySocialSchedulingRepository,
     PostgresSocialSchedulingRepository,
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
-from coke.domains.social_scheduling.models import SocialSchedulingError
 from coke.infra.postgres import create_engine, create_session_factory
 from coke.infra.redis import (
     RedisLockAdapter,
@@ -74,16 +76,20 @@ from coke.providers.linq import LinqAdapter
 from coke.providers.wechat_ecloud import WeChatECloudAdapter
 from coke.providers.wechat_personal import WeChatPersonalAdapter
 from coke.providers.whatsapp_evolution import WhatsAppEvolutionAdapter
-from coke.turn.agent import AgentToolPorts, DomainExecutionResult, ToolExecutionResult
-from coke.turn.agent import AgentRequest, AgentResult
+from coke.turn.agent import (
+    AgentRequest,
+    AgentResult,
+    AgentToolPorts,
+    DomainExecutionResult,
+    ToolExecutionResult,
+)
 from coke.turn.focus import FocusResolver, MessageSubject
 from coke.turn.locks import ConversationLockManager, RedisLockPort
 from coke.turn.memory import MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import DeliveryRequest, OutboundDeliveryPort, TurnRunner
-from coke.turn.semantic_interpreter import SemanticDecision
-from coke.turn.semantic_interpreter import SemanticInterpreter
+from coke.turn.semantic_interpreter import SemanticDecision, SemanticInterpreter
 from coke.turn.staged_commands import StagedCommandMaterializer
 
 
@@ -1531,7 +1537,12 @@ def _provider_adapters_from_settings(
 
 def _llm_from_settings(settings: Settings):
     if settings.llm_fake:
-        return FakeSemanticInterpreter(), FakeInteractionAgent(), FakeReminderDetector(), None
+        return (
+            FakeSemanticInterpreter(),
+            FakeInteractionAgent(),
+            FakeReminderDetector(),
+            None,
+        )
     if not settings.siliconflow_api_key:
         raise ConfigurationError("SiliconFlow_API_KEY is required for LLM composition")
     llm_config = SiliconFlowLLMConfig(

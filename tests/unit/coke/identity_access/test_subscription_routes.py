@@ -45,9 +45,9 @@ class FakeIdentityService:
                 "type": "account_access_denied",
                 "account_id": account_id,
                 "denial_reason": None if access_allowed else "subscription_inactive",
-                "checkout_url": None
-                if access_allowed
-                else "https://checkout.example/acct_1",
+                "checkout_url": (
+                    None if access_allowed else "https://checkout.example/acct_1"
+                ),
             },
         )
 

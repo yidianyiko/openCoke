@@ -4,11 +4,11 @@ import pytest
 
 import coke.llm.config as llm_config
 from coke.llm.config import (
-    SILICONFLOW_BASE_URL,
     DEFAULT_DETECTOR_MODEL,
     DEFAULT_INTERACTION_MODEL,
     DEFAULT_INTERACTION_TIMEOUT_S,
     DEFAULT_INTERPRETER_MODEL,
+    SILICONFLOW_BASE_URL,
     LLMConfigurationError,
     SiliconFlowLLMConfig,
 )

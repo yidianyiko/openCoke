@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
-
 ReplyNecessity = Literal["reply_needed", "intentional_no_reply"]
 IntentFamily = Literal[
     "chit_chat",

@@ -10,7 +10,6 @@ import coke.llm.agno_interaction_agent as agno_agent_module
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
 from tests.unit.coke.llm.test_interaction_agent import FakeAgentFactory, _request
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -87,9 +86,7 @@ async def test_provider_timeout_returns_timed_out_without_sync_fallback():
     )
 
     started_at = monotonic()
-    result = await agent.ainvoke(
-        _request(memory_enabled=True, run_id="turn_timeout")
-    )
+    result = await agent.ainvoke(_request(memory_enabled=True, run_id="turn_timeout"))
     elapsed = monotonic() - started_at
 
     assert result.timed_out is True

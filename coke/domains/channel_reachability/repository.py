@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
-from dataclasses import replace
 from collections.abc import Mapping
+from dataclasses import replace
+from datetime import datetime
 from typing import Protocol
 
 import sqlalchemy as sa
@@ -210,7 +210,9 @@ class PostgresChannelReachabilityRepository:
             raise ValueError("channel_not_found")
 
     def get_channel(self, channel_id: str) -> Channel | None:
-        row = one_or_none(self.session, schema.channel, schema.channel.c.id == channel_id)
+        row = one_or_none(
+            self.session, schema.channel, schema.channel.c.id == channel_id
+        )
         return _channel(row) if row else None
 
     def get_active_channel(self, account_id: str) -> Channel | None:
@@ -282,9 +284,7 @@ class PostgresChannelReachabilityRepository:
         )
         return _route(row) if row else None
 
-    def retire_routes_for_channel(
-        self, channel_id: str, retired_at: datetime
-    ) -> None:
+    def retire_routes_for_channel(self, channel_id: str, retired_at: datetime) -> None:
         self.session.execute(
             schema.delivery_route.update()
             .where(
@@ -326,7 +326,10 @@ class PostgresChannelReachabilityRepository:
             for row in many(
                 self.session,
                 schema.delivery_attempt,
-                order_by=(schema.delivery_attempt.c.attempted_at, schema.delivery_attempt.c.id),
+                order_by=(
+                    schema.delivery_attempt.c.attempted_at,
+                    schema.delivery_attempt.c.id,
+                ),
             )
         ]
 

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
-from collections.abc import Mapping
 from typing import Protocol
-from uuid import UUID, uuid5, NAMESPACE_URL
+from uuid import NAMESPACE_URL, UUID, uuid5
 from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa

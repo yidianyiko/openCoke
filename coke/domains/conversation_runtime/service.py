@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from coke.domains.conversation_runtime.models import (
+    TERMINAL_DISPOSITIONS,
     Conversation,
     ConversationRuntimeError,
     CurrentInputMessage,
@@ -20,7 +21,6 @@ from coke.domains.conversation_runtime.models import (
     OutboxRecord,
     OutputDisposition,
     StagedCommand,
-    TERMINAL_DISPOSITIONS,
     Turn,
     TurnStartResult,
 )
@@ -69,9 +69,7 @@ class ConversationRuntimeService:
                 conversation = self.repository.get_conversation_by_account(account_id)
                 if conversation is None:
                     raise
-        active_turns = tuple(
-            self.repository.active_interactive_turns(conversation.id)
-        )
+        active_turns = tuple(self.repository.active_interactive_turns(conversation.id))
 
         next_seq = conversation.latest_inbound_seq + 1
         updated_conversation = replace(

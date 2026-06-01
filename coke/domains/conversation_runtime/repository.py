@@ -573,19 +573,27 @@ class PostgresConversationRuntimeRepository:
                 raise ConversationRuntimeError("invalid_media_processing_status")
 
         def _write() -> Message:
-            message_row = self.session.execute(
-                sa.select(schema.message)
-                .where(schema.message.c.id == db_id(message_id))
-                .with_for_update()
-            ).mappings().one_or_none()
+            message_row = (
+                self.session.execute(
+                    sa.select(schema.message)
+                    .where(schema.message.c.id == db_id(message_id))
+                    .with_for_update()
+                )
+                .mappings()
+                .one_or_none()
+            )
             if message_row is None:
                 raise ConversationRuntimeError("message_not_found")
             for update in update_by_id.values():
-                media_row = self.session.execute(
-                    sa.select(schema.inbound_media)
-                    .where(schema.inbound_media.c.id == db_id(update.media_id))
-                    .with_for_update()
-                ).mappings().one_or_none()
+                media_row = (
+                    self.session.execute(
+                        sa.select(schema.inbound_media)
+                        .where(schema.inbound_media.c.id == db_id(update.media_id))
+                        .with_for_update()
+                    )
+                    .mappings()
+                    .one_or_none()
+                )
                 if media_row is None:
                     raise ConversationRuntimeError("inbound_media_not_found")
                 if db_id(media_row["message_id"]) != message_id:
@@ -603,11 +611,15 @@ class PostgresConversationRuntimeRepository:
                 .where(schema.message.c.id == db_id(message_id))
                 .values(text=resolved_text, updated_at=resolved_at)
             )
-            updated_row = self.session.execute(
-                sa.select(schema.message).where(
-                    schema.message.c.id == db_id(message_id)
+            updated_row = (
+                self.session.execute(
+                    sa.select(schema.message).where(
+                        schema.message.c.id == db_id(message_id)
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             return _message(dict(updated_row))
 
         return _write()

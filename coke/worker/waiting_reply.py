@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-import logging
 from typing import Protocol
 
 from coke.domains.conversation_runtime.models import ConversationRuntimeError
-from coke.turn.runner import DeliveryRequest, WAITING_TEXT
+from coke.turn.runner import WAITING_TEXT, DeliveryRequest
 
 LOGGER = logging.getLogger(__name__)
 

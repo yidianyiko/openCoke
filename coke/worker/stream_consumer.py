@@ -108,7 +108,9 @@ class StreamConsumer:
                 handled += 1
         return handled
 
-    def _event_from_fields(self, message_id: str, fields: Mapping[str, Any]) -> StreamEvent:
+    def _event_from_fields(
+        self, message_id: str, fields: Mapping[str, Any]
+    ) -> StreamEvent:
         return StreamEvent(
             event_id=_decode_field(fields["event_id"]),
             topic=_decode_field(fields["topic"]),

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable
 from datetime import datetime
 from hashlib import sha256
-import json
 
 from coke.domains.social_scheduling.models import (
     NotificationDeliveryState,

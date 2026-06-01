@@ -145,9 +145,7 @@ def collect_tracked_web_files() -> list[str]:
 
 def is_forbidden_backend_channel_target(target: str) -> bool:
     normalized = target.replace("\\", "/")
-    forbidden_path_fragments = (
-        "api/src/channel",
-    )
+    forbidden_path_fragments = ("api/src/channel",)
     forbidden_aliases = ("@coke/api-channel",)
     return (
         any(fragment in normalized for fragment in forbidden_path_fragments)

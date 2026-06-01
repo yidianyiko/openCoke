@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[3]
 SCANNED_TREES = (ROOT / "coke", ROOT / "migrations", ROOT / "tests/unit/coke")
 FORBIDDEN_IMPORT_RE = re.compile(

@@ -61,13 +61,17 @@ UNSET = object()
 
 class FakeReplyPubSub:
     def __init__(self, reply=UNSET) -> None:
-        self.reply = {
-            "event_id": "outbox_1",
-            "turn_id": "turn_1",
-            "disposition": "replied",
-            "reason_code": None,
-            "visible_text": "hello",
-        } if reply is UNSET else reply
+        self.reply = (
+            {
+                "event_id": "outbox_1",
+                "turn_id": "turn_1",
+                "disposition": "replied",
+                "reason_code": None,
+                "visible_text": "hello",
+            }
+            if reply is UNSET
+            else reply
+        )
         self.subscription = FakeSubscription()
         self.calls: list[tuple[str, dict]] = []
 

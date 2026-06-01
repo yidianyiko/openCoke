@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 from flask import Flask
 
-from coke.app import create_app
 from coke.api.auth_routes import create_auth_blueprint
 from coke.api.claim_routes import create_claim_blueprint
+from coke.app import create_app
 from coke.config import Settings
 from coke.domains.identity_access.models import IdentityAccessError
 

@@ -11,7 +11,6 @@ import yaml
 
 from coke.config import Settings
 
-
 TEST_DATABASE_URL = "postgresql+psycopg://ydyk@/coke_rr_test?host=/var/run/postgresql"
 
 
@@ -56,7 +55,9 @@ def test_build_runtime_from_settings_wires_postgres_redis_providers_and_app():
     }
 
 
-def test_runtime_wires_media_text_resolver_when_media_models_are_configured(monkeypatch):
+def test_runtime_wires_media_text_resolver_when_media_models_are_configured(
+    monkeypatch,
+):
     from coke.composition import build_runtime_from_settings
 
     settings = Settings(

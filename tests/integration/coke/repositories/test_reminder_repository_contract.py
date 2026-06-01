@@ -73,7 +73,9 @@ def test_reminder_and_fire_round_trip(repository) -> None:
     assert repository.list_active_reminders(ACCOUNT_A) == [reminder]
     assert repository.list_due_reminders(NOW + timedelta(hours=2)) == [reminder]
     assert repository.get_fire(fire.id) == fire
-    assert repository.get_fire_by_occurrence(fire.reminder_id, fire.occurrence_key) == fire
+    assert (
+        repository.get_fire_by_occurrence(fire.reminder_id, fire.occurrence_key) == fire
+    )
     assert repository.list_fires_for_owner(ACCOUNT_A) == [fire]
 
     completed_fire = replace(fire, fire_state="completed", completed_at=NOW)

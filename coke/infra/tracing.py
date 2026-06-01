@@ -7,7 +7,6 @@ from collections.abc import Callable
 
 from opentelemetry import trace
 
-
 _TRACEPARENT_RE = re.compile(
     r"^(?P<version>[0-9a-f]{2})-"
     r"(?P<trace_id>[0-9a-f]{32})-"

@@ -228,7 +228,9 @@ class RedisReplyPubSub:
             )
         )
 
-    def get_reply(self, subscription: Any, timeout_s: float = 30.0) -> Mapping[str, Any] | None:
+    def get_reply(
+        self, subscription: Any, timeout_s: float = 30.0
+    ) -> Mapping[str, Any] | None:
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             message = subscription.get_message(timeout=0.05)

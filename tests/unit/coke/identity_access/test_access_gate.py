@@ -9,7 +9,6 @@ from coke.domains.identity_access.models import AccessDeniedReason
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
 from coke.domains.identity_access.service import IdentityAccessService
 
-
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 
 
@@ -41,7 +40,9 @@ def test_allowed_access_returns_allowed_decision(identity_service):
         suspension_state="active",
     )
 
-    decision = identity_service.check_access_for_inbound(account_id=registered.account.id)
+    decision = identity_service.check_access_for_inbound(
+        account_id=registered.account.id
+    )
 
     assert decision.allowed is True
     assert decision.turn_trigger is None
@@ -51,7 +52,12 @@ def test_allowed_access_returns_allowed_decision(identity_service):
 @pytest.mark.parametrize(
     ("email_state", "subscription_state", "suspension_state", "reason"),
     [
-        ("required", "active", "active", AccessDeniedReason.EMAIL_VERIFICATION_REQUIRED),
+        (
+            "required",
+            "active",
+            "active",
+            AccessDeniedReason.EMAIL_VERIFICATION_REQUIRED,
+        ),
         ("verified", "inactive", "active", AccessDeniedReason.SUBSCRIPTION_INACTIVE),
         ("verified", "active", "suspended", AccessDeniedReason.SUSPENDED),
     ],
@@ -74,7 +80,9 @@ def test_denied_access_returns_access_denied_turn_fact(
         suspension_state=suspension_state,
     )
 
-    decision = identity_service.check_access_for_inbound(account_id=registered.account.id)
+    decision = identity_service.check_access_for_inbound(
+        account_id=registered.account.id
+    )
 
     assert decision.allowed is False
     assert decision.turn_trigger == "AccessDeniedTurn"
@@ -86,7 +94,9 @@ def test_denied_access_returns_access_denied_turn_fact(
     }
 
 
-def test_subscription_inactive_messaging_first_inbound_includes_checkout_url(identity_service):
+def test_subscription_inactive_messaging_first_inbound_includes_checkout_url(
+    identity_service,
+):
     resolved = identity_service.resolve_or_create_channel_identity(
         provider_type="whatsapp_evolution",
         provider_subject="whatsapp:+15555550123",
@@ -131,6 +141,12 @@ def test_access_gate_reusable_for_gated_web_actions(identity_service):
     )
 
     assert channel_decision.allowed is False
-    assert channel_decision.fact["denial_reason"] == AccessDeniedReason.SUBSCRIPTION_INACTIVE
+    assert (
+        channel_decision.fact["denial_reason"]
+        == AccessDeniedReason.SUBSCRIPTION_INACTIVE
+    )
     assert calendar_decision.allowed is False
-    assert calendar_decision.fact["denial_reason"] == AccessDeniedReason.SUBSCRIPTION_INACTIVE
+    assert (
+        calendar_decision.fact["denial_reason"]
+        == AccessDeniedReason.SUBSCRIPTION_INACTIVE
+    )

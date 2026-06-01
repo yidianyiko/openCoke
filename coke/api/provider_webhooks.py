@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 import hmac
+from collections.abc import Callable
 
 from flask import Blueprint, current_app, jsonify, request
 
 from coke.domains.channel_reachability.models import (
-    ChannelReachabilityError,
     PRODUCT_CHANNEL_PROVIDER_TYPES,
+    ChannelReachabilityError,
 )
 from coke.infra.tracing import ensure_traceparent
 

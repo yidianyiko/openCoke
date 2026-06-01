@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
-import os
 
 import pytest
 import sqlalchemy as sa

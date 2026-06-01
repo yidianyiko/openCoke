@@ -14,7 +14,13 @@ from coke.domains.channel_reachability.repository import (
     PostgresChannelReachabilityRepository,
 )
 
-from .conftest import ACCOUNT_A, CHANNEL_A, CHANNEL_IDENTITY_A, NOW, seed_channel_identity
+from .conftest import (
+    ACCOUNT_A,
+    CHANNEL_A,
+    CHANNEL_IDENTITY_A,
+    NOW,
+    seed_channel_identity,
+)
 
 
 def _channel(channel_id: str = CHANNEL_A) -> Channel:

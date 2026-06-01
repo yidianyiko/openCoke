@@ -10,10 +10,10 @@ import yaml
 from provider_edges.wechat_personal_connector.app import (
     ConnectorConfig,
     ConnectorState,
+    _poll_login_status_once,
     config_from_env,
     create_app,
     poll_once,
-    _poll_login_status_once,
 )
 
 ROOT = Path(__file__).resolve().parents[4]

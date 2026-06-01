@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from itertools import count
 
+from coke.composition import ChannelReachabilityOutboundDelivery
 from coke.domains.channel_reachability.models import (
     DeliveryAttemptResult,
     NormalizedInbound,
@@ -20,7 +21,6 @@ from coke.domains.conversation_runtime.repository import (
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
 from coke.domains.identity_access.service import IdentityAccessService
-from coke.composition import ChannelReachabilityOutboundDelivery
 from coke.providers.wechat_personal import WeChatPersonalAdapter
 from coke.turn.runner import DeliveryRequest
 

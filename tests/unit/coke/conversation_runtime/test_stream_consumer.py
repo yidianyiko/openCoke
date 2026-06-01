@@ -5,7 +5,6 @@ import fakeredis
 from coke.infra.redis import RedisReplyPubSub, RedisWorkStream
 from coke.worker.stream_consumer import StreamConsumer
 
-
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 

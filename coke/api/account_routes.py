@@ -40,9 +40,7 @@ def create_account_blueprint(identity_service) -> Blueprint:
         return jsonify(
             {
                 "account_id": activation.account_id,
-                "first_inbound_received_at": _iso(
-                    activation.first_inbound_received_at
-                ),
+                "first_inbound_received_at": _iso(activation.first_inbound_received_at),
                 "activation_completed_at": _iso(activation.activation_completed_at),
                 "first_guidance_sent_at": _iso(activation.first_guidance_sent_at),
             }

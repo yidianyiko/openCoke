@@ -12,8 +12,7 @@ class MessageSubject:
 
 
 class MessageSubjectRepository(Protocol):
-    def last_rendered_subject(self, conversation_id: str) -> MessageSubject | None:
-        ...
+    def last_rendered_subject(self, conversation_id: str) -> MessageSubject | None: ...
 
 
 class FocusResolver:

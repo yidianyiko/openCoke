@@ -61,24 +61,32 @@ def migrate_credentials(
     missing: list[str] = []
 
     for target in targets:
-        row = conn.execute(
-            sa.select(
-                schema.credential.c.email,
-                schema.credential.c.password_hash,
-            ).where(
-                schema.credential.c.account_id == target.account_id,
-                sa.func.lower(schema.credential.c.email) == target.email.lower(),
+        row = (
+            conn.execute(
+                sa.select(
+                    schema.credential.c.email,
+                    schema.credential.c.password_hash,
+                ).where(
+                    schema.credential.c.account_id == target.account_id,
+                    sa.func.lower(schema.credential.c.email) == target.email.lower(),
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             missing.append(target.account_id)
             continue
 
-        profile = conn.execute(
-            sa.select(schema.user_profile.c.id).where(
-                schema.user_profile.c.account_id == target.account_id,
+        profile = (
+            conn.execute(
+                sa.select(schema.user_profile.c.id).where(
+                    schema.user_profile.c.account_id == target.account_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if profile is None:
             profiles_created += 1
             if not dry_run:

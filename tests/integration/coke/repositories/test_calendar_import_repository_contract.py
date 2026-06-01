@@ -14,7 +14,14 @@ from coke.domains.calendar_import.service import (
     PostgresCalendarImportRepository,
 )
 
-from .conftest import ACCOUNT_A, AUTH_ARTIFACT_A, NOW, REMINDER_A, seed_account, seed_reminder
+from .conftest import (
+    ACCOUNT_A,
+    AUTH_ARTIFACT_A,
+    NOW,
+    REMINDER_A,
+    seed_account,
+    seed_reminder,
+)
 
 
 def _run() -> CalendarImportRun:
@@ -57,7 +64,9 @@ def repository(request, postgres_session):
         return InMemoryCalendarImportRepository()
     seed_reminder(postgres_session, ACCOUNT_A, REMINDER_A)
     postgres_session.execute(
-        __import__("coke.schema").schema.auth_artifact.insert().values(
+        __import__("coke.schema")
+        .schema.auth_artifact.insert()
+        .values(
             id=AUTH_ARTIFACT_A,
             account_id=ACCOUNT_A,
             target_account_id=None,
@@ -91,9 +100,12 @@ def test_calendar_run_item_and_authorization_round_trip(repository) -> None:
     repository.save_run(completed)
 
     assert repository.get_run(run.id) == completed
-    assert repository.get_item_by_source_occurrence(
-        "primary", "event-1", "event-1-instance"
-    ) == item
+    assert (
+        repository.get_item_by_source_occurrence(
+            "primary", "event-1", "event-1-instance"
+        )
+        == item
+    )
     assert repository.list_items_for_run(run.id) == [item]
     assert repository.get_authorization_state(
         ACCOUNT_A, "google-oauth-token"

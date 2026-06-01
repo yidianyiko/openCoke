@@ -18,7 +18,6 @@ from sqlalchemy.dialects import postgresql
 
 from coke import schema
 
-
 DEFAULT_EVIDENCE_DIR = Path("artifacts/evidence/clean-smoke")
 PROVIDER_TYPE = "whatsapp_evolution"
 REPLY_LIKE_DISPOSITIONS = {"replied", "pending_async_reply"}
@@ -58,7 +57,11 @@ class SenderIdentity:
             push_name = payload.get("push_name", label)
             if not isinstance(push_name, str) or not push_name.strip():
                 raise ValueError(f"sender {label} push_name must be a string")
-            return cls(label=label, remote_jid=ensure_evolution_jid(remote_jid), push_name=push_name.strip())
+            return cls(
+                label=label,
+                remote_jid=ensure_evolution_jid(remote_jid),
+                push_name=push_name.strip(),
+            )
         return cls(label=label, remote_jid=ensure_evolution_jid(value), push_name=label)
 
 
@@ -104,9 +107,15 @@ class SmokeConfig:
             evidence_dir=Path(args.evidence_dir),
             instance=os.environ.get("COKE_SMOKE_EVOLUTION_INSTANCE", "coke"),
             timezone=os.environ.get("COKE_SMOKE_TIMEZONE", "UTC"),
-            poll_timeout_seconds=float(os.environ.get("COKE_SMOKE_POLL_TIMEOUT", "180")),
-            poll_interval_seconds=float(os.environ.get("COKE_SMOKE_POLL_INTERVAL", "2")),
-            fire_delay_seconds=int(os.environ.get("COKE_SMOKE_FIRE_DELAY_SECONDS", "45")),
+            poll_timeout_seconds=float(
+                os.environ.get("COKE_SMOKE_POLL_TIMEOUT", "180")
+            ),
+            poll_interval_seconds=float(
+                os.environ.get("COKE_SMOKE_POLL_INTERVAL", "2")
+            ),
+            fire_delay_seconds=int(
+                os.environ.get("COKE_SMOKE_FIRE_DELAY_SECONDS", "45")
+            ),
         )
 
 
@@ -118,7 +127,9 @@ class SmokeTranscript:
     verdicts: list[dict[str, Any]] = field(default_factory=list)
     evidence_path: Path | None = None
 
-    def event(self, phase: str, action: str, details: dict[str, Any] | None = None) -> None:
+    def event(
+        self, phase: str, action: str, details: dict[str, Any] | None = None
+    ) -> None:
         self.events.append(
             {
                 "at": datetime.now(UTC).isoformat(),
@@ -155,7 +166,8 @@ class SmokeTranscript:
     def save(self, status: str) -> Path:
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
         safe_run_id = "".join(
-            char if char.isalnum() or char in {"-", "_"} else "_" for char in self.run_id
+            char if char.isalnum() or char in {"-", "_"} else "_"
+            for char in self.run_id
         )
         path = self.evidence_dir / f"{safe_run_id}.json"
         path.write_text(
@@ -315,7 +327,9 @@ def verdict_query_specs() -> dict[str, sa.Select]:
                 message.c.causal_inbound_event_id,
             )
             .select_from(
-                conversation.join(message, message.c.conversation_id == conversation.c.id)
+                conversation.join(
+                    message, message.c.conversation_id == conversation.c.id
+                )
             )
             .where(
                 conversation.c.account_id == account_id,
@@ -333,7 +347,9 @@ def verdict_query_specs() -> dict[str, sa.Select]:
                 message.c.causal_inbound_event_id,
             )
             .select_from(
-                conversation.join(message, message.c.conversation_id == conversation.c.id)
+                conversation.join(
+                    message, message.c.conversation_id == conversation.c.id
+                )
             )
             .where(
                 conversation.c.account_id == account_id,
@@ -378,16 +394,14 @@ def verdict_query_specs() -> dict[str, sa.Select]:
             .order_by(reminder.c.created_at.desc())
         ),
         "active_friendship": (
-            sa.select(friendship)
-            .where(
+            sa.select(friendship).where(
                 friendship.c.account_low_id == low_id,
                 friendship.c.account_high_id == high_id,
                 friendship.c.lifecycle == "active",
             )
         ),
         "shared_reminder_active": (
-            sa.select(shared_reminder)
-            .where(
+            sa.select(shared_reminder).where(
                 shared_reminder.c.id == shared_id,
                 shared_reminder.c.status == "active",
             )
@@ -446,14 +460,23 @@ def verdict_query_specs() -> dict[str, sa.Select]:
 
 def _assert_clean_schema_contract() -> None:
     tables = schema.metadata.tables
-    legacy_tables = {"inputmessages", "outputmessages", "agent_sessions", "memo_runtime"}
+    legacy_tables = {
+        "inputmessages",
+        "outputmessages",
+        "agent_sessions",
+        "memo_runtime",
+    }
     present_legacy = legacy_tables & set(tables)
     if present_legacy:
-        raise SmokeVerdictError(f"legacy tables present in clean schema: {present_legacy}")
+        raise SmokeVerdictError(
+            f"legacy tables present in clean schema: {present_legacy}"
+        )
     notification_columns = tables["notification_fact"].columns
     for forbidden in ("text", "payload", "payload_text"):
         if forbidden in notification_columns:
-            raise SmokeVerdictError(f"notification_fact has forbidden {forbidden} column")
+            raise SmokeVerdictError(
+                f"notification_fact has forbidden {forbidden} column"
+            )
 
 
 class CleanSmokeRunner:
@@ -551,7 +574,10 @@ class CleanSmokeRunner:
         )
         if account_row is None:
             return None
-        if account_row["origin"] != "messaging_first" or not account_row["is_account_anchor"]:
+        if (
+            account_row["origin"] != "messaging_first"
+            or not account_row["is_account_anchor"]
+        ):
             self.transcript.fail_and_raise(
                 "first_contact",
                 "sender is not bound to a messaging_first anchor account",
@@ -609,9 +635,13 @@ class CleanSmokeRunner:
                 timestamp=int(datetime.now(UTC).timestamp()),
                 instance=self.config.instance,
             )
-            self.transcript.event(phase, "posted_webhook", http_post_json(
-                f"{self.config.api_base}/webhooks/whatsapp/evolution", payload
-            ))
+            self.transcript.event(
+                phase,
+                "posted_webhook",
+                http_post_json(
+                    f"{self.config.api_base}/webhooks/whatsapp/evolution", payload
+                ),
+            )
         else:
             self.transcript.event(
                 phase,
@@ -637,7 +667,9 @@ class CleanSmokeRunner:
         self.transcript.pass_verdict(phase, "personal reminder verified", dict(row))
         return row
 
-    def _personal_reminder_rows(self, account_id: str, title: str) -> list[dict[str, Any]] | None:
+    def _personal_reminder_rows(
+        self, account_id: str, title: str
+    ) -> list[dict[str, Any]] | None:
         rows = self.db.rows(
             verdict_query_specs()["personal_reminder_unique"].params(
                 account_id=account_id,
@@ -703,10 +735,13 @@ class CleanSmokeRunner:
                 "local_trigger_at": local_trigger_at.isoformat(),
                 "captured_timezone": self.config.timezone,
                 "duration_minutes": 15,
-                "context": {"source": "rr8_clean_smoke", "friendship_id": friendship["id"]},
+                "context": {
+                    "source": "rr8_clean_smoke",
+                    "friendship_id": friendship["id"],
+                },
             },
         )
-        shared = (result.get("shared_reminder") or {})
+        shared = result.get("shared_reminder") or {}
         shared_id = shared.get("shared_reminder_id")
         if not isinstance(shared_id, str):
             self.transcript.fail_and_raise(
@@ -715,7 +750,9 @@ class CleanSmokeRunner:
         snapshot = self._wait_for(
             phase,
             "shared reminder active with projections and notification fact",
-            lambda: self._shared_snapshot(shared_id, {account_a["account_id"], account_b["account_id"]}),
+            lambda: self._shared_snapshot(
+                shared_id, {account_a["account_id"], account_b["account_id"]}
+            ),
         )
         self.transcript.pass_verdict(phase, "shared reminder verified", snapshot)
         return snapshot
@@ -749,7 +786,9 @@ class CleanSmokeRunner:
                     dict(fact),
                 )
             facts_payload = fact.get("facts")
-            if isinstance(facts_payload, dict) and isinstance(facts_payload.get("payload"), dict):
+            if isinstance(facts_payload, dict) and isinstance(
+                facts_payload.get("payload"), dict
+            ):
                 if "text" in facts_payload["payload"]:
                     self.transcript.fail_and_raise(
                         "shared_reminder",
@@ -765,7 +804,9 @@ class CleanSmokeRunner:
     def _fire_path(self, account: dict[str, Any]) -> None:
         phase = "reminder_fire"
         title = f"RR8 fire smoke {self.config.run_id}"
-        trigger_time = datetime.now(UTC) + timedelta(seconds=self.config.fire_delay_seconds)
+        trigger_time = datetime.now(UTC) + timedelta(
+            seconds=self.config.fire_delay_seconds
+        )
         result = http_post_json(
             f"{self.config.api_base}/api/reminders/batch",
             {
@@ -785,7 +826,11 @@ class CleanSmokeRunner:
             },
         )
         items = result.get("items")
-        if not isinstance(items, list) or not items or items[0].get("state") != "succeeded":
+        if (
+            not isinstance(items, list)
+            or not items
+            or items[0].get("state") != "succeeded"
+        ):
             self.transcript.fail_and_raise(
                 phase, "reminder batch API did not create due reminder", result
             )
@@ -835,7 +880,9 @@ class CleanSmokeRunner:
         probe,
         timeout_seconds: float | None = None,
     ):
-        deadline = time.monotonic() + (timeout_seconds or self.config.poll_timeout_seconds)
+        deadline = time.monotonic() + (
+            timeout_seconds or self.config.poll_timeout_seconds
+        )
         last_error = None
         while time.monotonic() < deadline:
             try:
@@ -898,7 +945,9 @@ def _http_json(request: Request) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Clean Coke real-account smoke harness")
+    parser = argparse.ArgumentParser(
+        description="Clean Coke real-account smoke harness"
+    )
     parser.add_argument("--mode", choices=["webhook", "real"], default="webhook")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--run-id")
@@ -927,5 +976,8 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except SmokeVerdictError as error:
-        print(json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False), file=sys.stderr)
+        print(
+            json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False),
+            file=sys.stderr,
+        )
         raise SystemExit(1)

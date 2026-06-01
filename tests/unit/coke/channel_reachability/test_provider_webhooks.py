@@ -424,6 +424,7 @@ def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():
             "text": "hello",
             "payload": payload,
             "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+            "media": (),
         }
     ]
     assert commits == ["committed"]

@@ -76,7 +76,9 @@ class ReferenceResolver:
                 ClarificationRequest(
                     reference_id=reference.reference_id,
                     target_type=reference.target_type,
-                    reason="zero_candidates" if not candidates else "multiple_candidates",
+                    reason=(
+                        "zero_candidates" if not candidates else "multiple_candidates"
+                    ),
                     candidates=candidates,
                 )
             )

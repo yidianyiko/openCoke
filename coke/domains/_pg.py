@@ -9,7 +9,6 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-
 T = TypeVar("T")
 
 
@@ -23,13 +22,17 @@ def json_value(value: Any) -> Any:
     return value
 
 
-def one_or_none(session: Session, table: sa.Table, *where: Any) -> Mapping[str, Any] | None:
+def one_or_none(
+    session: Session, table: sa.Table, *where: Any
+) -> Mapping[str, Any] | None:
     statement = sa.select(table).where(*where)
     row = session.execute(statement).mappings().one_or_none()
     return _normalize_row(row) if row is not None else None
 
 
-def many(session: Session, table: sa.Table, *where: Any, order_by: tuple[Any, ...] = ()) -> list[Mapping[str, Any]]:
+def many(
+    session: Session, table: sa.Table, *where: Any, order_by: tuple[Any, ...] = ()
+) -> list[Mapping[str, Any]]:
     statement = sa.select(table).where(*where)
     if order_by:
         statement = statement.order_by(*order_by)

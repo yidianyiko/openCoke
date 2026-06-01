@@ -11,11 +11,11 @@ from coke.domains.social_scheduling.availability import (
     ParticipantReachabilityPort,
     ReminderAvailabilityPort,
 )
+from coke.domains.social_scheduling.models import SocialSchedulingError
 from coke.domains.social_scheduling.repository import (
     InMemorySocialSchedulingRepository,
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
-from coke.domains.social_scheduling.models import SocialSchedulingError
 
 NOW = datetime(2026, 5, 30, 12, 0, tzinfo=UTC)
 

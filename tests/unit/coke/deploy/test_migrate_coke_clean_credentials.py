@@ -89,28 +89,45 @@ def test_migrate_credentials_updates_existing_rows_in_place_and_preserves_accoun
         assert result.profiles_skipped == 0
         assert result.missing == []
 
-        rows = conn.execute(
-            sa.select(
-                schema.credential.c.email,
-                schema.credential.c.password_hash,
-            ).order_by(schema.credential.c.email)
-        ).mappings().all()
-        assert {row["email"] for row in rows} == {target.email for target in TARGET_CREDENTIALS}
+        rows = (
+            conn.execute(
+                sa.select(
+                    schema.credential.c.email,
+                    schema.credential.c.password_hash,
+                ).order_by(schema.credential.c.email)
+            )
+            .mappings()
+            .all()
+        )
+        assert {row["email"] for row in rows} == {
+            target.email for target in TARGET_CREDENTIALS
+        }
         for row in rows:
-            target = next(item for item in TARGET_CREDENTIALS if item.email == row["email"])
+            target = next(
+                item for item in TARGET_CREDENTIALS if item.email == row["email"]
+            )
             assert row["email"] == target.email
             assert row["password_hash"] != target.password
             assert hasher.verify(row["password_hash"], target.password)
-        profiles = conn.execute(
-            sa.select(
-                schema.user_profile.c.account_id,
-                schema.user_profile.c.nickname,
-            ).order_by(schema.user_profile.c.account_id)
-        ).mappings().all()
+        profiles = (
+            conn.execute(
+                sa.select(
+                    schema.user_profile.c.account_id,
+                    schema.user_profile.c.nickname,
+                ).order_by(schema.user_profile.c.account_id)
+            )
+            .mappings()
+            .all()
+        )
         assert {row["nickname"] for row in profiles} == {
             target.display_name for target in TARGET_CREDENTIALS
         }
-        assert conn.execute(sa.select(sa.func.count()).select_from(schema.account)).scalar_one() == 2
+        assert (
+            conn.execute(
+                sa.select(sa.func.count()).select_from(schema.account)
+            ).scalar_one()
+            == 2
+        )
 
 
 def test_migrate_credentials_is_idempotent_for_existing_argon2_hashes():
@@ -134,7 +151,9 @@ def test_migrate_credentials_is_idempotent_for_existing_argon2_hashes():
         assert result.skipped == 1
         assert result.profiles_created == 0
         assert result.profiles_skipped == 1
-        row = conn.execute(sa.select(schema.credential.c.password_hash)).mappings().one()
+        row = (
+            conn.execute(sa.select(schema.credential.c.password_hash)).mappings().one()
+        )
         assert row["password_hash"] == existing_hash
         profile_count = conn.execute(
             sa.select(sa.func.count()).select_from(schema.user_profile)
@@ -153,5 +172,15 @@ def test_migrate_credentials_reports_missing_target_without_creating_rows():
         assert result.profiles_created == 0
         assert result.profiles_skipped == 0
         assert result.missing == [target.account_id for target in TARGET_CREDENTIALS]
-        assert conn.execute(sa.select(sa.func.count()).select_from(schema.credential)).scalar_one() == 0
-        assert conn.execute(sa.select(sa.func.count()).select_from(schema.user_profile)).scalar_one() == 0
+        assert (
+            conn.execute(
+                sa.select(sa.func.count()).select_from(schema.credential)
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            conn.execute(
+                sa.select(sa.func.count()).select_from(schema.user_profile)
+            ).scalar_one()
+            == 0
+        )

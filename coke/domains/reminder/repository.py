@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
-from collections.abc import Mapping
 from typing import Callable, Protocol, Sequence
 
 import sqlalchemy as sa

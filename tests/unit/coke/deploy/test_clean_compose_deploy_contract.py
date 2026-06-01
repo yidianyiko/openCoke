@@ -127,7 +127,7 @@ def test_deploy_script_recreates_coke_web_only_for_web_or_full_plan() -> None:
     assert "DEPLOY_TIER=web" in script
     assert "DEPLOY_TIER=full" in script
     assert 'recreate_services "${WEB_DEPLOY_SERVICES[@]}"' in script
-    assert 'force-recreate coke-web' not in script
+    assert "force-recreate coke-web" not in script
 
 
 def test_deploy_script_fails_if_selected_service_list_is_empty() -> None:

@@ -13,8 +13,8 @@ from coke.turn.context import TurnMode, TurnTrigger
 from coke.worker.__main__ import (
     _drain_supervisor_completions,
     _handle_event,
-    _require_interactive_runtime_factory,
     _recover_open_inbound_windows,
+    _require_interactive_runtime_factory,
 )
 from coke.worker.stream_consumer import StreamConsumer
 

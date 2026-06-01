@@ -314,7 +314,10 @@ def test_channel_action_routes_delegate_to_service_methods():
         == 200
     )
     assert (
-        client.get("/api/channels/channel_1/poll?account_id=spoofed_account").status_code == 200
+        client.get(
+            "/api/channels/channel_1/poll?account_id=spoofed_account"
+        ).status_code
+        == 200
     )
     assert (
         client.post(
@@ -329,7 +332,8 @@ def test_channel_action_routes_delegate_to_service_methods():
         == 200
     )
     assert (
-        client.get("/api/channels/resolve-route?account_id=spoofed_account").status_code == 200
+        client.get("/api/channels/resolve-route?account_id=spoofed_account").status_code
+        == 200
     )
 
     assert [call[0] for call in service.calls] == [
@@ -522,10 +526,12 @@ def test_create_app_registers_channel_routes_only_when_service_is_supplied():
     service = FakeReachabilityService()
     app = create_app(settings=settings, channel_reachability_service=service)
     assert (
-        app.test_client().get(
+        app.test_client()
+        .get(
             "/api/channels/status?account_id=acct_1",
             headers={"Authorization": "Bearer session_token"},
-        ).status_code
+        )
+        .status_code
         == 404
     )
 

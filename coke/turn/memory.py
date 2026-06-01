@@ -37,8 +37,6 @@ class MemoryManager:
     ) -> MemoryContext:
         short_term = tuple(self._port.recent_context(conversation_id))
         long_term = (
-            tuple(self._port.long_term_context(account_id))
-            if long_term_enabled
-            else ()
+            tuple(self._port.long_term_context(account_id)) if long_term_enabled else ()
         )
         return MemoryContext(short_term=short_term, long_term=long_term)

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
 import logging
 import time
+from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from coke.composition import CokeRuntime, build_runtime_from_settings
