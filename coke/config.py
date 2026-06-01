@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Mapping
+from urllib.parse import urlparse
 
 from coke.llm.config import (
     DEFAULT_ASR_MODEL,
@@ -72,7 +73,7 @@ class Settings:
         app_env = (source.get("APP_ENV") or "local").strip() or "local"
         raw_public_base_url = _optional(source, "COKE_PUBLIC_BASE_URL")
         public_base_url = (
-            raw_public_base_url.rstrip("/")
+            _normalize_public_base_url(raw_public_base_url)
             if raw_public_base_url is not None
             else None
         )
@@ -179,6 +180,31 @@ class Settings:
 def _optional(source: Mapping[str, str], key: str) -> str | None:
     value = (source.get(key) or "").strip()
     return value or None
+
+
+def _normalize_public_base_url(raw_value: str) -> str | None:
+    value = raw_value.rstrip("/")
+    if not value:
+        return None
+
+    try:
+        parsed = urlparse(value)
+        hostname = parsed.hostname
+    except ValueError as error:
+        raise ConfigurationError(
+            "COKE_PUBLIC_BASE_URL must be an absolute http(s) URL without query or fragment"
+        ) from error
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or not hostname
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ConfigurationError(
+            "COKE_PUBLIC_BASE_URL must be an absolute http(s) URL without query or fragment"
+        )
+    return value
 
 
 def _bool_env(source: Mapping[str, str], key: str) -> bool:
