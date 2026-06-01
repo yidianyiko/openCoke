@@ -1,7 +1,7 @@
 ---
 title: Public friend-link fix and clean-model alignment
 date: 2026-06-01
-status: draft
+status: approved
 kind: design
 topic: public-friend-link
 ---
@@ -38,36 +38,60 @@ The copied string surfaces verbatim: backend `qr_payload`
 (`coke/api/friend_routes.py:123`) → web `customer-friends.ts:100` (`url`) →
 `account/friends/page.tsx:123` (`navigator.clipboard.writeText(friendLink.url)`).
 
-### Model mismatch (the core of the work)
+### Model reality (channel-centric)
 
 The web client was written for the **retired gateway** model: open a *link
-session* (`POST /sessions`), poll *session status*, and send a *friend request*
-with a `pending → accepted` lifecycle.
+session*, poll *session status*, send a *friend request* with a
+`pending → accepted` lifecycle.
 
-The clean backend uses a **direct establishment** model:
-`establish_friendship_from_token` / `establish_friendship_from_code` create the
-friendship immediately, deferring completion (via friend-link continuations)
-only when the joiner has no usable channel yet. `POST /api/friends/join`
-already exposes this and accepts either `public_token` or `link_code`.
+The clean backend uses a **channel-centric direct establishment** model:
 
-Decision (approved): **align the web to the clean direct-establishment model.**
-Do not rebuild the gateway's link-session / friend-request subsystem. Delete the
-web-side legacy that has no clean-backend counterpart.
+- `establish_friendship_from_code` / `_establish_from_link`
+  (`service.py:588-627`) requires **both** the owner and the joiner to have a
+  usable messaging channel. The owner is checked at link issue/reset
+  (`service.py:79`, `service.py:109`) and again at join (`service.py:597`).
+- When the joiner has **no usable channel**, the join returns
+  `status="deferred_channel_required"` with `continuation={"friend_link_id":...}`
+  (`service.py:600-606`). That continuation only auto-completes the friendship
+  if it is **persisted onto a claim artifact** and later consumed on
+  channel-connect (`identity_access/service.py:400-420`; proof:
+  `tests/unit/coke/channel_reachability/test_channel_reachability_service.py:351-421`).
+  `POST /api/friends/join` does **not** persist it — it only serializes it in
+  the response (`friend_routes.py:127-134`).
+
+### Scope decision (approved)
+
+**Option 1 — correctness + immediate join for channel-connected joiners.**
+
+- Fix the link string (host / path / identifier) and add the missing public
+  resolver so the link opens and shows the owner.
+- For a joiner who already has a usable channel, `POST /api/friends/join`
+  establishes the friendship immediately.
+- For a joiner with **no** channel, surface an honest "connect a messaging
+  channel first" message. Do **not** fabricate auto-completion the
+  channel-centric model does not wire up.
+- Make the friends page resilient for channel-less accounts instead of
+  hard-failing.
+
+**Explicitly out of scope (would be a later Option 2):** persisting the
+`friend_link_id` continuation through the claim flow so a brand-new joiner's
+friendship auto-completes when they first connect a channel. That touches the
+identity-access claim wiring and web claim UX and is tracked as follow-up.
 
 ## Goals
 
 - A copied friend link points at the real web host and a route that exists.
-- A stranger can open the link, see the owner, authenticate, and become a
-  friend through the clean backend's existing join path.
+- A stranger can open the link and see the owner.
+- A joiner who has a usable channel becomes a friend through the existing join
+  path.
+- A channel-less joiner gets a truthful next-step, not a silent dead end.
 - No resurrection of the retired link-session / friend-request machinery.
 
 ## Non-goals
 
-- Friend-request approval semantics (`pending`/`accepted`/`rejected`). The clean
-  model establishes (or defers) directly; there is no approval step.
-- Owner avatars / taglines. The clean identity schema stores a display name
-  only; the public profile exposes `tagline: null`, `avatarUrl: null`.
-- Changing the owner's own friend-link panel beyond the corrected `url`.
+- Friend-request approval semantics (`pending`/`accepted`/`rejected`).
+- Auto-completing a deferred friendship on later channel-connect (Option 2).
+- Owner avatars / taglines (clean identity stores a display name only).
 
 ## Design
 
@@ -75,179 +99,210 @@ web-side legacy that has no clean-backend counterpart.
 
 Add to `coke/config.py` `Settings`:
 
-- Field `public_base_url: str`.
-- Sourced from env `COKE_PUBLIC_BASE_URL`, trailing slash stripped.
-- Local/default value `http://localhost:4040` (matches the web's existing
-  `NEXT_PUBLIC_COKE_WEB_URL` fallback in `web/app/u/[code]/qr/route.ts`).
-- **Required in production**: when `app_env == "production"`, a missing/empty
-  `COKE_PUBLIC_BASE_URL` raises `ConfigurationError`, mirroring the existing
-  `SiliconFlow_API_KEY` production guard. The real value
-  (`https://coke.keep4oforever.com`) is supplied by the environment, not
-  hard-coded in source.
+- Field `public_base_url: str`, env `COKE_PUBLIC_BASE_URL`, trailing slash
+  stripped.
+- Non-production fallback: `http://localhost:4040` (matches the web's existing
+  `NEXT_PUBLIC_COKE_WEB_URL` fallback).
+- **Required explicitly in production**: `app_env == "production"` with a
+  missing/empty `COKE_PUBLIC_BASE_URL` raises `ConfigurationError`, mirroring
+  the `SiliconFlow_API_KEY` guard. Do not let the local fallback mask a missing
+  production value.
 
-Thread it through composition:
+**Deploy generation must set it** (review blocker): `scripts/deploy-compose-to-gcp.sh`
+writes the production `.env` (around lines 297-310) consumed by
+`docker-compose.prod.yml` (api + worker services). Add
+`COKE_PUBLIC_BASE_URL=https://coke.keep4oforever.com` there so the
+production-required guard does not break the deploy.
 
-- `build_runtime_from_settings` passes `settings.public_base_url` into
-  `compose_coke_runtime`.
-- `compose_coke_runtime` gains a `public_base_url: str` parameter (default
-  `http://localhost:4040` for in-memory/test composition) and passes it to
-  `SocialSchedulingService`.
+### 2. Backend — thread the base URL through both compositions
 
-### 2. Backend — correct the friend-link URL shape
+`build_runtime_from_settings` builds **two** runtimes: the main runtime and the
+interactive child-runtime factory (`composition.py:1391-1406` and
+`composition.py:1438-1453`); the worker uses the interactive factory. Pass
+`settings.public_base_url` into **both** `compose_coke_runtime(...)` calls.
 
-- `SocialSchedulingService.__init__` gains `public_base_url: str` (default
-  `http://localhost:4040`), stored as `self._public_base_url` (trailing slash
-  stripped defensively).
-- `_link_view` builds the payload from the **link code**, not the token:
+`compose_coke_runtime` gains `public_base_url: str = "http://localhost:4040"`
+and forwards it to `SocialSchedulingService`.
+
+### 3. Backend — correct the friend-link URL shape
+
+- `SocialSchedulingService.__init__` gains `public_base_url: str`
+  (default `http://localhost:4040`), stored trailing-slash-stripped as
+  `self._public_base_url`.
+- `_link_view` builds from the **link code**, not the token:
   ```python
   qr_payload=f"{self._public_base_url}/u/{code}" if code else None,
   ```
-  `code` is already fetched in `_link_view` when `include_public=True`. The
-  `public_token` remains available for the authenticated join path.
 
-This is the single change that fixes the copied-link string.
+This single change fixes the copied-link string. The same `qr_payload` also
+feeds the agent/tool friend-link facts (`composition.py:2095-2103`), so those
+become correct too.
 
-### 3. Backend — public link-resolution endpoint
+### 4. Backend — public link-resolution endpoint
 
-**Service** (`coke/domains/social_scheduling/service.py`):
+**Service** (`service.py`):
 
-- New value object `PublicFriendLinkView` (in `models.py`) with
+- New value object `PublicFriendLinkView` (`models.py`):
   `link_code: str`, `status: str` (`"active"`), `owner_display_name: str`.
-- New method:
-  ```python
-  def resolve_public_friend_link(self, link_code: str) -> PublicFriendLinkView | None
-  ```
-  - Look up by `get_friend_link_by_code_hash(_hash_token(link_code))`.
-  - Return `None` when the link is missing or `lifecycle != "active"`.
-  - Resolve the owner name via `self.display_name_resolver(owner_account_id)`.
+- New method `resolve_public_friend_link(self, link_code: str) -> PublicFriendLinkView | None`:
+  - Look up via `get_friend_link_by_code_hash(_hash_token(link_code))`.
+  - Return `None` if the link is missing, `lifecycle != "active"` (disabled
+    links keep the same row/hash — `service.py:128-144` — so the lifecycle check
+    is load-bearing), **or the owner no longer has a usable channel**
+    (`self.reachability.has_usable_channel(owner_account_id)` is False) — so the
+    page never renders a CTA for a join that must fail.
+  - Otherwise resolve the owner name via `self.display_name_resolver(...)`.
 
 **Route** (`coke/api/public_friend_routes.py`, new):
 
-- `create_public_friend_blueprint(social_scheduling_service)` with
+- `create_public_friend_blueprint(social_scheduling_service)`,
   `url_prefix="/api/public/user-links"`. **Unauthenticated.**
 - `GET /<code>`:
-  - On hit → raw body
+  - Hit → raw body, HTTP 200:
     ```json
-    {
-      "code": "<link_code>",
-      "status": "active",
-      "profile": { "displayName": "<name>", "tagline": null, "avatarUrl": null }
-    }
+    {"code":"<link_code>","status":"active",
+     "profile":{"displayName":"<name>","tagline":null,"avatarUrl":null}}
     ```
-    HTTP 200.
-  - On miss → `SocialSchedulingError("friend_link_not_found")` →
-    `{ "error": { "code": "friend_link_not_found" } }`, HTTP 404.
-- Register the blueprint in `coke/app.py` alongside the others.
+  - Miss/inactive → `{"error":{"code":"friend_link_not_active"}}`, **HTTP 404**.
+- Register the blueprint in `coke/app.py`.
+- Registration must happen whenever `social_scheduling_service` is present,
+  outside the `identity_access_service`-gated friend/shared-reminder block.
+  The authenticated `/api/friends/*` and `/api/shared-reminders/*` routes still
+  require `identity_access_service`; this public resolver does not.
 
-Raw bodies (no `{ok, data}` envelope) keep the endpoint consistent with the
-rest of the coke Flask backend (`customerApi` returns parsed bodies directly).
-The error-handler maps `friend_link_not_found` to **404** for this blueprint
-(the landing page treats any non-200 as "link not active").
+Raw bodies (no `{ok,data}` envelope) match the rest of the coke Flask backend
+(`customerApi` returns parsed bodies directly). Enumeration risk is bounded: the
+endpoint only returns a display name for an active link whose owner is
+reachable; codes are 24-byte url-safe tokens.
 
-### 4. Web — align landing + completion to direct join
+### 5. Web — align landing + completion to direct join
 
-**`web/lib/user-link-api.ts`** — reduce to a single function:
+**`web/lib/user-link-api.ts`** — reduce to one function:
 
-- Keep `fetchUserLink(code)`, rewritten to consume the **raw body**: 200 →
-  `{ ok: true, data: { code, status, profile } }`; any non-200 →
-  `{ ok: false, error: 'link_not_active' }`.
-- **Delete** `openLinkSession`, `getLinkSessionStatus`, `createFriendship`,
-  and the session/friend-request helpers — retired-gateway legacy.
+- `fetchUserLink(code)` consumes the **raw body**: 200 →
+  `{ok:true, data:{code,status,profile}}`; any non-200 →
+  `{ok:false, error:'link_not_active'}`.
+- **Delete** `openLinkSession`, `getLinkSessionStatus`, `createFriendship`
+  (retired-gateway legacy; grep confirms only this file + the two pages + tests
+  consume them).
 
-**`web/lib/api-types.ts`** — delete now-unused types:
-`PublicLinkSessionResponse`, `PublicLinkSessionStatusResponse`,
-`DirectFriendshipResponse`. Keep `PublicUserLinkResponse` (used by the landing
-page).
+**`web/lib/api-types.ts`** — delete now-unused `PublicLinkSessionResponse`,
+`PublicLinkSessionStatusResponse`, `DirectFriendshipResponse`. Keep
+`PublicUserLinkResponse`.
 
 **`web/app/u/[code]/page.tsx`**:
 
-- Drop the `openLinkSession` call and the `link_session` query handling.
-- Render owner profile + QR (`/u/{code}/qr`, already correct).
-- Show "Log in to add friend" / "Create account to add friend" linking to
-  `/auth/login` and `/auth/register` (the existing auth routes) with
-  `next=/account/friends?join=<code>` (the `link_code`).
+- Drop `openLinkSession` and `link_session` handling.
+- Render owner profile + QR (`/u/{code}/qr`, already correct) + CTAs to
+  `/auth/login` and `/auth/register` (existing auth routes) with
+  `next=/account/friends?join=<code>`.
 
 **`web/lib/customer-friends.ts`**:
 
-- Add `joinFriendByCode(code: string)` → `POST /api/friends/join` with body
-  `{ link_code: code }`, returning the friendship result.
+- Add a small clean-route error normalizer. Any backend body shaped as
+  `{error:{code:string}}` must become `{ok:false,error:code}` before page code
+  interprets it. This applies to the existing link/list/reset/disable/remove
+  wrappers too; otherwise `owner_channel_required` and auth failures look like
+  successful data because `customerApi` parses non-2xx JSON bodies.
+- Add `joinFriendByCode(code)` → `POST /api/friends/join` body
+  `{link_code: code}`. Because `customerApi` returns the parsed JSON body even
+  on non-2xx (`customer-api.ts:47-56`), the wrapper must inspect the body:
+  - `{error:{code}}` → `{ok:false, error: code}` (covers
+    `owner_channel_required`, `self_friendship_forbidden`,
+    `friend_link_disabled`, `friend_link_not_found`, `unauthorized`,
+    `invalid_request`).
+  - otherwise → `{ok:true, data:{status, friendship_id, continuation}}`, where
+    `status` may be `created`/`already_active`/`deferred_channel_required`.
 
 **`web/app/(customer)/account/friends/page.tsx`**:
 
-- Replace the `link_session` / `inviteToken` / `getLinkSessionStatus` /
-  `createFriendship` / `linkSession` state with a one-shot **join-by-code**:
+- **Resilience fix:** treat `owner_channel_required` from
+  `getCustomerFriendLink()` as a non-fatal "no shareable link yet" state (show a
+  "connect a messaging channel to get your link" note) rather than failing the
+  whole page. Still load the friends list and run the join.
+- Replace the `link_session`/`inviteToken`/`getLinkSessionStatus`/
+  `createFriendship`/`linkSession` machinery with a one-shot **join-by-code**:
   - Read `?join=<code>`.
-  - After the page confirms an authenticated session (existing
-    `AUTH_ERRORS → loginNextPath` flow, with `next` carrying `?join=<code>`),
-    call `joinFriendByCode(code)` once.
-  - Surface the result: established → success notice; deferred (joiner has no
-    usable channel yet) → an "added once you connect a channel" notice; error →
-    failure notice. Then scrub `join` from the URL.
-- The owner's link panel keeps using `friendLink.url`, now correct.
+  - On confirmed auth (existing `AUTH_ERRORS → loginNextPath`, with `next`
+    carrying `?join=<code>`), call `joinFriendByCode(code)` once.
+  - Surface by result: `created`/`already_active` → success notice;
+    `deferred_channel_required` → "connect a messaging channel first" notice;
+    `{error}` → the matching failure notice. Then scrub `join` from the URL.
 
-### 5. Docs and issue record
+### 6. Docs and issue record
 
-- `docs/issues/2026-06-01-friend-link-prefix.md` — incident: the four-way
-  defect, affected surfaces, fix commit(s), verification.
-- `docs/deploy.md` — document the required `COKE_PUBLIC_BASE_URL` env
-  (production value `https://coke.keep4oforever.com`).
-- `docs/product-specs/FEATURE_TREE.md` — add `GET /api/public/user-links/{code}`
+- `docs/issues/2026-06-01-friend-link-prefix.md` — incident: four-way defect,
+  channel-centric model reality, Option-1 scope, affected surfaces, fix
+  commit(s), verification.
+- `docs/deploy.md` — required `COKE_PUBLIC_BASE_URL`
+  (`https://coke.keep4oforever.com`).
+- `docs/product-specs/FEATURE_TREE.md` — `GET /api/public/user-links/{code}`
   and the public-link → join flow.
 
 ## Data flow (after fix)
 
 ```
-Owner: GET /api/friends/link
+Owner (channel connected): GET /api/friends/link
   → qr_payload = {COKE_PUBLIC_BASE_URL}/u/{link_code}     (copied link)
 
 Stranger opens {host}/u/{link_code}
   → web GET /api/public/user-links/{link_code}
-  → { code, status:"active", profile:{ displayName, null, null } }
+  → 200 { code, status:"active", profile } (only if link active AND owner
+    reachable), else 404 "link not active"
   → renders owner + QR + auth CTAs (next=/account/friends?join={link_code})
 
 Stranger logs in / registers, lands on /account/friends?join={link_code}
   → POST /api/friends/join { link_code }
-  → establish_friendship_from_code → friendship created, or deferred if the
-    new account has no usable channel yet (completes on channel connect)
+  → joiner has a usable channel → friendship created (or already_active)
+  → joiner has no channel → status deferred_channel_required → honest
+    "connect a messaging channel first" notice (no auto-complete in Option 1)
 ```
 
 ## Error handling
 
-- Missing/disabled link, public endpoint → 404 → landing page "link not
-  active" panel.
-- `COKE_PUBLIC_BASE_URL` unset in production → `ConfigurationError` at startup.
-- Join when unauthenticated → existing `AUTH_ERRORS` redirect to login with the
-  `join` code preserved in `next`.
-- Join when the joiner has no channel → deferred result, not an error; surfaced
-  as an informational notice.
-- Self-join (owner opens own link) → `self_friendship_forbidden`, surfaced as a
-  friendly notice rather than a hard failure.
+- Missing/disabled link, or owner unreachable → public endpoint 404 → landing
+  "link not active" panel.
+- `COKE_PUBLIC_BASE_URL` unset in production → `ConfigurationError` at startup;
+  deploy script supplies it.
+- Join unauthenticated → existing `AUTH_ERRORS` redirect to login with `join`
+  preserved in `next`.
+- Join with no joiner channel → `deferred_channel_required` (a normal 200 body,
+  not an error) → informational notice.
+- Owner lost channel after issue → `owner_channel_required` (400 `{error}`) →
+  surfaced as a friendly notice. (Mostly pre-empted by the public-resolve owner
+  reachability check.)
+- Self-join → `self_friendship_forbidden` → friendly notice.
+- Channel-less authenticated user opening `/account/friends` → no longer breaks;
+  link panel shows the "connect a channel" note, friends list still loads.
 
 ## Testing
 
 **Backend (pytest):**
 
-- `Settings` / config: `COKE_PUBLIC_BASE_URL` default, trailing-slash strip,
+- Config: `COKE_PUBLIC_BASE_URL` default, trailing-slash strip,
   production-required guard.
-- `SocialSchedulingService`: `qr_payload` shape `{base}/u/{link_code}`;
-  `resolve_public_friend_link` for active / disabled / missing links.
-- Public route: 200 raw body shape; 404 on unknown/disabled code.
-- Update `test_social_scheduling_tool_adapter.py` /
-  `test_social_scheduling_routes.py` fixtures that assert the old
-  `coke.example/friends/...` payload.
+- `SocialSchedulingService`: `qr_payload == {base}/u/{link_code}`;
+  `resolve_public_friend_link` for active / disabled (hard test) / missing /
+  owner-unreachable.
+- Public route: 200 raw-body shape; 404 on unknown/disabled/unreachable code.
+- Update fixtures asserting the old `coke.example/friends/...` payload
+  (`tests/unit/coke/test_social_scheduling_tool_adapter.py`,
+  `tests/unit/coke/social_scheduling/test_social_scheduling_routes.py`).
 
 **Web (pnpm test):**
 
-- `user-link-api.test.ts`: `fetchUserLink` raw-body handling (200 + non-200).
+- `user-link-api.test.ts`: `fetchUserLink` raw-body (200 + non-200).
 - `app/u/[code]/page.test.tsx`: profile render + auth CTAs with `join` next.
-- `account/friends/page.test.tsx`: join-by-code success / deferred / error.
-- `customer-friends.test.ts`: `joinFriendByCode`; corrected `url` shape.
+- `customer-friends.test.ts`: `joinFriendByCode` error-body vs success/deferred;
+  corrected `url` shape.
+- `account/friends/page.test.tsx`: join-by-code created / deferred / error;
+  channel-less (`owner_channel_required`) resilience.
 
 **Smoke:**
 
-- The friendship / first-contact paths are covered by the `coke-agent-smoke`
+- Friendship / first-contact paths are covered by the `coke-agent-smoke`
   harness. The public-link → join browser flow is verified manually against the
-  real web deploy as part of rollout.
+  real web deploy during rollout.
 
 ## Affected files
 
@@ -257,6 +312,7 @@ Stranger logs in / registers, lands on /account/friends?join={link_code}
 - `coke/domains/social_scheduling/models.py`
 - `coke/api/public_friend_routes.py` (new)
 - `coke/app.py`
+- `scripts/deploy-compose-to-gcp.sh`
 - `web/lib/user-link-api.ts`
 - `web/lib/api-types.ts`
 - `web/lib/customer-friends.ts`
