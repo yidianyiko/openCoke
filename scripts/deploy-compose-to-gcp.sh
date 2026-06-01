@@ -305,6 +305,7 @@ COKE_PROVIDER_EVOLUTION_BASE_URL=${evolution_base}
 COKE_PROVIDER_EVOLUTION_API_KEY=${evolution_api_key}
 COKE_PROVIDER_EVOLUTION_INSTANCE=${evolution_instance}
 COKE_PROVIDER_WECHAT_PERSONAL_ENDPOINT_URL=${wechat_personal_endpoint}
+COKE_PUBLIC_BASE_URL=https://coke.keep4oforever.com
 NEXT_PUBLIC_API_BASE_URL=https://coke.keep4oforever.com
 NEXT_PUBLIC_COKE_WEB_URL=https://coke.keep4oforever.com
 EOF

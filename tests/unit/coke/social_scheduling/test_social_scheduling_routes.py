@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 from coke.app import create_app
 from coke.config import Settings
-from coke.domains.social_scheduling.models import SocialSchedulingError
 
 DATABASE_URL = "postgresql+psycopg://coke:coke@localhost:5432/coke_test"
 REDIS_URL = "redis://localhost:6379/15"

@@ -71,6 +71,10 @@ def test_clean_runtime_services_use_internal_postgres_redis_and_real_llm_env() -
         assert environment["APP_ENV"] == "production"
         assert environment["AGNO_TELEMETRY"] == "false"
         assert environment["COKE_AGNO_CREATE_SCHEMA"] == "1"
+        assert (
+            environment["COKE_PUBLIC_BASE_URL"]
+            == "${COKE_PUBLIC_BASE_URL:-https://coke.keep4oforever.com}"
+        )
         assert "COKE_LLM_FAKE" not in environment
 
 
@@ -212,6 +216,10 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
     assert script.index("alembic upgrade head") < script.index("alembic check")
     assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_API_PORT}/healthz"' in script
     assert 'curl -fsS "http://127.0.0.1:${COKE_CLEAN_WEB_PORT}/auth/login"' in script
+    assert "COKE_PUBLIC_BASE_URL=https://coke.keep4oforever.com" in script
+    assert script.index(
+        "COKE_PUBLIC_BASE_URL=https://coke.keep4oforever.com"
+    ) < script.index("NEXT_PUBLIC_API_BASE_URL=https://coke.keep4oforever.com")
     lowered = script.lower()
     for legacy_term in (
         "verify_gateway_submodule_match",

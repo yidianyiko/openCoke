@@ -77,6 +77,21 @@ def test_settings_from_env_requires_public_base_url_for_production(monkeypatch):
         Settings.from_env()
 
 
+def test_settings_from_env_rejects_all_slash_public_base_url_for_production(
+    monkeypatch,
+):
+    from coke.config import ConfigurationError, Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.setenv("COKE_PUBLIC_BASE_URL", "///")
+
+    with pytest.raises(ConfigurationError, match="COKE_PUBLIC_BASE_URL"):
+        Settings.from_env()
+
+
 def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     from coke.config import Settings
 

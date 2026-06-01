@@ -56,7 +56,12 @@ class FakeDetector:
         return self.outputs.pop(0)
 
 
-def make_service(reachable: set[str] | None = None, now=None, detector=None):
+def make_service(
+    reachable: set[str] | None = None,
+    now=None,
+    detector=None,
+    public_base_url: str = "http://localhost:4040",
+):
     repo = InMemorySocialSchedulingRepository()
     reachability = FakeReachability(reachable)
     reminder_availability = FakeReminderAvailability()
@@ -68,6 +73,7 @@ def make_service(reachable: set[str] | None = None, now=None, detector=None):
         now=now or (lambda: NOW),
         id_factory=lambda prefix: f"{prefix}_{len(repo.generated_ids) + 1}",
         token_factory=lambda prefix: f"{prefix}_token_{len(repo.generated_tokens) + 1}",
+        public_base_url=public_base_url,
     )
     return service, repo, reachability, reminder_availability
 
@@ -78,8 +84,10 @@ def create_active_friendship(service, owner: str, joiner: str):
 
 
 def test_friend_link_payload_uses_public_base_url_and_link_code():
-    service, _repo, _reachability, _availability = make_service({"owner"})
-    service._public_base_url = "https://web.example.com"
+    service, _repo, _reachability, _availability = make_service(
+        {"owner"},
+        public_base_url="https://web.example.com",
+    )
 
     link = service.get_or_create_friend_link("owner")
 
