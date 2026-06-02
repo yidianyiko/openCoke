@@ -113,6 +113,10 @@ class FakeService:
         )
         return FakeObject(code="claim_code", artifact=FakeObject(id="artifact_3"))
 
+    def send_claim_email(self, token, email):
+        self.calls.append(("send_claim_email", {"token": token, "email": email}))
+        return FakeObject(code=token, artifact=FakeObject(id="artifact_5"))
+
     def get_claim_code_status(self, code, browser_session):
         self.calls.append(
             (
@@ -210,6 +214,18 @@ class UnknownEmailService(FakeService):
     def resend_email_verification(self, email):
         self.calls.append(("resend_email_verification", {"email": email}))
         raise IdentityAccessError("unknown_email")
+
+
+class ClaimEmailConflictService(FakeService):
+    def send_claim_email(self, token, email):
+        self.calls.append(("send_claim_email", {"token": token, "email": email}))
+        raise IdentityAccessError("email_already_registered")
+
+
+class ClaimEmailInvalidTokenService(FakeService):
+    def send_claim_email(self, token, email):
+        self.calls.append(("send_claim_email", {"token": token, "email": email}))
+        raise IdentityAccessError("artifact_expired")
 
 
 class PairingRedemptionAccessDeniedService(FakeService):
@@ -547,6 +563,54 @@ def test_claim_code_issue_and_redeem_routes_call_service():
         "continuation": {"friend_link_id": "fl_1"},
     }
     assert "session_token" not in redeem_response.get_json()
+
+
+def test_claim_email_route_sends_existing_login_url_token_to_email():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/claim/email",
+        json={"entry_token": "login_token", "email": "claimant@example.com"},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json() == {"accepted": True}
+    assert service.calls[-1] == (
+        "send_claim_email",
+        {"token": "login_token", "email": "claimant@example.com"},
+    )
+
+
+def test_claim_email_route_returns_existing_email_error():
+    client, service = make_client(ClaimEmailConflictService())
+
+    response = client.post(
+        "/api/claim/email",
+        json={"entry_token": "login_token", "email": "a@example.com"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": {"code": "email_already_registered"}}
+    assert service.calls[-1] == (
+        "send_claim_email",
+        {"token": "login_token", "email": "a@example.com"},
+    )
+
+
+def test_claim_email_route_returns_invalid_token_error():
+    client, service = make_client(ClaimEmailInvalidTokenService())
+
+    response = client.post(
+        "/api/claim/email",
+        json={"entry_token": "expired_token", "email": "claimant@example.com"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": {"code": "artifact_expired"}}
+    assert service.calls[-1] == (
+        "send_claim_email",
+        {"token": "expired_token", "email": "claimant@example.com"},
+    )
 
 
 def test_claim_code_poll_route_calls_service():

@@ -25,6 +25,15 @@ def create_claim_blueprint(identity_service) -> Blueprint:
         )
         return jsonify({"code": result.code, "artifact_id": result.artifact.id}), 201
 
+    @blueprint.post("/email")
+    def send_claim_email():
+        payload = _json_payload()
+        identity_service.send_claim_email(
+            token=_body_field(payload, "entry_token"),
+            email=_body_field(payload, "email"),
+        )
+        return jsonify({"accepted": True}), 202
+
     @blueprint.get("/code/<code>/status")
     def poll_claim_code(code: str):
         status = identity_service.get_claim_code_status(

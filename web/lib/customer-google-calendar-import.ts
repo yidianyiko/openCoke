@@ -11,6 +11,21 @@ interface CustomerClaimRequestResult {
   message: 'claim_email_sent';
 }
 
+type CleanRouteError = {
+  error: {
+    code: string;
+  };
+};
+
+function isCleanRouteError(value: unknown): value is CleanRouteError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as CleanRouteError).error?.code === 'string'
+  );
+}
+
 export interface CustomerGoogleCalendarImportRunSummary {
   id: string;
   status: 'authorizing' | 'importing' | 'succeeded' | 'succeeded_with_errors' | 'failed';
@@ -38,9 +53,30 @@ interface CustomerGoogleCalendarImportStatusResult {
 }
 
 export function requestCustomerClaimEmail(
-  _input: CustomerClaimRequestInput,
+  input: CustomerClaimRequestInput,
 ): Promise<ApiResponse<CustomerClaimRequestResult>> {
-  return Promise.resolve({ ok: false, error: 'claim_email_flow_unavailable' });
+  return customerApi
+    .post<{ accepted: boolean } | CleanRouteError>('/api/claim/email', {
+      entry_token: input.entryToken,
+      email: input.email,
+      continuation: input.next ? { next: input.next } : {},
+    })
+    .then((result) => {
+      if (!isCleanRouteError(result)) {
+        return { ok: true, data: { message: 'claim_email_sent' } };
+      }
+      if (
+        ['artifact_not_found', 'artifact_expired', 'artifact_consumed', 'artifact_wrong_type'].includes(
+          result.error.code,
+        )
+      ) {
+        return { ok: false, error: 'invalid_or_expired_token' };
+      }
+      if (result.error.code === 'email_already_registered') {
+        return { ok: false, error: 'email_already_exists' };
+      }
+      return { ok: false, error: result.error.code };
+    });
 }
 
 export function getCustomerGoogleCalendarImportPreflight(): Promise<
