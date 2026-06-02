@@ -6,6 +6,7 @@ import {
   getCustomerProfile,
   loginCustomer,
   registerCustomer,
+  resendCustomerVerification,
   getStoredCustomerProfile,
   getStoredCustomerSession,
   storeCustomerAuth,
@@ -179,6 +180,30 @@ describe('customer auth storage', () => {
       display_name: 'Alice',
       default_timezone: expect.any(String),
     });
+  });
+
+  it('posts verification resend requests to the clean auth resend route', async () => {
+    vi.mocked(customerApi.post).mockResolvedValueOnce({ accepted: true });
+
+    await expect(
+      resendCustomerVerification({ email: 'alice@example.com' }),
+    ).resolves.toEqual({ ok: true, data: { message: 'accepted' } });
+    expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith(
+      '/api/auth/email-verification/resend',
+      {
+        email: 'alice@example.com',
+      },
+    );
+  });
+
+  it('returns the clean auth error code when verification resend fails', async () => {
+    vi.mocked(customerApi.post).mockResolvedValueOnce({
+      error: { code: 'invalid_request' },
+    });
+
+    await expect(
+      resendCustomerVerification({ email: 'alice@example.com' }),
+    ).resolves.toEqual({ ok: false, error: 'invalid_request' });
   });
 
   it('hydrates the customer profile from current-user and access-status', async () => {

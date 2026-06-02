@@ -218,6 +218,55 @@ def test_resend_artifact_sends_email_matching_artifact_type(
     ]
 
 
+def test_resend_email_verification_reuses_active_artifact_or_issues_fresh_one(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    registered = identity_service_with_email_sender.register_web_account(
+        email="a@example.com", password="hash_1", display_name="Alice"
+    )
+    email_sender.calls.clear()
+
+    active = identity_service_with_email_sender.resend_email_verification(
+        email="a@example.com"
+    )
+
+    assert active.code == registered.email_verification.code
+    assert active.artifact.resend_count == 1
+    assert email_sender.calls == [
+        (
+            "verification",
+            {
+                "to": "a@example.com",
+                "token": registered.email_verification.code,
+                "email": "a@example.com",
+            },
+        )
+    ]
+
+    identity_service_with_email_sender.verify_email(
+        token=registered.email_verification.code
+    )
+    email_sender.calls.clear()
+
+    fresh = identity_service_with_email_sender.resend_email_verification(
+        email="a@example.com"
+    )
+
+    assert fresh.code != registered.email_verification.code
+    assert fresh.artifact.resend_count == 0
+    assert email_sender.calls == [
+        (
+            "verification",
+            {
+                "to": "a@example.com",
+                "token": fresh.code,
+                "email": "a@example.com",
+            },
+        )
+    ]
+
+
 def test_default_identity_access_ids_are_schema_uuid_strings():
     repository = InMemoryIdentityAccessRepository(now=lambda: NOW)
     service = IdentityAccessService(

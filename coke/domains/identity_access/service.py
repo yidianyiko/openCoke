@@ -536,6 +536,32 @@ class IdentityAccessService:
         self._send_artifact_email(updated)
         return updated
 
+    def resend_email_verification(self, email: str) -> ArtifactIssueResult:
+        credential = self.repository.get_credential_by_email(email)
+        if credential is None:
+            raise IdentityAccessError("unknown_email")
+        artifact = self.repository.get_latest_unconsumed_artifact(
+            account_id=credential.account_id,
+            artifact_type=ArtifactType.EMAIL_VERIFICATION,
+            purpose="verify_email",
+        )
+        if artifact is not None and artifact.expires_at > self._now():
+            resent = self.resend_artifact(artifact.code)
+            return ArtifactIssueResult(artifact=resent, code=resent.code)
+        result = self._issue_artifact(
+            artifact_type=ArtifactType.EMAIL_VERIFICATION,
+            purpose="verify_email",
+            delivery="email",
+            account_id=credential.account_id,
+            ttl=timedelta(hours=24),
+        )
+        self._email_sender.send_verification(
+            to=credential.email,
+            token=result.code,
+            email=credential.email,
+        )
+        return result
+
     def send_claim_email(self, token: str, email: str) -> ArtifactIssueResult:
         if self.repository.get_credential_by_email(email):
             raise IdentityAccessError("email_already_registered")

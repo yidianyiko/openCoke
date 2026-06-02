@@ -56,6 +56,10 @@ class FakeService:
         self.calls.append(("issue_password_reset", {"email": email}))
         return FakeObject(code="reset_token", artifact=FakeObject(id="artifact_2"))
 
+    def resend_email_verification(self, email):
+        self.calls.append(("resend_email_verification", {"email": email}))
+        return FakeObject(code="verify_token", artifact=FakeObject(id="artifact_1"))
+
     def reset_password(self, token, password):
         self.calls.append(
             (
@@ -200,6 +204,12 @@ class AccessDeniedService(FakeService):
                 "checkout_url": None,
             },
         )
+
+
+class UnknownEmailService(FakeService):
+    def resend_email_verification(self, email):
+        self.calls.append(("resend_email_verification", {"email": email}))
+        raise IdentityAccessError("unknown_email")
 
 
 class PairingRedemptionAccessDeniedService(FakeService):
@@ -427,6 +437,38 @@ def test_verification_and_password_reset_routes_call_service():
         ("issue_password_reset", {"email": "a@example.com"}),
         ("reset_password", {"token": "reset_token", "password": "hash_2"}),
     ]
+
+
+def test_resend_email_verification_route_calls_service_and_returns_accepted():
+    client, service = make_client()
+
+    response = client.post(
+        "/api/auth/email-verification/resend",
+        json={"email": "a@example.com"},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json() == {"accepted": True}
+    assert service.calls[-1] == (
+        "resend_email_verification",
+        {"email": "a@example.com"},
+    )
+
+
+def test_resend_email_verification_route_hides_unknown_email():
+    client, service = make_client(UnknownEmailService())
+
+    response = client.post(
+        "/api/auth/email-verification/resend",
+        json={"email": "missing@example.com"},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json() == {"accepted": True}
+    assert service.calls[-1] == (
+        "resend_email_verification",
+        {"email": "missing@example.com"},
+    )
 
 
 def test_login_url_landing_calls_service():
