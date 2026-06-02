@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: fixed_deployed
 title: Shared reminder fire reached only one participant after provider failure
 created_at: 2026-06-02
 updated_at: 2026-06-03
@@ -169,9 +169,19 @@ delivery recovery after one participant's provider send fails.
 
 ## Current Status
 
-In progress. The missed lizihao fire was manually repaired and is now
-`delivery_result='delivered'`. A code change is being prepared to move
-undelivered resend enqueueing from webhook ingress to inbound reply completion.
+Fixed and deployed for inbound-recovery resend. The missed lizihao fire was
+manually repaired and is now `delivery_result='delivered'`.
+
+The deployed production fix moves undelivered resend enqueueing from webhook
+ingress to inbound reply completion. If a channel/provider failure leaves
+reminder fires or notification facts undelivered, the next successful inbound
+reply from that account now schedules `turn.undelivered_resend` only after the
+normal user reply delivery lifecycle has completed.
+
+This fix does not implement an immediate delayed retry loop for users who never
+send a later inbound message. That remains a separate follow-up capability if
+the product wants channel failures to recover without any subsequent user
+contact.
 
 ## Fix Direction
 
@@ -203,3 +213,50 @@ The fix should preserve the existing participant-scoped lifecycle:
 Verification should include a production-like shared reminder fire where one
 participant's provider send fails first, then succeeds through the retry path,
 while the other participant is not resent.
+
+## Resolution
+
+Fix commit: `a101d0302b313c0a0c3893f044d88cbc436c80c6`
+(`Fix resend timing after restored inbound delivery`).
+
+Implemented changes:
+
+- `coke/api/provider_webhooks.py` now records provider inbound messages without
+  immediately enqueueing undelivered resend work.
+- `coke/turn/runner.py` invokes an inbound-reply-completed lifecycle hook after
+  successful reply delivery.
+- `coke/composition.py` queries undelivered reminder fires and notification
+  facts at that lifecycle point, then enqueues one idempotent
+  `turn.undelivered_resend`.
+- `coke/worker/__main__.py` carries the inbound event traceparent into the turn
+  trigger so the deferred resend keeps trace context.
+
+Local verification:
+
+- `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs`
+  - `757 passed in 20.20s`
+  - `scripts/check` passed
+- `git diff --check` passed.
+- `zsh scripts/review-trigger --base HEAD~1` reported
+  `human_review_required: no`.
+
+Production deployment:
+
+- deployed to `gcp-coke:/home/whoami/coke-clean`
+- deployed SHA:
+  `a101d0302b313c0a0c3893f044d88cbc436c80c6`
+- `bash scripts/deploy-compose-to-gcp.sh` selected backend tier and recreated
+  `coke-api`, `coke-worker`, `coke-scheduler`, and `coke-outbox-relay`.
+- Deploy health checks passed.
+
+Production verification after deploy:
+
+- `coke-api` `/healthz` returned `{"ok":true}`.
+- web login route returned HTTP `200`.
+- clean backend containers were running, with `coke-api` healthy.
+- lizihao fire `aaa6f1a7-358d-48e9-9e41-8aa3c9425aa3` was
+  `delivery_result='delivered'` at `2026-06-02 15:23:57.538307+00`.
+- manual补发 delivery attempt `12707ec5-1f77-4d8c-8e0d-f758484dfb9d`
+  was `status='sent'` with provider message id
+  `coke-1780413836625-31b64620845d`.
+- `turn.undelivered_resend` had `0` unprocessed rows after deploy.
