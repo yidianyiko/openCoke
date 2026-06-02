@@ -37,6 +37,9 @@ class Settings:
     wechat_ecloud_app_id: str | None = None
     linq_endpoint_url: str | None = None
     linq_api_key: str | None = None
+    resend_api_key: str | None = None
+    email_from: str = "noreply@keep4oforever.com"
+    email_from_name: str | None = None
     siliconflow_api_key: str | None = None
     siliconflow_base_url: str = SILICONFLOW_BASE_URL
     interaction_model: str = DEFAULT_INTERACTION_MODEL
@@ -90,6 +93,11 @@ class Settings:
             )
 
         llm_fake = _bool_env(source, "COKE_LLM_FAKE")
+        resend_api_key = _optional(source, "RESEND_API_KEY")
+        if app_env == "production" and not resend_api_key:
+            raise ConfigurationError(
+                "RESEND_API_KEY is required for production email delivery"
+            )
         siliconflow_api_key = _optional(source, "SiliconFlow_API_KEY")
         if app_env == "production" and not llm_fake and not siliconflow_api_key:
             raise ConfigurationError(
@@ -119,6 +127,11 @@ class Settings:
             ),
             linq_endpoint_url=_optional(source, "COKE_PROVIDER_LINQ_ENDPOINT_URL"),
             linq_api_key=_optional(source, "COKE_PROVIDER_LINQ_API_KEY"),
+            resend_api_key=resend_api_key,
+            email_from=(
+                _optional(source, "EMAIL_FROM") or "noreply@keep4oforever.com"
+            ),
+            email_from_name=_optional(source, "EMAIL_FROM_NAME"),
             siliconflow_api_key=siliconflow_api_key,
             siliconflow_base_url=(
                 _optional(source, "SILICONFLOW_BASE_URL") or SILICONFLOW_BASE_URL
