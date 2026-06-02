@@ -66,6 +66,12 @@ only when the sender display name should be formatted as `"Name" <address>`.
 The canonical compose deployment writes this value alongside
 `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_COKE_WEB_URL`.
 
+`scripts/deploy-compose-to-gcp.sh` preserves `RESEND_API_KEY`, `EMAIL_FROM`, and
+`EMAIL_FROM_NAME` from the existing clean `.env` on every deploy and aborts if
+`RESEND_API_KEY` is absent. Because the rewrite has no other source, seed
+`RESEND_API_KEY` (the active Resend key) into the remote clean `.env`
+(`<remote-root>/.env`) once before the first deploy that carries email delivery.
+
 ## State And Restart Semantics
 
 - Postgres is durable product, runtime, outbox, Agno, and pgvector state.
