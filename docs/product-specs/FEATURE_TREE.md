@@ -46,6 +46,7 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 
 - `/api/public/user-links/:code`
 - `/api/auth/*`
+  - `/api/auth/email-verification/resend`
 - `/api/account/*`
 - `/api/channels/*`
 - `/api/reminders/*`
@@ -55,6 +56,7 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 - `/api/calendar-import/*`
 - `/api/subscription/*`
 - `/api/claim/*`
+  - `/api/claim/email`
 
 The public user-link route resolves active reachable friend links for the
 public `/u/:code` web landing. Authenticated friendship creation remains
