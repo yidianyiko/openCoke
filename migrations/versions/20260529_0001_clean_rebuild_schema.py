@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "20260529_0001"
 down_revision = None
@@ -50,8 +49,14 @@ def upgrade() -> None:
         _created_at(),
         _updated_at(),
         _pk("account"),
-        sa.CheckConstraint("origin in ('web_first', 'messaging_first')", name=op.f("ck_account_account_origin")),
-        sa.CheckConstraint("lifecycle in ('active', 'disabled')", name=op.f("ck_account_account_lifecycle")),
+        sa.CheckConstraint(
+            "origin in ('web_first', 'messaging_first')",
+            name=op.f("ck_account_account_origin"),
+        ),
+        sa.CheckConstraint(
+            "lifecycle in ('active', 'disabled')",
+            name=op.f("ck_account_account_lifecycle"),
+        ),
     )
     op.create_table(
         "agent_settings",
@@ -89,7 +94,9 @@ def upgrade() -> None:
         "account_activation",
         _id_column(),
         sa.Column("account_id", postgresql.UUID(as_uuid=False), nullable=False),
-        sa.Column("first_inbound_received_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "first_inbound_received_at", sa.DateTime(timezone=True), nullable=True
+        ),
         sa.Column("activation_completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("first_guidance_sent_at", sa.DateTime(timezone=True), nullable=True),
         _created_at(),
@@ -153,7 +160,11 @@ def upgrade() -> None:
         _updated_at(),
         _pk("channel_identity"),
         _fk("channel_identity", "account_id", "account"),
-        sa.UniqueConstraint("provider_type", "provider_subject", name="uq_channel_identity_provider_subject"),
+        sa.UniqueConstraint(
+            "provider_type",
+            "provider_subject",
+            name="uq_channel_identity_provider_subject",
+        ),
     )
     op.create_table(
         "auth_artifact",
@@ -181,7 +192,9 @@ def upgrade() -> None:
         "channel",
         _id_column(),
         sa.Column("account_id", postgresql.UUID(as_uuid=False), nullable=False),
-        sa.Column("channel_identity_id", postgresql.UUID(as_uuid=False), nullable=False),
+        sa.Column(
+            "channel_identity_id", postgresql.UUID(as_uuid=False), nullable=False
+        ),
         sa.Column("provider_type", sa.String(length=64), nullable=False),
         sa.Column("lifecycle", sa.String(length=32), nullable=False),
         sa.Column("connection_state", sa.String(length=64), nullable=False),
@@ -319,7 +332,11 @@ def upgrade() -> None:
         _fk("delivery_attempt", "route_id", "delivery_route"),
         _fk("delivery_attempt", "turn_id", "turn"),
         _fk("delivery_attempt", "message_id", "message"),
-        sa.UniqueConstraint("provider_type", "provider_idempotency_key", name="uq_delivery_attempt_provider_idempotency"),
+        sa.UniqueConstraint(
+            "provider_type",
+            "provider_idempotency_key",
+            name="uq_delivery_attempt_provider_idempotency",
+        ),
     )
     op.create_table(
         "friend_link",
@@ -350,7 +367,10 @@ def upgrade() -> None:
         _pk("friendship"),
         _fk("friendship", "account_low_id", "account"),
         _fk("friendship", "account_high_id", "account"),
-        sa.CheckConstraint("account_low_id <> account_high_id", name=op.f("ck_friendship_friendship_not_self")),
+        sa.CheckConstraint(
+            "account_low_id <> account_high_id",
+            name=op.f("ck_friendship_friendship_not_self"),
+        ),
     )
     op.create_table(
         "shared_reminder",
@@ -404,7 +424,9 @@ def upgrade() -> None:
         _updated_at(),
         _pk("reminder_fire"),
         _fk("reminder_fire", "reminder_id", "reminder"),
-        sa.UniqueConstraint("reminder_id", "occurrence_key", name="uq_reminder_fire_occurrence"),
+        sa.UniqueConstraint(
+            "reminder_id", "occurrence_key", name="uq_reminder_fire_occurrence"
+        ),
     )
     op.create_table(
         "reminder_projection",
@@ -420,7 +442,11 @@ def upgrade() -> None:
         _fk("reminder_projection", "shared_reminder_id", "shared_reminder"),
         _fk("reminder_projection", "account_id", "account"),
         _fk("reminder_projection", "reminder_id", "reminder"),
-        sa.UniqueConstraint("shared_reminder_id", "account_id", name="uq_reminder_projection_participant"),
+        sa.UniqueConstraint(
+            "shared_reminder_id",
+            "account_id",
+            name="uq_reminder_projection_participant",
+        ),
     )
     op.create_table(
         "notification_fact",
@@ -443,8 +469,12 @@ def upgrade() -> None:
     op.create_table(
         "notification_recipient",
         _id_column(),
-        sa.Column("notification_fact_id", postgresql.UUID(as_uuid=False), nullable=False),
-        sa.Column("recipient_account_id", postgresql.UUID(as_uuid=False), nullable=False),
+        sa.Column(
+            "notification_fact_id", postgresql.UUID(as_uuid=False), nullable=False
+        ),
+        sa.Column(
+            "recipient_account_id", postgresql.UUID(as_uuid=False), nullable=False
+        ),
         sa.Column("turn_id", postgresql.UUID(as_uuid=False), nullable=True),
         sa.Column("delivery_state", sa.String(length=64), nullable=False),
         sa.Column("error_facts", postgresql.JSONB(), nullable=False),
@@ -458,7 +488,11 @@ def upgrade() -> None:
         ),
         _fk("notification_recipient", "recipient_account_id", "account"),
         _fk("notification_recipient", "turn_id", "turn"),
-        sa.UniqueConstraint("notification_fact_id", "recipient_account_id", name="uq_notification_recipient_fact_account"),
+        sa.UniqueConstraint(
+            "notification_fact_id",
+            "recipient_account_id",
+            name="uq_notification_recipient_fact_account",
+        ),
     )
     op.create_table(
         "calendar_import_run",

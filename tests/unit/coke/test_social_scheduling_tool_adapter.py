@@ -170,9 +170,7 @@ def test_social_scheduling_tool_routes_friend_link_operations_to_service():
     }
     assert reset_result.ok is True
     assert reset_result.facts["public_token"] == "reset_token"
-    assert (
-        reset_result.facts["public_link_url"] == "http://localhost:4040/u/reset_code"
-    )
+    assert reset_result.facts["public_link_url"] == "http://localhost:4040/u/reset_code"
     assert disable_result.ok is True
     assert disable_result.facts["lifecycle"] == "disabled"
     assert disable_result.facts["public_token"] is None

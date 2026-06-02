@@ -64,6 +64,56 @@ def test_settings_from_env_defaults_public_base_url_for_non_production(monkeypat
     assert settings.public_base_url == "http://localhost:4040"
 
 
+def test_settings_from_env_reads_resend_email_settings_with_local_defaults():
+    from coke.config import Settings
+
+    settings = Settings.from_env(
+        {
+            "DATABASE_URL": POSTGRES_URL,
+            "REDIS_URL": REDIS_URL,
+            "APP_ENV": "test",
+        }
+    )
+
+    assert settings.resend_api_key is None
+    assert settings.email_from == "noreply@keep4oforever.com"
+    assert settings.email_from_name is None
+
+
+def test_settings_from_env_reads_resend_email_overrides():
+    from coke.config import Settings
+
+    settings = Settings.from_env(
+        {
+            "DATABASE_URL": POSTGRES_URL,
+            "REDIS_URL": REDIS_URL,
+            "APP_ENV": "test",
+            "RESEND_API_KEY": "resend_key",
+            "EMAIL_FROM": "support@example.com",
+            "EMAIL_FROM_NAME": "Coke Support",
+        }
+    )
+
+    assert settings.resend_api_key == "resend_key"
+    assert settings.email_from == "support@example.com"
+    assert settings.email_from_name == "Coke Support"
+
+
+def test_settings_from_env_requires_resend_api_key_for_production_email_delivery():
+    from coke.config import ConfigurationError, Settings
+
+    with pytest.raises(ConfigurationError, match="RESEND_API_KEY"):
+        Settings.from_env(
+            {
+                "DATABASE_URL": POSTGRES_URL,
+                "REDIS_URL": REDIS_URL,
+                "APP_ENV": "production",
+                "COKE_PUBLIC_BASE_URL": "https://coke.example.com",
+                "COKE_LLM_FAKE": "1",
+            }
+        )
+
+
 def test_settings_from_env_requires_public_base_url_for_production(monkeypatch):
     from coke.config import ConfigurationError, Settings
 
@@ -262,6 +312,7 @@ def test_settings_from_env_requires_siliconflow_key_for_real_llm(monkeypatch):
     monkeypatch.setenv("REDIS_URL", REDIS_URL)
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("COKE_PUBLIC_BASE_URL", "https://coke.example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "resend-key")
     monkeypatch.delenv("COKE_LLM_FAKE", raising=False)
     monkeypatch.delenv("SiliconFlow_API_KEY", raising=False)
 

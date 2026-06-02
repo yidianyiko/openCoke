@@ -30,6 +30,7 @@ from coke.domains.conversation_runtime.repository import (
     PostgresConversationRuntimeRepository,
 )
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
+from coke.domains.identity_access.email import NullEmailSender, ResendEmailSender
 from coke.domains.identity_access.models import IdentityAccessError
 from coke.domains.identity_access.repository import (
     InMemoryIdentityAccessRepository,
@@ -1184,6 +1185,9 @@ def compose_coke_runtime(
     lock_token_factory: Callable[[], str] | None = None,
     lock_ttl_ms: int = 30_000,
     public_base_url: str = "http://localhost:4040",
+    resend_api_key: str | None = None,
+    email_from: str = "noreply@keep4oforever.com",
+    email_from_name: str | None = None,
     claim_boundary_committer: Callable[[], None] | None = None,
     close_boundary_committer: Callable[[], None] | None = None,
 ) -> CokeRuntime:
@@ -1219,10 +1223,22 @@ def compose_coke_runtime(
             ),
         )
 
+    email_sender = (
+        ResendEmailSender(
+            api_key=resend_api_key,
+            email_from=email_from,
+            email_from_name=email_from_name,
+            public_base_url=public_base_url,
+        )
+        if resend_api_key
+        else NullEmailSender()
+    )
     identity_access_service = IdentityAccessService(
         repository=repositories.identity_access,
         now=now,
         id_factory=id_factory,
+        email_sender=email_sender,
+        public_base_url=public_base_url,
     )
     channel_reachability_service = ChannelReachabilityService(
         repository=repositories.channel_reachability,
@@ -1404,6 +1420,9 @@ def build_runtime_from_settings(
             id_factory=id_factory,
             lock_ttl_ms=settings.lock_ttl_ms,
             public_base_url=settings.public_base_url,
+            resend_api_key=settings.resend_api_key,
+            email_from=settings.email_from,
+            email_from_name=settings.email_from_name,
             claim_boundary_committer=child_session.commit,
             close_boundary_committer=child_session.commit,
         )
@@ -1452,6 +1471,9 @@ def build_runtime_from_settings(
         id_factory=id_factory,
         lock_ttl_ms=settings.lock_ttl_ms,
         public_base_url=settings.public_base_url,
+        resend_api_key=settings.resend_api_key,
+        email_from=settings.email_from,
+        email_from_name=settings.email_from_name,
         claim_boundary_committer=session.commit,
         close_boundary_committer=session.commit,
     )

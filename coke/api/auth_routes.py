@@ -53,6 +53,18 @@ def create_auth_blueprint(identity_service) -> Blueprint:
         credential = identity_service.verify_email(token=_body_field(payload, "token"))
         return jsonify({"account_id": credential.account_id, "email": credential.email})
 
+    @blueprint.post("/email-verification/resend")
+    def resend_email_verification():
+        payload = _json_payload()
+        try:
+            identity_service.resend_email_verification(
+                email=_body_field(payload, "email")
+            )
+        except IdentityAccessError as error:
+            if error.code != "unknown_email":
+                raise
+        return jsonify({"accepted": True}), 202
+
     @blueprint.post("/password-reset/request")
     def request_password_reset():
         payload = _json_payload()

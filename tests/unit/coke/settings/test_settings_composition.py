@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from coke.composition import compose_coke_runtime
+from coke.domains.identity_access.email import NullEmailSender, ResendEmailSender
 from coke.turn.agent import AgentResult
 from coke.turn.context import TurnMode, TurnTrigger
 
@@ -87,9 +88,43 @@ def test_composition_threads_public_base_url_to_social_scheduling():
     )
 
     assert (
-        runtime.social_scheduling_service._public_base_url
-        == "https://web.example.com"
+        runtime.social_scheduling_service._public_base_url == "https://web.example.com"
     )
+
+
+def test_composition_uses_null_email_sender_without_resend_key():
+    runtime = compose_coke_runtime(
+        semantic_interpreter=FakeSemanticInterpreter(),
+        interaction_agent=FakeInteractionAgent(),
+        redis_client=object(),
+        outbound_delivery=FakeOutboundDelivery(),
+        now=lambda: NOW,
+        id_factory=_id_factory(),
+    )
+
+    assert isinstance(runtime.identity_access_service._email_sender, NullEmailSender)
+
+
+def test_composition_builds_resend_email_sender_from_settings_values():
+    runtime = compose_coke_runtime(
+        semantic_interpreter=FakeSemanticInterpreter(),
+        interaction_agent=FakeInteractionAgent(),
+        redis_client=object(),
+        outbound_delivery=FakeOutboundDelivery(),
+        now=lambda: NOW,
+        id_factory=_id_factory(),
+        public_base_url="https://web.example.com/",
+        resend_api_key="resend-key",
+        email_from="support@example.com",
+        email_from_name="Coke Support",
+    )
+
+    sender = runtime.identity_access_service._email_sender
+    assert isinstance(sender, ResendEmailSender)
+    assert sender._api_key == "resend-key"
+    assert sender._email_from == "support@example.com"
+    assert sender._email_from_name == "Coke Support"
+    assert sender._public_base_url == "https://web.example.com"
 
 
 class _Guard:

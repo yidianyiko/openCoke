@@ -283,11 +283,18 @@ if [[ -z "$wechat_personal_endpoint" ]]; then
   wechat_personal_endpoint="http://host.docker.internal:8095/send"
 fi
 wechat_personal_api_key="$(read_env COKE_PROVIDER_WECHAT_PERSONAL_API_KEY)"
+resend_api_key="$(read_env RESEND_API_KEY)"
+email_from="$(read_env EMAIL_FROM)"
+if [[ -z "$email_from" ]]; then
+  email_from="noreply@keep4oforever.com"
+fi
+email_from_name="$(read_env EMAIL_FROM_NAME)"
 
 missing=()
 [[ -n "$siliconflow_api_key" ]] || missing+=("SiliconFlow_API_KEY")
 [[ -n "$evolution_base" ]] || missing+=("COKE_PROVIDER_EVOLUTION_BASE_URL")
 [[ -n "$evolution_api_key" ]] || missing+=("COKE_PROVIDER_EVOLUTION_API_KEY")
+[[ -n "$resend_api_key" ]] || missing+=("RESEND_API_KEY")
 if (( ${#missing[@]} > 0 )); then
   printf 'Missing required clean env keys: %s\n' "${missing[*]}" >&2
   exit 1
@@ -301,6 +308,8 @@ APP_ENV=production
 AGNO_TELEMETRY=false
 COKE_AGNO_CREATE_SCHEMA=1
 SiliconFlow_API_KEY=${siliconflow_api_key}
+RESEND_API_KEY=${resend_api_key}
+EMAIL_FROM=${email_from}
 COKE_PROVIDER_EVOLUTION_BASE_URL=${evolution_base}
 COKE_PROVIDER_EVOLUTION_API_KEY=${evolution_api_key}
 COKE_PROVIDER_EVOLUTION_INSTANCE=${evolution_instance}
@@ -311,6 +320,9 @@ NEXT_PUBLIC_COKE_WEB_URL=https://coke.keep4oforever.com
 EOF
 if [[ -n "$wechat_personal_api_key" ]]; then
   printf 'COKE_PROVIDER_WECHAT_PERSONAL_API_KEY=%s\n' "$wechat_personal_api_key" >> "$clean_env"
+fi
+if [[ -n "$email_from_name" ]]; then
+  printf 'EMAIL_FROM_NAME=%s\n' "$email_from_name" >> "$clean_env"
 fi
 chmod 600 "$clean_env"
 echo "Clean env written to $clean_env"

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
 from uuid import uuid4
 
+from coke.domains.identity_access.email import CustomerEmailSender, NullEmailSender
 from coke.domains.identity_access.models import (
     AccessDecision,
     AccessDeniedReason,
@@ -40,6 +41,8 @@ class IdentityAccessService:
         id_factory: Callable[[str], str] | None = None,
         checkout_url_factory: Callable[[str], str] | None = None,
         password_hasher: PasswordHasher | None = None,
+        email_sender: CustomerEmailSender | None = None,
+        public_base_url: str = "http://localhost:4040",
     ) -> None:
         self.repository = repository
         self._now = now or (lambda: datetime.now(UTC))
@@ -51,6 +54,8 @@ class IdentityAccessService:
             lambda account_id: f"https://checkout.example/{account_id}"
         )
         self._password_hasher = password_hasher or PasswordHasher()
+        self._email_sender = email_sender or NullEmailSender()
+        self._public_base_url = public_base_url
 
     def register_web_account(
         self,
@@ -89,6 +94,11 @@ class IdentityAccessService:
             account_id=account.id,
             ttl=timedelta(hours=24),
         ).artifact
+        self._email_sender.send_verification(
+            to=email,
+            token=email_verification.code,
+            email=email,
+        )
         return RegistrationResult(
             account=account,
             user_profile=self._require_user_profile(account.id),
@@ -450,13 +460,15 @@ class IdentityAccessService:
         credential = self.repository.get_credential_by_email(email)
         if credential is None:
             raise IdentityAccessError("unknown_email")
-        return self._issue_artifact(
+        result = self._issue_artifact(
             artifact_type=ArtifactType.PASSWORD_RESET,
             purpose="password_reset",
             delivery="email",
             account_id=credential.account_id,
             ttl=timedelta(hours=1),
         )
+        self._email_sender.send_password_reset(to=email, token=result.code)
+        return result
 
     def reset_password(self, token: str, password: str) -> Credential:
         artifact = self._consume_artifact(
@@ -521,7 +533,44 @@ class IdentityAccessService:
             updated_at=self._now(),
         )
         self.repository.save_artifact(updated)
+        self._send_artifact_email(updated)
         return updated
+
+    def resend_email_verification(self, email: str) -> ArtifactIssueResult:
+        credential = self.repository.get_credential_by_email(email)
+        if credential is None:
+            raise IdentityAccessError("unknown_email")
+        artifact = self.repository.get_latest_unconsumed_artifact(
+            account_id=credential.account_id,
+            artifact_type=ArtifactType.EMAIL_VERIFICATION,
+            purpose="verify_email",
+        )
+        if artifact is not None and artifact.expires_at > self._now():
+            resent = self.resend_artifact(artifact.code)
+            return ArtifactIssueResult(artifact=resent, code=resent.code)
+        result = self._issue_artifact(
+            artifact_type=ArtifactType.EMAIL_VERIFICATION,
+            purpose="verify_email",
+            delivery="email",
+            account_id=credential.account_id,
+            ttl=timedelta(hours=24),
+        )
+        self._email_sender.send_verification(
+            to=credential.email,
+            token=result.code,
+            email=credential.email,
+        )
+        return result
+
+    def send_claim_email(self, token: str, email: str) -> ArtifactIssueResult:
+        if self.repository.get_credential_by_email(email):
+            raise IdentityAccessError("email_already_registered")
+        artifact = self._require_unconsumed_artifact(
+            token,
+            expected_type=ArtifactType.LOGIN_URL,
+        )
+        self._email_sender.send_claim(to=email, token=artifact.code)
+        return ArtifactIssueResult(artifact=artifact, code=artifact.code)
 
     def observe_usable_channel(self, account_id: str) -> AccountActivation:
         self._require_account(account_id)
@@ -758,6 +807,27 @@ class IdentityAccessService:
         )
         self.repository.add_artifact(artifact)
         return ArtifactIssueResult(artifact=artifact, code=artifact.code)
+
+    def _send_artifact_email(self, artifact: AuthArtifact) -> None:
+        if artifact.account_id is None:
+            raise IdentityAccessError("artifact_missing_account")
+        credential = self.repository.get_credential_by_account(artifact.account_id)
+        if credential is None:
+            raise IdentityAccessError("credential_not_found")
+        if artifact.type == ArtifactType.EMAIL_VERIFICATION:
+            self._email_sender.send_verification(
+                to=credential.email,
+                token=artifact.code,
+                email=credential.email,
+            )
+            return
+        if artifact.type == ArtifactType.PASSWORD_RESET:
+            self._email_sender.send_password_reset(
+                to=credential.email,
+                token=artifact.code,
+            )
+            return
+        raise IdentityAccessError("artifact_not_resendable")
 
     def _require_unconsumed_artifact(
         self, code: str, expected_type: str

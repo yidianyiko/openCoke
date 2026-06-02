@@ -260,8 +260,14 @@ export function verifyCustomerEmail(
 export function resendCustomerVerification(
   input: CustomerEmailInput,
 ): Promise<ApiResponse<CustomerAuthMessageResult>> {
-  void input;
-  return Promise.resolve(errorResponse<CustomerAuthMessageResult>('unsupported_operation'));
+  return customerApi
+    .post<{ accepted: boolean } | CleanAuthError>('/api/auth/email-verification/resend', input)
+    .then((result) => {
+      if (isCleanAuthError(result)) {
+        return errorResponse<CustomerAuthMessageResult>(result.error.code);
+      }
+      return { ok: true, data: { message: 'accepted' } };
+    });
 }
 
 export function requestCustomerPasswordReset(

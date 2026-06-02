@@ -17,6 +17,20 @@ from coke.domains.identity_access.service import IdentityAccessService
 NOW = datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
 
 
+class FakeEmailSender:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, str]]] = []
+
+    def send_verification(self, to: str, token: str, email: str) -> None:
+        self.calls.append(("verification", {"to": to, "token": token, "email": email}))
+
+    def send_password_reset(self, to: str, token: str) -> None:
+        self.calls.append(("password_reset", {"to": to, "token": token}))
+
+    def send_claim(self, to: str, token: str) -> None:
+        self.calls.append(("claim", {"to": to, "token": token}))
+
+
 def sequence_factory(kind: str):
     counter = count(1)
     return lambda prefix: f"{prefix}_{kind}_{next(counter)}"
@@ -30,6 +44,25 @@ def identity_service() -> IdentityAccessService:
         token_factory=sequence_factory("token"),
         id_factory=sequence_factory("id"),
         checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
+    )
+
+
+@pytest.fixture
+def email_sender() -> FakeEmailSender:
+    return FakeEmailSender()
+
+
+@pytest.fixture
+def identity_service_with_email_sender(
+    email_sender: FakeEmailSender,
+) -> IdentityAccessService:
+    return IdentityAccessService(
+        repository=InMemoryIdentityAccessRepository(now=lambda: NOW),
+        now=lambda: NOW,
+        token_factory=sequence_factory("token"),
+        id_factory=sequence_factory("id"),
+        checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
+        email_sender=email_sender,
     )
 
 
@@ -54,6 +87,35 @@ def test_register_web_account_creates_credential_session_and_verification_artifa
     assert result.email_verification.type == ArtifactType.EMAIL_VERIFICATION
     assert result.email_verification.account_id == result.account.id
     assert result.email_verification.delivery == "email"
+
+
+def test_register_web_account_sends_verification_email_with_round_trip_token(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    result = identity_service_with_email_sender.register_web_account(
+        email="a@example.com",
+        password="correct horse battery staple",
+        display_name="Alice A",
+    )
+
+    assert email_sender.calls == [
+        (
+            "verification",
+            {
+                "to": "a@example.com",
+                "token": result.email_verification.code,
+                "email": "a@example.com",
+            },
+        )
+    ]
+
+    verified = identity_service_with_email_sender.verify_email(
+        token=result.email_verification.code
+    )
+
+    assert verified.account_id == result.account.id
+    assert verified.email == "a@example.com"
 
 
 def test_register_web_account_rejects_blank_display_name(identity_service):
@@ -98,6 +160,109 @@ def test_real_service_creates_distinct_account_ids_session_tokens_and_artifact_c
     assert first.email_verification.code != second.email_verification.code
     assert first_reset.artifact.id != second_reset.artifact.id
     assert first_reset.code != second_reset.code
+
+
+def test_issue_password_reset_sends_reset_email(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    identity_service_with_email_sender.register_web_account(
+        email="a@example.com", password="hash_1", display_name="Alice"
+    )
+    email_sender.calls.clear()
+
+    reset = identity_service_with_email_sender.issue_password_reset(
+        email="a@example.com"
+    )
+
+    assert email_sender.calls == [
+        (
+            "password_reset",
+            {"to": "a@example.com", "token": reset.code},
+        )
+    ]
+
+
+def test_resend_artifact_sends_email_matching_artifact_type(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    registered = identity_service_with_email_sender.register_web_account(
+        email="a@example.com", password="hash_1", display_name="Alice"
+    )
+    reset = identity_service_with_email_sender.issue_password_reset(
+        email="a@example.com"
+    )
+    email_sender.calls.clear()
+
+    resent_verification = identity_service_with_email_sender.resend_artifact(
+        registered.email_verification.code
+    )
+    resent_reset = identity_service_with_email_sender.resend_artifact(reset.code)
+
+    assert email_sender.calls == [
+        (
+            "verification",
+            {
+                "to": "a@example.com",
+                "token": resent_verification.code,
+                "email": "a@example.com",
+            },
+        ),
+        (
+            "password_reset",
+            {"to": "a@example.com", "token": resent_reset.code},
+        ),
+    ]
+
+
+def test_resend_email_verification_reuses_active_artifact_or_issues_fresh_one(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    registered = identity_service_with_email_sender.register_web_account(
+        email="a@example.com", password="hash_1", display_name="Alice"
+    )
+    email_sender.calls.clear()
+
+    active = identity_service_with_email_sender.resend_email_verification(
+        email="a@example.com"
+    )
+
+    assert active.code == registered.email_verification.code
+    assert active.artifact.resend_count == 1
+    assert email_sender.calls == [
+        (
+            "verification",
+            {
+                "to": "a@example.com",
+                "token": registered.email_verification.code,
+                "email": "a@example.com",
+            },
+        )
+    ]
+
+    identity_service_with_email_sender.verify_email(
+        token=registered.email_verification.code
+    )
+    email_sender.calls.clear()
+
+    fresh = identity_service_with_email_sender.resend_email_verification(
+        email="a@example.com"
+    )
+
+    assert fresh.code != registered.email_verification.code
+    assert fresh.artifact.resend_count == 0
+    assert email_sender.calls == [
+        (
+            "verification",
+            {
+                "to": "a@example.com",
+                "token": fresh.code,
+                "email": "a@example.com",
+            },
+        )
+    ]
 
 
 def test_default_identity_access_ids_are_schema_uuid_strings():
@@ -677,6 +842,78 @@ def test_web_claim_code_resolves_target_account_at_redemption(identity_service):
     assert browser_completion.account_id == sender.account.id
     assert browser_completion.session.account_id == sender.account.id
     assert browser_completion.continuation == {"friend_link_id": "fl_1"}
+
+
+def test_send_claim_email_delivers_existing_login_url_without_consuming_it(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    resolved = identity_service_with_email_sender.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    login_url = identity_service_with_email_sender.issue_login_url(
+        account_id=resolved.account.id
+    )
+    email_sender.calls.clear()
+
+    claim = identity_service_with_email_sender.send_claim_email(
+        token=login_url.code,
+        email="claimant@example.com",
+    )
+
+    assert claim.code == login_url.code
+    assert email_sender.calls == [
+        (
+            "claim",
+            {"to": "claimant@example.com", "token": login_url.code},
+        )
+    ]
+    redeemed = identity_service_with_email_sender.redeem_login_url(
+        token=login_url.code,
+        browser_session="browser_1",
+    )
+    assert redeemed.account_id == resolved.account.id
+
+
+def test_send_claim_email_rejects_existing_web_account_email(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    identity_service_with_email_sender.register_web_account(
+        email="a@example.com",
+        password="hash_1",
+        display_name="Alice",
+    )
+    resolved = identity_service_with_email_sender.resolve_or_create_channel_identity(
+        provider_type="whatsapp_evolution",
+        provider_subject="whatsapp:+15555550123",
+    )
+    login_url = identity_service_with_email_sender.issue_login_url(
+        account_id=resolved.account.id
+    )
+    email_sender.calls.clear()
+
+    with pytest.raises(IdentityAccessError, match="email_already_registered"):
+        identity_service_with_email_sender.send_claim_email(
+            token=login_url.code,
+            email="a@example.com",
+        )
+
+    assert email_sender.calls == []
+
+
+def test_web_claim_code_does_not_send_email_for_channel_only_claim_flow(
+    identity_service_with_email_sender,
+    email_sender,
+):
+    claim = identity_service_with_email_sender.issue_web_claim_code(
+        browser_session="browser_1",
+        continuation={"friend_link_id": "fl_1"},
+    )
+
+    assert claim.code
+    assert email_sender.calls == []
 
 
 def test_deferred_friend_link_continuation_is_consumed_once_after_claim_completion(
