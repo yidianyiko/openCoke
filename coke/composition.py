@@ -29,6 +29,7 @@ from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
     PostgresConversationRuntimeRepository,
 )
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.identity_access.email import NullEmailSender, ResendEmailSender
 from coke.domains.identity_access.models import IdentityAccessError
@@ -63,6 +64,7 @@ from coke.infra.redis import (
     RedisWorkStream,
     create_redis_client,
 )
+from coke.infra.tracing import ensure_traceparent
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
 from coke.llm.config import SiliconFlowLLMConfig
 from coke.llm.media_text import (
@@ -232,9 +234,11 @@ class OutputLifecycleDeliveryCallbacks:
         *,
         reminder_service: ReminderService,
         social_scheduling_service: SocialSchedulingService,
+        conversation_runtime_service: ConversationRuntimeService | None = None,
     ) -> None:
         self.reminder_service = reminder_service
         self.social_scheduling_service = social_scheduling_service
+        self.conversation_runtime_service = conversation_runtime_service
 
     def record_delivery(self, *, trigger, request, outcome) -> None:
         delivered = outcome.status in {"sent", "delivered"}
@@ -318,6 +322,54 @@ class OutputLifecycleDeliveryCallbacks:
                 },
                 turn_id=turn_id,
             )
+
+    def record_inbound_reply_completed(self, *, trigger, delivered: bool) -> None:
+        if not delivered or self.conversation_runtime_service is None:
+            return
+        if trigger.trigger_type != "InboundTurn":
+            return
+        account_id = getattr(trigger, "account_id", None)
+        conversation_id = getattr(trigger, "conversation_id", None)
+        if not isinstance(account_id, str) or not account_id:
+            return
+        if not isinstance(conversation_id, str) or not conversation_id:
+            return
+        raw_event_id = str(trigger.payload.get("causal_inbound_event_id") or "")
+        if not raw_event_id:
+            return
+        fire_ids = _string_list(
+            self.reminder_service.undelivered_resend_turn(account_id).fire_ids
+        )
+        notification_fact_ids = _string_list(
+            self.social_scheduling_service.undelivered_notification_resend_turn(
+                account_id
+            ).notification_fact_ids
+        )
+        if not fire_ids and not notification_fact_ids:
+            return
+        trigger_id = f"undelivered_resend:{account_id}:{raw_event_id}"
+        payload = {
+            "trigger_id": trigger_id,
+            "trigger_type": "UndeliveredResendTurn",
+            "account_id": account_id,
+            "conversation_id": conversation_id,
+            "causal_inbound_event_id": raw_event_id,
+            "framing": "previously_undelivered",
+        }
+        if fire_ids:
+            payload["fire_ids"] = fire_ids
+        if notification_fact_ids:
+            payload["notification_fact_ids"] = notification_fact_ids
+        try:
+            self.conversation_runtime_service.enqueue_render_turn(
+                topic="turn.undelivered_resend",
+                idempotency_key=trigger_id,
+                payload=payload,
+                traceparent=_traceparent_from_trigger(trigger),
+            )
+        except ConversationRuntimeError as error:
+            if error.code != "duplicate_outbox_idempotency_key":
+                raise
 
 
 class IdentityReachabilityAdapter:
@@ -1341,6 +1393,7 @@ def compose_coke_runtime(
         delivery_lifecycle=OutputLifecycleDeliveryCallbacks(
             reminder_service=reminder_service,
             social_scheduling_service=social_scheduling_service,
+            conversation_runtime_service=conversation_runtime_service,
         ),
         staged_command_materializer=staged_command_materializer,
         now=now,
@@ -2214,6 +2267,17 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, str) and value:
         return [value]
     return []
+
+
+def _traceparent_from_trigger(trigger: Any) -> str:
+    raw = None
+    payload = getattr(trigger, "payload", None)
+    if isinstance(payload, Mapping):
+        raw = payload.get("_traceparent") or payload.get("traceparent")
+    try:
+        return ensure_traceparent(raw if isinstance(raw, str) else None)
+    except ValueError:
+        return ensure_traceparent(None)
 
 
 def _is_context_token_window_failure(outcome: Any) -> bool:

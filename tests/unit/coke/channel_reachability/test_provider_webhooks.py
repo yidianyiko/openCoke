@@ -430,7 +430,7 @@ def test_provider_webhook_records_durable_inbound_turn_when_runtime_is_wired():
     assert commits == ["committed"]
 
 
-def test_provider_webhook_enqueues_undelivered_resend_after_next_inbound():
+def test_provider_webhook_defers_undelivered_resend_until_inbound_reply_completion():
     conversation_runtime = FakeConversationRuntimeService()
     reminder_service = FakeReminderService(fire_ids=["fire_1", "fire_2"])
     client, _service, _adapters = make_client(
@@ -461,26 +461,11 @@ def test_provider_webhook_enqueues_undelivered_resend_after_next_inbound():
     )
 
     assert response.status_code == 202
-    assert reminder_service.calls == ["acct_1"]
-    assert conversation_runtime.enqueued == [
-        {
-            "topic": "turn.undelivered_resend",
-            "idempotency_key": "undelivered_resend:acct_1:wa_msg_1",
-            "payload": {
-                "trigger_id": "undelivered_resend:acct_1:wa_msg_1",
-                "trigger_type": "UndeliveredResendTurn",
-                "account_id": "acct_1",
-                "conversation_id": "conversation_1",
-                "fire_ids": ["fire_1", "fire_2"],
-                "causal_inbound_event_id": "wa_msg_1",
-                "framing": "previously_undelivered",
-            },
-            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
-        }
-    ]
+    assert reminder_service.calls == []
+    assert conversation_runtime.enqueued == []
 
 
-def test_provider_webhook_enqueues_notification_resend_after_next_inbound():
+def test_provider_webhook_defers_notification_resend_until_inbound_reply_completion():
     conversation_runtime = FakeConversationRuntimeService()
     social_service = FakeSocialSchedulingService(
         notification_fact_ids=["notification_fact_1"]
@@ -513,23 +498,8 @@ def test_provider_webhook_enqueues_notification_resend_after_next_inbound():
     )
 
     assert response.status_code == 202
-    assert social_service.calls == ["acct_1"]
-    assert conversation_runtime.enqueued == [
-        {
-            "topic": "turn.undelivered_resend",
-            "idempotency_key": "undelivered_resend:acct_1:wa_msg_2",
-            "payload": {
-                "trigger_id": "undelivered_resend:acct_1:wa_msg_2",
-                "trigger_type": "UndeliveredResendTurn",
-                "account_id": "acct_1",
-                "conversation_id": "conversation_1",
-                "notification_fact_ids": ["notification_fact_1"],
-                "causal_inbound_event_id": "wa_msg_2",
-                "framing": "previously_undelivered",
-            },
-            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
-        }
-    ]
+    assert social_service.calls == []
+    assert conversation_runtime.enqueued == []
 
 
 def test_provider_webhook_rejects_unknown_provider_with_json_error():

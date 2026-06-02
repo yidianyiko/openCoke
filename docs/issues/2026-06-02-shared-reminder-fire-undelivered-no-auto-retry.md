@@ -1,9 +1,9 @@
 ---
 kind: incident
-status: open
+status: in_progress
 title: Shared reminder fire reached only one participant after provider failure
 created_at: 2026-06-02
-updated_at: 2026-06-02
+updated_at: 2026-06-03
 surface:
   - clean-rebuild
   - reminder
@@ -111,6 +111,35 @@ Outbox:
 - This matches code in `coke/api/provider_webhooks.py`: undelivered resend is
   enqueued from inbound provider webhooks, not from the failed outbound send.
 
+Follow-up after lizihao sent a fresh inbound message:
+
+- lizihao inbound message `508e4c0f-7eba-4f24-a899-91b1812321d6`
+  (`Hi`) was recorded at `2026-06-02 15:17:48.087904+00`.
+- The normal inbound reply turn
+  `acdddeb8-7945-4ed0-91ab-159a6a9e0844` replied with
+  `嗨～有什么事找我？` and sent successfully at
+  `2026-06-02 15:18:03.246476+00`.
+- The webhook-created `turn.undelivered_resend` outbox row
+  `a5c9ce25-a4eb-4d43-bf1c-5f9dbdcf1afb` was also processed, but its render
+  turn `81fb86d8-2b53-44a0-a96c-73d8a6a9b6ad` failed with
+  `output_disposition.reason_code='conversation_lock_unavailable'`.
+- No outbound message or delivery attempt was created for that failed resend
+  turn, and the outbox row was acked.
+
+Manual repair:
+
+- A replacement `turn.undelivered_resend` outbox row was inserted after the
+  inbound reply completed:
+  `manual_undelivered_resend:635d3bdc1b024a08acf49940b91a9de5:20260602T1521Z`.
+- It rendered turn `10c14499-ccf4-4133-8d81-6747a64ce019`, outbound message
+  `9752b068-8c0f-4aae-9b7f-953cddf53cbf`, text
+  `之前有条提醒没送到：和lizihao约音乐课，22:30 的时间到了`.
+- Delivery attempt `12707ec5-1f77-4d8c-8e0d-f758484dfb9d` returned
+  `status='sent'` with provider message id
+  `coke-1780413836625-31b64620845d`.
+- The original fire `aaa6f1a7-358d-48e9-9e41-8aa3c9425aa3` moved to
+  `delivery_result='delivered'` at `2026-06-02 15:23:57.538307+00`.
+
 ## Root Cause
 
 The immediate failure was a provider-side iLink business failure for lizihao:
@@ -124,19 +153,42 @@ the only implemented resend trigger for undelivered reminder facts is tied to a
 later inbound webhook from that same account. A time-sensitive shared reminder
 fire therefore stays missed unless the missed user speaks again.
 
+The follow-up user-reply recovery exposed a second root cause in that recovery
+path: the provider webhook enqueued `turn.undelivered_resend` immediately after
+recording the inbound message, before the normal `InboundTurn` finished replying
+to the user. The worker can process the resend event concurrently with the
+ordinary user reply turn. In this incident, the resend render could not acquire
+the conversation lock, was marked `failed / conversation_lock_unavailable`, and
+the outbox event was acked without producing a visible message. The correct
+recovery point is after the inbound reply delivery lifecycle, not inside webhook
+ingress.
+
 The shared reminder data model and scheduler fanout worked: both projections,
 both reminder-fire rows, and both render turns existed. The failure boundary is
 delivery recovery after one participant's provider send fails.
 
 ## Current Status
 
-Open. The missed lizihao fire remains `delivery_result='undelivered'`. No code
-fix or manual repair was applied during this investigation.
+In progress. The missed lizihao fire was manually repaired and is now
+`delivery_result='delivered'`. A code change is being prepared to move
+undelivered resend enqueueing from webhook ingress to inbound reply completion.
 
 ## Fix Direction
 
 Implement an automatic bounded retry or delayed resend path for failed
 `ReminderFireTurn` deliveries that have `delivery_result='undelivered'`.
+
+The first production fix is to preserve the existing "resend after the user
+refreshes the channel" behavior but move the enqueue point:
+
+- webhook ingress records the inbound message only;
+- the normal inbound turn replies to the user first;
+- after reply delivery succeeds, `OutputLifecycleDeliveryCallbacks` queries
+  undelivered reminder fires and notification facts for that account;
+- it enqueues one `turn.undelivered_resend` with the original inbound event id
+  as the idempotency key suffix;
+- the resend outbox row is committed only after the turn runner has released the
+  conversation lock, preventing the observed lock race.
 
 The fix should preserve the existing participant-scoped lifecycle:
 

@@ -256,9 +256,14 @@ class FakeDelivery:
 class FakeDeliveryLifecycle:
     def __init__(self) -> None:
         self.calls = []
+        self.events = []
 
     def record_delivery(self, *, trigger, request, outcome):
         self.calls.append((trigger, request, outcome))
+        self.events.append("record_delivery")
+
+    def record_inbound_reply_completed(self, *, trigger, delivered):
+        self.events.append(("record_inbound_reply_completed", delivered))
 
 
 class StaticFocusRepository:
@@ -354,6 +359,19 @@ def test_semantic_intentional_no_reply_still_reaches_interaction_agent(harness):
     )
     disposition = harness["runtime"].get_disposition(result.turn_id)
     assert disposition.disposition == "replied"
+
+
+def test_inbound_reply_completion_lifecycle_runs_after_delivery(harness):
+    lifecycle = FakeDeliveryLifecycle()
+    harness["runner"].delivery_lifecycle = lifecycle
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert lifecycle.events == [
+        "record_delivery",
+        ("record_inbound_reply_completed", True),
+    ]
 
 
 def test_interaction_agent_can_still_intentionally_no_reply(harness):

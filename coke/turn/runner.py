@@ -963,6 +963,7 @@ class TurnRunner:
             for message in self.conversation_runtime.outbound_messages_for_turn(turn_id)
             if (message.segment_index or 0) > 0
         ]
+        delivered_reply = False
         for request in self._reply_delivery_requests(
             trigger=trigger,
             turn_id=turn_id,
@@ -972,6 +973,14 @@ class TurnRunner:
         ):
             outcome = self._deliver(request)
             self._record_delivery_lifecycle(trigger, request, outcome)
+            delivered_reply = delivered_reply or outcome.status in {
+                "sent",
+                "delivered",
+            }
+        self._record_inbound_reply_completed_lifecycle(
+            trigger,
+            delivered=delivered_reply,
+        )
         return self._result_from_disposition(
             turn_id=turn_id,
             trigger=trigger,
@@ -1127,6 +1136,23 @@ class TurnRunner:
         if not callable(recorder):
             return
         recorder(trigger=trigger, turn_id=turn_id, reason_code=reason_code)
+
+    def _record_inbound_reply_completed_lifecycle(
+        self,
+        trigger: TurnTrigger,
+        *,
+        delivered: bool,
+    ) -> None:
+        if self.delivery_lifecycle is None or trigger.trigger_type != "InboundTurn":
+            return
+        recorder = getattr(
+            self.delivery_lifecycle,
+            "record_inbound_reply_completed",
+            None,
+        )
+        if not callable(recorder):
+            return
+        recorder(trigger=trigger, delivered=delivered)
 
     def _conversation_runtime_error_result(
         self,

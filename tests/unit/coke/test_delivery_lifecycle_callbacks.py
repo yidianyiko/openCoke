@@ -31,6 +31,28 @@ class FakeReminderAvailability(ReminderAvailabilityPort):
         return []
 
 
+class FakeConversationRuntimeService:
+    def __init__(self) -> None:
+        self.enqueued = []
+
+    def enqueue_render_turn(
+        self,
+        *,
+        topic,
+        idempotency_key,
+        payload,
+        traceparent,
+    ):
+        self.enqueued.append(
+            {
+                "topic": topic,
+                "idempotency_key": idempotency_key,
+                "payload": payload,
+                "traceparent": traceparent,
+            }
+        )
+
+
 def id_factory(prefix: str) -> str:
     id_factory.count += 1
     return f"{prefix}_{id_factory.count}"
@@ -201,6 +223,155 @@ def test_undelivered_resend_delivery_updates_notification_recipient():
     assert recipient.delivery_state == "delivered"
     assert recipient.turn_id == "turn_resend"
     assert recipient.error_facts == {}
+
+
+def test_inbound_reply_completion_enqueues_undelivered_reminder_resend():
+    reminder_service = make_reminder_service()
+    social_service, _repo = make_social_service()
+    conversation_runtime = FakeConversationRuntimeService()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+        conversation_runtime_service=conversation_runtime,
+    )
+    created = reminder_service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="take medicine",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+            )
+        ],
+    )
+    fire = reminder_service.claim_due_fire(created.items[0].reminder_id, NOW)
+    reminder_service.record_fire_delivery([fire.id], delivered=False)
+
+    callbacks.record_inbound_reply_completed(
+        trigger=SimpleNamespace(
+            trigger_type="InboundTurn",
+            account_id="acct_1",
+            conversation_id="conversation_1",
+            payload={
+                "causal_inbound_event_id": "wa_msg_1",
+                "_traceparent": (
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                ),
+            },
+        ),
+        delivered=True,
+    )
+
+    assert conversation_runtime.enqueued == [
+        {
+            "topic": "turn.undelivered_resend",
+            "idempotency_key": "undelivered_resend:acct_1:wa_msg_1",
+            "payload": {
+                "trigger_id": "undelivered_resend:acct_1:wa_msg_1",
+                "trigger_type": "UndeliveredResendTurn",
+                "account_id": "acct_1",
+                "conversation_id": "conversation_1",
+                "causal_inbound_event_id": "wa_msg_1",
+                "framing": "previously_undelivered",
+                "fire_ids": [fire.id],
+            },
+            "traceparent": (
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+            ),
+        }
+    ]
+
+
+def test_inbound_reply_completion_enqueues_undelivered_notification_resend():
+    reminder_service = make_reminder_service()
+    social_service, repo = make_social_service()
+    conversation_runtime = FakeConversationRuntimeService()
+    social_service.record_notification_delivery(
+        notification_fact_id="notification_fact_1",
+        recipient_account_id="acct_1",
+        delivery_state="undelivered",
+        error_facts={"type": "recipient_channel_unavailable"},
+        turn_id="turn_previous",
+    )
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+        conversation_runtime_service=conversation_runtime,
+    )
+
+    callbacks.record_inbound_reply_completed(
+        trigger=SimpleNamespace(
+            trigger_type="InboundTurn",
+            account_id="acct_1",
+            conversation_id="conversation_1",
+            payload={
+                "causal_inbound_event_id": "wa_msg_2",
+                "_traceparent": (
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                ),
+            },
+        ),
+        delivered=True,
+    )
+
+    assert repo.get_notification_recipient(
+        "notification_fact_1", "acct_1"
+    ).delivery_state == "undelivered"
+    assert conversation_runtime.enqueued == [
+        {
+            "topic": "turn.undelivered_resend",
+            "idempotency_key": "undelivered_resend:acct_1:wa_msg_2",
+            "payload": {
+                "trigger_id": "undelivered_resend:acct_1:wa_msg_2",
+                "trigger_type": "UndeliveredResendTurn",
+                "account_id": "acct_1",
+                "conversation_id": "conversation_1",
+                "causal_inbound_event_id": "wa_msg_2",
+                "framing": "previously_undelivered",
+                "notification_fact_ids": ["notification_fact_1"],
+            },
+            "traceparent": (
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+            ),
+        }
+    ]
+
+
+def test_inbound_reply_completion_does_not_resend_when_reply_delivery_failed():
+    reminder_service = make_reminder_service()
+    social_service, _repo = make_social_service()
+    conversation_runtime = FakeConversationRuntimeService()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+        conversation_runtime_service=conversation_runtime,
+    )
+    created = reminder_service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="take medicine",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+            )
+        ],
+    )
+    fire = reminder_service.claim_due_fire(created.items[0].reminder_id, NOW)
+    reminder_service.record_fire_delivery([fire.id], delivered=False)
+
+    callbacks.record_inbound_reply_completed(
+        trigger=SimpleNamespace(
+            trigger_type="InboundTurn",
+            account_id="acct_1",
+            conversation_id="conversation_1",
+            payload={"causal_inbound_event_id": "wa_msg_3"},
+        ),
+        delivered=False,
+    )
+
+    assert conversation_runtime.enqueued == []
 
 
 def test_context_token_window_failure_discards_proactive_fire():

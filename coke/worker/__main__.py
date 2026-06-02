@@ -475,6 +475,7 @@ def _turn_triggers_from_event(
     topic = event.topic
     payload = dict(event.payload)
     if topic == "turn.inbound":
+        payload["_traceparent"] = event.traceparent
         trigger = _inbound_trigger_after_media_resolution(runtime, payload)
         return [trigger] if trigger is not None else []
     if topic in RENDER_TURN_TOPICS:
@@ -544,6 +545,9 @@ def _inbound_trigger(runtime: CokeRuntime, payload: Mapping[str, Any]) -> TurnTr
         "payload": dict(message.get("payload") or {}),
         "causal_inbound_event_id": message.get("causal_inbound_event_id"),
     }
+    traceparent = payload.get("_traceparent")
+    if isinstance(traceparent, str) and traceparent:
+        trigger_payload["_traceparent"] = traceparent
     interrupted_turn_trigger_ids = _interrupted_turn_trigger_ids(payload)
     if interrupted_turn_trigger_ids:
         trigger_payload["interrupted_turn_trigger_ids"] = list(
