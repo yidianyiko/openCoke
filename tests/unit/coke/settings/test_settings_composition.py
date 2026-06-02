@@ -88,8 +88,7 @@ def test_composition_threads_public_base_url_to_social_scheduling():
     )
 
     assert (
-        runtime.social_scheduling_service._public_base_url
-        == "https://web.example.com"
+        runtime.social_scheduling_service._public_base_url == "https://web.example.com"
     )
 
 

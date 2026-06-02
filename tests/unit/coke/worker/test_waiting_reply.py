@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from itertools import count
-import logging
 
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
@@ -131,7 +131,9 @@ def test_waiting_reply_logs_failed_delivery_without_retrying_blindly(caplog):
         assert dispatcher.dispatch_due() == 1
 
     assert "waiting_reply_delivery_failed" in caplog.text
-    assert service.repository.outbound_messages_for_turn(turn.id)[0].text == WAITING_TEXT
+    assert (
+        service.repository.outbound_messages_for_turn(turn.id)[0].text == WAITING_TEXT
+    )
 
 
 def test_waiting_reply_does_not_dispatch_before_budget():

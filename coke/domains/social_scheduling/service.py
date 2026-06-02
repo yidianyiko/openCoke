@@ -174,9 +174,7 @@ class SocialSchedulingService:
             joiner_account_id, link, commit_guard=commit_guard
         )
 
-    def resolve_public_friend_link(
-        self, link_code: str
-    ) -> PublicFriendLinkView | None:
+    def resolve_public_friend_link(self, link_code: str) -> PublicFriendLinkView | None:
         link = self.repository.get_friend_link_by_code_hash(_hash_token(link_code))
         if link is None or link.lifecycle != "active":
             return None

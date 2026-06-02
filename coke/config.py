@@ -128,9 +128,7 @@ class Settings:
             linq_endpoint_url=_optional(source, "COKE_PROVIDER_LINQ_ENDPOINT_URL"),
             linq_api_key=_optional(source, "COKE_PROVIDER_LINQ_API_KEY"),
             resend_api_key=resend_api_key,
-            email_from=(
-                _optional(source, "EMAIL_FROM") or "noreply@keep4oforever.com"
-            ),
+            email_from=(_optional(source, "EMAIL_FROM") or "noreply@keep4oforever.com"),
             email_from_name=_optional(source, "EMAIL_FROM_NAME"),
             siliconflow_api_key=siliconflow_api_key,
             siliconflow_base_url=(

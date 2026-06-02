@@ -89,7 +89,10 @@ def test_resend_sender_posts_password_reset_and_claim_links_without_from_name():
 @pytest.mark.parametrize(
     ("response", "message"),
     [
-        (httpx.Response(400, json={"message": "bad request"}), "resend_send_failed:400"),
+        (
+            httpx.Response(400, json={"message": "bad request"}),
+            "resend_send_failed:400",
+        ),
         (httpx.Response(200, json={}), "resend_send_failed:missing_id"),
     ],
 )

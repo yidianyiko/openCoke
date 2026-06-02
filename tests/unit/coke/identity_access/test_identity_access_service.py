@@ -22,9 +22,7 @@ class FakeEmailSender:
         self.calls: list[tuple[str, dict[str, str]]] = []
 
     def send_verification(self, to: str, token: str, email: str) -> None:
-        self.calls.append(
-            ("verification", {"to": to, "token": token, "email": email})
-        )
+        self.calls.append(("verification", {"to": to, "token": token, "email": email}))
 
     def send_password_reset(self, to: str, token: str) -> None:
         self.calls.append(("password_reset", {"to": to, "token": token}))
