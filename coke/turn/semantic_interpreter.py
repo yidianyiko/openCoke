@@ -65,6 +65,16 @@ RequiredClarification = Literal[
     "ask_friend_identity",
     "ask_timezone_confirmation",
 ]
+FollowUpActionType = Literal["resolve_friend_reference_correction"]
+FollowUpActionScope = Literal["immediately_preceding_unresolved_intent"]
+
+
+@dataclass(frozen=True, slots=True)
+class FollowUpAction:
+    type: FollowUpActionType
+    prior_reference_text: str
+    corrected_friend_text: str
+    scope: FollowUpActionScope
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +85,7 @@ class SemanticDecision:
     ambiguity: AmbiguityState = "none"
     required_clarification: RequiredClarification = "none"
     language_hint: str | None = None
+    follow_up_action: FollowUpAction | None = None
 
 
 @dataclass(frozen=True, slots=True)

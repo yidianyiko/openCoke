@@ -7,6 +7,9 @@ from agno.models.message import Message
 
 from coke.turn.semantic_interpreter import (
     AmbiguityState,
+    FollowUpAction,
+    FollowUpActionScope,
+    FollowUpActionType,
     IntentAction,
     IntentFamily,
     ReplyNecessity,
@@ -80,12 +83,18 @@ REQUIRED_CLARIFICATIONS: set[RequiredClarification] = {
     "ask_friend_identity",
     "ask_timezone_confirmation",
 }
+FOLLOW_UP_ACTION_TYPES: set[FollowUpActionType] = {
+    "resolve_friend_reference_correction",
+}
+FOLLOW_UP_ACTION_SCOPES: set[FollowUpActionScope] = {
+    "immediately_preceding_unresolved_intent",
+}
 
 SEMANTIC_SYSTEM_PROMPT = """
 Classify this Coke turn semantically. Do not use keyword routing.
 Return only JSON with reply_necessity, intent_family, intent_action, ambiguity,
-required_clarification, and optional language_hint. language_hint is
-non-authoritative.
+required_clarification, optional language_hint, and optional follow_up_action.
+language_hint is non-authoritative.
 
 Ownership:
 - SemanticInterpreter chooses high-level product intent, typed action,
@@ -111,6 +120,11 @@ Examples:
   reminder_op/update_reminder unless another required field is missing.
 - Friend list: friend_op/list_friends. Availability: scheduling/availability_query.
 - Shared reminder creation with friend names: scheduling/create_shared_reminder.
+- A friend reference correction for the immediately preceding unresolved shared-reminder
+  intent is a semantic follow_up_action, not runner keyword routes. Emit
+  resolve_friend_reference_correction with prior_reference_text, corrected_friend_text,
+  and scope immediately_preceding_unresolved_intent only when the user is correcting
+  that unresolved friend reference.
 - User challenge such as "我没设过这个" or "你是不是搞错了": keep reply_needed,
   identify the challenged product area if clear, and mark ambiguity/domain_failure
   when trusted facts are needed before claiming what happened.
@@ -174,6 +188,8 @@ class SiliconFlowSemanticInterpreter:
                 "allowed_intent_action": sorted(INTENT_ACTIONS),
                 "allowed_ambiguity": sorted(AMBIGUITIES),
                 "allowed_required_clarification": sorted(REQUIRED_CLARIFICATIONS),
+                "allowed_follow_up_action_type": sorted(FOLLOW_UP_ACTION_TYPES),
+                "allowed_follow_up_action_scope": sorted(FOLLOW_UP_ACTION_SCOPES),
             },
             schema_name="semantic_decision",
         )
@@ -189,6 +205,7 @@ class SiliconFlowSemanticInterpreter:
         language_hint = payload.get("language_hint")
         if language_hint is not None and not isinstance(language_hint, str):
             raise LLMOutputError("invalid language_hint")
+        follow_up_action = _optional_follow_up_action(payload)
         return SemanticDecision(
             reply_necessity=reply_necessity,
             intent_family=intent_family,
@@ -196,6 +213,7 @@ class SiliconFlowSemanticInterpreter:
             ambiguity=ambiguity,
             required_clarification=required_clarification,
             language_hint=language_hint,
+            follow_up_action=follow_up_action,
         )
 
 
@@ -221,6 +239,32 @@ def _required_enum(
     if value not in allowed:
         raise LLMOutputError(f"invalid {field}")
     return value
+
+
+def _optional_follow_up_action(payload: Mapping[str, Any]) -> FollowUpAction | None:
+    action = payload.get("follow_up_action")
+    if action is None:
+        return None
+    if not isinstance(action, Mapping):
+        raise LLMOutputError("invalid follow_up_action")
+    action_type = action.get("type")
+    if action_type not in FOLLOW_UP_ACTION_TYPES:
+        raise LLMOutputError("invalid follow_up_action.type")
+    scope = action.get("scope")
+    if scope not in FOLLOW_UP_ACTION_SCOPES:
+        raise LLMOutputError("invalid follow_up_action.scope")
+    prior_reference_text = action.get("prior_reference_text")
+    if not isinstance(prior_reference_text, str) or not prior_reference_text.strip():
+        raise LLMOutputError("invalid follow_up_action.prior_reference_text")
+    corrected_friend_text = action.get("corrected_friend_text")
+    if not isinstance(corrected_friend_text, str) or not corrected_friend_text.strip():
+        raise LLMOutputError("invalid follow_up_action.corrected_friend_text")
+    return FollowUpAction(
+        type=action_type,
+        prior_reference_text=prior_reference_text,
+        corrected_friend_text=corrected_friend_text,
+        scope=scope,
+    )
 
 
 def _focus_subject_payload(focus_subject: Any | None) -> dict[str, Any] | None:

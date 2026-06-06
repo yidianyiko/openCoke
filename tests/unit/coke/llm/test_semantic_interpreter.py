@@ -79,6 +79,82 @@ def test_interpret_prompt_exposes_typed_actions_ambiguity_and_examples():
     assert "Do not use keyword routing" in call["system"]
 
 
+def test_interpret_accepts_friend_reference_correction_follow_up_action():
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "scheduling",
+            "intent_action": "create_shared_reminder",
+            "ambiguity": "ambiguous_reference",
+            "required_clarification": "none",
+            "language_hint": "zh",
+            "follow_up_action": {
+                "type": "resolve_friend_reference_correction",
+                "prior_reference_text": "zihao",
+                "corrected_friend_text": "olivers",
+                "scope": "immediately_preceding_unresolved_intent",
+            },
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    decision = interpreter.interpret(_request())
+
+    assert decision.follow_up_action is not None
+    assert decision.follow_up_action.type == "resolve_friend_reference_correction"
+    assert decision.follow_up_action.prior_reference_text == "zihao"
+    assert decision.follow_up_action.corrected_friend_text == "olivers"
+    assert decision.follow_up_action.scope == "immediately_preceding_unresolved_intent"
+
+
+def test_interpret_rejects_invalid_follow_up_action_type():
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "scheduling",
+            "intent_action": "create_shared_reminder",
+            "ambiguity": "ambiguous_reference",
+            "required_clarification": "none",
+            "language_hint": "zh",
+            "follow_up_action": {
+                "type": "regex_friend_alias",
+                "prior_reference_text": "zihao",
+                "corrected_friend_text": "olivers",
+                "scope": "immediately_preceding_unresolved_intent",
+            },
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    with pytest.raises(LLMOutputError, match="invalid follow_up_action.type"):
+        interpreter.interpret(_request())
+
+
+def test_interpret_prompt_exposes_friend_reference_correction_action():
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "scheduling",
+            "intent_action": "create_shared_reminder",
+            "ambiguity": "ambiguous_reference",
+            "required_clarification": "none",
+            "language_hint": "zh",
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    interpreter.interpret(_request())
+
+    call = client.calls[0]
+    assert (
+        "resolve_friend_reference_correction"
+        in call["user"]["allowed_follow_up_action_type"]
+    )
+    assert "friend reference correction" in call["system"]
+    assert "immediately_preceding_unresolved_intent" in call["system"]
+    assert "not runner keyword routes" in call["system"]
+
+
 def test_interpret_request_includes_trusted_focus_subject():
     client = FakeJSONClient(
         {

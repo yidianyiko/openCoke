@@ -170,7 +170,7 @@ git commit -m $'feat: add recoverable scheduling intent store\n\nCo-Authored-By:
 - Modify: `coke/llm/semantic_interpreter.py`
 - Modify: `tests/unit/coke/llm/test_semantic_interpreter.py`
 
-- [ ] **Step 1: Write failing semantic tests**
+- [x] **Step 1: Write failing semantic tests**
 
 Add tests named
 `test_interpret_accepts_friend_reference_correction_follow_up_action`,
@@ -188,7 +188,7 @@ The accepted action payload is:
 }
 ```
 
-- [ ] **Step 2: Run semantic tests and verify red**
+- [x] **Step 2: Run semantic tests and verify red**
 
 Run:
 
@@ -198,14 +198,14 @@ Run:
 
 Expected: FAIL with missing `follow_up_action`.
 
-- [ ] **Step 3: Implement typed action**
+- [x] **Step 3: Implement typed action**
 
 Add `FollowUpAction` dataclass and optional `follow_up_action` field to
 `SemanticDecision`. Validate optional action mappings in the LLM semantic
 interpreter. Add prompt guidance that corrections are semantic actions, not
 runner keyword routes.
 
-- [ ] **Step 4: Run semantic tests and verify green**
+- [x] **Step 4: Run semantic tests and verify green**
 
 Run:
 
@@ -215,7 +215,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit semantic action slice**
+- [x] **Step 5: Commit semantic action slice**
 
 Commit:
 
