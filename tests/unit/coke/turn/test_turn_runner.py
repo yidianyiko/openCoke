@@ -1760,6 +1760,7 @@ def test_render_delivery_failure_updates_output_class_lifecycle(harness):
         outbound_delivery=delivery,
         tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
         delivery_lifecycle=lifecycle,
+        reminder_fire_facts=harness["reminder_fire_facts"],
     )
 
     result = runner.run_render_turn(
@@ -1919,14 +1920,7 @@ def test_render_turn_context_contains_source_framing_for_system_trigger(harness)
 
 def test_reminder_fire_render_turn_injects_trusted_domain_result(harness):
     result = harness["runner"].run_render_turn(
-        TurnTrigger(
-            trigger_id="reminder_fire:account_1:2026-06-06T06:00:00+00:00",
-            trigger_type="ReminderFireTurn",
-            mode=TurnMode.RENDER,
-            conversation_id=harness["trigger"].conversation_id,
-            account_id="account_1",
-            payload={"fire_ids": ["fire_1"]},
-        )
+        _reminder_fire_trigger(harness)
     )
 
     assert result.disposition == "replied"
@@ -1941,6 +1935,70 @@ def test_reminder_fire_render_turn_injects_trusted_domain_result(harness):
     )
     assert harness["reminder_fire_facts"].calls[-1]["viewer_account_id"] == (
         "account_1"
+    )
+
+
+def test_reminder_fire_wrong_title_falls_back_to_trusted_fact(harness):
+    harness["agent"].queued_results = [
+        AgentResult.completed({"type": "reply", "segments": ["11:40咖啡快到了"]}),
+        AgentResult.completed({"type": "reply", "segments": ["11:40咖啡快到了"]}),
+    ]
+
+    result = harness["runner"].run_render_turn(_reminder_fire_trigger(harness))
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "和Oliver喝咖啡 2026-06-06 14:00 Asia/Shanghai"
+    assert harness["agent"].invocations == 2
+
+
+def test_reminder_fire_wrong_time_falls_back_to_trusted_fact(harness):
+    harness["agent"].queued_results = [
+        AgentResult.completed({"type": "reply", "segments": ["和Oliver喝咖啡 11:40"]}),
+        AgentResult.completed({"type": "reply", "segments": ["和Oliver喝咖啡 11:40"]}),
+    ]
+
+    result = harness["runner"].run_render_turn(_reminder_fire_trigger(harness))
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "和Oliver喝咖啡 2026-06-06 14:00 Asia/Shanghai"
+
+
+def test_reminder_fire_serialized_tool_call_falls_back_to_trusted_fact(harness):
+    harness["agent"].queued_results = [
+        AgentResult.completed(
+            {"type": "reply", "segments": ["<tool_call>query_reminder</tool_call>"]}
+        ),
+        AgentResult.completed(
+            {"type": "reply", "segments": ["<tool_call>query_reminder</tool_call>"]}
+        ),
+    ]
+
+    result = harness["runner"].run_render_turn(_reminder_fire_trigger(harness))
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "和Oliver喝咖啡 2026-06-06 14:00 Asia/Shanghai"
+
+
+def test_reminder_fire_no_reply_falls_back_to_trusted_fact(harness):
+    harness["agent"].queued_results = [
+        AgentResult.completed({"type": "no_reply", "reason": "intentional_no_reply"}),
+        AgentResult.completed({"type": "no_reply", "reason": "intentional_no_reply"}),
+    ]
+
+    result = harness["runner"].run_render_turn(_reminder_fire_trigger(harness))
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "和Oliver喝咖啡 2026-06-06 14:00 Asia/Shanghai"
+
+
+def _reminder_fire_trigger(harness):
+    return TurnTrigger(
+        trigger_id="reminder_fire:account_1:2026-06-06T06:00:00+00:00",
+        trigger_type="ReminderFireTurn",
+        mode=TurnMode.RENDER,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        payload={"fire_ids": ["fire_1"]},
     )
 
 

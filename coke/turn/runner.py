@@ -28,6 +28,8 @@ from coke.turn.semantic_interpreter import (
 
 WAITING_TEXT = "我还在处理，稍等一下。"
 NOTIFICATION_VISIBLE_REPLY_REQUIRED = "notification_requires_visible_reply"
+REMINDER_FIRE_VISIBLE_REPLY_REQUIRED = "reminder_fire_requires_visible_reply"
+REMINDER_FIRE_FACT_MISMATCH = "reminder_fire_fact_mismatch"
 INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON = "replaced_by_newer_inbound"
 _CLOSE_BOUNDARY_OBSERVER: ContextVar[Callable[[], None] | None] = ContextVar(
     "coke_close_boundary_observer",
@@ -763,16 +765,25 @@ class TurnRunner:
         agent_result = self.interaction_agent.invoke(agent_request)
         if agent_result.timed_out:
             return self._record_pending_async(trigger, context, agent_result)
-        validated = self.output_protocol.validate_first_answer(agent_result.output)
-        validated = _validate_for_trigger(trigger, validated)
+        validated = self._validate_agent_output(
+            trigger,
+            agent_request,
+            agent_result.output,
+        )
         if not validated.valid:
-            agent_result = self.interaction_agent.invoke(
-                _protocol_retry_request(agent_request, validated)
-            )
+            retry_request = _protocol_retry_request(agent_request, validated)
+            agent_result = self.interaction_agent.invoke(retry_request)
             if agent_result.timed_out:
                 return self._record_pending_async(trigger, context, agent_result)
-            validated = self.output_protocol.validate_first_answer(agent_result.output)
-            validated = _validate_for_trigger(trigger, validated)
+            validated = self._validate_agent_output(
+                trigger,
+                retry_request,
+                agent_result.output,
+            )
+            if not validated.valid:
+                fallback = _minimal_reminder_fire_reply(retry_request)
+                if fallback is not None:
+                    validated = fallback
         return self._record_validated_output(
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
@@ -810,22 +821,41 @@ class TurnRunner:
         agent_result = await self.interaction_agent.ainvoke(agent_request)
         if agent_result.timed_out:
             return self._record_pending_async(trigger, context, agent_result)
-        validated = self.output_protocol.validate_first_answer(agent_result.output)
-        validated = _validate_for_trigger(trigger, validated)
+        validated = self._validate_agent_output(
+            trigger,
+            agent_request,
+            agent_result.output,
+        )
         if not validated.valid:
-            agent_result = await self.interaction_agent.ainvoke(
-                _protocol_retry_request(agent_request, validated)
-            )
+            retry_request = _protocol_retry_request(agent_request, validated)
+            agent_result = await self.interaction_agent.ainvoke(retry_request)
             if agent_result.timed_out:
                 return self._record_pending_async(trigger, context, agent_result)
-            validated = self.output_protocol.validate_first_answer(agent_result.output)
-            validated = _validate_for_trigger(trigger, validated)
+            validated = self._validate_agent_output(
+                trigger,
+                retry_request,
+                agent_result.output,
+            )
+            if not validated.valid:
+                fallback = _minimal_reminder_fire_reply(retry_request)
+                if fallback is not None:
+                    validated = fallback
         return self._record_validated_output(
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
             validated=validated,
             current_input_messages=agent_request.current_input_messages,
         )
+
+    def _validate_agent_output(
+        self,
+        trigger: TurnTrigger,
+        request: AgentRequest,
+        output: Mapping[str, Any] | None,
+    ) -> ValidatedOutput:
+        validated = self.output_protocol.validate_first_answer(output)
+        validated = _validate_for_trigger(trigger, validated)
+        return _validate_reminder_fire_output(request, validated)
 
     async def _interpret_semantic_async(
         self, request: SemanticInterpreterRequest
@@ -1373,6 +1403,191 @@ def _validate_for_trigger(
             ),
         )
     return validated
+
+
+def _validate_reminder_fire_output(
+    request: AgentRequest,
+    validated: ValidatedOutput,
+) -> ValidatedOutput:
+    if request.trigger_type != "ReminderFireTurn":
+        return validated
+    facts = _reminder_fire_guard_facts(request)
+    if not facts:
+        return ValidatedOutput(
+            valid=False,
+            kind=None,
+            reason_code=REMINDER_FIRE_FACT_MISMATCH,
+            retry_guidance="reminder_fire_trusted_facts_required",
+        )
+    if not validated.valid or validated.kind != "reply":
+        return ValidatedOutput(
+            valid=False,
+            kind=None,
+            reason_code=REMINDER_FIRE_VISIBLE_REPLY_REQUIRED,
+            retry_guidance="reminder_fire_must_reply_from_trusted_facts",
+        )
+    text = "\n".join(validated.segments)
+    if _contains_serialized_tool_call(text):
+        return ValidatedOutput(
+            valid=False,
+            kind=None,
+            reason_code=REMINDER_FIRE_FACT_MISMATCH,
+            retry_guidance="serialized_tool_call_output_requires_native_tool_call",
+        )
+    for fact in facts:
+        if not _reminder_fire_fact_ready(fact):
+            return ValidatedOutput(
+                valid=False,
+                kind=None,
+                reason_code=REMINDER_FIRE_FACT_MISMATCH,
+                retry_guidance="reminder_fire_trusted_facts_required",
+            )
+        title = str(fact.get("title") or "").strip()
+        if title not in text:
+            return ValidatedOutput(
+                valid=False,
+                kind=None,
+                reason_code=REMINDER_FIRE_FACT_MISMATCH,
+                retry_guidance="reminder_fire_title_must_match_trusted_fact",
+            )
+        if not _has_trusted_time_or_remaining_token(text, fact, request):
+            return ValidatedOutput(
+                valid=False,
+                kind=None,
+                reason_code=REMINDER_FIRE_FACT_MISMATCH,
+                retry_guidance="reminder_fire_time_must_match_trusted_fact",
+            )
+    return validated
+
+
+def _minimal_reminder_fire_reply(request: AgentRequest) -> ValidatedOutput | None:
+    if request.trigger_type != "ReminderFireTurn":
+        return None
+    facts = _reminder_fire_guard_facts(request)
+    if not facts or any(not _reminder_fire_fact_ready(fact) for fact in facts):
+        return None
+    segments: list[str] = []
+    for fact in facts:
+        local_due = _parse_datetime(str(fact["local_due_at"]))
+        if local_due is None:
+            return None
+        segments.append(
+            f'{fact["title"]} {local_due:%Y-%m-%d %H:%M} {fact["timezone"]}'
+        )
+    return ValidatedOutput(
+        valid=True,
+        kind="reply",
+        segments=tuple(segments),
+        reason_code="reply_ready",
+    )
+
+
+def _reminder_fire_guard_facts(request: AgentRequest) -> list[Mapping[str, Any]]:
+    domain_result = request.trusted_facts.get("domain_result")
+    if not isinstance(domain_result, Mapping):
+        return []
+    if domain_result.get("reply_contract") != "render_reminder_fire":
+        return []
+    facts = domain_result.get("facts")
+    if not isinstance(facts, Mapping):
+        return []
+    reminders = facts.get("reminders")
+    if not isinstance(reminders, list):
+        return []
+    return [reminder for reminder in reminders if isinstance(reminder, Mapping)]
+
+
+def _reminder_fire_fact_ready(fact: Mapping[str, Any]) -> bool:
+    required = (
+        "fire_id",
+        "reminder_id",
+        "title",
+        "owner_account_id",
+        "viewer_account_id",
+        "due_at",
+        "local_due_at",
+        "timezone",
+        "duration_minutes",
+        "kind",
+    )
+    return all(str(fact.get(key) or "").strip() for key in required)
+
+
+def _has_trusted_time_or_remaining_token(
+    text: str,
+    fact: Mapping[str, Any],
+    request: AgentRequest,
+) -> bool:
+    tokens = _trusted_time_tokens(fact)
+    tokens.extend(_trusted_remaining_tokens(fact, request))
+    return any(token and token in text for token in tokens)
+
+
+def _trusted_time_tokens(fact: Mapping[str, Any]) -> list[str]:
+    local_due_at = str(fact.get("local_due_at") or "").strip()
+    local_due = _parse_datetime(local_due_at)
+    tokens = [local_due_at]
+    if local_due is not None:
+        tokens.extend(
+            [
+                f"{local_due:%Y-%m-%d %H:%M}",
+                f"{local_due:%H:%M}",
+            ]
+        )
+    return list(dict.fromkeys(token for token in tokens if token))
+
+
+def _trusted_remaining_tokens(
+    fact: Mapping[str, Any],
+    request: AgentRequest,
+) -> list[str]:
+    due_at = _parse_datetime(str(fact.get("due_at") or ""))
+    current_time = _parse_datetime(str(request.trusted_facts.get("current_time") or ""))
+    if due_at is None or current_time is None:
+        return []
+    minutes = round((due_at - current_time).total_seconds() / 60)
+    tokens = [
+        f"{minutes}分钟",
+        f"{minutes} minutes",
+        f"{minutes} minute",
+    ]
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        tokens.extend(
+            [
+                f"{hours}小时",
+                f"{hours} hour",
+                f"{hours} hours",
+            ]
+        )
+    return tokens
+
+
+def _parse_datetime(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _contains_serialized_tool_call(text: str) -> bool:
+    lowered = text.casefold()
+    return any(
+        marker in lowered
+        for marker in (
+            "<tool_call",
+            "</tool_call",
+            "<minimax:tool_call",
+            "<invoke name=",
+            "</arg_value>",
+            "_model_supplied_args",
+        )
+    )
 
 
 def _trusted_facts_for_agent(
