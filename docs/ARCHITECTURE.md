@@ -79,6 +79,14 @@ Interactive mode exposes domain tools and may mutate product state through
 domain services. Render mode receives already-trusted structured facts and has no
 business mutation tools.
 
+Render-mode Interaction Agent construction disables Agno chat history as a fact
+source. Render turns use trusted trigger facts, domain results, and dynamic
+prompt blocks for product state; recent interactive chat may not supply title,
+time, participant, delivery status, or privacy-bearing facts for system turns.
+Reminder-fire render turns hydrate fire ids into trusted reminder facts before
+the Interaction Agent runs and fail closed if the visible reply cannot reconcile
+with those facts.
+
 Structured reply output may contain one to three text segments. Each segment is
 persisted as its own outbound message. For message-style channels such as
 personal WeChat and shared WhatsApp, each persisted segment is delivered as a
