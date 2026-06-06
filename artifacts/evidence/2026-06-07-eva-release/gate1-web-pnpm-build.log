@@ -1,0 +1,56 @@
+$ next build --webpack
+▲ Next.js 16.2.1 (webpack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.4s
+  Running TypeScript ...
+  Finished TypeScript in 8.4s ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/34) ...
+  Generating static pages using 19 workers (8/34) 
+  Generating static pages using 19 workers (16/34) 
+  Generating static pages using 19 workers (25/34) 
+✓ Generating static pages using 19 workers (34/34) in 639ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /account/access-status
+├ ○ /account/calendar-import
+├ ○ /account/friends
+├ ○ /account/my-agent
+├ ○ /account/reminders
+├ ○ /account/shared-reminders
+├ ○ /account/subscription
+├ ○ /admin
+├ ○ /admin/admins
+├ ○ /admin/customers
+├ ○ /admin/dashboard
+├ ○ /admin/deliveries
+├ ○ /admin/login
+├ ○ /admin/shared-channels
+├ ○ /admin/shared-channels/detail
+├ ○ /auth/claim
+├ ○ /auth/claim-entry
+├ ○ /auth/forgot-password
+├ ○ /auth/login
+├ ○ /auth/register
+├ ○ /auth/reset-password
+├ ○ /auth/verify-email
+├ ○ /channels
+├ ○ /channels/wechat-personal
+├ ○ /demos
+├ ○ /faqs
+├ ○ /global
+├ ○ /handoff/calendar-import
+├ ○ /privacy
+├ ○ /terms
+├ ƒ /u/[code]
+└ ƒ /u/[code]/qr
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

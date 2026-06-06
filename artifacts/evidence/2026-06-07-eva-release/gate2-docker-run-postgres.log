@@ -1,0 +1,78 @@
+Unable to find image 'pgvector/pgvector:0.8.0-pg16' locally
+0.8.0-pg16: Pulling from pgvector/pgvector
+b1badc6e5066: Pulling fs layer
+c9cbfca11d34: Pulling fs layer
+a759c99e5d9c: Pulling fs layer
+f40999643f83: Pulling fs layer
+2c9c8f27f94c: Pulling fs layer
+6019da469dd7: Pulling fs layer
+7960bd43e7e7: Pulling fs layer
+f035bce43052: Pulling fs layer
+b9daad206a85: Pulling fs layer
+84e9830491e9: Pulling fs layer
+659157e68c9d: Pulling fs layer
+374299179ba1: Pulling fs layer
+712cf9c20649: Pulling fs layer
+b1f04bf0c6c5: Pulling fs layer
+e75b76a6edac: Pulling fs layer
+c658e1e5e610: Pulling fs layer
+f40999643f83: Waiting
+2c9c8f27f94c: Waiting
+6019da469dd7: Waiting
+b9daad206a85: Waiting
+7960bd43e7e7: Waiting
+84e9830491e9: Waiting
+659157e68c9d: Waiting
+374299179ba1: Waiting
+f035bce43052: Waiting
+712cf9c20649: Waiting
+b1f04bf0c6c5: Waiting
+e75b76a6edac: Waiting
+c658e1e5e610: Waiting
+c9cbfca11d34: Download complete
+f40999643f83: Verifying Checksum
+f40999643f83: Download complete
+a759c99e5d9c: Verifying Checksum
+a759c99e5d9c: Download complete
+6019da469dd7: Verifying Checksum
+6019da469dd7: Download complete
+7960bd43e7e7: Verifying Checksum
+7960bd43e7e7: Download complete
+f035bce43052: Verifying Checksum
+f035bce43052: Download complete
+2c9c8f27f94c: Verifying Checksum
+2c9c8f27f94c: Download complete
+84e9830491e9: Verifying Checksum
+84e9830491e9: Download complete
+659157e68c9d: Verifying Checksum
+659157e68c9d: Download complete
+374299179ba1: Download complete
+712cf9c20649: Download complete
+b1f04bf0c6c5: Verifying Checksum
+b1f04bf0c6c5: Download complete
+e75b76a6edac: Verifying Checksum
+e75b76a6edac: Download complete
+c658e1e5e610: Verifying Checksum
+c658e1e5e610: Download complete
+b1badc6e5066: Download complete
+b1badc6e5066: Pull complete
+c9cbfca11d34: Pull complete
+a759c99e5d9c: Pull complete
+f40999643f83: Pull complete
+2c9c8f27f94c: Pull complete
+6019da469dd7: Pull complete
+7960bd43e7e7: Pull complete
+f035bce43052: Pull complete
+b9daad206a85: Verifying Checksum
+b9daad206a85: Download complete
+b9daad206a85: Pull complete
+84e9830491e9: Pull complete
+659157e68c9d: Pull complete
+374299179ba1: Pull complete
+712cf9c20649: Pull complete
+b1f04bf0c6c5: Pull complete
+e75b76a6edac: Pull complete
+c658e1e5e610: Pull complete
+Digest: sha256:a132765ec351c65111b5b675928a3a0515a466a40f97277329db8b8209ad8bc9
+Status: Downloaded newer image for pgvector/pgvector:0.8.0-pg16
+0be4ecebcaa3bfe4524226f2de6ee294cbd09f3a1faa2d4aa31268d7e932d030

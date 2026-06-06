@@ -1,0 +1,11 @@
+[deploy-clean] dry run: local sha 09498bf33b5f2b38e96d1b8e700997daf9d61ea7
+[deploy-clean] dry run: no readable deployed sha; would use full deploy
+[deploy-clean] dry run: deploy tier full
+[deploy-clean] dry run: would create gcp-coke:/home/whoami/coke-clean
+[deploy-clean] dry run: would rsync selected clean stack sources
+rsync -az --delete --relative --dry-run --exclude=.git --exclude=.venv --exclude=.worktrees --exclude=.env --exclude=__pycache__ --exclude=node_modules --exclude=.pnpm-store --exclude=.next coke/ migrations/ docker-compose.prod.yml docker-compose.clean.yml Dockerfile .dockerignore requirements.txt alembic.ini deploy/ scripts/ web/ gcp-coke:/home/whoami/coke-clean/
+[deploy-clean] dry run: would write /home/whoami/coke-clean/.env from existing clean env and /home/whoami/coke/.env without printing secrets
+[deploy-clean] dry run: would run alembic upgrade head and alembic check
+[deploy-clean] dry run: would recreate services for tier full
+[deploy-clean] dry run: would run alembic upgrade head, alembic check, and curl -fsS "http://127.0.0.1:8000/healthz"
+[deploy-clean] dry run: would curl -fsS "http://127.0.0.1:4042/auth/login"
