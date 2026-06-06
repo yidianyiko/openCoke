@@ -165,6 +165,32 @@ def test_invoke_maps_valid_agno_response_to_agent_result():
     assert factory.agent_kwargs[0]["update_memory_on_run"] is False
 
 
+def test_interactive_agent_construction_keeps_chat_history_enabled():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True))
+
+    assert factory.agent_kwargs[0]["add_history_to_context"] is True
+
+
+def test_render_agent_construction_disables_chat_history_as_fact_source():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _render_request(
+            trigger_type="ReminderFireTurn",
+            payload={"fire_ids": ["fire_1"]},
+        )
+    )
+
+    assert factory.agent_kwargs[0]["add_history_to_context"] is False
+    assert factory.agent_kwargs[0]["add_memories_to_context"] is True
+
+
 async def test_ainvoke_uses_arun_with_deterministic_run_id():
     fake_agent = FakeAgentInstance(
         content={"type": "reply", "segments": ["hello async"]}

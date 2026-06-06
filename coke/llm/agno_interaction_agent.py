@@ -220,7 +220,7 @@ class AgnoInteractionAgent:
             update_memory_on_run=False,
             enable_user_memories=long_term_enabled,
             add_memories_to_context=long_term_enabled,
-            add_history_to_context=True,
+            add_history_to_context=_add_history_to_context(request),
             add_session_state_to_context=False,
             tools=self._tools(request, tool_events=tool_events),
             system_message=self._system_message(request),
@@ -362,6 +362,10 @@ class AgnoInteractionAgent:
             db_url=config.agno_database_url,
             create_schema=config.agno_create_schema,
         )
+
+
+def _add_history_to_context(request: AgentRequest) -> bool:
+    return request.mode != TurnMode.RENDER
 
 
 def _tool_callable(
