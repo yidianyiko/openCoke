@@ -27,8 +27,14 @@ ENV_PATH = ROOT / "migrations" / "env.py"
 REVISION_PATH = (
     ROOT / "migrations" / "versions" / "20260529_0001_clean_rebuild_schema.py"
 )
-HEAD_REVISION_PATH = (
+PRE_REPLY_INPUT_WINDOW_REVISION_PATH = (
     ROOT / "migrations" / "versions" / "20260531_0001_pre_reply_input_windows.py"
+)
+HEAD_REVISION_PATH = (
+    ROOT
+    / "migrations"
+    / "versions"
+    / "20260607_0001_recoverable_scheduling_intent.py"
 )
 
 EXPECTED_TABLES = {
@@ -56,6 +62,7 @@ EXPECTED_TABLES = {
     "friend_link",
     "friendship",
     "shared_reminder",
+    "recoverable_scheduling_intent",
     "reminder_projection",
     "notification_fact",
     "notification_recipient",
@@ -344,8 +351,12 @@ def _load_migration_chain():
             "clean_rebuild_schema_initial_revision_under_test",
         ),
         _load_revision_module(
+            PRE_REPLY_INPUT_WINDOW_REVISION_PATH,
+            "clean_rebuild_schema_pre_reply_input_window_revision_under_test",
+        ),
+        _load_revision_module(
             HEAD_REVISION_PATH,
-            "clean_rebuild_schema_head_revision_under_test",
+            "clean_rebuild_schema_recoverable_intent_revision_under_test",
         ),
     )
 
@@ -739,7 +750,7 @@ def test_initial_revision_has_deterministic_identity_and_no_schema_import():
 
 
 def test_pre_reply_input_window_revision_has_expected_identity():
-    source = HEAD_REVISION_PATH.read_text()
+    source = PRE_REPLY_INPUT_WINDOW_REVISION_PATH.read_text()
     tree = ast.parse(source)
     imported_roots: set[str] = set()
     for node in ast.walk(tree):
@@ -755,15 +766,32 @@ def test_pre_reply_input_window_revision_has_expected_identity():
     assert ".".join(["metadata", "drop_all"]) not in source
 
 
+def test_recoverable_scheduling_intent_revision_has_expected_identity():
+    source = HEAD_REVISION_PATH.read_text()
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".")[0])
+
+    assert 'revision = "20260607_0001"' in source
+    assert 'down_revision = "20260531_0001"' in source
+    assert "coke" not in imported_roots
+    assert ".".join(["metadata", "create_all"]) not in source
+    assert ".".join(["metadata", "drop_all"]) not in source
+
+
 def test_migration_chain_upgrade_matches_schema_metadata_without_live_db():
     metadata = _metadata()
-    initial_revision, head_revision = _load_migration_chain()
+    revisions = _load_migration_chain()
     recorder = RecordingOp()
-    initial_revision.op = recorder
-    head_revision.op = recorder
+    for revision in revisions:
+        revision.op = recorder
 
-    initial_revision.upgrade()
-    head_revision.upgrade()
+    for revision in revisions:
+        revision.upgrade()
 
     assert set(recorder.metadata.tables) == set(metadata.tables)
     for table_name, expected_table in metadata.tables.items():
@@ -783,24 +811,26 @@ def test_migration_chain_upgrade_matches_schema_metadata_without_live_db():
 
 
 def test_migration_chain_downgrade_drops_recorded_objects_in_reverse_order():
-    initial_revision, head_revision = _load_migration_chain()
+    revisions = _load_migration_chain()
     recorder = RecordingOp()
-    initial_revision.op = recorder
-    head_revision.op = recorder
+    for revision in revisions:
+        revision.op = recorder
 
-    initial_revision.upgrade()
-    head_revision.upgrade()
-    head_revision.downgrade()
-    initial_revision.downgrade()
+    for revision in revisions:
+        revision.upgrade()
+    for revision in reversed(revisions):
+        revision.downgrade()
 
     assert [name for name, _table_name in recorder.dropped_indexes] == [
+        "uq_recoverable_intent_one_open_per_conversation",
         "uq_reminder_active_no_trigger_duplicate",
         "uq_reminder_active_timed_duplicate",
         "uq_shared_reminder_active_duplicate",
         "uq_friendship_one_active_pair",
         "uq_channel_one_active_per_account",
     ]
-    assert recorder.dropped_tables[0] == "staged_command"
+    assert recorder.dropped_tables[0] == "recoverable_scheduling_intent"
+    assert recorder.dropped_tables[1] == "staged_command"
     assert recorder.dropped_tables[-1] == "account"
     assert set(recorder.dropped_tables) == EXPECTED_TABLES
 

@@ -516,7 +516,7 @@ git commit -m $'docs: document response outcome recovery contract\n\nCo-Authored
 **Files:**
 - All touched files.
 
-- [ ] **Step 1: Run touched unit tests**
+- [x] **Step 1: Run touched unit tests**
 
 Run:
 
@@ -526,7 +526,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 2: Run requested broader unit command**
+- [x] **Step 2: Run requested broader unit command**
 
 Run:
 
