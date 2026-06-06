@@ -302,6 +302,8 @@ def test_establish_friendship_operation_accepts_visible_invite_code():
     assert result.facts == {
         "status": "created",
         "friendship_id": "friendship_1",
+        "counterpart_account_id": "friend",
+        "counterpart_display_name": "Alice Push",
         "continuation": {},
     }
     assert service.calls == [
@@ -428,6 +430,8 @@ class FakeFriendship:
 class FakeFriendshipResult:
     status = "created"
     friendship = FakeFriendship()
+    counterpart_account_id = "friend"
+    counterpart_display_name = "Alice Push"
     continuation: dict[str, Any] = {}
 
 

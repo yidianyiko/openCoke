@@ -84,6 +84,8 @@ class FriendListEntry:
 class FriendshipResult:
     status: Literal["created", "already_active"]
     friendship: Friendship | None
+    counterpart_account_id: str
+    counterpart_display_name: str
     continuation: dict[str, Any] = field(default_factory=dict)
 
 

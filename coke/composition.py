@@ -947,6 +947,8 @@ class SocialSchedulingToolAdapter:
                         "friendship_id": (
                             result.friendship.id if result.friendship else None
                         ),
+                        "counterpart_account_id": result.counterpart_account_id,
+                        "counterpart_display_name": result.counterpart_display_name,
                         "continuation": result.continuation,
                     },
                     reason_code=(

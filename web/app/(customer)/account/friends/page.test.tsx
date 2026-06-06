@@ -72,10 +72,10 @@ describe('CustomerFriendsPage', () => {
   let root: Root;
   let writeTextMock: ReturnType<typeof vi.fn>;
 
-  function renderPage() {
+  function renderPage(initialLocale: 'en' | 'zh' = 'en') {
     flushSync(() => {
       root.render(
-        <LocaleProvider initialLocale="en">
+        <LocaleProvider initialLocale={initialLocale}>
           <FriendsPage />
         </LocaleProvider>,
       );
@@ -99,7 +99,13 @@ describe('CustomerFriendsPage', () => {
     disableLinkMock.mockResolvedValue({ ok: true, data: { count: 1 } });
     joinFriendByCodeMock.mockResolvedValue({
       ok: true,
-      data: { status: 'already_active', friendship_id: 'friendship-existing', continuation: {} },
+      data: {
+        status: 'already_active',
+        friendship_id: 'friendship-existing',
+        counterpart_account_id: 'acct_oliver',
+        counterpart_display_name: 'Oliver',
+        continuation: {},
+      },
     });
     writeTextMock = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -135,7 +141,7 @@ describe('CustomerFriendsPage', () => {
     expect(findButton(container, 'Remove friend')).toBeTruthy();
   });
 
-  it('redirects auth failures on load to login with the join code next path', async () => {
+  it('preserves logged-out join handoff before attempting auto-join', async () => {
     searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
     getLinkMock.mockResolvedValueOnce({ ok: false, error: 'claim_inactive' });
 
@@ -154,16 +160,52 @@ describe('CustomerFriendsPage', () => {
     });
     joinFriendByCodeMock.mockResolvedValueOnce({
       ok: true,
-      data: { status: 'created', friendship_id: 'friendship-new', continuation: {} },
+      data: {
+        status: 'created',
+        friendship_id: 'friendship-new',
+        counterpart_account_id: 'acct_oliver',
+        counterpart_display_name: 'Oliver',
+        continuation: {},
+      },
     });
 
-    renderPage();
+    renderPage('zh');
     await flushTicks();
 
     expect(joinFriendByCodeMock).toHaveBeenCalledWith('code_1');
     expect(replaceMock).toHaveBeenCalledWith('/account/friends');
-    expect(container.textContent).toContain('Friend added.');
+    expect(container.textContent).toContain('已成功添加 Oliver');
     expect(listFriendsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows personalized already-active copy after logged-in auto-join', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    listFriendsMock.mockResolvedValueOnce({ ok: true, data: [friend()] }).mockResolvedValue({
+      ok: true,
+      data: [
+        friend({
+          counterpartAccountId: 'acct_oliver',
+          counterpartProfile: { displayName: 'Oliver', avatarUrl: null },
+        }),
+      ],
+    });
+    joinFriendByCodeMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'already_active',
+        friendship_id: 'friendship-existing',
+        counterpart_account_id: 'acct_oliver',
+        counterpart_display_name: 'Oliver',
+        continuation: {},
+      },
+    });
+
+    renderPage('zh');
+    await flushTicks();
+
+    expect(joinFriendByCodeMock).toHaveBeenCalledWith('code_1');
+    expect(container.textContent).toContain('Oliver 已经在你的好友列表中。');
+    expect(replaceMock).toHaveBeenCalledWith('/account/friends');
   });
 
   it('preserves auth redirects from the reload after a successful public friend join', async () => {
@@ -319,5 +361,27 @@ describe('CustomerFriendsPage', () => {
     await flushTicks();
 
     expect(container.textContent).toContain('You cannot add yourself as a friend.');
+  });
+
+  it('shows disabled friend link join errors distinctly', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    joinFriendByCodeMock.mockResolvedValueOnce({ ok: false, error: 'friend_link_disabled' });
+
+    renderPage();
+    await flushTicks();
+
+    expect(container.textContent).toContain('This friend link has been disabled.');
+    expect(replaceMock).toHaveBeenCalledWith('/account/friends');
+  });
+
+  it('shows invalid friend link join errors distinctly', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
+    joinFriendByCodeMock.mockResolvedValueOnce({ ok: false, error: 'friend_link_not_found' });
+
+    renderPage();
+    await flushTicks();
+
+    expect(container.textContent).toContain('This friend link is invalid or expired.');
+    expect(replaceMock).toHaveBeenCalledWith('/account/friends');
   });
 });

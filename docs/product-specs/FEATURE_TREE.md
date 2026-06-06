@@ -60,7 +60,9 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 
 The public user-link route resolves active reachable friend links for the
 public `/u/:code` web landing. Authenticated friendship creation remains
-`/api/friends/join`.
+`/api/friends/join`; successful join responses include the friendship status,
+friendship id, and counterpart account/display identity needed for immediate
+user feedback.
 
 ## Provider Webhooks
 

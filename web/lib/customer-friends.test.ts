@@ -74,6 +74,8 @@ describe('customer friends wrappers', () => {
     apiMock.post.mockResolvedValueOnce({
       status: 'created',
       friendship_id: 'friendship_1',
+      counterpart_account_id: 'acct_oliver',
+      counterpart_display_name: 'Oliver',
       continuation: {},
     });
 
@@ -82,6 +84,8 @@ describe('customer friends wrappers', () => {
       data: {
         status: 'created',
         friendship_id: 'friendship_1',
+        counterpart_account_id: 'acct_oliver',
+        counterpart_display_name: 'Oliver',
         continuation: {},
       },
     });

@@ -130,6 +130,8 @@ def _friendship_result_body(result) -> dict:
         "friendship_id": (
             result.friendship.id if result.friendship is not None else None
         ),
+        "counterpart_account_id": result.counterpart_account_id,
+        "counterpart_display_name": result.counterpart_display_name,
         "continuation": result.continuation,
     }
 
