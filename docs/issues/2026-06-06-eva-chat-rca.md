@@ -3,7 +3,7 @@ kind: investigation
 status: open
 title: Eva 2026-06-06 chat root-cause analysis
 created_at: 2026-06-06
-updated_at: 2026-06-06
+updated_at: 2026-06-07
 surface:
   - clean-rebuild
   - conversation-runtime
@@ -367,6 +367,15 @@ requirement gaps that were not visible in the original Eva-only timeline.
 
 ## Recommended Fix Order
 
+> This ordering predates the `2026-06-07` design review. Where it conflicts with
+> the revised tracks, the design review and the revised Track repair shapes win. In
+> particular: P0 now leads with Track I (structural render-history isolation) as the
+> precondition for the Track A fact hydration and guard; "use a deterministic
+> renderer" in item 1 and "validate ... text that mentions a different title" in
+> item 2 are superseded by the single-producer + dynamic-fact-block + structural
+> fail-closed guard decisions (D1/D2); item 3's "add retry" is superseded by the
+> diagnostic-first, bounded-`delivery_intent` policy (D5).
+
 1. P0: Add a trusted `ReminderFireTurn` domain-result path. Given `fire_ids`,
    load the reminder projection, content/title, local due time, timezone,
    participant-visible shared-reminder context, and delivery/fire id. Render only
@@ -410,6 +419,155 @@ six tracks are current-contract repairs. The later product-feedback tracks must
 not be implemented as prompt-only behavior until the current requirements
 baseline is updated.
 
+> The track repair shapes below were revised on `2026-06-07` after a multi-agent
+> design review. Read the "2026-06-07 Multi-Agent Design Review" subsection first
+> (immediately below); it sets the cross-cutting architecture decisions (D1-D6)
+> that govern Track A, B, C, D, E, F, and I.
+
+### 2026-06-07 Multi-Agent Design Review
+
+This subsection records the design decisions that govern the Track repair shapes
+below. Read it before the tracks.
+
+#### Method
+
+The fix tracks above were pressure-tested by six independent design agents in two
+rounds. Each agent was given a fixed slice and explicitly instructed to attack the
+lead engineer's position rather than agree. Round one covered render-turn
+architecture (RC1/Track A/I), response-contract enforcement (RC3/RC5/RC4), and
+delivery/lifecycle reliability (RC2/RC6). Round two arbitrated the one open
+question round one surfaced: whether failed/interrupted scheduling intent needs a
+durable artifact, argued by a neutral data-model voice, a minimalism advocate, and
+a reliability advocate. The decisions below are the converged conclusion, not any
+single agent's view.
+
+#### Cross-cutting principle
+
+Nearly every root cause is the same anti-pattern: the runtime reconstructs product
+truth from conversation prose or chat history instead of carrying typed trusted
+facts. The unifying repair is to replace "reconstruct truth from history" with
+"carry a typed trusted fact, render or act from it, and validate structurally
+rather than by scanning prose."
+
+#### D1: Single user-facing producer is preserved (architecture decision)
+
+The Interaction Agent remains the only producer of channel-visible prose. Internal
+or intermediate agents may emit factual or structured content, but the text
+delivered to the user always comes from the single persona agent. We explicitly
+reject the round-one proposal to add typed deterministic renderers that produce
+user-visible text, and we explicitly keep the `docs/ARCHITECTURE.md` invariant
+"Interaction Agent is the sole user-facing prose producer". Splitting the
+user-facing voice into per-turn renderers would fragment persona ownership.
+
+Trusted facts reach the single agent as dynamic prompt blocks (the legacy
+`coke-legacy-server` "Soul vs Skills" notice/context-block pattern: a constant
+persona plus dynamically loaded fact and stance blocks). Determinism lives in the
+fact supply and in the guard, not in the output. Because production already proved
+prompt-only constraints fail, the dynamic-fact approach must be paired with two
+non-prompt structural supports:
+
+1. Render-mode chat-history isolation, enforced at agent construction, not by a
+   prompt instruction. In RC1 the agent already had the instruction and still
+   borrowed from history; the injected fact block must not have to out-compete
+   full chat history.
+2. A structural fail-closed guard on fact-bearing output. The rendered
+   fact-bearing values (title, time, status) must reconcile with the trusted fact
+   tokens; if they cannot, fail closed to a safe minimal rendering or retry. This
+   is a guard on the single producer, not a second producer.
+
+#### D2: History isolation is the highest-leverage structural fix (RC1 + RC5)
+
+Render-mode history isolation closes both RC1 and RC5 by removing the contaminating
+source. The wrong reminder content and the `你们约了散步` privacy leak both came
+from chat history, not from durable facts or the availability tool. Once render-mode
+history is structurally isolated and the trusted fact block is the only fact source,
+the leak is impossible by construction; no prose-scanning privacy validator is
+needed. Keep structural validation (facts present, due time computable, subject ids
+present, protocol well-formed); drop free-prose contradiction parsing.
+
+#### D3: Bind response copy to close-time materialized outcome (RC3)
+
+State-changing tools are staged and only materialize at the close boundary
+(`commit_reply`). The authoritative result is the close-time materialized outcome,
+not the pre-close staged preview, and today the materialized facts are not fed back
+into reply rendering. The fix binds the visible state claim to a structured
+`SocialSchedulingOutcome` carrying a canonical status (`created_active`,
+`duplicate_active`, `blocked_*`, `needs_*`, `staged_pending_close` which is never
+user-visible as success, etc.) with a per-status allowed-claim mapping. The phrase
+denylist (`等他确认`/`没问题`/`邀约`) moves into eval and regression assertions, not
+production routing, because denylisting is the keyword-routing anti-pattern this
+project forbids.
+
+#### D4: Failed scheduling intent needs a narrow durable artifact (RC4)
+
+Round-two conclusion. Existing rows (`turn`, `message`, `output_disposition`,
+`staged_command`, `SemanticDecision`) cannot represent an understood-but-blocked
+scheduling intent without re-parsing chat history as executable state, which is the
+same anti-pattern as RC1. Turn-local recovery fails because the correction
+(`zihao就是olivers`) arrived after the blocked turn had already closed, and workers
+run as separate containers with Postgres as the durable truth.
+
+The reliability advocate's intent-vs-interruption split resolves the scope worry:
+these are two different durability needs, not one artifact.
+
+- The failed/blocked scheduling intent (RC4) gets a narrow durable
+  `recoverable_scheduling_intent` artifact. Scope discipline: only
+  `shared_reminder_create` blocked by `unmatched_friend`/`ambiguous_friend`; at most
+  one open per conversation; short expiry; never materialized directly; consumed only
+  when the semantic interpreter classifies a later fresh inbound as a correction;
+  freshness/close boundary remains the final authority; a superseded consuming turn
+  does not consume it. Not a task queue, no global alias memory, no approval flow.
+- The interruption/coalescing fact (RC2) is derived transiently from existing
+  `turn`/`output_disposition`/`message`/`delivery_attempt` rows. It does not get its
+  own durable artifact. What RC2 does need durable is failed-waiting-delivery
+  evidence, which belongs in Track B, not in this artifact.
+
+The minimalist's bright line is retained as a product-requirement-first item: if the
+product later requires resume-after-restart, resume-after-unrelated-turns, or
+restate-free recovery, that is a named requirement extension. The baseline artifact
+only guarantees near-term (within-expiry) recovery.
+
+#### D5: Waiting-delivery recovery is diagnostic-first (RC2)
+
+The 10/10 waiting-delivery failures versus 24 successful reply deliveries through
+the same adapter are strong evidence but not proof of a defective path; same adapter
+does not mean same path (waiting comes from `WaitingReplyDispatcher` and the
+sync-timeout branch, replies from the runner delivery lifecycle). The most likely
+structural cause is wechat `context_token` windowing: delayed waiting sends may use a
+stale or missing context token while fresh final replies do not. Before choosing a
+recovery policy, add a delivery-envelope diagnostic (delivery source, container,
+traceparent, provider route, context-token source/age, error code, latency, retry
+attempt) and bucket waiting versus reply failures by window/recipient/route/error.
+
+Do not blind-retry: same-key retry is a no-op under current idempotency, and a new
+key can duplicate user-visible "still processing" sends. The clean policy is a
+logical `delivery_intent` (`turn_id:waiting:1`, `:2`), at most one jittered retry for
+retryable transport errors only while the final reply is not ready, no retry for
+`context_token_required`/invalid-token/session-window errors, cancellation when the
+turn becomes `replied`/`failed`/`superseded`, and a per-route/account circuit
+breaker. A failed waiting send is durable observable evidence, never user-visible
+progress. RC1 (wrong trusted reminder content) remains the top severity; the
+silence-then-supersession chain is treated as a to-be-confirmed hypothesis, not an
+asserted fact, until input-window and causal-id evidence shows successor turns
+dropped the original intent.
+
+#### D6: Notification recipient lifecycle settles at the terminal path first (RC6)
+
+Fix the terminal-settlement invariant first: every `NotificationTurn` terminal path
+must settle every target recipient as delivered, failed, or undelivered with
+structured facts. A reconciler is a crash/history backstop only; starting with a
+reconciler would hide the settlement bug rather than fix it.
+
+#### Open decisions deferred to the human or product baseline
+
+- Whether the product requires resume-after-restart / restate-free recovery for
+  failed scheduling intent (extends D4 beyond near-term recovery).
+- Whether availability may ever expose participant-visible shared-reminder labels
+  (default: busy/free only).
+- The default range for vague availability queries.
+- Whether waiting retry should ever be user-visible once the final reply is near, or
+  always downgrade.
+
 ### Track A: Trusted Reminder-Fire Rendering
 
 Target files:
@@ -432,18 +590,25 @@ Repair shape:
   content, owner account id, local due time, captured timezone,
   `duration_minutes`, reminder kind, viewer account id, delivery/fire id, and
   shared-reminder participant names that are already visible to the recipient.
-- Treat conversation history as advisory language evidence only. For
-  `ReminderFireTurn`, title/time/participant truth must come from the hydrated
-  domain result, not from recent chat history.
-- Add render validation before delivery. A reminder-fire reply must fail closed
-  or use a deterministic fallback if it mentions a different title, a different
-  local time, a serialized tool call, or a remaining-time phrase that cannot be
-  computed from trusted facts.
-- Prefer a deterministic renderer for reminder-fire notifications if validation
-  against free-form LLM prose remains brittle. The current architecture allows a
-  runtime-owned exception only for waiting text, so a deterministic reminder
-  renderer would need an explicit architecture/product decision before it
-  replaces Interaction Agent prose.
+- Isolate chat history structurally in render mode (per D1/D2). This is the
+  highest-leverage fix: `add_history_to_context` must be off (or strongly
+  downranked) for `ReminderFireTurn` at agent construction, not via a prompt
+  instruction. In production the agent already had the "render the reminder fact"
+  instruction and still borrowed from history; the hydrated fact block must not
+  have to out-compete full chat history. The hydrated `domain_result` is the only
+  fact source for title/time/participant truth.
+- Keep the single user-facing producer (per D1). Do NOT add a typed deterministic
+  renderer that emits user-visible reminder text. The persona Interaction Agent
+  renders the reminder, with the trusted reminder facts injected as a dynamic
+  fact block (legacy notice-block pattern), history isolated, persona intact.
+- Add a structural fail-closed guard before delivery (per D1/D2). The guard
+  reconciles the fact-bearing values in the reply against the trusted fact tokens:
+  the stated title must match the hydrated title, the stated local time must match
+  the hydrated due time, and any remaining-time phrase must be computable from
+  `due_at - now`. Keep structural validation (facts present, due time computable,
+  subject ids present, no serialized tool call, protocol well-formed). Do not
+  build a free-prose contradiction parser. If reconciliation fails, fall back to a
+  safe minimal rendering of the trusted facts or retry.
 
 Verification:
 
@@ -476,13 +641,25 @@ Repair shape:
   text from the outbox relay, while `TurnRunner._record_pending_async()` emits
   sync-timeout waiting text. Both paths must follow the same failed-delivery
   semantics.
-- Add one of these explicit recovery policies:
-  - retry waiting delivery with a new attempt while the original turn remains
-    active; or
-  - skip retry but leave a durable failed waiting-delivery marker and rely on the
-    final async reply; or
-  - if the final reply also fails, surface the failure through the existing
-    undelivered/recovery path.
+- Diagnose before choosing a recovery policy (per D5). Add a delivery-envelope
+  diagnostic (delivery source, container, traceparent, turn/trigger id, provider
+  route, context-token source and age, error code, latency, retry attempt) and
+  bucket the waiting failures against the successful reply deliveries by
+  window/recipient/route/error. The leading hypothesis is wechat `context_token`
+  windowing: delayed waiting sends may use a stale or missing context token while
+  fresh final replies do not. "Same adapter" does not mean "same path".
+- Do not blind-retry. Same-key retry is a no-op under current idempotency, and a
+  new key can duplicate user-visible "still processing" sends. Use a logical
+  `delivery_intent` (`turn_id:waiting:1`, `:2`); allow at most one jittered retry
+  for retryable transport errors and only while the final reply is not ready; do
+  not retry `context_token_required`/invalid-token/session-window errors (mark
+  waiting visibility failed and rely on the final reply); cancel any pending retry
+  when the turn becomes `replied`/`failed`/`superseded`; add a per-route/account
+  circuit breaker to prevent retry storms.
+- Persist failed-waiting-delivery as durable observable evidence (this is the
+  durable half of the RC2 split in D4). The interruption/coalescing fact is
+  derived transiently from existing `turn`/`output_disposition`/`message`/
+  `delivery_attempt` rows; do not add a separate durable interruption artifact.
 - The dispatcher must not count a failed provider send as a successful waiting
   visibility outcome in logs, metrics, or future operator-facing status.
 
@@ -506,8 +683,13 @@ Target files:
 
 Repair shape:
 
-- Validate final user-visible text against the latest state-changing
-  social-scheduling tool result, not just against the existence of any tool call.
+- Bind final user-visible text to the close-time materialized outcome, not to the
+  pre-close staged preview and not to the mere existence of any tool call (per D3).
+  State-changing tools stage and only materialize at the close boundary
+  (`commit_reply`); today the materialized facts are not fed back into reply
+  rendering, so feed a structured `SocialSchedulingOutcome` (with `outcome_id` or
+  staged-command id) into the reply context. `staged_pending_close` is an internal
+  status and must never be rendered as user-visible success.
 - Expand social-scheduling tool domain results enough for validation:
   `created`, `already_active`, `duplicate`, `blocked`, or `needs_*` status;
   title/activity, local time, timezone, duration, and participant display names
@@ -520,8 +702,14 @@ Repair shape:
 - For blocked results, final text must reflect the trusted blocker: missing
   friend, ambiguous friend, receiver conflict, unreachable participant, duplicate
   reminder, or missing time.
-- Keep this as a runtime/protocol guard plus tests. Do not rely on prompt wording
-  alone; production already showed prompt-only constraints are insufficient.
+- Keep this as a structured-outcome guard plus tests, not a phrase denylist (per
+  D3). Enforcement binds the visible claim to the canonical status via a per-status
+  allowed-claim mapping; the model must echo the structured outcome rather than be
+  scanned for banned words. Concrete banned phrases (`等他确认`/`没问题`/`邀约`/
+  `约好了`) become eval and regression assertions, not production routing, because
+  phrase denylisting is the keyword-routing anti-pattern this project forbids. Do
+  not rely on prompt wording alone; production already showed prompt-only
+  constraints are insufficient.
 
 Verification:
 
@@ -543,17 +731,36 @@ Target files:
 
 Repair shape:
 
-- Detect correction turns like `X就是Y`, `X is Y`, and `我说的 X 是 Y` only when
-  the previous unresolved intent failed on an unmatched or ambiguous friend name.
-- Resolve `Y` through active friends. If exactly one active friend matches,
-  attach a turn-local alias mapping from `X` to that friend's account id and
-  re-open the immediately preceding failed scheduling intent.
-- If the previous failed intent contains enough time/activity facts and the
-  current input window has not been superseded, either stage the repaired command
-  or ask one concise confirmation. Do not silently create a reminder from an
-  old, already-superseded request.
-- Do not persist global alias memory from this repair unless product explicitly
-  adds alias memory as a requirement. The safe default is turn-local recovery.
+- Classify the correction through the semantic interpreter, not a regex (per D4
+  and the no-keyword-routing rule). The interpreter emits a typed follow-up action,
+  for example `resolve_friend_reference_correction` carrying
+  `prior_reference_text`, `corrected_friend_text`, and a scope of
+  `immediately_preceding_unresolved_intent`. Do not string-match `就是`/`is` in the
+  runner. Accept the correction only when an open recoverable intent exists that
+  failed on an unmatched or ambiguous friend.
+- Persist a narrow durable `recoverable_scheduling_intent` artifact (per D4),
+  because the correction arrives after the blocked turn has already closed and
+  workers run as separate containers. Create it only at the fresh close that tells
+  the user the request is blocked, only for `shared_reminder_create` blocked by
+  `unmatched_friend`/`ambiguous_friend`, with the understood request facts (parsed
+  activity/title, absolute local trigger time, timezone, duration if known, the
+  unresolved reference, source input window, `facts_hash`, short `expires_at`). At
+  most one open per conversation. Do not reconstruct it by re-parsing chat history.
+- Consume it on a later fresh inbound turn: resolve `corrected_friend_text` through
+  active friends; if exactly one active friend matches and the artifact is open,
+  unexpired, and matching, inject it as a dynamic trusted-fact block and let the
+  single Interaction Agent call the scheduling tool, which stages a fresh command
+  on the current turn carrying `recoverable_scheduling_intent_id` and `facts_hash`.
+  Close-boundary freshness is the final authority: if a newer inbound supersedes the
+  consuming turn, the staged command dies and the artifact is not consumed. If the
+  correction is ambiguous or stale, the single agent asks one concise confirmation.
+  This is not an approval flow; a resolved correction creates the shared reminder
+  active-immediate.
+- The friend alias is turn-local only. Do not persist global alias memory
+  (`zihao = olivers`) unless product explicitly adds alias memory as a requirement.
+  Resume-after-restart / resume-after-unrelated-turns / restate-free recovery is a
+  product-requirement-first extension (see Track K); the baseline artifact only
+  guarantees within-expiry recovery.
 
 Verification:
 
@@ -576,12 +783,17 @@ Repair shape:
 
 - Keep the domain response privacy-safe: busy/free windows only, no reminder
   titles, prompts, locations, participant names, or private metadata.
-- Add output validation for availability replies so the agent cannot reattach
-  inferred labels from conversation context, for example `忙（你们约了散步）`,
-  unless a current canonical product spec explicitly allows that label.
-- Introduce an explicit reply contract such as `render_availability_busy_free`
-  for availability tool results. The visible answer may use only each window's
-  `start`, `end`, and `state`, plus the queried friend's public display name.
+- Close the leak structurally by removing its source, not by scanning prose (per
+  D2). `忙（你们约了散步）` came from chat history, not from the availability tool. In
+  availability render mode the chat history must be structurally isolated (same
+  agent-construction fix as Track A), so the only fact source is the busy/free
+  window block. With history isolated the label has no source and the leak is
+  impossible by construction; a free-prose privacy parser is not needed.
+- Inject availability results as a dynamic fact block whose visible answer may use
+  only each window's `start`, `end`, and `state`, plus the queried friend's public
+  display name. The single Interaction Agent still produces the reply; the block is
+  the only privacy-bearing fact source. Keep structural validation (the block
+  carries no titles/labels/detail ids), not phrase scanning.
 - Decide the missing product rule for vague requests such as
   `看看 Oliver 什么时候有空`: either default to a bounded local range, or ask for a
   date range. Do not depend on an older dated design note as active product truth.
@@ -618,10 +830,13 @@ Repair shape:
   row not processed, worker trigger missing a conversation, payload missing
   `notification_fact_id` or `recipient_account_ids`, delivery callback not
   invoked, or recipient fanout settling only part of the recipient set.
-- Add a reconciliation path for notification recipients that remain `pending`
-  past a threshold after their render turn has terminally completed. The
-  reconciler should mark them failed or reschedule them based on provider/turn
-  evidence rather than leaving indefinite pending rows.
+- Fix the terminal-settlement invariant first (per D6): the audit above is the
+  primary fix, so that a completed `NotificationTurn` can never leave a recipient
+  `pending`. Only after that, add a reconciliation path for recipients that remain
+  `pending` past a threshold after their render turn has terminally completed; the
+  reconciler marks them failed or reschedules based on provider/turn evidence. The
+  reconciler is a crash/history backstop only and must not be the primary fix —
+  leading with a reconciler would hide the settlement bug rather than fix it.
 - Keep notification facts informational only. Do not introduce approval or action
   execution through notification retries.
 
@@ -704,6 +919,11 @@ Verification:
 
 ### Track I: Render-History Isolation For System Turns
 
+This is the mechanism root cause behind RC1 and RC5 and the highest-leverage
+structural fix (per D2). It governs Track A and Track E: do this first, because the
+hydrated fact blocks in those tracks cannot win against full chat history until
+history is isolated. Render-mode availability replies (Track E) are included.
+
 Target files:
 
 - `coke/llm/agno_interaction_agent.py`
@@ -713,17 +933,23 @@ Target files:
 Repair shape:
 
 - Render turns such as `ReminderFireTurn`, `NotificationTurn`,
-  `UndeliveredResendTurn`, and `AccessDeniedTurn` should not use Agno chat
-  history as a fact source. Current agent construction enables
-  `add_history_to_context=True` globally, which can let recent user chat compete
-  with structured render facts.
-- In render mode, either disable Agno history entirely or make the prompt
-  explicitly classify history as style/language evidence only. The structured
-  `domain_result`, `turn_source`, and render payload must be the only fact source
-  for product state, title, time, participant, delivery status, and error status.
-- Keep persona, speaking style, and configured assistant settings available for
-  tone. The fix is not to make render text robotic; it is to isolate facts from
-  stale conversation context.
+  `UndeliveredResendTurn`, `AccessDeniedTurn`, and availability render turns must
+  not use Agno chat history as a fact source. Current agent construction enables
+  `add_history_to_context=True` globally
+  (`coke/llm/agno_interaction_agent.py`), which lets recent user chat compete with
+  structured render facts.
+- Isolate history structurally at agent construction, not by prompt instruction
+  (per D1/D2). Disable or strongly downrank Agno history for render-mode turns; do
+  NOT rely on a prompt that classifies history as "style only", because production
+  already had the equivalent instruction and still borrowed from history. The
+  structured `domain_result`, `turn_source`, and render payload (injected as
+  dynamic fact blocks) must be the only fact source for product state, title, time,
+  participant, delivery status, and error status.
+- Keep the single user-facing producer and its persona (per D1). The fix is not a
+  typed deterministic renderer and not robotic text; persona, speaking style, and
+  configured assistant settings stay available for tone. Determinism lives in the
+  fact supply and the structural fail-closed guard, not in the output. Interactive
+  inbound turns still use relevant history.
 
 Verification:
 
@@ -805,13 +1031,36 @@ Verification:
   generated wording easier.
 - Do not mark product feedback items as implemented until production or
   user-path smoke evidence covers the actual channel-visible behavior.
+- Do not add typed deterministic renderers that produce user-visible text, and do
+  not rewrite the `docs/ARCHITECTURE.md` invariant that the Interaction Agent is
+  the sole user-facing prose producer (per D1). The single producer stays; facts
+  flow in as dynamic blocks.
+- Do not isolate render history by a prompt instruction alone; do it structurally
+  at agent construction (per D2). The equivalent prompt instruction already existed
+  in production and failed.
+- Do not enforce response contracts with a phrase denylist in production routing;
+  bind to the structured outcome status and keep banned-phrase checks in eval (per
+  D3).
+- Do not blind-retry waiting delivery; diagnose first, then use a logical
+  `delivery_intent` with bounded retry and a circuit breaker (per D5).
+- Do not add a separate durable interruption artifact; derive interruption context
+  transiently from existing rows (per D4). The only new durable artifact is the
+  narrow `recoverable_scheduling_intent`, and only for friend-resolution blockers.
+- Do not validate render or availability output by parsing free prose for
+  contradictions or labels; remove the contaminating history source and keep
+  validation structural (per D2).
 
 ## Current Status
 
 Open. Production was inspected read-only. No code or deployment change was made
 as part of this investigation. On `2026-06-07`, the local issue record was
-expanded with implementation-oriented fix tracks; no runtime code or deployment
-change was made in that follow-up.
+expanded with implementation-oriented fix tracks, then revised the same day after
+a six-agent design review ("2026-06-07 Multi-Agent Design Review"): Track A, B, C,
+D, E, F, and I now reflect the single-user-facing-producer architecture, structural
+render-history isolation, close-time outcome binding, the narrow
+`recoverable_scheduling_intent` artifact, and diagnostic-first delivery recovery.
+No runtime code or deployment change was made in either follow-up; the open
+decisions deferred to product/human in the design review remain open.
 
 ## Evidence Commands
 
