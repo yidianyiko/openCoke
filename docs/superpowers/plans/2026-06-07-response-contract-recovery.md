@@ -561,7 +561,7 @@ Expected: exit 0 or non-blocking risk report. Record output.
 Run the exact `zsh scripts/verify-surface <surface>` command printed by Step 3.
 Expected: PASS. If the command suggests multiple surfaces, run each.
 
-- [ ] **Step 6: Final git status and commit audit**
+- [x] **Step 6: Final git status and commit audit**
 
 Run:
 
