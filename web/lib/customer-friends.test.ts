@@ -70,19 +70,19 @@ describe('customer friends wrappers', () => {
     });
   });
 
-  it('joins a friend by clean link code and preserves deferred status', async () => {
+  it('joins a friend by clean link code and preserves created status', async () => {
     apiMock.post.mockResolvedValueOnce({
-      status: 'deferred_channel_required',
-      friendship_id: null,
-      continuation: { friend_link_id: 'fl_1' },
+      status: 'created',
+      friendship_id: 'friendship_1',
+      continuation: {},
     });
 
     await expect(joinFriendByCode('code/1')).resolves.toEqual({
       ok: true,
       data: {
-        status: 'deferred_channel_required',
-        friendship_id: null,
-        continuation: { friend_link_id: 'fl_1' },
+        status: 'created',
+        friendship_id: 'friendship_1',
+        continuation: {},
       },
     });
     expect(apiMock.post).toHaveBeenCalledWith('/api/friends/join', { link_code: 'code/1' });
