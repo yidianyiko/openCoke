@@ -196,6 +196,42 @@ class FakeReminderTool:
         return ToolExecutionResult(ok=True, facts={"reminder_id": "reminder_1"})
 
 
+class FakeReminderFireFacts:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def reminder_fire_render_facts(
+        self,
+        *,
+        owner_account_id,
+        fire_ids,
+        viewer_account_id=None,
+    ):
+        self.calls.append(
+            {
+                "owner_account_id": owner_account_id,
+                "fire_ids": list(fire_ids),
+                "viewer_account_id": viewer_account_id,
+            }
+        )
+        return [
+            SimpleNamespace(
+                fire_id="fire_1",
+                reminder_id="reminder_1",
+                title="和Oliver喝咖啡",
+                owner_account_id="account_1",
+                viewer_account_id="account_1",
+                due_at="2026-06-06T06:00:00+00:00",
+                local_due_at="2026-06-06T14:00:00+08:00",
+                timezone="Asia/Shanghai",
+                duration_minutes=45,
+                kind="shared_projection",
+                shared_reminder_id="shared_1",
+                participant_names=("Oliver",),
+            )
+        ]
+
+
 class FakeSocialSchedulingTool:
     def execute(self, command, guard):
         return ToolExecutionResult(
@@ -295,6 +331,7 @@ def harness():
     semantic = FakeSemanticInterpreter()
     memory = FakeMemoryPort()
     reminder_tool = FakeReminderTool()
+    reminder_fire_facts = FakeReminderFireFacts()
     agent = FakeAgent()
     delivery = FakeDelivery()
     runner = TurnRunner(
@@ -311,6 +348,7 @@ def harness():
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=delivery,
         tool_ports=AgentToolPorts(reminder_tool=reminder_tool),
+        reminder_fire_facts=reminder_fire_facts,
         now=clock.now,
         account_timezone=lambda _account_id: gate_port.account_timezone,
     )
@@ -330,6 +368,7 @@ def harness():
         "semantic": semantic,
         "memory": memory,
         "reminder_tool": reminder_tool,
+        "reminder_fire_facts": reminder_fire_facts,
         "agent": agent,
         "delivery": delivery,
         "runner": runner,
@@ -1876,6 +1915,33 @@ def test_render_turn_context_contains_source_framing_for_system_trigger(harness)
             "title as if the user said it."
         ),
     }
+
+
+def test_reminder_fire_render_turn_injects_trusted_domain_result(harness):
+    result = harness["runner"].run_render_turn(
+        TurnTrigger(
+            trigger_id="reminder_fire:account_1:2026-06-06T06:00:00+00:00",
+            trigger_type="ReminderFireTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={"fire_ids": ["fire_1"]},
+        )
+    )
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    domain_result = request.trusted_facts["domain_result"]
+    assert domain_result["reply_contract"] == "render_reminder_fire"
+    assert domain_result["facts"]["fire_ids"] == ["fire_1"]
+    assert domain_result["facts"]["reminders"][0]["title"] == "和Oliver喝咖啡"
+    assert (
+        domain_result["facts"]["reminders"][0]["local_due_at"]
+        == "2026-06-06T14:00:00+08:00"
+    )
+    assert harness["reminder_fire_facts"].calls[-1]["viewer_account_id"] == (
+        "account_1"
+    )
 
 
 def test_inbound_agent_trusted_facts_include_account_local_current_time_and_prompt_environment(

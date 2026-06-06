@@ -1384,6 +1384,7 @@ def compose_coke_runtime(
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=outbound_delivery,
         tool_ports=tool_ports,
+        reminder_fire_facts=reminder_service,
         focus_resolver=FocusResolver(
             ReminderLifecycleFocusRepository(
                 repositories.conversation_runtime,

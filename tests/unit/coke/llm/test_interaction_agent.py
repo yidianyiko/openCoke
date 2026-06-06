@@ -1094,6 +1094,55 @@ def test_render_notification_context_exposes_structured_facts_to_agent():
     assert "快去看看" not in reply_text
 
 
+def test_render_reminder_fire_context_exposes_trusted_domain_result_to_agent():
+    fake_agent = FakeAgentInstance(
+        content={"type": "reply", "segments": ["和Oliver喝咖啡 14:00"]}
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _render_request(
+            trigger_type="ReminderFireTurn",
+            payload={"fire_ids": ["fire_1"]},
+            trusted_facts={
+                "domain_result": {
+                    "domain": "reminder",
+                    "intent": "render reminder fire fact",
+                    "action": "ReminderFireTurn",
+                    "effect": "ready",
+                    "intent_fulfilled": True,
+                    "visible_summary": "和Oliver喝咖啡",
+                    "reply_contract": "render_reminder_fire",
+                    "facts": {
+                        "viewer_account_id": "account_1",
+                        "fire_ids": ["fire_1"],
+                        "reminders": [
+                            {
+                                "fire_id": "fire_1",
+                                "reminder_id": "reminder_1",
+                                "title": "和Oliver喝咖啡",
+                                "local_due_at": "2026-06-06T14:00:00+08:00",
+                                "timezone": "Asia/Shanghai",
+                                "duration_minutes": 45,
+                                "kind": "shared_projection",
+                            }
+                        ],
+                    },
+                }
+            },
+        )
+    )
+
+    prompt = fake_agent.calls[0]["input"]
+    assert "render_reminder_fire" in _block_text(prompt, "domain_result")
+    assert "和Oliver喝咖啡" in _block_text(prompt, "domain_result")
+    assert "2026-06-06T14:00:00+08:00" in _block_text(prompt, "domain_result")
+    assert result.output["type"] == "reply"
+
+
 def test_render_context_exposes_undelivered_notification_fact_list_to_agent():
     fake_agent = FakeAgentInstance(
         content={

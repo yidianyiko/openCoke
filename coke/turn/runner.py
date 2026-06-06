@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -66,6 +66,16 @@ class DeliveryLifecyclePort(Protocol):
         request: DeliveryRequest,
         outcome: "DeliveryOutcome",
     ) -> None: ...
+
+
+class ReminderFireFactsPort(Protocol):
+    def reminder_fire_render_facts(
+        self,
+        *,
+        owner_account_id: str,
+        fire_ids: list[str],
+        viewer_account_id: str | None = None,
+    ) -> list[Any]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +140,7 @@ class TurnRunner:
         focus_resolver: FocusResolver | None = None,
         reference_resolver: ReferenceResolver | None = None,
         delivery_lifecycle: DeliveryLifecyclePort | None = None,
+        reminder_fire_facts: ReminderFireFactsPort | None = None,
         staged_command_materializer: Any | None = None,
         now: Callable[[], datetime] | None = None,
         account_timezone: Callable[[str], str | None] | None = None,
@@ -146,6 +157,7 @@ class TurnRunner:
         self.output_protocol = output_protocol
         self.outbound_delivery = outbound_delivery
         self.delivery_lifecycle = delivery_lifecycle
+        self.reminder_fire_facts = reminder_fire_facts
         self.staged_command_materializer = staged_command_materializer
         self.tool_ports = tool_ports or AgentToolPorts()
         self.context_assembler = context_assembler or ContextAssembler()
@@ -675,6 +687,30 @@ class TurnRunner:
                 now=self._now,
                 account_timezone=self._account_timezone,
             )
+            try:
+                domain_result = _reminder_fire_domain_result(
+                    self.reminder_fire_facts,
+                    trigger,
+                )
+            except Exception as error:
+                reason_code = _render_fact_error_code(error)
+                disposition = self.conversation_runtime.mark_failed(
+                    start.turn.id,
+                    reason_code,
+                )
+                self._record_render_failure_lifecycle(
+                    trigger=trigger,
+                    turn_id=start.turn.id,
+                    reason_code=reason_code,
+                )
+                return self._result_from_disposition(
+                    turn_id=start.turn.id,
+                    trigger=trigger,
+                    disposition=disposition.disposition,
+                    reason_code=disposition.reason_code,
+                )
+            if domain_result is not None:
+                trusted_facts["domain_result"] = domain_result
             context = self.context_assembler.build(
                 trigger=trigger,
                 trusted_facts=trusted_facts,
@@ -685,6 +721,7 @@ class TurnRunner:
                 freshness_guard=freshness_guard,
                 tool_profile=ToolProfile.render(constrained=constrained),
                 turn_source=trusted_facts["turn_source"],
+                domain_result=domain_result,
             )
             return self._invoke_agent_and_record(
                 trigger, context, semantic_decision=None
@@ -1246,6 +1283,75 @@ def _protocol_retry_request(
 def _agent_run_id_for_trigger(trigger: TurnTrigger, *, fallback: str) -> str:
     value = trigger.agent_run_id
     return value if isinstance(value, str) and value else fallback
+
+
+def _reminder_fire_domain_result(
+    provider: ReminderFireFactsPort | None,
+    trigger: TurnTrigger,
+) -> dict[str, Any] | None:
+    if trigger.trigger_type != "ReminderFireTurn":
+        return None
+    if provider is None:
+        raise ValueError("reminder_fire_facts_unavailable")
+    fire_ids = _string_list(trigger.payload.get("fire_ids"))
+    facts = provider.reminder_fire_render_facts(
+        owner_account_id=trigger.account_id,
+        fire_ids=fire_ids,
+        viewer_account_id=trigger.account_id,
+    )
+    reminders = [_object_mapping(fact) for fact in facts]
+    return {
+        "domain": "reminder",
+        "intent": "render reminder fire fact",
+        "action": "ReminderFireTurn",
+        "effect": "ready",
+        "intent_fulfilled": True,
+        "visible_summary": "; ".join(
+            str(item.get("title") or "") for item in reminders
+        ),
+        "reply_contract": "render_reminder_fire",
+        "privacy_notes": [
+            (
+                "Render only these reminder facts; do not use chat history for "
+                "title, time, participant, duration, or kind."
+            )
+        ],
+        "facts": {
+            "viewer_account_id": trigger.account_id,
+            "fire_ids": fire_ids,
+            "reminders": reminders,
+        },
+    }
+
+
+def _object_mapping(value: Any) -> dict[str, Any]:
+    if is_dataclass(value):
+        return asdict(value)
+    if isinstance(value, Mapping):
+        return dict(value)
+    return {
+        key: item
+        for key, item in vars(value).items()
+        if not key.startswith("_")
+    }
+
+
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, list | tuple):
+        values = list(value)
+    else:
+        values = []
+    return [item for item in values if isinstance(item, str) and item]
+
+
+def _render_fact_error_code(error: Exception) -> str:
+    code = getattr(error, "code", None)
+    if isinstance(code, str) and code:
+        return code
+    message = str(error)
+    return message if message else "render_facts_unavailable"
 
 
 def _validate_for_trigger(
