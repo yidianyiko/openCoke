@@ -471,7 +471,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit runner recovery slice**
+- [x] **Step 9: Commit runner recovery slice**
 
 Commit:
 
@@ -486,13 +486,13 @@ git commit -m $'feat: recover blocked shared reminder friend corrections\n\nCo-A
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/superpowers/plans/2026-06-07-response-contract-recovery.md`
 
-- [ ] **Step 1: Write documentation update**
+- [x] **Step 1: Write documentation update**
 
 Document that SocialScheduling owns `recoverable_scheduling_intent`, The Turn
 injects social-scheduling outcomes as trusted dynamic facts, and the
 Interaction Agent remains the only normal channel-visible prose producer.
 
-- [ ] **Step 2: Run docs/routing check for doc edit**
+- [x] **Step 2: Run docs/routing check for doc edit**
 
 Run:
 
@@ -502,7 +502,7 @@ zsh scripts/suggest-verification --base HEAD~1
 
 Expected: command exits 0 and suggests repo/doc/runtime surfaces.
 
-- [ ] **Step 3: Commit docs and completed plan ticks**
+- [x] **Step 3: Commit docs and completed plan ticks**
 
 Commit:
 

@@ -163,6 +163,21 @@ external adapter effects until the fresh close transaction materializes the
 staged commands. This avoids leaving wrong durable side effects when a user sends
 a correction before receiving the first agent-visible reply.
 
+Shared-reminder tool results carry a structured `SocialSchedulingOutcome`.
+The Turn injects those outcomes as trusted dynamic facts and validates any
+Interaction Agent `domain_claim` against the outcome status and blocker. A
+`staged_pending_close` outcome is never a user-visible success claim; visible
+success must match a close-time materialized or duplicate-active outcome. This
+is a structural reply contract, not a phrase denylist or deterministic renderer.
+
+Friend-reference corrections for blocked shared-reminder creates are handled by
+the SemanticInterpreter as typed follow-up actions. When the action matches an
+open recoverable shared-reminder intent, The Turn injects the artifact and the
+resolved active friend as trusted facts, then the Interaction Agent calls the
+normal social-scheduling tool. Ambiguous corrections inject a constrained
+confirmation fact for one concise question. Corrected friend text is turn-local
+only and must not become global alias memory.
+
 The worker tier must observe new inbound while an interactive Agno run is still
 active. Interactive execution is therefore supervised per conversation. In
 horizontally scaled workers, durable interruption state is shared through
@@ -183,8 +198,18 @@ single reachable channel, delivery route, and delivery attempts.
 ConversationRuntime owns conversation order, messages, media references, turns,
 and output disposition. Reminder owns reminders, fires, recurrence, scheduler,
 and calendar read models. SocialScheduling owns friend links, friendships,
-shared reminders, projections, and product notifications. CalendarImport owns
-Google authorization, import runs, and per-occurrence import items.
+shared reminders, projections, product notifications, social-scheduling
+outcomes, and `recoverable_scheduling_intent`. CalendarImport owns Google
+authorization, import runs, and per-occurrence import items.
+
+`recoverable_scheduling_intent` is a narrow durable artifact for
+`shared_reminder_create` requests blocked by `unmatched_friend` or
+`ambiguous_friend`. It is created only after a fresh close that told the user the
+request was blocked, stores already-understood request facts and a short
+`expires_at`, has at most one open artifact per conversation, and is never
+materialized directly. It is consumed only after a later fresh close materializes
+a recovered social-scheduling command carrying the artifact id and `facts_hash`.
+Superseded consuming turns leave the artifact open.
 
 Rules that apply to every bounded context:
 
@@ -212,7 +237,8 @@ Postgres stores all durable state:
 - Reminder: `reminder`, `reminder_fire`, recurrence data, and reminder calendar
   read models.
 - SocialScheduling: `friend_link`, `friendship`, `shared_reminder`,
-  `reminder_projection`, `notification_fact`, and `notification_recipient`.
+  `reminder_projection`, `notification_fact`, `notification_recipient`, and
+  `recoverable_scheduling_intent`.
 - CalendarImport: `calendar_import_run` and `calendar_import_item`.
 - Agno substrate: session, history, memory, knowledge, and pgvector.
 
