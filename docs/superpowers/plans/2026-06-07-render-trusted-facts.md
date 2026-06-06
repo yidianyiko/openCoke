@@ -51,7 +51,7 @@
 - Modify: `tests/unit/coke/llm/test_interaction_agent.py`
 - Modify: `coke/llm/agno_interaction_agent.py`
 
-- [ ] **Step 1: Write failing tests for history policy**
+- [x] **Step 1: Write failing tests for history policy**
 
 Add tests near the existing Agno construction tests:
 
@@ -77,7 +77,7 @@ def test_render_agent_construction_disables_chat_history_as_fact_source():
     assert factory.agent_kwargs[0]["add_memories_to_context"] is True
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
 Run:
 
@@ -88,7 +88,7 @@ Run:
 Expected: the render test fails because `_build_agent()` still passes
 `add_history_to_context=True`.
 
-- [ ] **Step 3: Implement the minimal history policy**
+- [x] **Step 3: Implement the minimal history policy**
 
 In `coke/llm/agno_interaction_agent.py`, add:
 
@@ -103,13 +103,13 @@ Change `_build_agent()`:
 add_history_to_context=_add_history_to_context(request),
 ```
 
-- [ ] **Step 4: Run the tests and verify GREEN**
+- [x] **Step 4: Run the tests and verify GREEN**
 
 Run the same pytest command from Step 2.
 
 Expected: both tests pass.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 ```bash
 git add coke/llm/agno_interaction_agent.py tests/unit/coke/llm/test_interaction_agent.py
@@ -123,7 +123,7 @@ git commit -m "fix: isolate render agent chat history" -m "Co-Authored-By: Codex
 - Modify: `coke/domains/reminder/service.py`
 - Modify: `tests/unit/coke/turn/test_turn_runner.py`
 
-- [ ] **Step 1: Write a failing service-level hydration test**
+- [x] **Step 1: Write a failing service-level hydration test**
 
 Add imports in `tests/unit/coke/turn/test_turn_runner.py`:
 
@@ -190,7 +190,7 @@ def test_reminder_service_hydrates_fire_ids_for_render_facts():
     assert facts[0].participant_names == ("Oliver",)
 ```
 
-- [ ] **Step 2: Run the hydration test and verify RED**
+- [x] **Step 2: Run the hydration test and verify RED**
 
 Run:
 
@@ -200,7 +200,7 @@ Run:
 
 Expected: fails because `ReminderService.reminder_fire_render_facts` does not exist.
 
-- [ ] **Step 3: Add the render fact dataclass**
+- [x] **Step 3: Add the render fact dataclass**
 
 In `coke/domains/reminder/models.py`, add:
 
@@ -223,7 +223,7 @@ class ReminderFireRenderFact:
 
 Import it in `coke/domains/reminder/service.py`.
 
-- [ ] **Step 4: Add the service hydration method**
+- [x] **Step 4: Add the service hydration method**
 
 In `ReminderService`, add:
 
@@ -280,13 +280,13 @@ def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo]:
         return "UTC", ZoneInfo("UTC")
 ```
 
-- [ ] **Step 5: Run the hydration test and verify GREEN**
+- [x] **Step 5: Run the hydration test and verify GREEN**
 
 Run the same pytest command from Step 2.
 
 Expected: the hydration test passes.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 ```bash
 git add coke/domains/reminder/models.py coke/domains/reminder/service.py tests/unit/coke/turn/test_turn_runner.py
@@ -301,7 +301,7 @@ git commit -m "feat: hydrate reminder fire render facts" -m "Co-Authored-By: Cod
 - Modify: `tests/unit/coke/turn/test_turn_runner.py`
 - Modify: `tests/unit/coke/llm/test_interaction_agent.py`
 
-- [ ] **Step 1: Write failing runner and prompt tests**
+- [x] **Step 1: Write failing runner and prompt tests**
 
 Add a fake provider in `tests/unit/coke/turn/test_turn_runner.py`:
 
@@ -411,7 +411,7 @@ def test_render_reminder_fire_context_exposes_trusted_domain_result_to_agent():
     assert result.output["type"] == "reply"
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
 Run:
 
@@ -423,7 +423,7 @@ Expected: runner test fails because `TurnRunner` does not accept or call
 `reminder_fire_facts`; prompt test may pass only after trusted facts are injected
 manually and should remain a guard against prompt-block regressions.
 
-- [ ] **Step 3: Add the runner port and domain-result builder**
+- [x] **Step 3: Add the runner port and domain-result builder**
 
 In `coke/turn/runner.py`, add:
 
@@ -486,7 +486,7 @@ Pass `domain_result=domain_result` into `context_assembler.build(...)`.
 If the helper raises, mark the turn failed with that reason code and call
 `_record_render_failure_lifecycle(...)`.
 
-- [ ] **Step 4: Wire production composition**
+- [x] **Step 4: Wire production composition**
 
 In `coke/composition.py`, pass:
 
@@ -496,13 +496,13 @@ reminder_fire_facts=reminder_service,
 
 to the production `TurnRunner`.
 
-- [ ] **Step 5: Run the tests and verify GREEN**
+- [x] **Step 5: Run the tests and verify GREEN**
 
 Run the same pytest command from Step 2.
 
 Expected: both tests pass.
 
-- [ ] **Step 6: Commit Task 3**
+- [x] **Step 6: Commit Task 3**
 
 ```bash
 git add coke/turn/runner.py coke/composition.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/llm/test_interaction_agent.py
@@ -515,7 +515,7 @@ git commit -m "feat: inject reminder fire trusted render facts" -m "Co-Authored-
 - Modify: `coke/turn/runner.py`
 - Modify: `tests/unit/coke/turn/test_turn_runner.py`
 
-- [ ] **Step 1: Write failing guard regression tests**
+- [x] **Step 1: Write failing guard regression tests**
 
 Add tests:
 
@@ -580,7 +580,7 @@ def _reminder_fire_trigger(harness):
     )
 ```
 
-- [ ] **Step 2: Run the guard tests and verify RED**
+- [x] **Step 2: Run the guard tests and verify RED**
 
 Run:
 
@@ -591,7 +591,7 @@ Run:
 Expected: tests fail because the runner accepts the model output or fails the
 turn instead of retrying and falling back.
 
-- [ ] **Step 3: Implement structural guard helpers**
+- [x] **Step 3: Implement structural guard helpers**
 
 In `coke/turn/runner.py`, add helpers:
 
@@ -644,13 +644,13 @@ Use the guard in sync and async `_invoke_agent_and_record*()` after
 invalid for `ReminderFireTurn`, call `_minimal_reminder_fire_reply(...)`; if it
 returns `None`, record the failed disposition.
 
-- [ ] **Step 4: Run guard tests and verify GREEN**
+- [x] **Step 4: Run guard tests and verify GREEN**
 
 Run the same pytest command from Step 2.
 
 Expected: all guard tests pass.
 
-- [ ] **Step 5: Run focused runner render tests**
+- [x] **Step 5: Run focused runner render tests**
 
 Run:
 
@@ -660,7 +660,7 @@ Run:
 
 Expected: selected tests pass.
 
-- [ ] **Step 6: Commit Task 4**
+- [x] **Step 6: Commit Task 4**
 
 ```bash
 git add coke/turn/runner.py tests/unit/coke/turn/test_turn_runner.py
@@ -676,7 +676,7 @@ git commit -m "fix: fail closed on reminder fire render mismatches" -m "Co-Autho
 - Modify: `tests/unit/coke/test_social_scheduling_tool_adapter.py`
 - Modify: `tests/unit/coke/social_scheduling/test_social_scheduling_service.py`
 
-- [ ] **Step 1: Write failing availability tests**
+- [x] **Step 1: Write failing availability tests**
 
 In `tests/unit/coke/social_scheduling/test_social_scheduling_service.py`, add:
 
@@ -721,7 +721,7 @@ assert set(serialized) == {"friend_account_id", "friend_display_name", "windows"
 assert set(serialized["windows"][0]) == {"start", "end", "state"}
 ```
 
-- [ ] **Step 2: Run availability tests and verify RED**
+- [x] **Step 2: Run availability tests and verify RED**
 
 Run:
 
@@ -732,7 +732,7 @@ Run:
 Expected: tests fail because `FriendAvailability` has no display-name field and
 `_availability_facts()` omits it.
 
-- [ ] **Step 3: Add display name to availability model and service**
+- [x] **Step 3: Add display name to availability model and service**
 
 In `coke/domains/social_scheduling/availability.py`, change:
 
@@ -754,7 +754,7 @@ FriendAvailability(
 )
 ```
 
-- [ ] **Step 4: Serialize only public availability fields**
+- [x] **Step 4: Serialize only public availability fields**
 
 In `coke/composition.py`, update `_availability_facts()`:
 
@@ -766,13 +766,13 @@ In `coke/composition.py`, update `_availability_facts()`:
 }
 ```
 
-- [ ] **Step 5: Run availability tests and verify GREEN**
+- [x] **Step 5: Run availability tests and verify GREEN**
 
 Run the same pytest command from Step 2.
 
 Expected: both tests pass.
 
-- [ ] **Step 6: Commit Task 5**
+- [x] **Step 6: Commit Task 5**
 
 ```bash
 git add coke/domains/social_scheduling/availability.py coke/domains/social_scheduling/service.py coke/composition.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/social_scheduling/test_social_scheduling_service.py
@@ -784,7 +784,7 @@ git commit -m "fix: expose only public availability facts" -m "Co-Authored-By: C
 **Files:**
 - Modify: `docs/ARCHITECTURE.md`
 
-- [ ] **Step 1: Write the architecture doc update**
+- [x] **Step 1: Write the architecture doc update**
 
 In `docs/ARCHITECTURE.md`, update The Turn section after the render-mode
 description with:
@@ -799,7 +799,7 @@ the Interaction Agent runs and fail closed if the visible reply cannot reconcile
 with those facts.
 ```
 
-- [ ] **Step 2: Run docs and focused unit verification**
+- [x] **Step 2: Run docs and focused unit verification**
 
 Run:
 
@@ -809,7 +809,7 @@ Run:
 
 Expected: all selected tests pass.
 
-- [ ] **Step 3: Run diff-aware routing**
+- [x] **Step 3: Run diff-aware routing**
 
 Run:
 
@@ -821,7 +821,7 @@ zsh scripts/review-trigger --base HEAD~1
 Expected: commands complete and identify the required surface. Run the suggested
 surface command before final handoff.
 
-- [ ] **Step 4: Commit Task 6**
+- [x] **Step 4: Commit Task 6**
 
 ```bash
 git add docs/ARCHITECTURE.md
@@ -830,27 +830,27 @@ git commit -m "docs: document render trusted fact boundary" -m "Co-Authored-By: 
 
 ## Final Verification
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 .venv/bin/python -m pytest tests/unit/coke/turn tests/unit/coke/llm tests/unit/coke/social_scheduling tests/unit/coke/test_social_scheduling_tool_adapter.py -v
 ```
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 zsh scripts/suggest-verification --base HEAD~1
 ```
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 zsh scripts/review-trigger --base HEAD~1
 ```
 
-- [ ] Run the suggested verification surface from `suggest-verification`.
+- [x] Run the suggested verification surface from `suggest-verification`.
 
-- [ ] Record exact command outputs in the final report.
+- [x] Record exact command outputs in the final report.
 
 ## Plan Self-Review
 
