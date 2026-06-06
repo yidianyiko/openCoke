@@ -1,0 +1,112 @@
+base: main
+changed_files: 56
+- coke/api/friend_routes.py
+- coke/composition.py
+- coke/domains/channel_reachability/models.py
+- coke/domains/channel_reachability/repository.py
+- coke/domains/channel_reachability/service.py
+- coke/domains/conversation_runtime/models.py
+- coke/domains/conversation_runtime/repository.py
+- coke/domains/conversation_runtime/service.py
+- coke/domains/reminder/models.py
+- coke/domains/reminder/service.py
+- coke/domains/social_scheduling/availability.py
+- coke/domains/social_scheduling/models.py
+- coke/domains/social_scheduling/repository.py
+- coke/domains/social_scheduling/service.py
+- coke/llm/agno_interaction_agent.py
+- coke/llm/semantic_interpreter.py
+- coke/schema.py
+- coke/turn/agent.py
+- coke/turn/output_protocol.py
+- coke/turn/runner.py
+- coke/turn/semantic_interpreter.py
+- coke/worker/waiting_reply.py
+- docs/ARCHITECTURE.md
+- docs/issues/2026-06-06-eva-chat-rca.md
+- docs/product-specs/FEATURE_TREE.md
+- docs/superpowers/plans/2026-06-07-delivery-reliability-onboarding.md
+- docs/superpowers/plans/2026-06-07-eva-regression-corpus.md
+- docs/superpowers/plans/2026-06-07-friend-add-feedback.md
+- docs/superpowers/plans/2026-06-07-render-trusted-facts.md
+- docs/superpowers/plans/2026-06-07-response-contract-recovery.md
+- docs/superpowers/specs/2026-06-07-delivery-reliability-onboarding-design.md
+- docs/superpowers/specs/2026-06-07-eva-regression-corpus-design.md
+- docs/superpowers/specs/2026-06-07-friend-add-feedback-design.md
+- docs/superpowers/specs/2026-06-07-render-trusted-facts-design.md
+- docs/superpowers/specs/2026-06-07-response-contract-recovery-design.md
+- migrations/versions/20260607_0001_recoverable_scheduling_intent.py
+- migrations/versions/20260607_0002_delivery_attempt_diagnostics.py
+- tests/unit/coke/channel_reachability/test_channel_reachability_service.py
+- tests/unit/coke/llm/test_interaction_agent.py
+- tests/unit/coke/llm/test_semantic_interpreter.py
+- tests/unit/coke/social_scheduling/test_recoverable_scheduling_intent.py
+- tests/unit/coke/social_scheduling/test_social_scheduling_routes.py
+- tests/unit/coke/social_scheduling/test_social_scheduling_schema_contract.py
+- tests/unit/coke/social_scheduling/test_social_scheduling_service.py
+- tests/unit/coke/test_clean_schema_contract.py
+- tests/unit/coke/test_delivery_lifecycle_callbacks.py
+- tests/unit/coke/test_social_scheduling_tool_adapter.py
+- tests/unit/coke/turn/test_output_protocol.py
+- tests/unit/coke/turn/test_turn_runner.py
+- tests/unit/coke/worker/test_waiting_reply.py
+- web/app/(customer)/account/friends/page.test.tsx
+- web/app/(customer)/account/friends/page.tsx
+- web/lib/customer-friends.test.ts
+- web/lib/customer-friends.ts
+- web/lib/i18n.ts
+- tests/unit/coke/turn/test_eva_regression_corpus.py
+human_review_required: no
+risk_triggers: yes
+- cross_boundary_backend_web [medium]
+  reason: changed boundary backend: coke/api/friend_routes.py, coke/composition.py, coke/domains/channel_reachability/models.py, coke/domains/channel_reachability/repository.py, coke/domains/channel_reachability/service.py, coke/domains/conversation_runtime/models.py, coke/domains/conversation_runtime/repository.py, coke/domains/conversation_runtime/service.py, coke/domains/reminder/models.py, coke/domains/reminder/service.py, coke/domains/social_scheduling/availability.py, coke/domains/social_scheduling/models.py, coke/domains/social_scheduling/repository.py, coke/domains/social_scheduling/service.py, coke/llm/agno_interaction_agent.py, coke/llm/semantic_interpreter.py, coke/schema.py, coke/turn/agent.py, coke/turn/output_protocol.py, coke/turn/runner.py, coke/turn/semantic_interpreter.py, coke/worker/waiting_reply.py, migrations/versions/20260607_0001_recoverable_scheduling_intent.py, migrations/versions/20260607_0002_delivery_attempt_diagnostics.py
+  reason: changed boundary web: web/app/(customer)/account/friends/page.test.tsx, web/app/(customer)/account/friends/page.tsx, web/lib/customer-friends.test.ts, web/lib/customer-friends.ts, web/lib/i18n.ts
+- sensitive_repo_os_change [medium]
+  reason: changed path: docs/ARCHITECTURE.md
+  reason: changed path: docs/issues/2026-06-06-eva-chat-rca.md
+  reason: changed path: docs/product-specs/FEATURE_TREE.md
+  reason: changed path: docs/superpowers/plans/2026-06-07-delivery-reliability-onboarding.md
+  reason: changed path: docs/superpowers/plans/2026-06-07-eva-regression-corpus.md
+  reason: changed path: docs/superpowers/plans/2026-06-07-friend-add-feedback.md
+  reason: changed path: docs/superpowers/plans/2026-06-07-render-trusted-facts.md
+  reason: changed path: docs/superpowers/plans/2026-06-07-response-contract-recovery.md
+  reason: changed path: docs/superpowers/specs/2026-06-07-delivery-reliability-onboarding-design.md
+  reason: changed path: docs/superpowers/specs/2026-06-07-eva-regression-corpus-design.md
+  reason: changed path: docs/superpowers/specs/2026-06-07-friend-add-feedback-design.md
+  reason: changed path: docs/superpowers/specs/2026-06-07-render-trusted-facts-design.md
+  reason: changed path: docs/superpowers/specs/2026-06-07-response-contract-recovery-design.md
+- oversized_change [medium]
+  reason: diff touched 55 files (threshold: 12)
+  reason: diff added 8983 lines (threshold: 600)
+  reason: diff deleted 994 lines (threshold: 400)
+- evidence_gap [medium]
+  reason: changed path without evidence: coke/api/friend_routes.py
+  reason: changed path without evidence: coke/composition.py
+  reason: changed path without evidence: coke/domains/channel_reachability/models.py
+  reason: changed path without evidence: coke/domains/channel_reachability/repository.py
+  reason: changed path without evidence: coke/domains/channel_reachability/service.py
+  reason: changed path without evidence: coke/domains/conversation_runtime/models.py
+  reason: changed path without evidence: coke/domains/conversation_runtime/repository.py
+  reason: changed path without evidence: coke/domains/conversation_runtime/service.py
+  reason: changed path without evidence: coke/domains/reminder/models.py
+  reason: changed path without evidence: coke/domains/reminder/service.py
+  reason: changed path without evidence: coke/domains/social_scheduling/availability.py
+  reason: changed path without evidence: coke/domains/social_scheduling/models.py
+  reason: changed path without evidence: coke/domains/social_scheduling/repository.py
+  reason: changed path without evidence: coke/domains/social_scheduling/service.py
+  reason: changed path without evidence: coke/llm/agno_interaction_agent.py
+  reason: changed path without evidence: coke/llm/semantic_interpreter.py
+  reason: changed path without evidence: coke/schema.py
+  reason: changed path without evidence: coke/turn/agent.py
+  reason: changed path without evidence: coke/turn/output_protocol.py
+  reason: changed path without evidence: coke/turn/runner.py
+  reason: changed path without evidence: coke/turn/semantic_interpreter.py
+  reason: changed path without evidence: coke/worker/waiting_reply.py
+  reason: changed path without evidence: migrations/versions/20260607_0001_recoverable_scheduling_intent.py
+  reason: changed path without evidence: migrations/versions/20260607_0002_delivery_attempt_diagnostics.py
+  reason: changed path without evidence: web/app/(customer)/account/friends/page.test.tsx
+  reason: changed path without evidence: web/app/(customer)/account/friends/page.tsx
+  reason: changed path without evidence: web/lib/customer-friends.test.ts
+  reason: changed path without evidence: web/lib/customer-friends.ts
+  reason: changed path without evidence: web/lib/i18n.ts
+  reason: expected evidence path patterns: artifacts/evidence/**

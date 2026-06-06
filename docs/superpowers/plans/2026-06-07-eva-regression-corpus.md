@@ -34,7 +34,7 @@ failing case instead of weakening the test.
 - Create: `tests/unit/coke/turn/test_eva_regression_corpus.py`
 - Modify: `docs/superpowers/plans/2026-06-07-eva-regression-corpus.md`
 
-- [ ] **Step 1: Write the corpus scaffolding and reminder-fire regression test**
+- [x] **Step 1: Write the corpus scaffolding and reminder-fire regression test**
 
 Create `tests/unit/coke/turn/test_eva_regression_corpus.py` with these imports and helper classes:
 
@@ -180,7 +180,7 @@ def test_eva_reminder_fire_uses_hydrated_fact_not_recent_wrong_chat(
     assert reminder_fact["local_due_at"] == local_due_at
 ```
 
-- [ ] **Step 2: Run the reminder-fire test**
+- [x] **Step 2: Run the reminder-fire test**
 
 Run:
 
@@ -192,7 +192,7 @@ Expected on this integration branch: either PASS because Tracks A/I are already
 integrated, or FAIL exposing a real integrated defect. If it fails because the
 test scaffolding is wrong, fix only test scaffolding.
 
-- [ ] **Step 3: Tick Task 1 checkboxes in this plan**
+- [x] **Step 3: Tick Task 1 checkboxes in this plan**
 
 Update this file so Task 1 completed steps use `- [x]`.
 
@@ -202,7 +202,7 @@ Update this file so Task 1 completed steps use `- [x]`.
 - Modify: `tests/unit/coke/turn/test_eva_regression_corpus.py`
 - Modify: `docs/superpowers/plans/2026-06-07-eva-regression-corpus.md`
 
-- [ ] **Step 1: Add the `zihao就是olivers` recovery test**
+- [x] **Step 1: Add the `zihao就是olivers` recovery test**
 
 Add a test that creates an open `RecoverableSchedulingIntent`, one active friend
 named `Olivers`, a typed semantic follow-up action, and a scripted agent that
@@ -241,7 +241,7 @@ def test_eva_zihao_correction_recovers_shared_reminder_without_generic_refusal()
     assert repo.list_shared_reminders_for_participant("account_1")
 ```
 
-- [ ] **Step 2: Add the availability privacy test**
+- [x] **Step 2: Add the availability privacy test**
 
 Add a test that creates shared-reminder context, configures a private busy
 interval with labels in unavailable fields only, uses
@@ -271,7 +271,7 @@ def test_eva_availability_reply_has_windows_without_activity_labels():
         assert forbidden not in result.visible_text
 ```
 
-- [ ] **Step 3: Run the new recovery and availability tests**
+- [x] **Step 3: Run the new recovery and availability tests**
 
 Run:
 
@@ -282,7 +282,7 @@ Run:
 Expected on this integration branch: PASS unless Track C/D/E integration has a
 real defect. If a real defect appears, stop and report it.
 
-- [ ] **Step 4: Tick Task 2 checkboxes in this plan**
+- [x] **Step 4: Tick Task 2 checkboxes in this plan**
 
 Update this file so Task 2 completed steps use `- [x]`.
 
@@ -292,7 +292,7 @@ Update this file so Task 2 completed steps use `- [x]`.
 - Modify: `tests/unit/coke/turn/test_eva_regression_corpus.py`
 - Modify: `docs/superpowers/plans/2026-06-07-eva-regression-corpus.md`
 
-- [ ] **Step 1: Add the waiting provider failure plus final reply test**
+- [x] **Step 1: Add the waiting provider failure plus final reply test**
 
 Add a test whose delivery fake returns `DeliveryOutcome(status="failed",
 error_code="provider_network_error")` for waiting messages and records the
@@ -319,7 +319,7 @@ def test_eva_waiting_provider_failure_is_observable_and_final_reply_closes_turn(
     assert final.visible_text == "最终回复"
 ```
 
-- [ ] **Step 2: Add the no-soft-success without materialization test**
+- [x] **Step 2: Add the no-soft-success without materialization test**
 
 Add a supersession test where the agent attempts a shared-reminder command and
 returns production-bad soft-success prose after a newer inbound arrives:
@@ -343,7 +343,7 @@ def test_eva_superseded_shared_reminder_soft_success_does_not_materialize_or_sen
     assert all("邀约" not in delivery.visible_text for delivery in env.delivery.deliveries)
 ```
 
-- [ ] **Step 3: Run the waiting and soft-success tests**
+- [x] **Step 3: Run the waiting and soft-success tests**
 
 Run:
 
@@ -355,7 +355,7 @@ Expected on this integration branch: PASS unless Track B/C close-boundary
 integration has a real defect. If the soft-success text is delivered without
 materialized state, stop and report it.
 
-- [ ] **Step 4: Tick Task 3 checkboxes in this plan**
+- [x] **Step 4: Tick Task 3 checkboxes in this plan**
 
 Update this file so Task 3 completed steps use `- [x]`.
 
@@ -367,7 +367,7 @@ Update this file so Task 3 completed steps use `- [x]`.
 - Create: `artifacts/evidence/2026-06-07-eva-regression-corpus/suggest-verification.txt`
 - Create: `artifacts/evidence/2026-06-07-eva-regression-corpus/review-trigger.txt`
 
-- [ ] **Step 1: Run the full Eva corpus and save evidence**
+- [x] **Step 1: Run the full Eva corpus and save evidence**
 
 Run:
 
@@ -384,7 +384,7 @@ Then run:
 Expected: all Eva corpus tests pass, with output saved in
 `pytest-eva-corpus.txt`.
 
-- [ ] **Step 2: Run required full backend verification**
+- [x] **Step 2: Run required full backend verification**
 
 Run:
 
@@ -394,7 +394,7 @@ Run:
 
 Expected: the full `tests/unit/coke` baseline remains green.
 
-- [ ] **Step 3: Run diff-aware routing and suggested surface**
+- [x] **Step 3: Run diff-aware routing and suggested surface**
 
 Run:
 
@@ -414,17 +414,18 @@ zsh scripts/check
 
 Use the actual suggestion, not this expectation, as the source of truth.
 
-- [ ] **Step 4: Tick all remaining plan checkboxes**
+- [x] **Step 4: Tick all remaining plan checkboxes**
 
 Update every completed step in this plan to `- [x]`.
 
-- [ ] **Step 5: Commit the corpus, plan updates, and evidence**
+- [x] **Step 5: Commit the corpus, plan updates, and evidence**
 
 Run:
 
 ```bash
 git status --short
-git add tests/unit/coke/turn/test_eva_regression_corpus.py docs/superpowers/plans/2026-06-07-eva-regression-corpus.md artifacts/evidence/2026-06-07-eva-regression-corpus
+git add tests/unit/coke/turn/test_eva_regression_corpus.py docs/superpowers/plans/2026-06-07-eva-regression-corpus.md
+git add -f artifacts/evidence/2026-06-07-eva-regression-corpus
 git commit -m "test: add eva regression corpus" -m "Co-Authored-By: Codex <noreply@openai.com>"
 ```
 
