@@ -536,7 +536,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 3: Run diff-aware verification suggestion**
+- [x] **Step 3: Run diff-aware verification suggestion**
 
 Run:
 
@@ -546,7 +546,7 @@ zsh scripts/suggest-verification --base HEAD~1
 
 Expected: exit 0. Follow any suggested `verify-surface` command.
 
-- [ ] **Step 4: Run review trigger report**
+- [x] **Step 4: Run review trigger report**
 
 Run:
 
@@ -556,7 +556,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 Expected: exit 0 or non-blocking risk report. Record output.
 
-- [ ] **Step 5: Run suggested surface**
+- [x] **Step 5: Run suggested surface**
 
 Run the exact `zsh scripts/verify-surface <surface>` command printed by Step 3.
 Expected: PASS. If the command suggests multiple surfaces, run each.
