@@ -403,10 +403,415 @@ requirement gaps that were not visible in the original Eva-only timeline.
 14. P3: Add per-stage latency instrumentation for reminder creation and compare
    it with direct Reminder API timings before optimizing blindly.
 
+## 2026-06-07 Fix Plan Addendum
+
+This addendum turns the RCA into implementation-ready repair tracks. The first
+six tracks are current-contract repairs. The later product-feedback tracks must
+not be implemented as prompt-only behavior until the current requirements
+baseline is updated.
+
+### Track A: Trusted Reminder-Fire Rendering
+
+Target files:
+
+- `coke/turn/runner.py`
+- `coke/composition.py`
+- `coke/llm/agno_interaction_agent.py`
+- `coke/domains/reminder/service.py`
+- `tests/unit/coke/turn/test_turn_runner.py`
+- `tests/unit/coke/llm/test_interaction_agent.py`
+
+Repair shape:
+
+- Add a reminder-fire domain-result builder parallel to the existing
+  notification domain-result path. It should hydrate `fire_ids` into reminder
+  facts in the worker/runner context assembly path before the Interaction Agent
+  sees the turn. Do not add a render-time `query_reminder` tool to let the LLM
+  fetch facts itself.
+- The trusted facts must include at least: `fire_ids`, `reminder_id`, title or
+  content, owner account id, local due time, captured timezone,
+  `duration_minutes`, reminder kind, viewer account id, delivery/fire id, and
+  shared-reminder participant names that are already visible to the recipient.
+- Treat conversation history as advisory language evidence only. For
+  `ReminderFireTurn`, title/time/participant truth must come from the hydrated
+  domain result, not from recent chat history.
+- Add render validation before delivery. A reminder-fire reply must fail closed
+  or use a deterministic fallback if it mentions a different title, a different
+  local time, a serialized tool call, or a remaining-time phrase that cannot be
+  computed from trusted facts.
+- Prefer a deterministic renderer for reminder-fire notifications if validation
+  against free-form LLM prose remains brittle. The current architecture allows a
+  runtime-owned exception only for waiting text, so a deterministic reminder
+  renderer would need an explicit architecture/product decision before it
+  replaces Interaction Agent prose.
+
+Verification:
+
+- Unit test that a `ReminderFireTurn` prompt contains a trusted
+  `domain_result` with the reminder title and local due time.
+- Regression test with recent conversation mentioning a different activity/time;
+  rendered output must use the hydrated reminder fact.
+- Protocol test that `no_reply`, tool-call serialization, wrong title, and wrong
+  time fail closed for reminder-fire render turns.
+
+### Track B: Waiting-Message Delivery Failure Recovery
+
+Target files:
+
+- `coke/worker/waiting_reply.py`
+- `coke/turn/runner.py`
+- `coke/domains/conversation_runtime/service.py`
+- `tests/unit/coke/worker/test_waiting_reply.py`
+- `tests/unit/coke/turn/test_turn_runner.py`
+
+Repair shape:
+
+- Keep `pending_async_reply` as an intermediate disposition; do not revert to the
+  old bug where waiting visibility closes the input window or materializes staged
+  commands.
+- Split "waiting message recorded" from "waiting message actually sent". A
+  provider failure should remain observable as failed waiting delivery, not as
+  successful user-visible progress.
+- Cover both waiting paths: `WaitingReplyDispatcher` emits timer-based waiting
+  text from the outbox relay, while `TurnRunner._record_pending_async()` emits
+  sync-timeout waiting text. Both paths must follow the same failed-delivery
+  semantics.
+- Add one of these explicit recovery policies:
+  - retry waiting delivery with a new attempt while the original turn remains
+    active; or
+  - skip retry but leave a durable failed waiting-delivery marker and rely on the
+    final async reply; or
+  - if the final reply also fails, surface the failure through the existing
+    undelivered/recovery path.
+- The dispatcher must not count a failed provider send as a successful waiting
+  visibility outcome in logs, metrics, or future operator-facing status.
+
+Verification:
+
+- Unit test for provider `failed/provider_network_error`: turn stays active,
+  staged commands are not materialized, `last_closed_inbound_seq` does not
+  advance, and failed waiting delivery is observable.
+- Regression test that a later final reply can still transition from
+  `pending_async_reply` to `replied` after waiting delivery failed.
+
+### Track C: Shared-Reminder Reply Contract Enforcement
+
+Target files:
+
+- `coke/llm/agno_interaction_agent.py`
+- `coke/turn/output_protocol.py`
+- `coke/composition.py`
+- `tests/unit/coke/llm/test_interaction_agent.py`
+- `tests/unit/coke/turn/test_output_protocol.py`
+
+Repair shape:
+
+- Validate final user-visible text against the latest state-changing
+  social-scheduling tool result, not just against the existence of any tool call.
+- Expand social-scheduling tool domain results enough for validation:
+  `created`, `already_active`, `duplicate`, `blocked`, or `needs_*` status;
+  title/activity, local time, timezone, duration, and participant display names
+  when available.
+- If the tool did not materialize a shared reminder, final text must not say or
+  imply success with phrases like `没问题`, `约好了`, `已经帮你`, or `邀约成功`.
+- If the tool did create a shared reminder, final text must state active creation
+  and must not imply approval, confirmation, pending acceptance, invitation
+  approval, or `等他确认`.
+- For blocked results, final text must reflect the trusted blocker: missing
+  friend, ambiguous friend, receiver conflict, unreachable participant, duplicate
+  reminder, or missing time.
+- Keep this as a runtime/protocol guard plus tests. Do not rely on prompt wording
+  alone; production already showed prompt-only constraints are insufficient.
+
+Verification:
+
+- Unit tests for successful shared-reminder creation forbidding approval/pending
+  copy.
+- Unit tests for no materialized command forbidding soft success language.
+- Unit tests for blocked conflict/unreachable facts requiring the visible reply
+  to mention the trusted blocker.
+
+### Track D: Friend Alias And Correction Recovery
+
+Target files:
+
+- `coke/turn/reference.py` or the current reference-resolution owner
+- `coke/turn/runner.py`
+- `coke/llm/agno_interaction_agent.py`
+- `tests/unit/coke/turn/test_turn_runner.py`
+- `tests/unit/coke/llm/test_interaction_agent.py`
+
+Repair shape:
+
+- Detect correction turns like `X就是Y`, `X is Y`, and `我说的 X 是 Y` only when
+  the previous unresolved intent failed on an unmatched or ambiguous friend name.
+- Resolve `Y` through active friends. If exactly one active friend matches,
+  attach a turn-local alias mapping from `X` to that friend's account id and
+  re-open the immediately preceding failed scheduling intent.
+- If the previous failed intent contains enough time/activity facts and the
+  current input window has not been superseded, either stage the repaired command
+  or ask one concise confirmation. Do not silently create a reminder from an
+  old, already-superseded request.
+- Do not persist global alias memory from this repair unless product explicitly
+  adds alias memory as a requirement. The safe default is turn-local recovery.
+
+Verification:
+
+- Regression test for `帮我和zihao约...` followed by `zihao就是olivers`: the
+  assistant should recover the scheduling intent or ask one confirmation, not
+  answer as a generic availability refusal.
+- Negative tests for unrelated `X就是Y` statements and ambiguous friend matches.
+
+### Track E: Availability Privacy And Default Range
+
+Target files:
+
+- `coke/domains/social_scheduling/availability.py`
+- `coke/composition.py`
+- `coke/llm/agno_interaction_agent.py`
+- `tests/unit/coke/social_scheduling/test_social_scheduling_service.py`
+- `tests/unit/coke/llm/test_interaction_agent.py`
+
+Repair shape:
+
+- Keep the domain response privacy-safe: busy/free windows only, no reminder
+  titles, prompts, locations, participant names, or private metadata.
+- Add output validation for availability replies so the agent cannot reattach
+  inferred labels from conversation context, for example `忙（你们约了散步）`,
+  unless a current canonical product spec explicitly allows that label.
+- Introduce an explicit reply contract such as `render_availability_busy_free`
+  for availability tool results. The visible answer may use only each window's
+  `start`, `end`, and `state`, plus the queried friend's public display name.
+- Decide the missing product rule for vague requests such as
+  `看看 Oliver 什么时候有空`: either default to a bounded local range, or ask for a
+  date range. Do not depend on an older dated design note as active product truth.
+- If product chooses a default range, put it in
+  `docs/product-requirements/current.md` before implementation, then pass the
+  resolved `local_start`, `local_end`, and timezone explicitly to the tool.
+
+Verification:
+
+- Unit test that availability facts contain only public windows.
+- LLM/prompt regression where conversation history contains a shared activity;
+  availability answer still exposes only free/busy windows.
+- Natural-language test for vague availability requests after the default-range
+  requirement is settled.
+
+### Track F: Notification Recipient Lifecycle Reconciliation
+
+Target files:
+
+- `coke/composition.py`
+- `coke/turn/runner.py`
+- `coke/domains/social_scheduling/service.py`
+- `tests/unit/coke/worker/test_notification_render_trigger.py`
+- `tests/integration/coke/test_social_scheduling_notification_outbox_contract.py`
+
+Repair shape:
+
+- Audit all `NotificationTurn` terminal paths: valid reply delivery, delivery
+  failure, invalid render output, `no_reply` retry failure, turn failure, and
+  supersession. Each path must settle `notification_recipient` as delivered,
+  failed, or undelivered with structured error facts.
+- Re-check the production failure chain for Eva's first `friendship_created`
+  notification specifically. The likely missing branches to verify are: outbox
+  row not processed, worker trigger missing a conversation, payload missing
+  `notification_fact_id` or `recipient_account_ids`, delivery callback not
+  invoked, or recipient fanout settling only part of the recipient set.
+- Add a reconciliation path for notification recipients that remain `pending`
+  past a threshold after their render turn has terminally completed. The
+  reconciler should mark them failed or reschedule them based on provider/turn
+  evidence rather than leaving indefinite pending rows.
+- Keep notification facts informational only. Do not introduce approval or action
+  execution through notification retries.
+
+Verification:
+
+- Unit tests for invalid `NotificationTurn` output settling recipients as failed.
+- Integration test that a completed notification render turn cannot leave the
+  corresponding recipient row pending.
+- Production query or smoke evidence that stale pending recipients are either
+  retried or converted to structured failed/undelivered state.
+
+### Track G: Onboarding Prompt Wiring
+
+Target files:
+
+- `coke/composition.py`
+- `coke/turn/context.py`
+- `coke/turn/runner.py`
+- `coke/llm/agno_interaction_agent.py`
+- `coke/domains/identity_access/service.py`
+- `tests/unit/coke/identity_access/test_identity_access_service.py`
+- `tests/unit/coke/llm/test_interaction_agent.py`
+- `tests/unit/coke/turn/test_turn_runner.py`
+
+Repair shape:
+
+- Add an onboarding prompt block only when `onboarding_guidance_required` is true.
+  The block should include the configured onboarding prompt/settings and the
+  trusted `user_address_name` if present.
+- Mark `first_guidance_sent_at` only after a visible onboarding reply is
+  successfully committed and delivery reaches the product-defined visible state
+  (`sent` or `delivered`, depending on provider semantics). Do not mark it on
+  failed output, `no_reply`, provider delivery failure, access-denied turns, or
+  a pending async waiting message that is not the final onboarding reply.
+- The onboarding prompt must not introduce features outside the current product
+  contract. In particular, do not claim external class booking or memo runtime
+  unless the product baseline adds those features. Use current supported wording
+  such as reminders, shared reminders with friends, availability checks, and
+  long-term memory/preferences where enabled.
+- Keep the reply message-style and short, but let the configured prompt own the
+  exact wording and number of segments.
+
+Verification:
+
+- Unit test that first inbound includes an onboarding block once and later turns
+  do not.
+- Unit test that `first_guidance_sent_at` is stamped only after a committed
+  visible onboarding reply.
+- Prompt test that unavailable capabilities are not introduced by the default
+  onboarding configuration.
+
+### Track H: Friend-Add Personalized Feedback
+
+Target files:
+
+- `coke/api/friend_routes.py`
+- `coke/composition.py`
+- `coke/domains/social_scheduling/service.py`
+- `web/lib/customer-friends.ts`
+- `web/app/(customer)/account/friends/page.tsx`
+- `web/lib/i18n.ts`
+- `web/app/(customer)/account/friends/page.test.tsx`
+
+Repair shape:
+
+- Extend the friend-join result with the added counterpart's display name, or
+  make the web flow resolve it from the refreshed friend list before showing the
+  success notice.
+- Show a concrete success message such as `已成功添加 Oliver` for `created` and a
+  concrete already-active message for `already_active`.
+- Keep self-friendship, disabled link, invalid link, and auth handoff errors
+  distinct.
+
+Verification:
+
+- API/adapter test that join results include enough counterpart identity for UI
+  feedback.
+- Web test for logged-out handoff and logged-in auto-join showing personalized
+  success copy.
+
+### Track I: Render-History Isolation For System Turns
+
+Target files:
+
+- `coke/llm/agno_interaction_agent.py`
+- `coke/turn/runner.py`
+- `tests/unit/coke/llm/test_interaction_agent.py`
+
+Repair shape:
+
+- Render turns such as `ReminderFireTurn`, `NotificationTurn`,
+  `UndeliveredResendTurn`, and `AccessDeniedTurn` should not use Agno chat
+  history as a fact source. Current agent construction enables
+  `add_history_to_context=True` globally, which can let recent user chat compete
+  with structured render facts.
+- In render mode, either disable Agno history entirely or make the prompt
+  explicitly classify history as style/language evidence only. The structured
+  `domain_result`, `turn_source`, and render payload must be the only fact source
+  for product state, title, time, participant, delivery status, and error status.
+- Keep persona, speaking style, and configured assistant settings available for
+  tone. The fix is not to make render text robotic; it is to isolate facts from
+  stale conversation context.
+
+Verification:
+
+- Unit test that render-mode agent construction disables or downranks history
+  while interactive inbound turns can still use relevant history.
+- Regression test with chat history containing a different reminder title/time;
+  render output uses only the structured render facts.
+
+### Track J: Eva Regression Corpus
+
+Target files:
+
+- `tests/evals/` or the existing conversation/runtime eval harness
+- `tests/unit/coke/turn/test_turn_runner.py`
+- `tests/unit/coke/llm/test_interaction_agent.py`
+- `artifacts/evidence/` for generated evidence when the eval/smoke runs
+
+Repair shape:
+
+- Convert the Eva production cases into a focused regression set instead of only
+  isolated unit tests. The minimum cases are:
+  - three reminder-fire turns where recent chat mentions the wrong title/time;
+  - `zihao就是olivers` correction after an unmatched friend failure;
+  - availability reply after shared-reminder context exists, with no activity
+    label leakage;
+  - waiting provider failure followed by eventual final reply;
+  - shared-reminder creation reply that must not say `等他确认`, `邀约`, or soft
+    success when no durable command materialized.
+- The regression should assert user-visible text and durable state separately:
+  reminders/shared reminders must materialize only when the fresh close boundary
+  allows it, and visible text must match the durable facts.
+- Store run evidence under the normal generated-evidence path when an eval or
+  smoke command is used for completion claims.
+
+Verification:
+
+- Unit tests for each narrow guard.
+- A conversation-level eval or smoke that replays the Eva sequence enough to
+  prove the cross-turn behavior, not only mocked helper behavior.
+
+### Track K: Product-Requirement-First Items
+
+These items are product-feedback requests, but they conflict with or extend the
+current requirements baseline. Do not implement them as hidden prompt behavior.
+
+- Activity-based default duration: update the product baseline with activity
+  defaults first, then change detector/tool behavior and tests. Until then, 15
+  minutes remains the current contract.
+- Early reminder lead time: define whether the product sends an advance reminder,
+  an at-start reminder, or both. Then update scheduler/fire facts, delivery
+  semantics, and render copy tests.
+- User-defined bookable windows: define storage, conversation update semantics,
+  timezone behavior, overlap rules, and recommended-slot behavior before adding
+  enforcement. This should be a settings/social-scheduling feature, not a
+  one-off prompt rule.
+- Latency instrumentation: define the stages and evidence destination before
+  optimizing. Minimum stages should include inbound persistence, semantic/LLM
+  detection, tool execution, database commit, outbox relay, worker start,
+  provider send, and final delivery callback.
+
+Verification:
+
+- Each product-requirement-first item needs a `docs/product-requirements/current.md`
+  update or a dated spec before code changes.
+- Runtime behavior claims need unit tests plus either an eval/smoke path for
+  conversation behavior or an operational evidence query for latency.
+
+### What Not To Do
+
+- Do not fix reminder-fire copy by adding more recent-chat prompt examples while
+  leaving trusted reminder facts absent.
+- Do not give render mode new business lookup tools such as `query_reminder` to
+  compensate for missing pre-hydrated facts. Render mode should receive trusted
+  structured facts, not perform business discovery.
+- Do not add regex-only parsers for `X就是Y`, availability, or duration defaults
+  without a current owner and tests.
+- Do not reintroduce pending approval flows for friendship or shared reminders.
+- Do not expose friend reminder titles through availability responses to make the
+  generated wording easier.
+- Do not mark product feedback items as implemented until production or
+  user-path smoke evidence covers the actual channel-visible behavior.
+
 ## Current Status
 
 Open. Production was inspected read-only. No code or deployment change was made
-as part of this investigation.
+as part of this investigation. On `2026-06-07`, the local issue record was
+expanded with implementation-oriented fix tracks; no runtime code or deployment
+change was made in that follow-up.
 
 ## Evidence Commands
 
