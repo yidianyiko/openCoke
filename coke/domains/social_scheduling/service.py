@@ -739,6 +739,53 @@ class SocialSchedulingService:
             trigger_id=f"notification_undelivered:{recipient_account_id}",
         )
 
+    def reconcile_terminal_notification_recipients(
+        self,
+        *,
+        conversation_runtime,
+        pending_older_than: timedelta,
+    ) -> int:
+        cutoff = self._now() - pending_older_than
+        settled = 0
+        terminal_dispositions = {"replied", "no_reply", "failed", "superseded"}
+        for fact in self.repository.list_notification_facts():
+            for recipient in self.repository.list_notification_recipients(fact.id):
+                if recipient.delivery_state != "pending":
+                    continue
+                if recipient.turn_id is None:
+                    continue
+                if recipient.updated_at > cutoff:
+                    continue
+                try:
+                    disposition = conversation_runtime.get_disposition(
+                        recipient.turn_id
+                    )
+                except Exception:
+                    continue
+                turn_disposition = str(getattr(disposition, "disposition", ""))
+                if turn_disposition not in terminal_dispositions:
+                    continue
+                reason_code = getattr(disposition, "reason_code", None)
+                self.record_notification_delivery(
+                    notification_fact_id=recipient.notification_fact_id,
+                    recipient_account_id=recipient.recipient_account_id,
+                    delivery_state="failed",
+                    error_facts={
+                        "type": (
+                            "notification_turn_terminal_without_recipient_settlement"
+                        ),
+                        "turn_disposition": turn_disposition,
+                        **(
+                            {"reason_code": reason_code}
+                            if isinstance(reason_code, str) and reason_code
+                            else {}
+                        ),
+                    },
+                    turn_id=recipient.turn_id,
+                )
+                settled += 1
+        return settled
+
     def _establish_from_link(
         self,
         joiner_account_id: str,

@@ -30,11 +30,17 @@ REVISION_PATH = (
 PRE_REPLY_INPUT_WINDOW_REVISION_PATH = (
     ROOT / "migrations" / "versions" / "20260531_0001_pre_reply_input_windows.py"
 )
-HEAD_REVISION_PATH = (
+RECOVERABLE_INTENT_REVISION_PATH = (
     ROOT
     / "migrations"
     / "versions"
     / "20260607_0001_recoverable_scheduling_intent.py"
+)
+HEAD_REVISION_PATH = (
+    ROOT
+    / "migrations"
+    / "versions"
+    / "20260607_0002_delivery_attempt_diagnostics.py"
 )
 
 EXPECTED_TABLES = {
@@ -345,19 +351,18 @@ def _load_revision_module(
 
 
 def _load_migration_chain():
-    return (
+    revision_paths = (
+        REVISION_PATH,
+        PRE_REPLY_INPUT_WINDOW_REVISION_PATH,
+        RECOVERABLE_INTENT_REVISION_PATH,
+        HEAD_REVISION_PATH,
+    )
+    return tuple(
         _load_revision_module(
-            REVISION_PATH,
-            "clean_rebuild_schema_initial_revision_under_test",
-        ),
-        _load_revision_module(
-            PRE_REPLY_INPUT_WINDOW_REVISION_PATH,
-            "clean_rebuild_schema_pre_reply_input_window_revision_under_test",
-        ),
-        _load_revision_module(
-            HEAD_REVISION_PATH,
-            "clean_rebuild_schema_recoverable_intent_revision_under_test",
-        ),
+            revision_path,
+            f"clean_rebuild_schema_revision_{index}_under_test",
+        )
+        for index, revision_path in enumerate(revision_paths)
     )
 
 
@@ -767,7 +772,7 @@ def test_pre_reply_input_window_revision_has_expected_identity():
 
 
 def test_recoverable_scheduling_intent_revision_has_expected_identity():
-    source = HEAD_REVISION_PATH.read_text()
+    source = RECOVERABLE_INTENT_REVISION_PATH.read_text()
     tree = ast.parse(source)
     imported_roots: set[str] = set()
     for node in ast.walk(tree):
@@ -778,6 +783,23 @@ def test_recoverable_scheduling_intent_revision_has_expected_identity():
 
     assert 'revision = "20260607_0001"' in source
     assert 'down_revision = "20260531_0001"' in source
+    assert "coke" not in imported_roots
+    assert ".".join(["metadata", "create_all"]) not in source
+    assert ".".join(["metadata", "drop_all"]) not in source
+
+
+def test_delivery_attempt_diagnostics_revision_has_expected_identity():
+    source = HEAD_REVISION_PATH.read_text()
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".")[0])
+
+    assert 'revision = "20260607_0002"' in source
+    assert 'down_revision = "20260607_0001"' in source
     assert "coke" not in imported_roots
     assert ".".join(["metadata", "create_all"]) not in source
     assert ".".join(["metadata", "drop_all"]) not in source

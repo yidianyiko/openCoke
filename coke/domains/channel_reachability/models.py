@@ -94,6 +94,14 @@ class DeliveryAttempt:
     updated_at: datetime
     turn_id: str | None = None
     message_id: str | None = None
+    delivery_source: str | None = None
+    delivery_intent: str | None = None
+    retry_attempt: int | None = None
+    traceparent: str | None = None
+    container: str | None = None
+    context_token_source: str | None = None
+    context_token_age_seconds: int | None = None
+    latency_ms: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

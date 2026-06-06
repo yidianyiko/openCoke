@@ -119,6 +119,15 @@ class WaitingReplyCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class ContextTokenObservation:
+    token: str | None
+    source: str
+    observed_at: datetime | None
+    traceparent: str | None
+    age_seconds: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class OutputDisposition:
     id: str
     turn_id: str

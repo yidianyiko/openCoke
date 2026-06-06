@@ -849,6 +849,10 @@ def build_prompt_blocks(request: AgentRequest) -> tuple[PromptBlock, ...]:
     if environment:
         blocks.append(PromptBlock("environment", environment))
 
+    onboarding_guidance = _onboarding_guidance_block(request)
+    if onboarding_guidance:
+        blocks.append(PromptBlock("onboarding_guidance", onboarding_guidance))
+
     semantic_decision = _semantic_decision_payload(request)
     if semantic_decision:
         semantic_block_payload: dict[str, Any] = {
@@ -1076,6 +1080,45 @@ def _environment_block(request: AgentRequest) -> str:
     if not environment:
         return ""
     return _json_block(environment)
+
+
+_ONBOARDING_CAPABILITY_LABELS = {
+    "reminders": "reminders",
+    "shared_reminders_with_friends": "shared reminders with friends",
+    "availability_checks": "availability checks",
+    "long_term_memory_preferences": "long-term memory/preferences",
+}
+
+
+def _onboarding_guidance_block(request: AgentRequest) -> str | None:
+    guidance = request.trusted_facts.get("onboarding_guidance")
+    if not isinstance(guidance, Mapping):
+        return None
+    raw_capabilities = guidance.get("supported_capabilities")
+    if not isinstance(raw_capabilities, list | tuple):
+        return None
+    capabilities = [
+        _ONBOARDING_CAPABILITY_LABELS[item]
+        for item in raw_capabilities
+        if item in _ONBOARDING_CAPABILITY_LABELS
+    ]
+    if not capabilities:
+        return None
+    lines = [
+        "First-use guidance is required in this visible final reply.",
+        (
+            "Respond to the user's current message and briefly introduce only "
+            "these supported capabilities: " + "; ".join(capabilities)
+        ),
+        "Do not claim unsupported capabilities.",
+    ]
+    assistant_name = guidance.get("assistant_name")
+    if isinstance(assistant_name, str) and assistant_name.strip():
+        lines.append(f"Assistant name: {assistant_name.strip()}")
+    user_address_name = guidance.get("user_address_name")
+    if isinstance(user_address_name, str) and user_address_name.strip():
+        lines.append(f"Trusted user address name: {user_address_name.strip()}")
+    return "\n".join(lines)
 
 
 def _semantic_decision_payload(request: AgentRequest) -> Mapping[str, Any] | None:

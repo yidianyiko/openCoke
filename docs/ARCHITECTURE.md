@@ -145,6 +145,13 @@ decision. It records that runtime-owned waiting text was attempted, but it must
 not materialize staged commands, set `turn.completed_at`, or advance
 `last_closed_inbound_seq`.
 
+Waiting delivery evidence is not equivalent to user-visible waiting progress.
+Each waiting attempt carries a delivery envelope with its source, logical
+delivery intent, traceparent, container, trigger/turn id, provider route,
+context-token source and age, retry attempt, latency, and provider error code.
+These diagnostics must make waiting-message failures buckettable separately from
+final-reply failures even when they use the same provider adapter.
+
 Runtime-owned waiting text is emitted independently of the blocked Interaction
 Agent call. `coke-outbox-relay` scans active inbound turns and, after
 `COKE_WAITING_REPLY_AFTER_SECONDS` (default 20 seconds), persists
@@ -155,6 +162,14 @@ same turn may still transition from `pending_async_reply` to `replied` or
 `failed` if no newer inbound has arrived. If a newer inbound arrives first, the
 pending turn is superseded and any later state-changing command from that stale
 turn is rejected before materialization.
+
+Waiting sends use logical delivery intents (`turn_id:waiting:1` and, at most,
+`turn_id:waiting:2`) rather than blind provider-idempotency retries. A waiting
+send may retry once with jitter only for retryable transport failures, only while
+the final reply is not ready, and only if the per-route/account circuit breaker
+allows it. Context-token, invalid-token, and provider session-window failures do
+not retry; they are recorded as failed waiting delivery evidence and the final
+reply remains the authoritative user-visible outcome.
 
 Interactive state-changing tools must stage commands before the close boundary.
 They may validate intent, read state, and create turn-local drafts, but they
@@ -193,8 +208,9 @@ correctness.
 ## Bounded Contexts
 
 IdentityAccess owns account identity, access gate, activation, sessions,
-credentials, channel identity, and auth artifacts. ChannelReachability owns the
-single reachable channel, delivery route, and delivery attempts.
+credentials, channel identity, auth artifacts, and onboarding gate state.
+ChannelReachability owns the single reachable channel, delivery route, and
+delivery attempts.
 ConversationRuntime owns conversation order, messages, media references, turns,
 and output disposition. Reminder owns reminders, fires, recurrence, scheduler,
 and calendar read models. SocialScheduling owns friend links, friendships,
@@ -210,6 +226,15 @@ request was blocked, stores already-understood request facts and a short
 materialized directly. It is consumed only after a later fresh close materializes
 a recovered social-scheduling command carrying the artifact id and `facts_hash`.
 Superseded consuming turns leave the artifact open.
+
+When IdentityAccess marks `onboarding_guidance_required`, The Turn injects an
+`onboarding_guidance` trusted fact block into the single Interaction Agent call.
+The block may include the configured onboarding prompt/settings and trusted
+`user_address_name`; it must describe only current product capabilities.
+`first_guidance_sent_at` is stamped only after a committed final onboarding reply
+has reached the product-defined visible delivery state, never after waiting
+text, failed delivery, no-reply, invalid output, access-denied, failed, or
+superseded turns.
 
 Rules that apply to every bounded context:
 
@@ -231,7 +256,10 @@ Postgres stores all durable state:
 - IdentityAccess: `account`, `agent_settings`, `user_profile`,
   `account_activation`, `account_access`, `credential`, `session`,
   `channel_identity`, and `auth_artifact`.
-- ChannelReachability: `channel`, `delivery_route`, and `delivery_attempt`.
+- ChannelReachability: `channel`, `delivery_route`, and `delivery_attempt`,
+  including provider outcome plus diagnostic envelope fields for delivery source,
+  logical intent, retry attempt, traceparent, container, context-token source and
+  age, latency, provider route, and provider error.
 - ConversationRuntime: `conversation`, `message`, `inbound_media`, `turn`,
   `output_disposition`, and the shared `outbox`.
 - Reminder: `reminder`, `reminder_fire`, recurrence data, and reminder calendar
@@ -302,6 +330,10 @@ conversation `context_token`.
   cancel the whole group; completion affects only that participant's projection.
 - Product notifications are structured facts rendered by The Turn. Notifications
   are informational and never approval or action-execution workflows.
+- Every terminal `NotificationTurn` path settles each target notification
+  recipient as delivered, failed, or undelivered with structured facts. A
+  reconciler may repair stale pending recipients after terminal completion, but
+  it is a crash/history backstop, not the primary settlement path.
 - Shared-reminder creation sends the invitation notification to receivers. The
   creator receives the original interactive creation reply, then receives a
   separate structured delivery-confirmed notification when a receiver's

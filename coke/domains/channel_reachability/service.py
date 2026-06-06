@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
+from time import monotonic
 from typing import Protocol, TypeVar
 from uuid import uuid4
 
@@ -346,6 +347,13 @@ class ChannelReachabilityService:
         turn_id: str | None = None,
         message_id: str | None = None,
         context_token: str | None = None,
+        delivery_source: str | None = None,
+        delivery_intent: str | None = None,
+        retry_attempt: int | None = None,
+        traceparent: str | None = None,
+        container: str | None = None,
+        context_token_source: str | None = None,
+        context_token_age_seconds: int | None = None,
     ) -> DeliveryAttempt:
         route = self.resolve_route(account_id)
         existing = self.repository.get_attempt_by_provider_idempotency(
@@ -377,19 +385,23 @@ class ChannelReachabilityService:
                 )
             return existing
         adapter = self._require_provider(route.provider_type)
-        if route.provider_type == "wechat_personal":
-            result = adapter.send_text(
-                route=route,
-                text=text,
-                idempotency_key=idempotency_key,
-                context_token=context_token,
-            )
-        else:
-            result = adapter.send_text(
-                route=route,
-                text=text,
-                idempotency_key=idempotency_key,
-            )
+        start_monotonic = monotonic()
+        try:
+            if route.provider_type == "wechat_personal":
+                result = adapter.send_text(
+                    route=route,
+                    text=text,
+                    idempotency_key=idempotency_key,
+                    context_token=context_token,
+                )
+            else:
+                result = adapter.send_text(
+                    route=route,
+                    text=text,
+                    idempotency_key=idempotency_key,
+                )
+        finally:
+            latency_ms = max(0, int((monotonic() - start_monotonic) * 1000))
         now = self._now()
         if (
             route.provider_type == "wechat_personal"
@@ -416,6 +428,14 @@ class ChannelReachabilityService:
             status=result.status,
             provider_message_id=result.provider_message_id,
             error_code=result.error_code,
+            delivery_source=delivery_source,
+            delivery_intent=delivery_intent,
+            retry_attempt=retry_attempt,
+            traceparent=traceparent,
+            container=container,
+            context_token_source=context_token_source,
+            context_token_age_seconds=context_token_age_seconds,
+            latency_ms=latency_ms,
             attempted_at=now,
             delivered_at=result.delivered_at if result.status == "delivered" else None,
             created_at=now,

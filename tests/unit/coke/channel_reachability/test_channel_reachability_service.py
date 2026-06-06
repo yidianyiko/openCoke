@@ -1214,6 +1214,48 @@ def test_send_resolves_current_connected_route_at_send_time(
     assert second_route.provider_address == "whatsapp:+15555550124"
 
 
+def test_send_text_persists_delivery_envelope_diagnostics(
+    identity_service,
+    reachability,
+):
+    account, identity = verified_web_account(identity_service)
+    service, _adapter = reachability
+    channel = service.create_channel(
+        account.id,
+        "whatsapp_evolution",
+        identity.id,
+        removable=True,
+    )
+    service.mark_connected(account.id, channel.id)
+
+    attempt = service.send_text(
+        account.id,
+        "still working",
+        "turn_1:waiting:1",
+        turn_id="turn_1",
+        message_id="message_1",
+        delivery_source="waiting_timer",
+        delivery_intent="turn_1:waiting:1",
+        retry_attempt=1,
+        traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        container="worker-1",
+        context_token_source="latest_inbound_message",
+        context_token_age_seconds=21,
+    )
+
+    assert attempt.delivery_source == "waiting_timer"
+    assert attempt.delivery_intent == "turn_1:waiting:1"
+    assert attempt.retry_attempt == 1
+    assert attempt.traceparent == (
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    )
+    assert attempt.container == "worker-1"
+    assert attempt.context_token_source == "latest_inbound_message"
+    assert attempt.context_token_age_seconds == 21
+    assert isinstance(attempt.latency_ms, int)
+    assert attempt.latency_ms >= 0
+
+
 def test_provider_edge_idempotency_reuses_attempt_without_second_adapter_call(
     identity_service,
     reachability,

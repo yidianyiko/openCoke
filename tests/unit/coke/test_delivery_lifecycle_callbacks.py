@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from coke.composition import OutputLifecycleDeliveryCallbacks
@@ -51,6 +52,14 @@ class FakeConversationRuntimeService:
                 "traceparent": traceparent,
             }
         )
+
+
+class FakeIdentityAccessService:
+    def __init__(self) -> None:
+        self.guidance_marks: list[str] = []
+
+    def mark_first_guidance_sent(self, account_id: str) -> None:
+        self.guidance_marks.append(account_id)
 
 
 def id_factory(prefix: str) -> str:
@@ -165,6 +174,29 @@ def test_context_token_window_failure_marks_notification_recipient_undelivered()
     assert recipient.error_facts == {"type": "recipient_channel_unavailable"}
 
 
+def test_notification_delivery_success_settles_pending_recipient_delivered():
+    reminder_service = make_reminder_service()
+    social_service, repo = make_social_service()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+    )
+
+    callbacks.record_delivery(
+        trigger=SimpleNamespace(
+            trigger_type="NotificationTurn",
+            payload={"notification_fact_id": "notification_fact_1"},
+        ),
+        request=SimpleNamespace(account_id="acct_1", turn_id="turn_1"),
+        outcome=SimpleNamespace(status="sent", error_code=None),
+    )
+
+    recipient = repo.get_notification_recipient("notification_fact_1", "acct_1")
+    assert recipient.delivery_state == "delivered"
+    assert recipient.turn_id == "turn_1"
+    assert recipient.error_facts == {}
+
+
 def test_notification_render_failure_marks_recipient_failed():
     reminder_service = make_reminder_service()
     social_service, repo = make_social_service()
@@ -276,9 +308,7 @@ def test_inbound_reply_completion_enqueues_undelivered_reminder_resend():
                 "framing": "previously_undelivered",
                 "fire_ids": [fire.id],
             },
-            "traceparent": (
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-            ),
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
         }
     ]
 
@@ -315,9 +345,10 @@ def test_inbound_reply_completion_enqueues_undelivered_notification_resend():
         delivered=True,
     )
 
-    assert repo.get_notification_recipient(
-        "notification_fact_1", "acct_1"
-    ).delivery_state == "undelivered"
+    assert (
+        repo.get_notification_recipient("notification_fact_1", "acct_1").delivery_state
+        == "undelivered"
+    )
     assert conversation_runtime.enqueued == [
         {
             "topic": "turn.undelivered_resend",
@@ -331,9 +362,7 @@ def test_inbound_reply_completion_enqueues_undelivered_notification_resend():
                 "framing": "previously_undelivered",
                 "notification_fact_ids": ["notification_fact_1"],
             },
-            "traceparent": (
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-            ),
+            "traceparent": ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
         }
     ]
 
@@ -372,6 +401,77 @@ def test_inbound_reply_completion_does_not_resend_when_reply_delivery_failed():
     )
 
     assert conversation_runtime.enqueued == []
+
+
+def test_inbound_reply_completion_marks_first_guidance_only_for_visible_onboarding():
+    reminder_service = make_reminder_service()
+    social_service, _repo = make_social_service()
+    identity_access = FakeIdentityAccessService()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+        identity_access_service=identity_access,
+    )
+    trigger = SimpleNamespace(
+        trigger_type="InboundTurn",
+        account_id="acct_1",
+        conversation_id="conversation_1",
+        payload={"causal_inbound_event_id": "wa_msg_guidance"},
+    )
+
+    callbacks.record_inbound_reply_completed(
+        trigger=trigger,
+        delivered=True,
+        onboarding_guidance_delivered=False,
+    )
+    callbacks.record_inbound_reply_completed(
+        trigger=trigger,
+        delivered=False,
+        onboarding_guidance_delivered=True,
+    )
+    callbacks.record_inbound_reply_completed(
+        trigger=trigger,
+        delivered=True,
+        onboarding_guidance_delivered=True,
+    )
+
+    assert identity_access.guidance_marks == ["acct_1"]
+
+
+def test_reconciler_settles_stale_pending_notification_after_terminal_turn():
+    _reminder_service = make_reminder_service()
+    social_service, repo = make_social_service()
+    recipient = repo.get_notification_recipient("notification_fact_1", "acct_1")
+    repo.save_notification_recipient(
+        replace(
+            recipient,
+            turn_id="turn_terminal",
+            updated_at=NOW - timedelta(hours=1),
+        )
+    )
+
+    class TerminalRuntime:
+        def get_disposition(self, turn_id):
+            assert turn_id == "turn_terminal"
+            return SimpleNamespace(
+                disposition="failed",
+                reason_code="invalid_output_protocol",
+            )
+
+    settled = social_service.reconcile_terminal_notification_recipients(
+        conversation_runtime=TerminalRuntime(),
+        pending_older_than=timedelta(minutes=5),
+    )
+
+    assert settled == 1
+    repaired = repo.get_notification_recipient("notification_fact_1", "acct_1")
+    assert repaired.delivery_state == "failed"
+    assert repaired.turn_id == "turn_terminal"
+    assert repaired.error_facts == {
+        "type": "notification_turn_terminal_without_recipient_settlement",
+        "turn_disposition": "failed",
+        "reason_code": "invalid_output_protocol",
+    }
 
 
 def test_context_token_window_failure_discards_proactive_fire():
