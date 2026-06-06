@@ -1753,6 +1753,43 @@ def _unsupported_tool_operation(reason_code: str) -> ToolExecutionResult:
     return ToolExecutionResult(ok=False, facts={}, reason_code=reason_code)
 
 
+def _social_scheduling_participant_preflight_error(
+    command: Mapping[str, Any],
+    operation: str,
+) -> ToolExecutionResult:
+    resolution = _friend_resolution_status(command, None)
+    status_by_resolution = {
+        "unmatched": "blocked_unmatched_friend",
+        "unmatched_friend": "blocked_unmatched_friend",
+        "ambiguous": "blocked_ambiguous_friend",
+        "ambiguous_friend": "blocked_ambiguous_friend",
+    }
+    outcome_status = status_by_resolution.get(str(resolution or ""))
+    if outcome_status is None:
+        return _tool_validation_error("needs_participants")
+    context = _optional_context(command.get("context")) or {}
+    unresolved = _unresolved_friend_reference(command, context)
+    facts: dict[str, Any] = {
+        "type": "needs_participants",
+        "status": "needs_participants",
+        "follow_up_facts": {
+            "reason": _social_scheduling_blocker(outcome_status),
+            "unresolved_reference_text": unresolved,
+        },
+        "social_scheduling_outcome": _social_scheduling_outcome_from_command(
+            command,
+            operation=operation,
+            status=outcome_status,
+            blocker=_social_scheduling_blocker(outcome_status),
+        ),
+    }
+    return ToolExecutionResult(
+        ok=False,
+        facts=facts,
+        reason_code="needs_participants",
+    )
+
+
 def _validate_reminder_staged_write(
     command: Mapping[str, Any], operation: str
 ) -> ToolExecutionResult | None:
@@ -1815,7 +1852,10 @@ def _validate_social_scheduling_staged_write(
                 aliases=("participant_account_ids", "participants"),
             )
             if not receiver_account_ids:
-                return _tool_validation_error("needs_participants")
+                return _social_scheduling_participant_preflight_error(
+                    command,
+                    operation,
+                )
             title = command.get("title")
             if not isinstance(title, str) or not title.strip():
                 return _tool_validation_error("needs_title")
@@ -1833,7 +1873,10 @@ def _validate_social_scheduling_staged_write(
                 aliases=("participant_account_ids", "participants"),
             )
             if not receiver_account_ids:
-                return _tool_validation_error("needs_participants")
+                return _social_scheduling_participant_preflight_error(
+                    command,
+                    operation,
+                )
             _required_str(command, "raw_text")
             if _optional_context(command.get("context")) is None:
                 return _tool_validation_error("needs_context")

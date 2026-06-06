@@ -10,9 +10,7 @@ SharedReminderStatus = Literal["active", "cancelled"]
 ProjectionLifecycle = Literal["active", "cancelled"]
 ProjectionCompletionStatus = Literal["pending", "completed"]
 NotificationDeliveryState = Literal["pending", "delivered", "undelivered", "failed"]
-RecoverableSchedulingIntentStatus = Literal[
-    "open", "consumed", "expired", "superseded"
-]
+RecoverableSchedulingIntentStatus = Literal["open", "consumed", "expired", "superseded"]
 RecoverableSchedulingIntentBlocker = Literal["unmatched_friend", "ambiguous_friend"]
 SocialSchedulingOutcomeStatus = Literal[
     "created_active",
@@ -46,6 +44,7 @@ SocialSchedulingClaim = Literal[
     "failed",
     "no_success_claim",
 ]
+FriendResolutionStatus = Literal["matched", "ambiguous", "unmatched"]
 
 
 class SocialSchedulingError(RuntimeError):
@@ -114,6 +113,13 @@ class FriendListEntry:
     account_id: str
     friendship_id: str
     display_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class FriendResolutionResult:
+    status: FriendResolutionStatus
+    matched_account_id: str | None = None
+    candidates: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

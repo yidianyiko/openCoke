@@ -13,7 +13,19 @@ from typing import Any
 import pytest
 
 import coke.llm.agno_interaction_agent as agno_agent_module
-from coke.composition import ReminderToolAdapter
+from coke.composition import ReminderToolAdapter, SocialSchedulingToolAdapter
+from coke.domains.social_scheduling.availability import (
+    ParticipantReachabilityPort,
+    ReminderAvailabilityPort,
+)
+from coke.domains.social_scheduling.models import (
+    Friendship,
+    RecoverableSchedulingIntent,
+)
+from coke.domains.social_scheduling.repository import (
+    InMemorySocialSchedulingRepository,
+)
+from coke.domains.social_scheduling.service import SocialSchedulingService
 from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
@@ -29,7 +41,7 @@ from coke.turn.locks import ConversationLockManager
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import TurnRunner
-from coke.turn.semantic_interpreter import SemanticDecision
+from coke.turn.semantic_interpreter import FollowUpAction, SemanticDecision
 from coke.turn.staged_commands import StagedCommandMaterializer
 from coke.worker.__main__ import _handle_event
 from coke.worker.stream_consumer import StreamEvent
@@ -233,10 +245,32 @@ class FakeReminderFireFacts:
 
 
 class FakeSocialSchedulingTool:
+    def __init__(self, social_scheduling_service=None) -> None:
+        self.social_scheduling_service = social_scheduling_service
+
     def execute(self, command, guard):
         return ToolExecutionResult(
             ok=True, facts={"operation": command.get("operation")}
         )
+
+
+class FakeSocialReachability(ParticipantReachabilityPort):
+    def __init__(self, reachable: set[str] | None = None) -> None:
+        self.reachable = reachable or set()
+
+    def has_usable_channel(self, account_id: str) -> bool:
+        return account_id in self.reachable
+
+
+class FakeSocialAvailability(ReminderAvailabilityPort):
+    def personal_busy_intervals(
+        self,
+        account_id,
+        start,
+        end,
+        requester_timezone,
+    ):
+        return []
 
 
 class FakeAgent:
@@ -398,6 +432,109 @@ def test_semantic_intentional_no_reply_still_reaches_interaction_agent(harness):
     )
     disposition = harness["runtime"].get_disposition(result.turn_id)
     assert disposition.disposition == "replied"
+
+
+def _make_social_service(
+    *,
+    names: dict[str, str] | None = None,
+    reachable: set[str] | None = None,
+):
+    repo = InMemorySocialSchedulingRepository()
+    service = SocialSchedulingService(
+        repository=repo,
+        reachability=FakeSocialReachability(reachable or {"account_1"}),
+        reminder_availability=FakeSocialAvailability(),
+        now=lambda: NOW,
+        id_factory=lambda prefix: f"{prefix}_{len(repo.generated_ids) + 1}",
+        token_factory=lambda prefix: f"{prefix}_token",
+        display_name_resolver=lambda account_id: (names or {}).get(
+            account_id, account_id
+        ),
+    )
+    return service, repo
+
+
+def _add_social_friend(
+    repo: InMemorySocialSchedulingRepository,
+    account_id: str,
+    friend_account_id: str,
+) -> None:
+    low, high = sorted((account_id, friend_account_id))
+    repo.add_friendship(
+        Friendship(
+            id=f"friendship_{account_id}_{friend_account_id}",
+            account_low_id=low,
+            account_high_id=high,
+            lifecycle="active",
+            established_at=NOW,
+            removed_at=None,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+
+
+def _open_recoverable_intent(
+    repo: InMemorySocialSchedulingRepository,
+    *,
+    conversation_id: str,
+    facts_hash: str = "facts_hash_1",
+) -> RecoverableSchedulingIntent:
+    intent = RecoverableSchedulingIntent(
+        id="recoverable_intent_1",
+        conversation_id=conversation_id,
+        creator_account_id="account_1",
+        operation="shared_reminder_create",
+        status="open",
+        blocker="unmatched_friend",
+        title="Morning run",
+        local_trigger_at=datetime(2029, 1, 1, 8, 30),
+        captured_timezone="Asia/Shanghai",
+        duration_minutes=45,
+        unresolved_reference_text="zihao",
+        source_turn_id="turn_source",
+        source_input_from_seq=1,
+        source_input_to_seq=1,
+        source_message_ids=("message_source",),
+        facts={"title": "Morning run", "unresolved_reference_text": "zihao"},
+        facts_hash=facts_hash,
+        expires_at=NOW + timedelta(minutes=15),
+        consumed_turn_id=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    repo.save_recoverable_intent(intent)
+    return intent
+
+
+def _social_runner(harness, social_tool):
+    return TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-social-recovery",
+        ),
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=harness["agent"],
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(
+            reminder_tool=harness["reminder_tool"],
+            social_scheduling_tool=social_tool,
+        ),
+        staged_command_materializer=StagedCommandMaterializer(
+            reminder_tool=None,
+            social_scheduling_tool=social_tool,
+            calendar_import_tool=None,
+            identity_access_tool=None,
+            settings_tool=None,
+        ),
+        now=harness["clock"].now,
+        account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
+    )
 
 
 def test_inbound_reply_completion_lifecycle_runs_after_delivery(harness):
@@ -872,168 +1009,351 @@ def test_concise_clarification_answer_keeps_interactive_tools(harness):
     assert request.tool_profile.tool_names == ("reminder",)
 
 
-def test_concise_friend_answer_carries_pending_shared_reminder_resolution(harness):
-    social_tool = FakeSocialSchedulingTool()
+def test_blocked_unmatched_friend_close_creates_recoverable_intent(harness):
+    service, repo = _make_social_service()
+    social_tool = FakeSocialSchedulingTool(service)
+    runner = _social_runner(harness, social_tool)
+    outcome = {
+        "outcome_id": "outcome-1",
+        "operation": "create_shared_reminder",
+        "status": "blocked_unmatched_friend",
+        "title": "Morning run",
+        "local_trigger_at": "2029-01-01T08:30:00",
+        "captured_timezone": "Asia/Shanghai",
+        "duration_minutes": 45,
+        "participant_account_ids": [],
+        "blocker": "unmatched_friend",
+        "facts_hash": None,
+        "recoverable_scheduling_intent_id": None,
+    }
+    harness["agent"].next_result = AgentResult.completed(
+        {
+            "type": "reply",
+            "segments": ["我没找到 zihao 这个好友。"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "blocked_unmatched_friend",
+                "claim": "blocked_unmatched_friend",
+                "blocker": "unmatched_friend",
+            },
+        },
+        tool_events=(
+            {
+                "ok": False,
+                "facts": {
+                    "status": "needs_participants",
+                    "follow_up_facts": {
+                        "reason": "unmatched_friend",
+                        "unresolved_reference_text": "zihao",
+                    },
+                    "social_scheduling_outcome": outcome,
+                },
+                "reason_code": "needs_participants",
+            },
+        ),
+    )
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    intent = repo.open_recoverable_intent_for_conversation(
+        harness["trigger"].conversation_id,
+        now=NOW,
+    )
+    assert intent is not None
+    assert intent.blocker == "unmatched_friend"
+    assert intent.title == "Morning run"
+    assert intent.unresolved_reference_text == "zihao"
+
+
+def test_friend_alias_correction_injects_recoverable_intent_fact(harness):
+    service, repo = _make_social_service(names={"friend_oliver": "Olivers"})
+    _add_social_friend(repo, "account_1", "friend_oliver")
+    intent = _open_recoverable_intent(
+        repo,
+        conversation_id=harness["trigger"].conversation_id,
+    )
+    social_tool = FakeSocialSchedulingTool(service)
+    runner = _social_runner(harness, social_tool)
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="scheduling",
+        intent_action="create_shared_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+        follow_up_action=FollowUpAction(
+            type="resolve_friend_reference_correction",
+            prior_reference_text="zihao",
+            corrected_friend_text="olivers",
+            scope="immediately_preceding_unresolved_intent",
+        ),
+    )
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    recovery = request.trusted_facts["recoverable_scheduling_intent"]
+    assert recovery["id"] == intent.id
+    assert recovery["facts_hash"] == intent.facts_hash
+    assert recovery["resolved_friend_account_id"] == "friend_oliver"
+    assert request.tool_profile.social_scheduling_tool is social_tool
+    assert "pending_clarification_resolution" not in request.trusted_facts
+
+
+def test_friend_alias_correction_materializes_and_consumes_recoverable_intent(harness):
+    service, repo = _make_social_service(
+        names={"friend_oliver": "Olivers"},
+        reachable={"account_1", "friend_oliver"},
+    )
+    _add_social_friend(repo, "account_1", "friend_oliver")
+    intent = _open_recoverable_intent(
+        repo,
+        conversation_id=harness["trigger"].conversation_id,
+    )
+    social_tool = SocialSchedulingToolAdapter(service)
+
+    class RecoveringAgent(FakeAgent):
+        def invoke(self, request):
+            self.invocations += 1
+            self.requests.append(request)
+            recovery = request.trusted_facts["recoverable_scheduling_intent"]
+            request.tool_profile.social_scheduling_tool.execute(
+                {
+                    "operation": "create_shared_reminder",
+                    "creator_account_id": "account_1",
+                    "receiver_account_ids": [recovery["resolved_friend_account_id"]],
+                    "title": recovery["title"],
+                    "local_trigger_at": recovery["local_trigger_at"],
+                    "captured_timezone": recovery["captured_timezone"],
+                    "duration_minutes": recovery["duration_minutes"],
+                    "context": {"source": "recoverable_intent"},
+                    "recoverable_scheduling_intent_id": recovery["id"],
+                    "facts_hash": recovery["facts_hash"],
+                },
+                request.freshness_guard,
+            )
+            return AgentResult.completed(
+                {"type": "reply", "segments": ["已约好和 Olivers 的 Morning run。"]}
+            )
+
+    agent = RecoveringAgent()
     runner = TurnRunner(
         conversation_runtime=harness["runtime"],
         lock_manager=ConversationLockManager(
             redis_client=FakeRedis(),
             ttl_ms=30_000,
-            token_factory=lambda: "owner-social-followup",
+            token_factory=lambda: "owner-social-consume",
         ),
         pre_llm_gate=PreLLMGateService(harness["gate_port"]),
         semantic_interpreter=harness["semantic"],
         memory_port=harness["memory"],
-        interaction_agent=harness["agent"],
+        interaction_agent=agent,
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=harness["delivery"],
         tool_ports=AgentToolPorts(
             reminder_tool=harness["reminder_tool"],
             social_scheduling_tool=social_tool,
         ),
+        staged_command_materializer=StagedCommandMaterializer(
+            reminder_tool=None,
+            social_scheduling_tool=social_tool,
+            calendar_import_tool=None,
+            identity_access_tool=None,
+            settings_tool=None,
+        ),
         now=harness["clock"].now,
         account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
-    )
-    harness["agent"].next_result = AgentResult.completed(
-        {
-            "type": "reply",
-            "segments": ['约晨跑的话，"他"是哪位好友?'],
-        }
-    )
-    first_inbound = harness["runtime"].record_inbound(
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        causal_inbound_event_id="provider:message-shared",
-        text="帮我和他约一个2029年1月1日上午八点半的晨跑活动",
-        payload={"provider": "whatsapp_evolution"},
-        traceparent=TRACEPARENT,
-    )
-    first_trigger = TurnTrigger(
-        trigger_id="inbound:provider:message-shared",
-        trigger_type="InboundTurn",
-        mode=TurnMode.INTERACTIVE,
-        conversation_id=first_inbound.conversation.id,
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        payload={"text": "帮我和他约一个2029年1月1日上午八点半的晨跑活动"},
-    )
-    first = runner.run_inbound_turn(first_trigger)
-    assert first.disposition == "replied"
-
-    inbound = harness["runtime"].record_inbound(
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        causal_inbound_event_id="provider:message-2",
-        text="lizihao",
-        payload={"provider": "whatsapp_evolution"},
-        traceparent=TRACEPARENT,
     )
     harness["semantic"].next_decision = SemanticDecision(
         reply_necessity="reply_needed",
-        intent_family="friend_op",
-        intent_action="none",
-        ambiguity="ambiguous_reference",
-        required_clarification="ask_reference_choice",
+        intent_family="scheduling",
+        intent_action="create_shared_reminder",
+        ambiguity="clear",
+        required_clarification="none",
         language_hint="zh",
-    )
-    trigger = TurnTrigger(
-        trigger_id="inbound:provider:message-2",
-        trigger_type="InboundTurn",
-        mode=TurnMode.INTERACTIVE,
-        conversation_id=inbound.conversation.id,
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        payload={"text": "lizihao"},
+        follow_up_action=FollowUpAction(
+            type="resolve_friend_reference_correction",
+            prior_reference_text="zihao",
+            corrected_friend_text="olivers",
+            scope="immediately_preceding_unresolved_intent",
+        ),
     )
 
-    result = runner.run_inbound_turn(trigger)
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert repo.get_recoverable_intent(intent.id).status == "consumed"
+    staged = harness["repository"].staged_commands_for_turn(result.turn_id)
+    assert [command.status for command in staged] == ["materialized"]
+    assert repo.list_shared_reminders_for_participant("account_1")
+
+
+def test_unrelated_friend_correction_does_not_inject_recovery(harness):
+    service, repo = _make_social_service(names={"friend_oliver": "Olivers"})
+    _add_social_friend(repo, "account_1", "friend_oliver")
+    _open_recoverable_intent(
+        repo,
+        conversation_id=harness["trigger"].conversation_id,
+    )
+    runner = _social_runner(harness, FakeSocialSchedulingTool(service))
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="scheduling",
+        intent_action="create_shared_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+        follow_up_action=FollowUpAction(
+            type="resolve_friend_reference_correction",
+            prior_reference_text="other-name",
+            corrected_friend_text="olivers",
+            scope="immediately_preceding_unresolved_intent",
+        ),
+    )
+
+    result = runner.run_inbound_turn(harness["trigger"])
 
     assert result.disposition == "replied"
     request = harness["agent"].requests[-1]
-    pending = request.trusted_facts["pending_clarification_resolution"]
-    assert pending["type"] == "shared_reminder_friend_answer"
-    assert pending["answer"] == "lizihao"
-    assert "2029年1月1日" in pending["original_user_text"]
-    assert request.tool_profile.social_scheduling_tool is social_tool
-    assert "social_scheduling" in request.tool_profile.tool_names
+    assert "recoverable_scheduling_intent" not in request.trusted_facts
+    assert "recoverable_scheduling_intent_resolution" not in request.trusted_facts
 
 
-def test_shared_reminder_confirmation_followup_skips_semantic_interpreter(harness):
-    social_tool = FakeSocialSchedulingTool()
+def test_ambiguous_friend_correction_asks_one_agent_confirmation(harness):
+    service, repo = _make_social_service(
+        names={
+            "friend_oliver_a": "Oliver S",
+            "friend_oliver_b": "Olivers",
+        }
+    )
+    _add_social_friend(repo, "account_1", "friend_oliver_a")
+    _add_social_friend(repo, "account_1", "friend_oliver_b")
+    _open_recoverable_intent(
+        repo,
+        conversation_id=harness["trigger"].conversation_id,
+    )
+    runner = _social_runner(harness, FakeSocialSchedulingTool(service))
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="scheduling",
+        intent_action="create_shared_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+        follow_up_action=FollowUpAction(
+            type="resolve_friend_reference_correction",
+            prior_reference_text="zihao",
+            corrected_friend_text="olivers",
+            scope="immediately_preceding_unresolved_intent",
+        ),
+    )
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    resolution = request.trusted_facts["recoverable_scheduling_intent_resolution"]
+    assert resolution["status"] == "ambiguous"
+    assert resolution["corrected_friend_text"] == "olivers"
+    assert resolution["candidate_account_ids"] == [
+        "friend_oliver_a",
+        "friend_oliver_b",
+    ]
+    assert request.tool_profile.intent_tools_enabled is False
+    assert request.tool_profile.constrained is True
+
+
+def test_superseded_consuming_turn_does_not_consume_recoverable_intent(harness):
+    service, repo = _make_social_service(
+        names={"friend_oliver": "Olivers"},
+        reachable={"account_1", "friend_oliver"},
+    )
+    _add_social_friend(repo, "account_1", "friend_oliver")
+    intent = _open_recoverable_intent(
+        repo,
+        conversation_id=harness["trigger"].conversation_id,
+    )
+    social_tool = SocialSchedulingToolAdapter(service)
+
+    class RecoveringAgent(FakeAgent):
+        def invoke(self, request):
+            self.invocations += 1
+            self.requests.append(request)
+            harness["runtime"].record_inbound(
+                account_id="account_1",
+                channel_identity_id="channel_identity_1",
+                causal_inbound_event_id="provider:message-2",
+                text="newer",
+                payload={"provider": "whatsapp_evolution"},
+                traceparent=TRACEPARENT,
+            )
+            request.tool_profile.social_scheduling_tool.execute(
+                {
+                    "operation": "create_shared_reminder",
+                    "creator_account_id": "account_1",
+                    "receiver_account_ids": ["friend_oliver"],
+                    "title": intent.title,
+                    "local_trigger_at": intent.local_trigger_at.isoformat(),
+                    "captured_timezone": intent.captured_timezone,
+                    "duration_minutes": intent.duration_minutes,
+                    "context": {"source": "recoverable_intent"},
+                    "recoverable_scheduling_intent_id": intent.id,
+                    "facts_hash": intent.facts_hash,
+                },
+                request.freshness_guard,
+            )
+            return self.next_result
+
+    agent = RecoveringAgent()
     runner = TurnRunner(
         conversation_runtime=harness["runtime"],
         lock_manager=ConversationLockManager(
             redis_client=FakeRedis(),
             ttl_ms=30_000,
-            token_factory=lambda: "owner-social-confirmation-followup",
+            token_factory=lambda: "owner-social-superseded",
         ),
         pre_llm_gate=PreLLMGateService(harness["gate_port"]),
         semantic_interpreter=harness["semantic"],
         memory_port=harness["memory"],
-        interaction_agent=harness["agent"],
+        interaction_agent=agent,
         output_protocol=OutputProtocolValidator(),
         outbound_delivery=harness["delivery"],
         tool_ports=AgentToolPorts(
             reminder_tool=harness["reminder_tool"],
             social_scheduling_tool=social_tool,
         ),
+        staged_command_materializer=StagedCommandMaterializer(
+            reminder_tool=None,
+            social_scheduling_tool=social_tool,
+            calendar_import_tool=None,
+            identity_access_tool=None,
+            settings_tool=None,
+        ),
         now=harness["clock"].now,
         account_timezone=lambda _account_id: harness["gate_port"].account_timezone,
     )
-    harness["agent"].next_result = AgentResult.completed(
-        {
-            "type": "reply",
-            "segments": ["你是想约 lizihao 一起晨跑吗？"],
-        }
-    )
-    first_inbound = harness["runtime"].record_inbound(
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        causal_inbound_event_id="provider:message-shared-confirm",
-        text="帮我和他约一个2029年1月1日上午八点半的晨跑活动",
-        payload={"provider": "whatsapp_evolution"},
-        traceparent=TRACEPARENT,
-    )
-    first_trigger = TurnTrigger(
-        trigger_id="inbound:provider:message-shared-confirm",
-        trigger_type="InboundTurn",
-        mode=TurnMode.INTERACTIVE,
-        conversation_id=first_inbound.conversation.id,
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        payload={"text": "帮我和他约一个2029年1月1日上午八点半的晨跑活动"},
-    )
-    assert runner.run_inbound_turn(first_trigger).disposition == "replied"
-    semantic_calls_after_question = harness["semantic"].calls
-
-    inbound = harness["runtime"].record_inbound(
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        causal_inbound_event_id="provider:message-yes",
-        text="是的",
-        payload={"provider": "whatsapp_evolution"},
-        traceparent=TRACEPARENT,
-    )
-    trigger = TurnTrigger(
-        trigger_id="inbound:provider:message-yes",
-        trigger_type="InboundTurn",
-        mode=TurnMode.INTERACTIVE,
-        conversation_id=inbound.conversation.id,
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        payload={"text": "是的"},
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="scheduling",
+        intent_action="create_shared_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+        follow_up_action=FollowUpAction(
+            type="resolve_friend_reference_correction",
+            prior_reference_text="zihao",
+            corrected_friend_text="olivers",
+            scope="immediately_preceding_unresolved_intent",
+        ),
     )
 
-    result = runner.run_inbound_turn(trigger)
+    result = runner.run_inbound_turn(harness["trigger"])
 
-    assert result.disposition == "replied"
-    assert harness["semantic"].calls == semantic_calls_after_question
-    request = harness["agent"].requests[-1]
-    pending = request.trusted_facts["pending_clarification_resolution"]
-    assert pending["answer"] == "是的"
-    assert pending["assistant_question"] == "你是想约 lizihao 一起晨跑吗？"
-    assert "2029年1月1日" in pending["original_user_text"]
-    assert request.tool_profile.social_scheduling_tool is social_tool
+    assert result.disposition == "superseded"
+    assert repo.get_recoverable_intent(intent.id).status == "open"
 
 
 def test_single_reminder_focus_clears_reference_clarification_for_update(harness):
@@ -1919,9 +2239,7 @@ def test_render_turn_context_contains_source_framing_for_system_trigger(harness)
 
 
 def test_reminder_fire_render_turn_injects_trusted_domain_result(harness):
-    result = harness["runner"].run_render_turn(
-        _reminder_fire_trigger(harness)
-    )
+    result = harness["runner"].run_render_turn(_reminder_fire_trigger(harness))
 
     assert result.disposition == "replied"
     request = harness["agent"].requests[-1]

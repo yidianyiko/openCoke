@@ -388,14 +388,14 @@ git commit -m $'feat: enforce social scheduling outcome replies\n\nCo-Authored-B
 - Modify: `tests/unit/coke/turn/test_turn_runner.py`
 - Modify: `tests/unit/coke/social_scheduling/test_recoverable_scheduling_intent.py`
 
-- [ ] **Step 1: Write failing service recovery tests**
+- [x] **Step 1: Write failing service recovery tests**
 
 Add tests named
 `test_create_recoverable_intent_from_blocked_unmatched_outcome`,
 `test_resolve_corrected_friend_text_returns_exact_single_match`, and
 `test_resolve_corrected_friend_text_reports_ambiguous_matches`.
 
-- [ ] **Step 2: Run service recovery tests and verify red**
+- [x] **Step 2: Run service recovery tests and verify red**
 
 Run:
 
@@ -405,7 +405,7 @@ Run:
 
 Expected: FAIL until service helpers exist.
 
-- [ ] **Step 3: Implement service helpers**
+- [x] **Step 3: Implement service helpers**
 
 Add methods named `create_recoverable_intent_from_outcome`,
 `recoverable_intent_for_correction`, `resolve_active_friend_reference`, and
@@ -415,7 +415,7 @@ Add methods named `create_recoverable_intent_from_outcome`,
 
 Use normalized display name/account id matching only for active friends.
 
-- [ ] **Step 4: Run service recovery tests and verify green**
+- [x] **Step 4: Run service recovery tests and verify green**
 
 Run:
 
@@ -425,7 +425,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Write failing runner tests**
+- [x] **Step 5: Write failing runner tests**
 
 Add or replace tests named
 `test_blocked_unmatched_friend_close_creates_recoverable_intent`,
@@ -437,7 +437,7 @@ Add or replace tests named
 Update older tests that expected history-reconstructed
 `pending_clarification_resolution` for shared-reminder friend recovery.
 
-- [ ] **Step 6: Run runner tests and verify red**
+- [x] **Step 6: Run runner tests and verify red**
 
 Run:
 
@@ -447,7 +447,7 @@ Run:
 
 Expected: FAIL until runner recovery wiring exists.
 
-- [ ] **Step 7: Implement runner recovery wiring**
+- [x] **Step 7: Implement runner recovery wiring**
 
 Add a SocialScheduling recovery port to `TurnRunner` through constructor or
 existing `tool_ports.social_scheduling_tool` service access. Before context
@@ -461,7 +461,7 @@ agent tool events and consume artifacts only when materialized recovered
 commands with matching `recoverable_scheduling_intent_id` and `facts_hash`
 closed successfully.
 
-- [ ] **Step 8: Run runner tests and verify green**
+- [x] **Step 8: Run runner tests and verify green**
 
 Run:
 

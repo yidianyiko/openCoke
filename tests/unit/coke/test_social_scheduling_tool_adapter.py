@@ -479,6 +479,42 @@ def test_blocked_shared_reminder_tool_result_returns_blocked_outcome():
     }
 
 
+def test_preflight_unmatched_friend_shared_reminder_returns_blocked_outcome():
+    service = FakeSocialSchedulingService()
+    adapter = SocialSchedulingToolAdapter(service)
+    guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=1, input_to_seq=1)
+
+    result = adapter.execute(
+        {
+            "operation": "create_shared_reminder",
+            "creator_account_id": "creator_1",
+            "receiver_account_ids": [],
+            "title": "Morning run",
+            "local_trigger_at": "2029-01-01T08:30:00",
+            "captured_timezone": "Asia/Shanghai",
+            "duration_minutes": 45,
+            "context": {
+                "source": "unit",
+                "friend_resolution_status": "unmatched",
+                "unresolved_reference_text": "zihao",
+            },
+        },
+        guard,
+    )
+
+    assert result.ok is False
+    assert result.reason_code == "needs_participants"
+    assert result.facts["follow_up_facts"] == {
+        "reason": "unmatched_friend",
+        "unresolved_reference_text": "zihao",
+    }
+    assert result.facts["social_scheduling_outcome"]["status"] == (
+        "blocked_unmatched_friend"
+    )
+    assert result.facts["social_scheduling_outcome"]["blocker"] == "unmatched_friend"
+    assert guard.staged == []
+
+
 def test_recovered_shared_reminder_command_carries_recovery_ids():
     service = FakeSocialSchedulingService()
     adapter = SocialSchedulingToolAdapter(service)

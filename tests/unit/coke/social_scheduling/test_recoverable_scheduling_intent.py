@@ -5,10 +5,35 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from coke.domains.social_scheduling.models import RecoverableSchedulingIntent
+from coke.domains.social_scheduling.availability import (
+    ParticipantReachabilityPort,
+    ReminderAvailabilityPort,
+)
+from coke.domains.social_scheduling.models import (
+    Friendship,
+    RecoverableSchedulingIntent,
+    SocialSchedulingOutcome,
+)
 from coke.domains.social_scheduling.repository import InMemorySocialSchedulingRepository
+from coke.domains.social_scheduling.service import SocialSchedulingService
 
 NOW = datetime(2026, 6, 7, 12, 0, tzinfo=UTC)
+
+
+class FakeReachability(ParticipantReachabilityPort):
+    def has_usable_channel(self, account_id: str) -> bool:
+        return True
+
+
+class FakeReminderAvailability(ReminderAvailabilityPort):
+    def personal_busy_intervals(
+        self,
+        account_id,
+        start,
+        end,
+        requester_timezone,
+    ):
+        return []
 
 
 def _intent(
@@ -43,6 +68,45 @@ def _intent(
     )
 
 
+def _service(
+    repo: InMemorySocialSchedulingRepository | None = None,
+    *,
+    display_names: dict[str, str] | None = None,
+) -> SocialSchedulingService:
+    repo = repo or InMemorySocialSchedulingRepository()
+    names = display_names or {}
+    return SocialSchedulingService(
+        repository=repo,
+        reachability=FakeReachability(),
+        reminder_availability=FakeReminderAvailability(),
+        now=lambda: NOW,
+        id_factory=lambda prefix: f"{prefix}-1",
+        display_name_resolver=lambda account_id: names.get(account_id, account_id),
+    )
+
+
+def _add_friend(
+    repo: InMemorySocialSchedulingRepository,
+    account_id: str,
+    friend_account_id: str,
+    *,
+    lifecycle: str = "active",
+) -> None:
+    low, high = sorted((account_id, friend_account_id))
+    repo.add_friendship(
+        Friendship(
+            id=f"friendship-{account_id}-{friend_account_id}",
+            account_low_id=low,
+            account_high_id=high,
+            lifecycle=lifecycle,
+            established_at=NOW,
+            removed_at=None if lifecycle == "active" else NOW,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+
+
 def test_recoverable_intent_open_supersedes_previous_open_for_conversation():
     repo = InMemorySocialSchedulingRepository()
     first = _intent("intent-1")
@@ -68,7 +132,9 @@ def test_recoverable_intent_expires_on_read_after_expiry():
 
     repo.save_recoverable_intent(expired)
 
-    assert repo.open_recoverable_intent_for_conversation("conversation-1", now=NOW) is None
+    assert (
+        repo.open_recoverable_intent_for_conversation("conversation-1", now=NOW) is None
+    )
     assert repo.get_recoverable_intent("intent-1") == replace(
         expired,
         status="expired",
@@ -103,3 +169,89 @@ def test_recoverable_intent_consumes_only_matching_facts_hash():
         consumed_turn_id="turn-2",
         updated_at=NOW,
     )
+
+
+def test_create_recoverable_intent_from_blocked_unmatched_outcome():
+    repo = InMemorySocialSchedulingRepository()
+    service = _service(repo)
+    outcome = SocialSchedulingOutcome(
+        outcome_id="outcome-1",
+        operation="create_shared_reminder",
+        status="blocked_unmatched_friend",
+        title="Morning run",
+        local_trigger_at=datetime(2026, 6, 8, 8, 30),
+        captured_timezone="Asia/Tokyo",
+        duration_minutes=45,
+        blocker="unmatched_friend",
+    )
+
+    intent = service.create_recoverable_intent_from_outcome(
+        conversation_id="conversation-1",
+        creator_account_id="account-1",
+        outcome=outcome,
+        unresolved_reference_text="zihao",
+        source_turn_id="turn-1",
+        source_input_from_seq=3,
+        source_input_to_seq=3,
+        source_message_ids=("message-3",),
+    )
+
+    assert intent.status == "open"
+    assert intent.operation == "shared_reminder_create"
+    assert intent.blocker == "unmatched_friend"
+    assert intent.title == "Morning run"
+    assert intent.local_trigger_at == datetime(2026, 6, 8, 8, 30)
+    assert intent.captured_timezone == "Asia/Tokyo"
+    assert intent.duration_minutes == 45
+    assert intent.unresolved_reference_text == "zihao"
+    assert intent.source_input_from_seq == 3
+    assert intent.source_message_ids == ("message-3",)
+    assert intent.expires_at == NOW + timedelta(minutes=15)
+    assert intent.facts["title"] == "Morning run"
+    assert intent.facts["unresolved_reference_text"] == "zihao"
+    assert intent.facts_hash
+    assert (
+        repo.open_recoverable_intent_for_conversation(
+            "conversation-1",
+            now=NOW,
+        )
+        == intent
+    )
+
+
+def test_resolve_corrected_friend_text_returns_exact_single_match():
+    repo = InMemorySocialSchedulingRepository()
+    _add_friend(repo, "account-1", "friend-oliver")
+    _add_friend(repo, "account-1", "friend-inactive", lifecycle="removed")
+    service = _service(
+        repo,
+        display_names={
+            "friend-oliver": "Olivers",
+            "friend-inactive": "Olivers",
+        },
+    )
+
+    result = service.resolve_active_friend_reference("account-1", "olivers")
+
+    assert result.status == "matched"
+    assert result.matched_account_id == "friend-oliver"
+    assert result.candidates == ("friend-oliver",)
+
+
+def test_resolve_corrected_friend_text_reports_ambiguous_matches():
+    repo = InMemorySocialSchedulingRepository()
+    _add_friend(repo, "account-1", "friend-oliver-a")
+    _add_friend(repo, "account-1", "friend-oliver-b")
+    service = _service(
+        repo,
+        display_names={
+            "friend-oliver-a": "Oliver S",
+            "friend-oliver-b": "Olivers",
+        },
+    )
+
+    result = service.resolve_active_friend_reference("account-1", "olivers")
+
+    assert result.status == "ambiguous"
+    assert result.matched_account_id is None
+    assert result.candidates == ("friend-oliver-a", "friend-oliver-b")
