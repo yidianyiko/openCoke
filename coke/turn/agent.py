@@ -63,12 +63,17 @@ class AgentResult:
     timed_out: bool = False
     task_id: str | None = None
     blank_output: bool = False
+    tool_events: tuple[Mapping[str, Any], ...] = ()
 
     @classmethod
     def completed(
-        cls, output: Mapping[str, Any] | None, *, blank_output: bool = False
+        cls,
+        output: Mapping[str, Any] | None,
+        *,
+        blank_output: bool = False,
+        tool_events: tuple[Mapping[str, Any], ...] = (),
     ) -> AgentResult:
-        return cls(output=output, blank_output=blank_output)
+        return cls(output=output, blank_output=blank_output, tool_events=tool_events)
 
     @classmethod
     def timeout(cls, task_id: str) -> AgentResult:

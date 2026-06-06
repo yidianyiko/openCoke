@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, is_dataclass
-from datetime import datetime, timedelta
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from typing import Any, Mapping
 from uuid import uuid4
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agno.agent import Agent
 from agno.db.postgres import PostgresDb
@@ -21,6 +18,8 @@ from coke.turn.agent import (
     StateChangingToolPort,
 )
 from coke.turn.context import TurnMode
+from coke.turn.output_protocol import OutputProtocolValidator
+from coke.turn.output_protocol import OutputProtocolValidator
 
 AgentFactory = Callable[..., Any]
 TaskIdFactory = Callable[[], str]
@@ -53,26 +52,6 @@ _SETTINGS_OP_ALIASES = {
     "set_default_timezone": "set_timezone",
     "reset": "reset_agent_settings",
     "reset_settings": "reset_agent_settings",
-}
-_AFFIRMATIVE_FOLLOWUP_TEXTS = {
-    "yes",
-    "y",
-    "yeah",
-    "yep",
-    "ok",
-    "okay",
-    "sure",
-    "confirm",
-    "confirmed",
-    "是",
-    "是的",
-    "对",
-    "对的",
-    "嗯",
-    "好",
-    "好的",
-    "可以",
-    "确认",
 }
 
 
@@ -169,12 +148,6 @@ class AgnoInteractionAgent:
     def _run_request(
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
-        deterministic = _try_resolved_shared_reminder_followup(request)
-        if deterministic is not None:
-            return deterministic
-        deterministic = _try_ambiguous_shared_reminder_friend_question(request)
-        if deterministic is not None:
-            return deterministic
         agent, tool_events = self._build_agent(request)
         try:
             run_output = agent.run(
@@ -189,12 +162,6 @@ class AgnoInteractionAgent:
     async def _arun_request(
         self, request: AgentRequest, *, store_timeout: bool
     ) -> AgentResult:
-        deterministic = _try_resolved_shared_reminder_followup(request)
-        if deterministic is not None:
-            return deterministic
-        deterministic = _try_ambiguous_shared_reminder_friend_question(request)
-        if deterministic is not None:
-            return deterministic
         agent, tool_events = self._build_agent(request)
         try:
             run_output = await agent.arun(
@@ -419,267 +386,6 @@ def _tool_callable(
     tool.__name__ = f"{name}_tool"
     tool.__doc__ = _tool_doc(name)
     return tool
-
-
-def _try_resolved_shared_reminder_followup(request: AgentRequest) -> AgentResult | None:
-    pending = request.trusted_facts.get("pending_clarification_resolution")
-    if not isinstance(pending, Mapping):
-        return None
-    if pending.get("type") != "shared_reminder_friend_answer":
-        return None
-    port = request.tool_profile.social_scheduling_tool
-    if port is None:
-        return None
-    answer = str(pending.get("answer") or "").strip()
-    original_text = str(pending.get("original_user_text") or "").strip()
-    if not answer or not original_text:
-        return None
-    friends_result = port.execute(
-        {"operation": "list_friends", "account_id": request.account_id},
-        request.freshness_guard,
-    )
-    friends = friends_result.facts.get("friends") if friends_result.ok else None
-    if not isinstance(friends, list):
-        return None
-    lookup_texts = [answer]
-    assistant_question = str(pending.get("assistant_question") or "").strip()
-    if _is_affirmative_followup(answer) and assistant_question:
-        lookup_texts.append(assistant_question)
-    candidate_friends = [
-        friend
-        for friend in friends
-        if isinstance(friend, Mapping) and friend.get("account_id")
-    ]
-    matches = [
-        friend
-        for friend in candidate_friends
-        if any(_friend_name_matches_answer(friend, text) for text in lookup_texts)
-    ]
-    if not matches and _is_affirmative_followup(answer) and len(candidate_friends) == 1:
-        matches = candidate_friends
-    if len(matches) != 1:
-        return None
-    friend = matches[0]
-    friend_name = str(friend.get("display_name") or answer)
-    timezone_name = str(request.trusted_facts.get("default_timezone") or "UTC")
-    command = _direct_shared_reminder_create_command(
-        original_text,
-        creator_account_id=request.account_id,
-        receiver_account_ids=[str(friend["account_id"])],
-        captured_timezone=timezone_name,
-        current_time=str(request.trusted_facts.get("current_time") or ""),
-        context={
-            "source": "conversation_followup",
-            "original_user_text": original_text,
-            "friend_answer": answer,
-        },
-    ) or {
-        "operation": "detect_and_create_shared_reminder",
-        "creator_account_id": request.account_id,
-        "receiver_account_ids": [str(friend["account_id"])],
-        "raw_text": f"{original_text}，好友是{friend_name}",
-        "captured_timezone": timezone_name,
-        "context": {
-            "source": "conversation_followup",
-            "original_user_text": original_text,
-            "friend_answer": answer,
-        },
-    }
-    create_result = port.execute(command, request.freshness_guard)
-    if create_result.ok:
-        return AgentResult.completed(
-            {
-                "type": "reply",
-                "segments": [f"好的，已帮你和{friend_name}创建这个共享提醒"],
-            }
-        )
-    return AgentResult.completed(
-        {
-            "type": "reply",
-            "segments": ["抱歉，暂时无法帮你创建这个共享提醒，稍后可以再试一次"],
-        }
-    )
-
-
-def _friend_name_matches_answer(friend: Mapping[str, Any], answer: str) -> bool:
-    normalized_answer = _normalize_lookup_text(answer)
-    if not normalized_answer:
-        return False
-    for key in ("display_name", "nickname", "real_name", "account_id"):
-        value = friend.get(key)
-        if value is None:
-            continue
-        normalized_value = _normalize_lookup_text(str(value))
-        if normalized_value and (
-            normalized_value == normalized_answer
-            or normalized_answer in normalized_value
-            or normalized_value in normalized_answer
-        ):
-            return True
-    return False
-
-
-def _is_affirmative_followup(text: str) -> bool:
-    return _normalize_lookup_text(text) in _AFFIRMATIVE_FOLLOWUP_TEXTS
-
-
-def _normalize_lookup_text(text: str) -> str:
-    return text.casefold().strip(" \t\r\n.!?。！？~～")
-
-
-def _try_ambiguous_shared_reminder_friend_question(
-    request: AgentRequest,
-) -> AgentResult | None:
-    texts = _current_input_texts(request)
-    if not any(_is_ambiguous_shared_reminder_friend_request(text) for text in texts):
-        return None
-    segments: list[str] = []
-    if any(_is_friend_capability_question(text) for text in texts):
-        segments.append("好友相关操作和添加好友目前都暂不支持")
-    segments.append('约晨跑的话，"他"是哪位好友?')
-    return AgentResult.completed({"type": "reply", "segments": segments})
-
-
-def _current_input_texts(request: AgentRequest) -> list[str]:
-    texts: list[str] = []
-    for message in request.current_input_messages:
-        text = str(getattr(message, "text", "") or "").strip()
-        if text:
-            texts.append(text)
-    payload_text = str(request.payload.get("text") or "").strip()
-    if payload_text and payload_text not in texts:
-        texts.append(payload_text)
-    return texts
-
-
-def _is_ambiguous_shared_reminder_friend_request(text: str) -> bool:
-    normalized = text.casefold()
-    has_shared_request = any(
-        marker in normalized for marker in ("约", "共享提醒", "shared reminder")
-    ) and any(marker in normalized for marker in ("提醒", "活动", "晨跑", "shared reminder"))
-    has_ambiguous_friend = any(
-        marker in text for marker in ("和他", "跟他", "和她", "跟她", "和ta", "跟ta")
-    )
-    return has_shared_request and has_ambiguous_friend
-
-
-def _is_friend_capability_question(text: str) -> bool:
-    return "好友" in text and any(marker in text for marker in ("什么操作", "添加"))
-
-
-def _direct_shared_reminder_create_command(
-    text: str,
-    *,
-    creator_account_id: str,
-    receiver_account_ids: list[str],
-    captured_timezone: str,
-    current_time: str,
-    context: Mapping[str, Any],
-) -> dict[str, Any] | None:
-    local_trigger_at = _explicit_zh_local_datetime(
-        text, captured_timezone=captured_timezone, current_time=current_time
-    )
-    title = _shared_reminder_title(text)
-    if local_trigger_at is None or title is None:
-        return None
-    return {
-        "operation": "create_shared_reminder",
-        "creator_account_id": creator_account_id,
-        "receiver_account_ids": receiver_account_ids,
-        "title": title,
-        "local_trigger_at": local_trigger_at.isoformat(),
-        "captured_timezone": captured_timezone,
-        "duration_minutes": 15,
-        "context": dict(context),
-    }
-
-
-def _explicit_zh_local_datetime(
-    text: str, *, captured_timezone: str, current_time: str
-) -> datetime | None:
-    try:
-        zone = ZoneInfo(captured_timezone)
-        now = datetime.fromisoformat(current_time).astimezone(zone)
-    except (ValueError, ZoneInfoNotFoundError):
-        return None
-
-    date_match = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", text)
-    if date_match:
-        year, month, day = (int(part) for part in date_match.groups())
-        base_date = datetime(year, month, day, tzinfo=zone).date()
-    elif "明天" in text:
-        base_date = (now + timedelta(days=1)).date()
-    elif "后天" in text:
-        base_date = (now + timedelta(days=2)).date()
-    elif "今天" in text:
-        base_date = now.date()
-    else:
-        return None
-
-    time_match = re.search(
-        r"(凌晨|早上|上午|中午|下午|晚上|今晚)?\s*"
-        r"([零一二三四五六七八九十两\d]{1,3})点"
-        r"(半|[零一二三四五六七八九十两\d]{1,3}分?)?",
-        text,
-    )
-    if time_match is None:
-        return None
-    period, hour_text, minute_text = time_match.groups()
-    hour = _zh_number(hour_text)
-    if hour is None or hour > 24:
-        return None
-    minute = 30 if minute_text == "半" else 0
-    if minute_text and minute_text != "半":
-        minute = _zh_number(minute_text.removesuffix("分")) or -1
-    if minute < 0 or minute > 59:
-        return None
-    if period in {"下午", "晚上", "今晚"} and hour < 12:
-        hour += 12
-    if period == "中午" and hour < 11:
-        hour += 12
-    if hour == 24:
-        hour = 0
-    return datetime.combine(base_date, datetime.min.time(), tzinfo=zone).replace(
-        hour=hour, minute=minute
-    )
-
-
-def _zh_number(text: str) -> int | None:
-    if text.isdigit():
-        return int(text)
-    digits = {
-        "零": 0,
-        "一": 1,
-        "二": 2,
-        "两": 2,
-        "三": 3,
-        "四": 4,
-        "五": 5,
-        "六": 6,
-        "七": 7,
-        "八": 8,
-        "九": 9,
-    }
-    if text in digits:
-        return digits[text]
-    if text == "十":
-        return 10
-    if "十" in text:
-        left, _, right = text.partition("十")
-        tens = digits.get(left, 1) if left else 1
-        ones = digits.get(right, 0) if right else 0
-        return tens * 10 + ones
-    return None
-
-
-def _shared_reminder_title(text: str) -> str | None:
-    explicit = re.search(r"标题是(.+)$", text)
-    if explicit:
-        title = explicit.group(1).strip(" ，,。.!?？")
-        return title or None
-    if "晨跑" in text:
-        return "晨跑活动" if "活动" in text else "晨跑"
-    return None
 
 
 def _tool_doc(name: str) -> str:
@@ -1001,13 +707,26 @@ def _enforce_tool_reply_contracts(
     tool_events: list[dict[str, Any]],
     request: AgentRequest,
 ) -> AgentResult:
-    if _state_change_reply_without_tool_call(result, tool_events, request):
-        return AgentResult.completed(
-            {
-                "type": "invalid_output_protocol",
-                "reason": "state_change_reply_without_tool_call",
-            }
+    social_outcomes = [
+        *_social_scheduling_outcomes_from_tool_events(tool_events),
+        *_social_scheduling_outcomes_from_trusted_facts(request.trusted_facts),
+    ]
+    if social_outcomes or _has_social_scheduling_claim(result.output):
+        validator = OutputProtocolValidator()
+        validated = validator.validate_first_answer(result.output)
+        validated = validator.validate_social_scheduling_claim(
+            validated,
+            outcomes=social_outcomes,
         )
+        if not validated.valid:
+            return AgentResult.completed(
+                {
+                    "type": "invalid_output_protocol",
+                    "reason": validated.retry_guidance or validated.reason_code,
+                },
+                tool_events=tuple(tool_events),
+            )
+    result = replace(result, tool_events=tuple(tool_events))
     reminder_list = _latest_render_reminder_list_event(tool_events)
     if reminder_list is None or _reminder_list_reply_is_complete(result, reminder_list):
         return result
@@ -1015,48 +734,30 @@ def _enforce_tool_reply_contracts(
         {
             "type": "reply",
             "segments": [_render_reminder_list_reply(reminder_list, request)],
-        }
+        },
+        tool_events=tuple(tool_events),
     )
 
 
-def _state_change_reply_without_tool_call(
-    result: AgentResult,
+def _social_scheduling_outcomes_from_tool_events(
     tool_events: list[dict[str, Any]],
-    request: AgentRequest,
-) -> bool:
-    if tool_events:
+) -> list[Mapping[str, Any]]:
+    outcomes: list[Mapping[str, Any]] = []
+    for event in tool_events:
+        facts = event.get("facts")
+        if not isinstance(facts, Mapping):
+            continue
+        outcome = facts.get("social_scheduling_outcome")
+        if isinstance(outcome, Mapping):
+            outcomes.append(dict(outcome))
+    return outcomes
+
+
+def _has_social_scheduling_claim(output: Mapping[str, Any] | None) -> bool:
+    if not isinstance(output, Mapping):
         return False
-    if "social_scheduling" not in request.tool_profile.tool_names:
-        return False
-    output = result.output
-    if not isinstance(output, Mapping) or output.get("type") != "reply":
-        return False
-    segments = output.get("segments")
-    if not isinstance(segments, list):
-        return False
-    text = " ".join(segment for segment in segments if isinstance(segment, str))
-    normalized = text.casefold()
-    action_terms = (
-        "共享提醒",
-        "提醒",
-        "晨跑",
-        "shared reminder",
-        "reminder",
-    )
-    claim_terms = (
-        "正在帮你",
-        "已创建",
-        "已经创建",
-        "创建好了",
-        "设置好了",
-        "will create",
-        "creating",
-        "created",
-        "set up",
-    )
-    return any(term in normalized for term in action_terms) and any(
-        term in normalized for term in claim_terms
-    )
+    claim = output.get("domain_claim")
+    return isinstance(claim, Mapping) and claim.get("domain") == "social_scheduling"
 
 
 def _latest_render_reminder_list_event(
@@ -1176,6 +877,17 @@ def build_prompt_blocks(request: AgentRequest) -> tuple[PromptBlock, ...]:
     domain_result = _domain_result_payload(request)
     if domain_result:
         blocks.append(PromptBlock("domain_result", _domain_result_block(domain_result)))
+
+    social_outcomes = _social_scheduling_outcomes_from_trusted_facts(
+        request.trusted_facts
+    )
+    if social_outcomes:
+        blocks.append(
+            PromptBlock(
+                "social_scheduling_outcomes",
+                _social_scheduling_outcomes_block(social_outcomes),
+            )
+        )
 
     memory = _memory_payload(request)
     if memory:
@@ -1426,6 +1138,29 @@ def _domain_result_block(domain_result: Mapping[str, Any]) -> str:
             "Do not claim the action succeeded; ask for missing information or report the trusted failure reason."
         )
     return "\n".join(lines)
+
+
+def _social_scheduling_outcomes_from_trusted_facts(
+    trusted_facts: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    outcomes = trusted_facts.get("social_scheduling_outcomes")
+    if isinstance(outcomes, list):
+        return [dict(item) for item in outcomes if isinstance(item, Mapping)]
+    outcome = trusted_facts.get("social_scheduling_outcome")
+    if isinstance(outcome, Mapping):
+        return [dict(outcome)]
+    return []
+
+
+def _social_scheduling_outcomes_block(outcomes: list[Mapping[str, Any]]) -> str:
+    return "\n".join(
+        [
+            "trusted social_scheduling close-time outcomes:",
+            _json_block({"outcomes": outcomes}),
+            "When replying about these outcomes, include domain_claim with domain=social_scheduling, outcome_id, status, and the allowed claim that matches the trusted outcome.",
+            "created_active requires claim active_created; duplicate_active requires active_duplicate; blocked_* requires the matching blocked_* claim and blocker; staged_pending_close allows only no_success_claim and must not be user-visible success.",
+        ]
+    )
 
 
 def _memory_payload(request: AgentRequest) -> Mapping[str, Any] | None:

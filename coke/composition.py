@@ -745,19 +745,31 @@ class SocialSchedulingToolAdapter:
                 )
                 if preflight_error is not None:
                     return preflight_error
+                preview_facts: dict[str, Any] = {
+                    "status": "staged",
+                    "operation": operation,
+                    "account_id": _social_scheduling_preview_account_id(command),
+                }
+                if operation in {
+                    "create_shared_reminder",
+                    "detect_and_create_shared_reminder",
+                }:
+                    preview_facts["social_scheduling_outcome"] = (
+                        _social_scheduling_outcome_from_command(
+                            command,
+                            operation=operation,
+                            status="staged_pending_close",
+                        )
+                    )
                 staged = _staged_command_result(
                     guard,
                     domain="social_scheduling",
                     operation=operation,
                     command=command,
-                    preview_facts={
-                        "status": "staged",
-                        "operation": operation,
-                        "account_id": _social_scheduling_preview_account_id(command),
-                    },
+                    preview_facts=preview_facts,
                 )
                 if staged is not None:
-                    return staged
+                    return _social_scheduling_staged_result_with_outcome(staged)
         except ValueError as error:
             reason_code = str(error) or "social_scheduling_write_failed"
             return ToolExecutionResult(
@@ -843,18 +855,14 @@ class SocialSchedulingToolAdapter:
                     context=_optional_context(command.get("context")),
                     commit_guard=_guard_commit_guard(guard),
                 )
+                facts = _shared_reminder_create_tool_facts(
+                    operation,
+                    command,
+                    result,
+                )
                 return ToolExecutionResult(
                     ok=result.status in {"created", "duplicate"},
-                    facts={
-                        "status": result.status,
-                        "shared_reminder_id": (
-                            result.shared_reminder.id
-                            if result.shared_reminder
-                            else None
-                        ),
-                        "breakdown": result.breakdown,
-                        "follow_up_facts": result.follow_up_facts,
-                    },
+                    facts=facts,
                     reason_code=(
                         None
                         if result.status in {"created", "duplicate"}
@@ -887,18 +895,14 @@ class SocialSchedulingToolAdapter:
                         commit_guard=_guard_commit_guard(guard),
                     )
                 )
+                facts = _shared_reminder_create_tool_facts(
+                    operation,
+                    command,
+                    result,
+                )
                 return ToolExecutionResult(
                     ok=result.status in {"created", "duplicate"},
-                    facts={
-                        "status": result.status,
-                        "shared_reminder_id": (
-                            result.shared_reminder.id
-                            if result.shared_reminder
-                            else None
-                        ),
-                        "breakdown": result.breakdown,
-                        "follow_up_facts": result.follow_up_facts,
-                    },
+                    facts=facts,
                     reason_code=(
                         None
                         if result.status in {"created", "duplicate"}
@@ -1944,6 +1948,219 @@ def _social_scheduling_preview_account_id(command: Mapping[str, Any]) -> str | N
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def _social_scheduling_staged_result_with_outcome(
+    staged: ToolExecutionResult,
+) -> ToolExecutionResult:
+    preview = staged.facts.get("preview")
+    if not isinstance(preview, Mapping):
+        return staged
+    outcome = preview.get("social_scheduling_outcome")
+    if not isinstance(outcome, Mapping):
+        return staged
+    updated_outcome = dict(outcome)
+    updated_outcome["staged_command_id"] = staged.facts.get("staged_command_id")
+    updated_preview = dict(preview)
+    updated_preview["social_scheduling_outcome"] = updated_outcome
+    facts = dict(staged.facts)
+    facts["preview"] = updated_preview
+    facts["social_scheduling_outcome"] = updated_outcome
+    return ToolExecutionResult(
+        ok=staged.ok,
+        facts=facts,
+        reason_code=staged.reason_code,
+        domain_result=staged.domain_result,
+    )
+
+
+def _shared_reminder_create_tool_facts(
+    operation: str,
+    command: Mapping[str, Any],
+    result: Any,
+) -> dict[str, Any]:
+    shared_reminder = getattr(result, "shared_reminder", None)
+    status = str(getattr(result, "status", "invalid"))
+    facts = {
+        "status": status,
+        "shared_reminder_id": (
+            getattr(shared_reminder, "id", None) if shared_reminder else None
+        ),
+        "breakdown": getattr(result, "breakdown", {}) or {},
+        "follow_up_facts": getattr(result, "follow_up_facts", {}) or {},
+    }
+    outcome_status = _social_scheduling_outcome_status(status, command, result)
+    facts["social_scheduling_outcome"] = _social_scheduling_outcome_from_command(
+        command,
+        operation=operation,
+        status=outcome_status,
+        shared_reminder=shared_reminder,
+        blocker=_social_scheduling_blocker(outcome_status),
+    )
+    return facts
+
+
+def _social_scheduling_outcome_status(
+    service_status: str,
+    command: Mapping[str, Any],
+    result: Any,
+) -> str:
+    if service_status == "created":
+        return "created_active"
+    if service_status == "duplicate":
+        return "duplicate_active"
+    if service_status == "blocked":
+        breakdown = getattr(result, "breakdown", {}) or {}
+        conflicting = breakdown.get("conflicting_participants")
+        if isinstance(conflicting, list) and conflicting:
+            return "blocked_receiver_conflict"
+        unreachable = breakdown.get("unreachable_participants")
+        if isinstance(unreachable, list) and unreachable:
+            return "blocked_unreachable_participant"
+        return "invalid"
+    if service_status == "needs_participants":
+        resolution = _friend_resolution_status(command, result)
+        if resolution in {"unmatched", "unmatched_friend"}:
+            return "blocked_unmatched_friend"
+        if resolution in {"ambiguous", "ambiguous_friend"}:
+            return "blocked_ambiguous_friend"
+        return "needs_participants"
+    if service_status in {
+        "needs_title",
+        "needs_time",
+        "needs_context",
+        "needs_past_time_confirmation",
+        "needs_incomplete_date_clarification",
+    }:
+        return service_status
+    return "invalid"
+
+
+def _friend_resolution_status(command: Mapping[str, Any], result: Any) -> str | None:
+    context = _optional_context(command.get("context")) or {}
+    value = context.get("friend_resolution_status")
+    if isinstance(value, str) and value:
+        return value
+    follow_up_facts = getattr(result, "follow_up_facts", {}) or {}
+    if isinstance(follow_up_facts, Mapping):
+        value = follow_up_facts.get("reason")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _social_scheduling_blocker(outcome_status: str) -> str | None:
+    blockers = {
+        "blocked_unmatched_friend": "unmatched_friend",
+        "blocked_ambiguous_friend": "ambiguous_friend",
+        "blocked_receiver_conflict": "receiver_conflict",
+        "blocked_unreachable_participant": "unreachable_participant",
+    }
+    return blockers.get(outcome_status)
+
+
+def _social_scheduling_outcome_from_command(
+    command: Mapping[str, Any],
+    *,
+    operation: str,
+    status: str,
+    shared_reminder: Any | None = None,
+    staged_command_id: str | None = None,
+    blocker: str | None = None,
+) -> dict[str, Any]:
+    context = _optional_context(command.get("context")) or {}
+    creator_account_id = _social_scheduling_preview_account_id(command) or "unknown"
+    unresolved_reference = _unresolved_friend_reference(command, context)
+    reference = (
+        unresolved_reference
+        or getattr(shared_reminder, "id", None)
+        or command.get("title")
+        or staged_command_id
+        or "none"
+    )
+    receiver_account_ids = _list_value(
+        command,
+        "receiver_account_ids",
+        aliases=("participant_account_ids", "participants"),
+    )
+    shared_reminder_id = (
+        getattr(shared_reminder, "id", None) if shared_reminder else None
+    )
+    return {
+        "outcome_id": f"{operation}:{status}:{creator_account_id}:{reference}",
+        "operation": operation,
+        "status": status,
+        "staged_command_id": staged_command_id,
+        "shared_reminder_id": shared_reminder_id,
+        "title": _outcome_title(command, shared_reminder),
+        "local_trigger_at": _outcome_datetime_value(
+            command.get("local_trigger_at"),
+            getattr(shared_reminder, "local_trigger_at", None),
+        ),
+        "captured_timezone": str(
+            command.get("captured_timezone")
+            or getattr(shared_reminder, "captured_timezone", None)
+            or "UTC"
+        ),
+        "duration_minutes": _outcome_duration_minutes(command, shared_reminder),
+        "participant_account_ids": list(receiver_account_ids),
+        "blocker": blocker,
+        "facts_hash": (
+            command.get("facts_hash")
+            if isinstance(command.get("facts_hash"), str)
+            else None
+        ),
+        "recoverable_scheduling_intent_id": (
+            command.get("recoverable_scheduling_intent_id")
+            if isinstance(command.get("recoverable_scheduling_intent_id"), str)
+            else None
+        ),
+    }
+
+
+def _unresolved_friend_reference(
+    command: Mapping[str, Any],
+    context: Mapping[str, Any],
+) -> str | None:
+    for source in (context, command):
+        value = source.get("unresolved_reference_text")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _outcome_title(
+    command: Mapping[str, Any], shared_reminder: Any | None
+) -> str | None:
+    title = command.get("title")
+    if isinstance(title, str) and title.strip():
+        return title
+    value = getattr(shared_reminder, "title", None) if shared_reminder else None
+    return value if isinstance(value, str) else None
+
+
+def _outcome_datetime_value(command_value: Any, fallback: Any) -> str | None:
+    value = command_value if command_value is not None else fallback
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _outcome_duration_minutes(
+    command: Mapping[str, Any],
+    shared_reminder: Any | None,
+) -> int | None:
+    value = command.get("duration_minutes")
+    if value is None and shared_reminder is not None:
+        value = getattr(shared_reminder, "duration_minutes", None)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _required_str(

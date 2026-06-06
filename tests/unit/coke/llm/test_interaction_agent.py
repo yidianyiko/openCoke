@@ -40,6 +40,18 @@ class FakeAgentInstance:
         return RunOutput(content=self.content)
 
 
+class ToolCallingFakeAgentInstance(FakeAgentInstance):
+    def __init__(self, *, content: Any, command: dict[str, Any]) -> None:
+        super().__init__(content=content)
+        self.command = command
+        self.factory_kwargs: dict[str, Any] = {}
+
+    def run(self, input, **kwargs):
+        self.calls.append({"method": "run", "input": input, "kwargs": kwargs})
+        self.factory_kwargs["tools"][0](command=self.command)
+        return RunOutput(content=self.content)
+
+
 class FakeAgentFactory:
     def __init__(self, instance: FakeAgentInstance) -> None:
         self.instance = instance
@@ -47,6 +59,8 @@ class FakeAgentFactory:
 
     def __call__(self, **kwargs):
         self.agent_kwargs.append(kwargs)
+        if hasattr(self.instance, "factory_kwargs"):
+            self.instance.factory_kwargs = kwargs
         return self.instance
 
 
@@ -68,36 +82,22 @@ class FakeSocialSchedulingTool:
         return ToolExecutionResult(ok=True, facts={"friend_link_id": "link_1"})
 
 
-class FriendFollowupTool:
-    def __init__(self) -> None:
+class SocialOutcomeTool:
+    def __init__(self, outcome: dict[str, Any], *, ok: bool = True) -> None:
+        self.outcome = outcome
+        self.ok = ok
         self.calls = []
 
     def execute(self, command, guard):
         self.calls.append((command, guard))
-        if command["operation"] == "list_friends":
-            return ToolExecutionResult(
-                ok=True,
-                facts={
-                    "friends": [
-                        {
-                            "account_id": "friend_1",
-                            "display_name": "lizihao",
-                            "friendship_id": "friendship_1",
-                        }
-                    ]
-                },
-            )
-        if command["operation"] == "detect_and_create_shared_reminder":
-            return ToolExecutionResult(
-                ok=True,
-                facts={"status": "created", "shared_reminder_id": "shared_1"},
-            )
-        if command["operation"] == "create_shared_reminder":
-            return ToolExecutionResult(
-                ok=True,
-                facts={"status": "created", "shared_reminder_id": "shared_1"},
-            )
-        raise AssertionError(command)
+        return ToolExecutionResult(
+            ok=self.ok,
+            facts={
+                "status": self.outcome["status"],
+                "social_scheduling_outcome": self.outcome,
+            },
+            reason_code=None if self.ok else self.outcome["status"],
+        )
 
 
 class FakeSettingsTool:
@@ -260,7 +260,7 @@ def test_serialized_tool_call_content_is_classified_for_protocol_retry():
     assert result.timed_out is False
 
 
-def test_state_change_reply_without_tool_call_is_classified_for_protocol_retry():
+def test_unstructured_state_change_reply_is_not_phrase_scanned():
     fake_agent = FakeAgentInstance(
         content={
             "type": "reply",
@@ -281,153 +281,11 @@ def test_state_change_reply_without_tool_call_is_classified_for_protocol_retry()
     )
 
     assert result.output == {
-        "type": "invalid_output_protocol",
-        "reason": "state_change_reply_without_tool_call",
+        "type": "reply",
+        "segments": ["好的，正在帮你和lizihao创建这个晨跑共享提醒，稍等~"],
     }
     assert result.timed_out is False
-
-
-def test_resolved_shared_reminder_friend_followup_executes_tool_without_model():
-    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
-    tool = FriendFollowupTool()
-    agent = AgnoInteractionAgent(
-        model=object(),
-        agent_factory=FakeAgentFactory(fake_agent),
-    )
-
-    result = agent.invoke(
-        _request(
-            memory_enabled=True,
-            text="lizihao",
-            social_scheduling_tool=tool,
-            trusted_facts={
-                "default_timezone": "Asia/Shanghai",
-                "current_time": "2026-05-31T14:02:00+08:00",
-                "pending_clarification_resolution": {
-                    "type": "shared_reminder_friend_answer",
-                    "answer": "lizihao",
-                    "original_user_text": "帮我和他约一个明天上午八点半的晨跑活动",
-                },
-            },
-        )
-    )
-
-    assert fake_agent.calls == []
-    assert result.output == {
-        "type": "reply",
-        "segments": ["好的，已帮你和lizihao创建这个共享提醒"],
-    }
-    assert [call[0]["operation"] for call in tool.calls] == [
-        "list_friends",
-        "create_shared_reminder",
-    ]
-    assert tool.calls[1][0]["receiver_account_ids"] == ["friend_1"]
-    assert tool.calls[1][0]["title"] == "晨跑活动"
-    assert tool.calls[1][0]["local_trigger_at"] == "2026-06-01T08:30:00+08:00"
-
-
-def test_affirmative_shared_reminder_followup_uses_friend_named_in_question():
-    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
-    tool = FriendFollowupTool()
-    agent = AgnoInteractionAgent(
-        model=object(),
-        agent_factory=FakeAgentFactory(fake_agent),
-    )
-
-    result = agent.invoke(
-        _request(
-            memory_enabled=True,
-            text="是的",
-            social_scheduling_tool=tool,
-            trusted_facts={
-                "default_timezone": "Asia/Shanghai",
-                "current_time": "2026-05-31T14:02:00+08:00",
-                "pending_clarification_resolution": {
-                    "type": "shared_reminder_friend_answer",
-                    "answer": "是的",
-                    "original_user_text": "帮我和他约一个明天上午八点半的晨跑活动",
-                    "assistant_question": "你是想约 lizihao 一起晨跑吗？",
-                },
-            },
-        )
-    )
-
-    assert fake_agent.calls == []
-    assert result.output == {
-        "type": "reply",
-        "segments": ["好的，已帮你和lizihao创建这个共享提醒"],
-    }
-    assert [call[0]["operation"] for call in tool.calls] == [
-        "list_friends",
-        "create_shared_reminder",
-    ]
-
-
-def test_affirmative_shared_reminder_followup_uses_only_active_friend():
-    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
-    tool = FriendFollowupTool()
-    agent = AgnoInteractionAgent(
-        model=object(),
-        agent_factory=FakeAgentFactory(fake_agent),
-    )
-
-    result = agent.invoke(
-        _request(
-            memory_enabled=True,
-            text="是的",
-            social_scheduling_tool=tool,
-            trusted_facts={
-                "default_timezone": "Asia/Shanghai",
-                "current_time": "2026-05-31T14:02:00+08:00",
-                "pending_clarification_resolution": {
-                    "type": "shared_reminder_friend_answer",
-                    "answer": "是的",
-                    "original_user_text": "帮我和他约一个明天上午八点半的晨跑活动",
-                    "assistant_question": '约晨跑的话，"他"是哪位好友?',
-                },
-            },
-        )
-    )
-
-    assert fake_agent.calls == []
-    assert result.output == {
-        "type": "reply",
-        "segments": ["好的，已帮你和lizihao创建这个共享提醒"],
-    }
-    assert [call[0]["operation"] for call in tool.calls] == [
-        "list_friends",
-        "create_shared_reminder",
-    ]
-
-
-def test_ambiguous_shared_reminder_friend_request_asks_without_model():
-    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["unused"]})
-    agent = AgnoInteractionAgent(
-        model=object(),
-        agent_factory=FakeAgentFactory(fake_agent),
-    )
-    current_inputs = (
-        type("Input", (), {"text": "我可以对好友做什么操作？"})(),
-        type("Input", (), {"text": "我可以直接添加其他好友吗"})(),
-        type("Input", (), {"text": "帮我和他约一个明天上午八点半的晨跑活动"})(),
-    )
-
-    result = agent.invoke(
-        _request(
-            memory_enabled=True,
-            text="帮我和他约一个明天上午八点半的晨跑活动",
-            current_input_messages=current_inputs,
-        )
-    )
-
-    assert fake_agent.calls == []
-    assert result.output == {
-        "type": "reply",
-        "segments": [
-            "好友相关操作和添加好友目前都暂不支持",
-            '约晨跑的话，"他"是哪位好友?',
-        ],
-    }
+    assert fake_agent.calls
 
 
 def test_fenced_json_agno_response_maps_to_agent_result():
@@ -1022,6 +880,149 @@ def test_shared_reminder_success_prompt_forbids_confirmation_flow_language():
     assert "waiting for confirmation" in instructions
     assert "accept/reject" in instructions
     assert "pending confirmation" in instructions
+
+
+def test_social_scheduling_outcome_block_is_in_prompt():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            trusted_facts={
+                "social_scheduling_outcomes": [_created_social_outcome("outcome-1")]
+            },
+        )
+    )
+
+    prompt = fake_agent.calls[0]["input"]
+    block = _block_text(prompt, "social_scheduling_outcomes")
+    assert "created_active" in block
+    assert "domain_claim" in block
+    assert "active_created" in block
+
+
+def test_created_shared_reminder_rejects_pending_structured_claim():
+    outcome = _created_social_outcome("outcome-1")
+    fake_agent = ToolCallingFakeAgentInstance(
+        content={
+            "type": "reply",
+            "segments": ["ok"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "staged_pending_close",
+                "claim": "no_success_claim",
+            },
+        },
+        command={"operation": "create_shared_reminder"},
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=SocialOutcomeTool(outcome),
+        )
+    )
+
+    assert result.output == {
+        "type": "invalid_output_protocol",
+        "reason": "social_scheduling_claim_status_mismatch",
+    }
+
+
+def test_no_social_outcome_rejects_structured_success_claim():
+    fake_agent = FakeAgentInstance(
+        content={
+            "type": "reply",
+            "segments": ["ok"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "created_active",
+                "claim": "active_created",
+            },
+        }
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    assert result.output == {
+        "type": "invalid_output_protocol",
+        "reason": "social_scheduling_outcome_missing",
+    }
+
+
+def test_blocked_social_outcome_requires_matching_blocker_claim():
+    outcome = _blocked_social_outcome("outcome-1")
+    fake_agent = ToolCallingFakeAgentInstance(
+        content={
+            "type": "reply",
+            "segments": ["blocked"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "blocked_unmatched_friend",
+                "claim": "blocked_unmatched_friend",
+                "blocker": "ambiguous_friend",
+            },
+        },
+        command={"operation": "create_shared_reminder"},
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=SocialOutcomeTool(outcome, ok=False),
+        )
+    )
+
+    assert result.output == {
+        "type": "invalid_output_protocol",
+        "reason": "social_scheduling_claim_blocker_mismatch",
+    }
+
+
+def test_deterministic_shared_reminder_friend_helpers_are_removed():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["model"]})
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+    current_inputs = (
+        type("Input", (), {"text": "帮我和他约一个明天上午八点半的晨跑活动"})(),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            text="帮我和他约一个明天上午八点半的晨跑活动",
+            current_input_messages=current_inputs,
+        )
+    )
+
+    assert fake_agent.calls
+    assert result.output == {"type": "reply", "segments": ["model"]}
 
 
 def test_notification_render_prompt_requires_structured_fact_grounding():
@@ -1899,16 +1900,23 @@ def test_social_scheduling_tool_normalizes_live_agno_kwargs_string_shape():
         }
     )
 
-    assert _base_tool_result(result) == {
-        "ok": True,
-        "facts": {
-            "status": "created",
-            "shared_reminder_id": "shared_1",
-            "breakdown": {},
-            "follow_up_facts": {},
-        },
-        "reason_code": None,
+    base = _base_tool_result(result)
+    assert base["ok"] is True
+    assert base["reason_code"] is None
+    assert {
+        key: base["facts"][key]
+        for key in ("status", "shared_reminder_id", "breakdown", "follow_up_facts")
+    } == {
+        "status": "created",
+        "shared_reminder_id": "shared_1",
+        "breakdown": {},
+        "follow_up_facts": {},
     }
+    assert base["facts"]["social_scheduling_outcome"]["status"] == "created_active"
+    assert (
+        base["facts"]["social_scheduling_outcome"]["operation"]
+        == "create_shared_reminder"
+    )
     assert result["domain_result"]["domain"] == "social_scheduling"
     assert result["domain_result"]["action"] == "create_shared_reminder"
     assert result["domain_result"]["intent_fulfilled"] is True
@@ -1990,6 +1998,42 @@ def test_complete_async_reruns_timed_out_request():
     assert pending.task_id == "task_1"
     assert completed.output == {"type": "reply", "segments": ["finished"]}
     assert completed.timed_out is False
+
+
+def _created_social_outcome(outcome_id: str) -> dict[str, Any]:
+    return {
+        "outcome_id": outcome_id,
+        "operation": "create_shared_reminder",
+        "status": "created_active",
+        "staged_command_id": None,
+        "shared_reminder_id": "shared_1",
+        "title": "Dinner",
+        "local_trigger_at": "2026-06-01T19:00:00",
+        "captured_timezone": "UTC",
+        "duration_minutes": 15,
+        "participant_account_ids": ["account_2"],
+        "blocker": None,
+        "facts_hash": None,
+        "recoverable_scheduling_intent_id": None,
+    }
+
+
+def _blocked_social_outcome(outcome_id: str) -> dict[str, Any]:
+    return {
+        "outcome_id": outcome_id,
+        "operation": "create_shared_reminder",
+        "status": "blocked_unmatched_friend",
+        "staged_command_id": None,
+        "shared_reminder_id": None,
+        "title": "Dinner",
+        "local_trigger_at": "2026-06-01T19:00:00",
+        "captured_timezone": "UTC",
+        "duration_minutes": 15,
+        "participant_account_ids": [],
+        "blocker": "unmatched_friend",
+        "facts_hash": None,
+        "recoverable_scheduling_intent_id": None,
+    }
 
 
 def _request(

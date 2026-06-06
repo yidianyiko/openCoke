@@ -296,14 +296,14 @@ git commit -m $'feat: validate social scheduling reply claims\n\nCo-Authored-By:
 - Modify: `tests/unit/coke/test_social_scheduling_tool_adapter.py`
 - Modify: `tests/unit/coke/llm/test_interaction_agent.py`
 
-- [ ] **Step 1: Write failing tool adapter tests**
+- [x] **Step 1: Write failing tool adapter tests**
 
 Add tests named
 `test_staged_shared_reminder_tool_result_returns_social_outcome`,
 `test_blocked_shared_reminder_tool_result_returns_blocked_outcome`, and
 `test_recovered_shared_reminder_command_carries_recovery_ids`.
 
-- [ ] **Step 2: Run tool adapter tests and verify red**
+- [x] **Step 2: Run tool adapter tests and verify red**
 
 Run:
 
@@ -313,7 +313,7 @@ Run:
 
 Expected: FAIL for missing `social_scheduling_outcome` facts.
 
-- [ ] **Step 3: Implement tool outcome facts**
+- [x] **Step 3: Implement tool outcome facts**
 
 Map existing service statuses:
 
@@ -331,7 +331,7 @@ staged -> staged_pending_close
 Return outcome in `facts["social_scheduling_outcome"]` and in
 `DomainExecutionResult.reply_contract`.
 
-- [ ] **Step 4: Write failing interaction-agent tests**
+- [x] **Step 4: Write failing interaction-agent tests**
 
 Add/update tests named `test_social_scheduling_outcome_block_is_in_prompt`,
 `test_created_shared_reminder_rejects_pending_structured_claim`,
@@ -342,7 +342,7 @@ Add/update tests named `test_social_scheduling_outcome_block_is_in_prompt`,
 The deterministic-helper removal test should assert the fake Agno model is
 called for ambiguous friend input rather than bypassed by helper code.
 
-- [ ] **Step 5: Run interaction-agent tests and verify red**
+- [x] **Step 5: Run interaction-agent tests and verify red**
 
 Run:
 
@@ -352,7 +352,7 @@ Run:
 
 Expected: FAIL before guard/removal.
 
-- [ ] **Step 6: Implement interaction-agent outcome handling**
+- [x] **Step 6: Implement interaction-agent outcome handling**
 
 Carry `tool_events` on `AgentResult`, add prompt blocks for social outcomes,
 validate output claims using `OutputProtocolValidator`, and delete
@@ -360,7 +360,7 @@ validate output claims using `OutputProtocolValidator`, and delete
 `_try_ambiguous_shared_reminder_friend_question`, and their private regex
 helpers.
 
-- [ ] **Step 7: Run tool and interaction-agent tests and verify green**
+- [x] **Step 7: Run tool and interaction-agent tests and verify green**
 
 Run:
 
@@ -370,7 +370,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit interaction/tool slice**
+- [x] **Step 8: Commit interaction/tool slice**
 
 Commit:
 

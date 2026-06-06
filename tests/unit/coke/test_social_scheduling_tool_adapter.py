@@ -48,6 +48,8 @@ class FakeSocialSchedulingService:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.error: SocialSchedulingError | None = None
         self.shared_reminder_error: Exception | None = None
+        self.shared_reminder_result: Any | None = None
+        self.detect_shared_reminder_result: Any | None = None
 
     def get_or_create_friend_link(
         self,
@@ -124,6 +126,8 @@ class FakeSocialSchedulingService:
         self.calls.append(("create_shared_reminder", kwargs))
         if self.shared_reminder_error is not None:
             raise self.shared_reminder_error
+        if self.shared_reminder_result is not None:
+            return self.shared_reminder_result
         return SimpleNamespace(
             status="created",
             shared_reminder=SimpleNamespace(id="shared_1"),
@@ -136,6 +140,8 @@ class FakeSocialSchedulingService:
         self.calls.append(("detect_and_create_shared_reminder", kwargs))
         if self.shared_reminder_error is not None:
             raise self.shared_reminder_error
+        if self.detect_shared_reminder_result is not None:
+            return self.detect_shared_reminder_result
         return SimpleNamespace(
             status="created",
             shared_reminder=SimpleNamespace(id="shared_1"),
@@ -338,12 +344,20 @@ def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
 
     assert result.ok is True
     assert result.reason_code is None
-    assert result.facts == {
+    assert {
+        key: result.facts[key]
+        for key in ("status", "shared_reminder_id", "breakdown", "follow_up_facts")
+    } == {
         "status": "created",
         "shared_reminder_id": "shared_1",
         "breakdown": {},
         "follow_up_facts": {},
     }
+    assert result.facts["social_scheduling_outcome"]["status"] == "created_active"
+    assert (
+        result.facts["social_scheduling_outcome"]["operation"]
+        == "detect_and_create_shared_reminder"
+    )
     assert service.calls == [
         (
             "detect_and_create_shared_reminder",
@@ -384,6 +398,116 @@ def test_interactive_shared_reminder_tool_stages_before_close():
     assert service.calls == []
     assert guard.staged[0]["domain"] == "social_scheduling"
     assert guard.staged[0]["operation"] == "create_shared_reminder"
+
+
+def test_staged_shared_reminder_tool_result_returns_social_outcome():
+    service = FakeSocialSchedulingService()
+    adapter = SocialSchedulingToolAdapter(service)
+    guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=1, input_to_seq=1)
+
+    result = adapter.execute(
+        {
+            "operation": "create_shared_reminder",
+            "creator_account_id": "account_1",
+            "receiver_account_ids": ["account_2"],
+            "title": "Dinner",
+            "local_trigger_at": "2026-06-01T19:00:00",
+            "captured_timezone": "UTC",
+            "context": {"source": "unit"},
+        },
+        guard,
+    )
+
+    outcome = result.facts["social_scheduling_outcome"]
+    assert outcome["status"] == "staged_pending_close"
+    assert outcome["operation"] == "create_shared_reminder"
+    assert outcome["staged_command_id"] == "staged_1"
+    assert outcome["title"] == "Dinner"
+    assert (
+        guard.staged[0]["preview_facts"]["social_scheduling_outcome"]["status"]
+        == "staged_pending_close"
+    )
+
+
+def test_blocked_shared_reminder_tool_result_returns_blocked_outcome():
+    service = FakeSocialSchedulingService()
+    service.shared_reminder_result = SimpleNamespace(
+        status="needs_participants",
+        shared_reminder=None,
+        breakdown={},
+        follow_up_facts={
+            "reason": "unmatched_friend",
+            "unresolved_reference_text": "zihao",
+        },
+    )
+    adapter = SocialSchedulingToolAdapter(service)
+
+    result = adapter.execute(
+        {
+            "operation": "create_shared_reminder",
+            "creator_account_id": "creator_1",
+            "receiver_account_ids": [],
+            "title": "Team sync",
+            "local_trigger_at": "2026-06-01T09:00:00",
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": 30,
+            "context": {
+                "source": "unit",
+                "friend_resolution_status": "unmatched",
+                "unresolved_reference_text": "zihao",
+            },
+        },
+        FakeGuard(),
+    )
+
+    assert result.ok is False
+    assert result.reason_code == "needs_participants"
+    assert result.facts["social_scheduling_outcome"] == {
+        "outcome_id": "create_shared_reminder:blocked_unmatched_friend:creator_1:zihao",
+        "operation": "create_shared_reminder",
+        "status": "blocked_unmatched_friend",
+        "staged_command_id": None,
+        "shared_reminder_id": None,
+        "title": "Team sync",
+        "local_trigger_at": "2026-06-01T09:00:00",
+        "captured_timezone": "Asia/Tokyo",
+        "duration_minutes": 30,
+        "participant_account_ids": [],
+        "blocker": "unmatched_friend",
+        "facts_hash": None,
+        "recoverable_scheduling_intent_id": None,
+    }
+
+
+def test_recovered_shared_reminder_command_carries_recovery_ids():
+    service = FakeSocialSchedulingService()
+    adapter = SocialSchedulingToolAdapter(service)
+    guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=2, input_to_seq=2)
+
+    result = adapter.execute(
+        {
+            "operation": "create_shared_reminder",
+            "creator_account_id": "account_1",
+            "receiver_account_ids": ["account_2"],
+            "title": "Dinner",
+            "local_trigger_at": "2026-06-01T19:00:00",
+            "captured_timezone": "UTC",
+            "duration_minutes": 15,
+            "context": {"source": "recoverable_intent"},
+            "recoverable_scheduling_intent_id": "intent_1",
+            "facts_hash": "facts_hash_1",
+        },
+        guard,
+    )
+
+    assert guard.staged[0]["command_payload"]["recoverable_scheduling_intent_id"] == (
+        "intent_1"
+    )
+    assert guard.staged[0]["command_payload"]["facts_hash"] == "facts_hash_1"
+    assert (
+        result.facts["social_scheduling_outcome"]["recoverable_scheduling_intent_id"]
+        == "intent_1"
+    )
 
 
 def test_create_shared_reminder_repository_failure_returns_clear_non_success_result():
