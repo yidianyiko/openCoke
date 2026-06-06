@@ -14,6 +14,38 @@ RecoverableSchedulingIntentStatus = Literal[
     "open", "consumed", "expired", "superseded"
 ]
 RecoverableSchedulingIntentBlocker = Literal["unmatched_friend", "ambiguous_friend"]
+SocialSchedulingOutcomeStatus = Literal[
+    "created_active",
+    "duplicate_active",
+    "blocked_unmatched_friend",
+    "blocked_ambiguous_friend",
+    "blocked_receiver_conflict",
+    "blocked_unreachable_participant",
+    "needs_participants",
+    "needs_title",
+    "needs_time",
+    "needs_context",
+    "needs_past_time_confirmation",
+    "needs_incomplete_date_clarification",
+    "invalid",
+    "staged_pending_close",
+]
+SocialSchedulingClaim = Literal[
+    "active_created",
+    "active_duplicate",
+    "blocked_unmatched_friend",
+    "blocked_ambiguous_friend",
+    "blocked_receiver_conflict",
+    "blocked_unreachable_participant",
+    "needs_participants",
+    "needs_title",
+    "needs_time",
+    "needs_context",
+    "needs_past_time_confirmation",
+    "needs_incomplete_date_clarification",
+    "failed",
+    "no_success_claim",
+]
 
 
 class SocialSchedulingError(RuntimeError):
@@ -131,6 +163,23 @@ class RecoverableSchedulingIntent:
     consumed_turn_id: str | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class SocialSchedulingOutcome:
+    outcome_id: str
+    operation: str
+    status: SocialSchedulingOutcomeStatus
+    staged_command_id: str | None = None
+    shared_reminder_id: str | None = None
+    title: str | None = None
+    local_trigger_at: datetime | None = None
+    captured_timezone: str | None = None
+    duration_minutes: int | None = None
+    participant_account_ids: tuple[str, ...] = ()
+    blocker: str | None = None
+    facts_hash: str | None = None
+    recoverable_scheduling_intent_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

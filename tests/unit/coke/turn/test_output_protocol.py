@@ -89,3 +89,115 @@ def test_output_protocol_reports_state_change_without_tool_guidance_for_retry():
         state_change_claim.retry_guidance
         == "state_change_reply_requires_native_tool_call"
     )
+
+
+def test_social_scheduling_claim_matches_created_outcome():
+    validator = OutputProtocolValidator()
+    validated = validator.validate_first_answer(
+        {
+            "type": "reply",
+            "segments": ["done"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "created_active",
+                "claim": "active_created",
+            },
+        }
+    )
+
+    result = validator.validate_social_scheduling_claim(
+        validated,
+        outcomes=[
+            {
+                "outcome_id": "outcome-1",
+                "operation": "shared_reminder_create",
+                "status": "created_active",
+            }
+        ],
+    )
+
+    assert result.valid is True
+    assert result.domain_claim["claim"] == "active_created"
+
+
+def test_social_scheduling_claim_rejects_staged_pending_close_success():
+    validator = OutputProtocolValidator()
+    validated = validator.validate_first_answer(
+        {
+            "type": "reply",
+            "segments": ["done"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "staged_pending_close",
+                "claim": "active_created",
+            },
+        }
+    )
+
+    result = validator.validate_social_scheduling_claim(
+        validated,
+        outcomes=[
+            {
+                "outcome_id": "outcome-1",
+                "operation": "shared_reminder_create",
+                "status": "staged_pending_close",
+            }
+        ],
+    )
+
+    assert result.valid is False
+    assert result.retry_guidance == "social_scheduling_claim_not_allowed"
+
+
+def test_social_scheduling_claim_rejects_missing_claim_when_required():
+    validator = OutputProtocolValidator()
+    validated = validator.validate_first_answer({"type": "reply", "segments": ["ok"]})
+
+    result = validator.validate_social_scheduling_claim(
+        validated,
+        outcomes=[
+            {
+                "outcome_id": "outcome-1",
+                "operation": "shared_reminder_create",
+                "status": "blocked_unmatched_friend",
+                "blocker": "unmatched_friend",
+            }
+        ],
+    )
+
+    assert result.valid is False
+    assert result.retry_guidance == "social_scheduling_claim_required"
+
+
+def test_social_scheduling_claim_rejects_blocker_mismatch():
+    validator = OutputProtocolValidator()
+    validated = validator.validate_first_answer(
+        {
+            "type": "reply",
+            "segments": ["blocked"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "blocked_unmatched_friend",
+                "claim": "blocked_unmatched_friend",
+                "blocker": "ambiguous_friend",
+            },
+        }
+    )
+
+    result = validator.validate_social_scheduling_claim(
+        validated,
+        outcomes=[
+            {
+                "outcome_id": "outcome-1",
+                "operation": "shared_reminder_create",
+                "status": "blocked_unmatched_friend",
+                "blocker": "unmatched_friend",
+            }
+        ],
+    )
+
+    assert result.valid is False
+    assert result.retry_guidance == "social_scheduling_claim_blocker_mismatch"

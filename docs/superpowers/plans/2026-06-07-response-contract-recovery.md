@@ -231,7 +231,7 @@ git commit -m $'feat: classify friend correction follow ups\n\nCo-Authored-By: C
 - Modify: `coke/turn/output_protocol.py`
 - Modify: `tests/unit/coke/turn/test_output_protocol.py`
 
-- [ ] **Step 1: Write failing output protocol tests**
+- [x] **Step 1: Write failing output protocol tests**
 
 Add tests named `test_social_scheduling_claim_matches_created_outcome`,
 `test_social_scheduling_claim_rejects_staged_pending_close_success`,
@@ -241,7 +241,7 @@ Add tests named `test_social_scheduling_claim_matches_created_outcome`,
 Each test should call a new validator entry point with trusted outcomes and a
 reply object containing optional `domain_claim`.
 
-- [ ] **Step 2: Run output protocol tests and verify red**
+- [x] **Step 2: Run output protocol tests and verify red**
 
 Run:
 
@@ -251,7 +251,7 @@ Run:
 
 Expected: FAIL for missing social-scheduling claim validation.
 
-- [ ] **Step 3: Implement outcome and claim validation**
+- [x] **Step 3: Implement outcome and claim validation**
 
 Add `SocialSchedulingOutcome`, status/claim literals, and a helper such as:
 
@@ -268,7 +268,7 @@ def validate_social_scheduling_claim(
 `ValidatedOutput` should carry `domain_claim` when present. Keep phrase checks
 out of production validation.
 
-- [ ] **Step 4: Run output protocol tests and verify green**
+- [x] **Step 4: Run output protocol tests and verify green**
 
 Run:
 
@@ -278,7 +278,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit output contract slice**
+- [x] **Step 5: Commit output contract slice**
 
 Commit:
 
