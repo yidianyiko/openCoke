@@ -5,7 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from secrets import token_urlsafe
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -801,7 +801,9 @@ class SocialSchedulingService:
             joiner_account_id, link.owner_account_id
         )
         if active is not None:
-            return FriendshipResult(status="already_active", friendship=active)
+            return self._friendship_result(
+                "already_active", active, link.owner_account_id
+            )
         low, high = unordered_pair(joiner_account_id, link.owner_account_id)
         friendship = Friendship(
             id=self._new_id("friendship"),
@@ -819,7 +821,22 @@ class SocialSchedulingService:
             self._create_friendship_notification(
                 friendship, actor_account_id=joiner_account_id
             )
-        return FriendshipResult(status="created", friendship=friendship)
+        return self._friendship_result("created", friendship, link.owner_account_id)
+
+    def _friendship_result(
+        self,
+        status: Literal["created", "already_active"],
+        friendship: Friendship,
+        counterpart_account_id: str,
+    ) -> FriendshipResult:
+        return FriendshipResult(
+            status=status,
+            friendship=friendship,
+            counterpart_account_id=counterpart_account_id,
+            counterpart_display_name=self.display_name_resolver(
+                counterpart_account_id
+            ),
+        )
 
     def _create_friendship_notification(
         self, friendship: Friendship, actor_account_id: str

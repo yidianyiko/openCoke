@@ -31,6 +31,8 @@ type FriendshipActionResult = {
 export type CustomerFriendshipJoin = {
   status: 'created' | 'already_active';
   friendship_id: string | null;
+  counterpart_account_id: string;
+  counterpart_display_name: string;
   continuation?: Record<string, unknown>;
 };
 

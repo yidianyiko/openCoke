@@ -164,6 +164,10 @@ def test_friend_list_entries_include_profile_display_names():
 
 def test_friend_link_join_creates_active_friendship_without_joiner_channel():
     service, repo, _reachability, _availability = make_service({"owner"})
+    service.display_name_resolver = lambda account_id: {
+        "owner": "Oliver",
+        "joiner": "Eva",
+    }[account_id]
     link = service.get_or_create_friend_link("owner")
 
     result = service.establish_friendship_from_token("joiner", link.public_token)
@@ -172,6 +176,8 @@ def test_friend_link_join_creates_active_friendship_without_joiner_channel():
     assert result.friendship is not None
     assert result.friendship.lifecycle == "active"
     assert result.continuation == {}
+    assert result.counterpart_account_id == "owner"
+    assert result.counterpart_display_name == "Oliver"
     assert {friend.account_id for friend in service.list_friends("owner")} == {"joiner"}
     assert {friend.account_id for friend in service.list_friends("joiner")} == {"owner"}
     assert repo.list_active_friends("owner") == ["joiner"]
@@ -191,6 +197,10 @@ def test_friendship_establishment_requires_owner_still_has_usable_channel():
 
 def test_active_friendship_is_unique_and_removed_pair_can_reestablish():
     service, repo, _, _ = make_service({"owner", "joiner"})
+    service.display_name_resolver = lambda account_id: {
+        "owner": "Oliver",
+        "joiner": "Eva",
+    }[account_id]
     link = service.get_or_create_friend_link("owner")
 
     first = service.establish_friendship_from_token("joiner", link.public_token)
@@ -201,6 +211,8 @@ def test_active_friendship_is_unique_and_removed_pair_can_reestablish():
     assert first.status == "created"
     assert second.status == "already_active"
     assert second.friendship.id == first.friendship.id
+    assert second.counterpart_account_id == "owner"
+    assert second.counterpart_display_name == "Oliver"
     assert removed.lifecycle == "removed"
     assert third.status == "created"
     assert third.friendship.id != first.friendship.id

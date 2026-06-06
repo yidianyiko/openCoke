@@ -54,6 +54,8 @@ class FakeSocialSchedulingService:
         return SimpleNamespace(
             status="created",
             friendship=SimpleNamespace(id="friendship_1"),
+            counterpart_account_id="friend",
+            counterpart_display_name="Alice Push",
             continuation={},
         )
 
@@ -67,6 +69,8 @@ class FakeSocialSchedulingService:
         return SimpleNamespace(
             status="already_active",
             friendship=SimpleNamespace(id="friendship_1"),
+            counterpart_account_id="friend",
+            counterpart_display_name="Alice Push",
             continuation={},
         )
 
@@ -93,6 +97,8 @@ class FakeSocialSchedulingService:
         return SimpleNamespace(
             status="created",
             friendship=SimpleNamespace(id="friendship_1"),
+            counterpart_account_id="friend",
+            counterpart_display_name="Alice Push",
             continuation={},
         )
 
@@ -381,6 +387,8 @@ def test_join_route_serializes_created_friendship_result():
     assert response.get_json() == {
         "status": "created",
         "friendship_id": "friendship_1",
+        "counterpart_account_id": "friend",
+        "counterpart_display_name": "Alice Push",
         "continuation": {},
     }
 

@@ -18,12 +18,31 @@ import {
 const AUTH_ERRORS = new Set(['invalid_or_expired_token', 'unauthorized', 'account_not_found', 'claim_inactive']);
 const LOGIN_NEXT_PATH = '/auth/login?next=/account/friends';
 
+type FriendsCopy = ReturnType<typeof useLocale>['messages']['customerPages']['friends'];
+
 function loginNextPath(joinCode: string): string {
   if (!joinCode) {
     return LOGIN_NEXT_PATH;
   }
   const next = `/account/friends?join=${encodeURIComponent(joinCode)}`;
   return `/auth/login?next=${encodeURIComponent(next)}`;
+}
+
+function formatFriendJoinNotice(template: string, name: string): string {
+  return template.replace('{name}', name);
+}
+
+function joinErrorMessage(error: string, copy: FriendsCopy): string {
+  if (error === 'self_friendship_forbidden') {
+    return copy.inviteSelf;
+  }
+  if (error === 'friend_link_disabled') {
+    return copy.inviteDisabled;
+  }
+  if (error === 'friend_link_not_found') {
+    return copy.inviteInvalid;
+  }
+  return copy.actionFailure;
 }
 
 function CustomerFriendsPageContent() {
@@ -122,10 +141,13 @@ function CustomerFriendsPageContent() {
             return;
           }
           preserveActionErrorRef.current = true;
-          setError(res.error === 'self_friendship_forbidden' ? copy.inviteSelf : copy.actionFailure);
+          setError(joinErrorMessage(res.error, copy));
           return;
         }
-        setNotice(copy.inviteSent);
+        const template = res.data.status === 'created' ? copy.inviteCreated : copy.inviteAlreadyActive;
+        const counterpartName =
+          res.data.counterpart_display_name || res.data.counterpart_account_id || copy.unknownFriend;
+        setNotice(formatFriendJoinNotice(template, counterpartName));
         await loadData();
       } catch {
         setError(copy.actionFailure);
@@ -136,7 +158,7 @@ function CustomerFriendsPageContent() {
         }
       }
     },
-    [copy.actionFailure, copy.inviteSelf, copy.inviteSent, loadData, replace],
+    [copy, loadData, replace],
   );
 
   useEffect(() => {

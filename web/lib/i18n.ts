@@ -205,11 +205,11 @@ type CustomerPagesMessages = {
     inviteTargetLabel: string;
     inviteSend: string;
     inviteSending: string;
-    inviteSent: string;
-    inviteAlreadyFriend: string;
+    inviteCreated: string;
+    inviteAlreadyActive: string;
     inviteSelf: string;
-    inviteLoadFailure: string;
-    inviteUnavailable: string;
+    inviteDisabled: string;
+    inviteInvalid: string;
     friendsTitle: string;
     emptyFriends: string;
     loading: string;
@@ -697,11 +697,11 @@ export const messages: MessagesCatalog = {
         inviteTargetLabel: 'Target account',
         inviteSend: 'Add friend',
         inviteSending: 'Adding...',
-        inviteSent: 'Friend added.',
-        inviteAlreadyFriend: 'This account is already in your friends list.',
+        inviteCreated: 'Added {name}.',
+        inviteAlreadyActive: '{name} is already in your friends list.',
         inviteSelf: 'You cannot add yourself as a friend.',
-        inviteLoadFailure: 'Unable to load this friend link right now.',
-        inviteUnavailable: 'This invitation can no longer add a friend.',
+        inviteDisabled: 'This friend link has been disabled.',
+        inviteInvalid: 'This friend link is invalid or expired.',
         friendsTitle: 'Current friends',
         emptyFriends: 'No friends yet.',
         loading: 'Loading friend data...',
@@ -1137,11 +1137,11 @@ export const messages: MessagesCatalog = {
         inviteTargetLabel: '目标账号',
         inviteSend: '添加好友',
         inviteSending: '添加中...',
-        inviteSent: '好友已添加。',
-        inviteAlreadyFriend: '这个账号已经在你的好友列表中。',
+        inviteCreated: '已成功添加 {name}',
+        inviteAlreadyActive: '{name} 已经在你的好友列表中。',
         inviteSelf: '不能把自己添加为好友。',
-        inviteLoadFailure: '暂时无法加载这条好友链接。',
-        inviteUnavailable: '这条邀请已不能再添加好友。',
+        inviteDisabled: '这条好友链接已被停用。',
+        inviteInvalid: '这条好友链接无效或已过期。',
         friendsTitle: '当前好友',
         emptyFriends: '暂无好友。',
         loading: '正在加载好友数据...',
