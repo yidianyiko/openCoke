@@ -20,6 +20,7 @@ from coke.domains.reminder.models import (
     ReminderError,
     ReminderFire,
     ReminderFireGroup,
+    ReminderFireRenderFact,
     ReminderItemResult,
     ReminderKind,
     ReminderLifecycle,
@@ -555,6 +556,51 @@ class ReminderService:
             updated_fires.append(updated)
         return updated_fires
 
+    def reminder_fire_render_facts(
+        self,
+        *,
+        owner_account_id: str,
+        fire_ids: list[str],
+        viewer_account_id: str | None = None,
+    ) -> list[ReminderFireRenderFact]:
+        if not fire_ids:
+            raise ReminderError("reminder_fire_ids_required")
+        viewer_id = viewer_account_id or owner_account_id
+        facts: list[ReminderFireRenderFact] = []
+        for fire_id in fire_ids:
+            fire = self._require_fire(fire_id)
+            reminder = self._require_reminder(fire.reminder_id)
+            if reminder.owner_account_id != owner_account_id:
+                raise ReminderError("reminder_fire_not_found")
+            timezone_name, timezone = _zoneinfo_or_utc(reminder.captured_timezone)
+            due_at = (
+                fire.due_at
+                if fire.due_at.tzinfo is not None
+                else fire.due_at.replace(tzinfo=UTC)
+            )
+            participant_names: tuple[str, ...] = ()
+            if reminder.shared_reminder_id and self._friend_identifiers is not None:
+                participant_names = tuple(
+                    self._friend_identifiers(reminder.shared_reminder_id, viewer_id)
+                )
+            facts.append(
+                ReminderFireRenderFact(
+                    fire_id=fire.id,
+                    reminder_id=reminder.id,
+                    title=reminder.content,
+                    owner_account_id=reminder.owner_account_id,
+                    viewer_account_id=viewer_id,
+                    due_at=due_at.isoformat(),
+                    local_due_at=due_at.astimezone(timezone).isoformat(),
+                    timezone=timezone_name,
+                    duration_minutes=reminder.duration_minutes,
+                    kind=reminder.kind,
+                    shared_reminder_id=reminder.shared_reminder_id,
+                    participant_names=participant_names,
+                )
+            )
+        return facts
+
     def record_proactive_delivery(
         self,
         fire_id: str,
@@ -928,6 +974,13 @@ def _normalized_keyword(keyword: str | None) -> str:
     if keyword is None:
         return ""
     return keyword.strip().casefold()
+
+
+def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo]:
+    try:
+        return timezone_name, ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return "UTC", ZoneInfo("UTC")
 
 
 def _reminder_candidate_fact(reminder: Reminder) -> dict[str, Any]:

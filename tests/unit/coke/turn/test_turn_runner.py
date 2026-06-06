@@ -19,7 +19,7 @@ from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
 )
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
-from coke.domains.reminder.models import ReminderBatchItem
+from coke.domains.reminder.models import Reminder, ReminderBatchItem, ReminderFire
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
 from coke.turn.agent import AgentResult, AgentToolPorts, ToolExecutionResult
@@ -1414,6 +1414,68 @@ def test_reminder_tool_list_reminders_returns_active_count_without_write_guard()
     assert "1. pay rent (2026-05-30 20:00 Asia/Shanghai)" in (
         result.domain_result.visible_summary
     )
+
+
+def test_reminder_service_hydrates_fire_ids_for_render_facts():
+    now = datetime(2026, 6, 6, 4, 0, tzinfo=UTC)
+    reminder_repository = InMemoryReminderRepository()
+    reminder_service = ReminderService(
+        repository=reminder_repository,
+        now=lambda: now,
+        friend_identifiers=(
+            lambda shared_id, viewer_id: (
+                ["Oliver"]
+                if shared_id == "shared_1" and viewer_id == "account_1"
+                else []
+            )
+        ),
+    )
+    reminder = Reminder(
+        id="reminder_1",
+        owner_account_id="account_1",
+        content="和Oliver喝咖啡",
+        content_hash="hash_1",
+        kind="shared_projection",
+        next_fire_at=datetime(2026, 6, 6, 6, 0, tzinfo=UTC),
+        recurrence_rule={},
+        captured_timezone="Asia/Shanghai",
+        duration_minutes=45,
+        lifecycle="active",
+        hidden_from_calendar=False,
+        shared_reminder_id="shared_1",
+        created_at=now,
+        updated_at=now,
+    )
+    fire = ReminderFire(
+        id="fire_1",
+        reminder_id="reminder_1",
+        occurrence_key="2026-06-06T06:00:00+00:00",
+        due_at=datetime(2026, 6, 6, 6, 0, tzinfo=UTC),
+        fire_state="claimed",
+        delivery_result=None,
+        handled_at=None,
+        completed_at=None,
+        missed_catch_up=False,
+        created_at=now,
+        updated_at=now,
+    )
+    reminder_repository.add_reminder(reminder)
+    reminder_repository.add_fire(fire)
+
+    facts = reminder_service.reminder_fire_render_facts(
+        owner_account_id="account_1",
+        fire_ids=["fire_1"],
+        viewer_account_id="account_1",
+    )
+
+    assert facts[0].fire_id == "fire_1"
+    assert facts[0].reminder_id == "reminder_1"
+    assert facts[0].title == "和Oliver喝咖啡"
+    assert facts[0].local_due_at == "2026-06-06T14:00:00+08:00"
+    assert facts[0].timezone == "Asia/Shanghai"
+    assert facts[0].duration_minutes == 45
+    assert facts[0].kind == "shared_projection"
+    assert facts[0].participant_names == ("Oliver",)
 
 
 def test_reminder_tool_list_reminders_accepts_keyword_kind_and_time_filters():

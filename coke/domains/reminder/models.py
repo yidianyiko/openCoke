@@ -69,6 +69,22 @@ class ReminderFire:
 
 
 @dataclass(frozen=True, slots=True)
+class ReminderFireRenderFact:
+    fire_id: str
+    reminder_id: str
+    title: str
+    owner_account_id: str
+    viewer_account_id: str
+    due_at: str
+    local_due_at: str
+    timezone: str
+    duration_minutes: int
+    kind: ReminderKind
+    shared_reminder_id: str | None
+    participant_names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ReminderBatchItem:
     operation: str
     content: str | None = None
