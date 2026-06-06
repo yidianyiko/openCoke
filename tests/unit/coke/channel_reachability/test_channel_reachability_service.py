@@ -385,13 +385,13 @@ def test_claimed_friend_link_self_completes_when_joiner_connects_channel(
         provider_subject="whatsapp:+15555550999",
     )
 
-    deferred = social.establish_friendship_from_token(
+    created = social.establish_friendship_from_token(
         joiner_account_id=joiner.account.id,
         public_token=link.public_token,
     )
     claim = identity_service.issue_web_claim_code(
         browser_session="browser_1",
-        continuation=deferred.continuation,
+        continuation=created.continuation,
     )
     identity_service.redeem_claim_code_from_channel(
         code=claim.code,
@@ -412,7 +412,7 @@ def test_claimed_friend_link_self_completes_when_joiner_connects_channel(
     channel_service.mark_connected(joiner.account.id, joiner_channel.id)
     channel_service.mark_connected(joiner.account.id, joiner_channel.id)
 
-    assert deferred.status == "deferred_channel_required"
+    assert created.status == "created"
     assert social_repository.list_active_friends(owner.id) == [joiner.account.id]
     assert len(social_repository.friendships_by_id) == 1
     assert (

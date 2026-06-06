@@ -29,7 +29,7 @@ type FriendshipActionResult = {
 };
 
 export type CustomerFriendshipJoin = {
-  status: 'created' | 'already_active' | 'deferred_channel_required';
+  status: 'created' | 'already_active';
   friendship_id: string | null;
   continuation?: Record<string, unknown>;
 };

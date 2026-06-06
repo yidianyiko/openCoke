@@ -207,7 +207,6 @@ type CustomerPagesMessages = {
     inviteSending: string;
     inviteSent: string;
     inviteAlreadyFriend: string;
-    inviteNeedsChannel: string;
     inviteSelf: string;
     inviteLoadFailure: string;
     inviteUnavailable: string;
@@ -700,7 +699,6 @@ export const messages: MessagesCatalog = {
         inviteSending: 'Adding...',
         inviteSent: 'Friend added.',
         inviteAlreadyFriend: 'This account is already in your friends list.',
-        inviteNeedsChannel: 'Connect a messaging channel first, then open this friend link again.',
         inviteSelf: 'You cannot add yourself as a friend.',
         inviteLoadFailure: 'Unable to load this friend link right now.',
         inviteUnavailable: 'This invitation can no longer add a friend.',
@@ -1141,7 +1139,6 @@ export const messages: MessagesCatalog = {
         inviteSending: '添加中...',
         inviteSent: '好友已添加。',
         inviteAlreadyFriend: '这个账号已经在你的好友列表中。',
-        inviteNeedsChannel: '请先连接消息通道，然后再打开这条好友链接。',
         inviteSelf: '不能把自己添加为好友。',
         inviteLoadFailure: '暂时无法加载这条好友链接。',
         inviteUnavailable: '这条邀请已不能再添加好友。',

@@ -186,24 +186,6 @@ describe('CustomerFriendsPage', () => {
     expect(replaceMock).not.toHaveBeenLastCalledWith('/account/friends');
   });
 
-  it('shows a channel-required notice when the clean join is deferred', async () => {
-    searchParamsMock.mockReturnValue(new URLSearchParams('join=code_1'));
-    joinFriendByCodeMock.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        status: 'deferred_channel_required',
-        friendship_id: null,
-        continuation: { friend_link_id: 'fl_1' },
-      },
-    });
-
-    renderPage();
-    await flushTicks();
-
-    expect(container.textContent).toContain('Connect a messaging channel first');
-    expect(replaceMock).toHaveBeenCalledWith('/account/friends');
-  });
-
   it('keeps friends visible when the current account has no shareable link yet', async () => {
     getLinkMock.mockResolvedValueOnce({ ok: false, error: 'owner_channel_required' });
 

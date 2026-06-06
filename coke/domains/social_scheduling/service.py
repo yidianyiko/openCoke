@@ -203,7 +203,6 @@ class SocialSchedulingService:
         return self._establish_from_link(
             joiner_account_id,
             link,
-            allow_defer=False,
             commit_guard=commit_guard,
         )
 
@@ -608,7 +607,6 @@ class SocialSchedulingService:
         self,
         joiner_account_id: str,
         link: FriendLink,
-        allow_defer: bool = True,
         commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
         if link.lifecycle != "active":
@@ -616,14 +614,6 @@ class SocialSchedulingService:
         self._require_usable_channel(link.owner_account_id, "owner_channel_required")
         if joiner_account_id == link.owner_account_id:
             raise SocialSchedulingError("self_friendship_forbidden")
-        if not self.reachability.has_usable_channel(joiner_account_id):
-            if allow_defer:
-                return FriendshipResult(
-                    status="deferred_channel_required",
-                    friendship=None,
-                    continuation={"friend_link_id": link.id},
-                )
-            raise SocialSchedulingError("joiner_channel_required")
         active = self.repository.get_active_friendship(
             joiner_account_id, link.owner_account_id
         )

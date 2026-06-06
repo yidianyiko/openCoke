@@ -82,7 +82,7 @@ class FriendListEntry:
 
 @dataclass(frozen=True, slots=True)
 class FriendshipResult:
-    status: Literal["created", "already_active", "deferred_channel_required"]
+    status: Literal["created", "already_active"]
     friendship: Friendship | None
     continuation: dict[str, Any] = field(default_factory=dict)
 

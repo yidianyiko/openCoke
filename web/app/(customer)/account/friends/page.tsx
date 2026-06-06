@@ -125,10 +125,6 @@ function CustomerFriendsPageContent() {
           setError(res.error === 'self_friendship_forbidden' ? copy.inviteSelf : copy.actionFailure);
           return;
         }
-        if (res.data.status === 'deferred_channel_required') {
-          setNotice(copy.inviteNeedsChannel);
-          return;
-        }
         setNotice(copy.inviteSent);
         await loadData();
       } catch {
@@ -140,7 +136,7 @@ function CustomerFriendsPageContent() {
         }
       }
     },
-    [copy.actionFailure, copy.inviteNeedsChannel, copy.inviteSelf, copy.inviteSent, loadData, replace],
+    [copy.actionFailure, copy.inviteSelf, copy.inviteSent, loadData, replace],
   );
 
   useEffect(() => {

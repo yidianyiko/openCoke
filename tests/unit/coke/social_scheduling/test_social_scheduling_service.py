@@ -162,25 +162,19 @@ def test_friend_list_entries_include_profile_display_names():
     assert friends[0].display_name == "Alice Push"
 
 
-def test_deferred_self_completion_when_joiner_has_no_usable_channel():
-    service, repo, reachability, _ = make_service({"owner"})
+def test_friend_link_join_creates_active_friendship_without_joiner_channel():
+    service, repo, _reachability, _availability = make_service({"owner"})
     link = service.get_or_create_friend_link("owner")
 
     result = service.establish_friendship_from_token("joiner", link.public_token)
 
-    assert result.status == "deferred_channel_required"
-    assert result.friendship is None
-    assert result.continuation == {"friend_link_id": link.id}
-    assert repo.list_active_friends("owner") == []
-
-    reachability.reachable.add("joiner")
-    completed = service.complete_deferred_friend_link(
-        joiner_account_id="joiner",
-        friend_link_id=link.id,
-    )
-
-    assert completed.status == "created"
+    assert result.status == "created"
+    assert result.friendship is not None
+    assert result.friendship.lifecycle == "active"
+    assert result.continuation == {}
     assert {friend.account_id for friend in service.list_friends("owner")} == {"joiner"}
+    assert {friend.account_id for friend in service.list_friends("joiner")} == {"owner"}
+    assert repo.list_active_friends("owner") == ["joiner"]
 
 
 def test_friendship_establishment_requires_owner_still_has_usable_channel():

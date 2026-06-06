@@ -372,6 +372,19 @@ def test_friend_routes_are_thin_service_adapters():
     ]
 
 
+def test_join_route_serializes_created_friendship_result():
+    client, _service, _identity = make_client()
+
+    response = client.post("/api/friends/join", json={"public_token": "public_token"})
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "status": "created",
+        "friendship_id": "friendship_1",
+        "continuation": {},
+    }
+
+
 def test_friend_list_route_returns_display_name():
     client, _service, _identity = make_client()
 
