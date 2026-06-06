@@ -574,6 +574,52 @@ def test_prompt_builder_omits_empty_optional_blocks():
     assert names[-1] == "output_contract"
 
 
+def test_onboarding_guidance_block_uses_supported_current_capabilities_only():
+    request = _request(
+        memory_enabled=True,
+        trusted_facts={
+            "assistant_name": "Coke",
+            "user_address_name": "Eva",
+            "onboarding_guidance": {
+                "assistant_name": "Coke",
+                "user_address_name": "Eva",
+                "supported_capabilities": [
+                    "reminders",
+                    "shared_reminders_with_friends",
+                    "availability_checks",
+                    "long_term_memory_preferences",
+                ],
+                "memory_enabled": True,
+            },
+        },
+    )
+
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(request)
+    )
+
+    assert rendered.count('<trusted_block name="onboarding_guidance">') == 1
+    onboarding = _block_text(rendered, "onboarding_guidance")
+    assert "Eva" in onboarding
+    assert "reminders" in onboarding
+    assert "shared reminders with friends" in onboarding
+    assert "availability checks" in onboarding
+    assert "long-term memory/preferences" in onboarding
+    assert "class booking" not in onboarding.lower()
+    assert "external class" not in onboarding.lower()
+    assert "memo runtime" not in onboarding.lower()
+    assert "memo card" not in onboarding.lower()
+    assert "memo search" not in onboarding.lower()
+
+
+def test_onboarding_guidance_block_is_omitted_when_runtime_flag_absent():
+    rendered = agno_agent_module.render_prompt_blocks(
+        agno_agent_module.build_prompt_blocks(_request(memory_enabled=True))
+    )
+
+    assert '<trusted_block name="onboarding_guidance">' not in rendered
+
+
 def test_prompt_builder_renders_required_clarification_instruction():
     request = _request(
         memory_enabled=True,

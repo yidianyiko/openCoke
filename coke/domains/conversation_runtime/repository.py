@@ -18,6 +18,7 @@ from coke.domains._pg import (
     update_row,
 )
 from coke.domains.conversation_runtime.models import (
+    ContextTokenObservation,
     Conversation,
     ConversationRuntimeError,
     InboundMedia,
@@ -97,6 +98,10 @@ class ConversationRuntimeRepository(Protocol):
     def outbound_messages_for_turn(self, turn_id: str) -> list[Message]: ...
 
     def latest_inbound_context_token(self, conversation_id: str) -> str | None: ...
+
+    def latest_inbound_context_observation(
+        self, conversation_id: str
+    ) -> ContextTokenObservation: ...
 
     def save_disposition(self, disposition: OutputDisposition) -> None: ...
 
@@ -437,6 +442,11 @@ class InMemoryConversationRuntimeRepository:
         ]
 
     def latest_inbound_context_token(self, conversation_id: str) -> str | None:
+        return self.latest_inbound_context_observation(conversation_id).token
+
+    def latest_inbound_context_observation(
+        self, conversation_id: str
+    ) -> ContextTokenObservation:
         messages = sorted(
             (
                 message
@@ -453,8 +463,21 @@ class InMemoryConversationRuntimeRepository:
         for message in messages:
             token = _context_token(message.payload)
             if token is not None:
-                return token
-        return None
+                return ContextTokenObservation(
+                    token=token,
+                    source="latest_inbound_message",
+                    observed_at=message.created_at,
+                    traceparent=_traceparent_for_inbound_message(
+                        self.outbox_by_id.values(),
+                        message.id,
+                    ),
+                )
+        return ContextTokenObservation(
+            token=None,
+            source="none",
+            observed_at=None,
+            traceparent=None,
+        )
 
     def save_disposition(self, disposition: OutputDisposition) -> None:
         self.dispositions_by_turn_id[disposition.turn_id] = disposition
@@ -947,18 +970,47 @@ class PostgresConversationRuntimeRepository:
         ]
 
     def latest_inbound_context_token(self, conversation_id: str) -> str | None:
-        rows = many(
-            self.session,
-            schema.message,
-            schema.message.c.conversation_id == conversation_id,
-            schema.message.c.direction == "inbound",
-            order_by=(schema.message.c.seq.desc(), schema.message.c.id.desc()),
+        return self.latest_inbound_context_observation(conversation_id).token
+
+    def latest_inbound_context_observation(
+        self, conversation_id: str
+    ) -> ContextTokenObservation:
+        statement = (
+            sa.select(
+                schema.message,
+                schema.outbox.c.traceparent.label("inbound_traceparent"),
+            )
+            .select_from(
+                schema.message.outerjoin(
+                    schema.outbox,
+                    sa.and_(
+                        schema.outbox.c.topic == "turn.inbound",
+                        schema.outbox.c.payload["message_id"].astext
+                        == sa.cast(schema.message.c.id, sa.String),
+                    ),
+                )
+            )
+            .where(
+                schema.message.c.conversation_id == conversation_id,
+                schema.message.c.direction == "inbound",
+            )
+            .order_by(schema.message.c.seq.desc(), schema.message.c.id.desc())
         )
-        for row in rows:
+        for row in self.session.execute(statement).mappings():
             token = _context_token(dict(row["payload"]))
             if token is not None:
-                return token
-        return None
+                return ContextTokenObservation(
+                    token=token,
+                    source="latest_inbound_message",
+                    observed_at=row["created_at"],
+                    traceparent=row["inbound_traceparent"],
+                )
+        return ContextTokenObservation(
+            token=None,
+            source="none",
+            observed_at=None,
+            traceparent=None,
+        )
 
     def save_disposition(self, disposition: OutputDisposition) -> None:
         existing = self.get_disposition(disposition.turn_id)
@@ -1120,6 +1172,17 @@ def _context_token(payload: Mapping) -> str | None:
     token = payload.get("context_token")
     if isinstance(token, str) and token.strip():
         return token.strip()
+    return None
+
+
+def _traceparent_for_inbound_message(outbox_records, message_id: str) -> str | None:
+    for outbox in outbox_records:
+        if (
+            outbox.topic == "turn.inbound"
+            and isinstance(outbox.payload, Mapping)
+            and outbox.payload.get("message_id") == message_id
+        ):
+            return outbox.traceparent
     return None
 
 

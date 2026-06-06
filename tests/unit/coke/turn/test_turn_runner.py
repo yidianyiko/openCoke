@@ -293,13 +293,30 @@ class FakeDeliveryLifecycle:
     def __init__(self) -> None:
         self.calls = []
         self.events = []
+        self.render_failures = []
 
     def record_delivery(self, *, trigger, request, outcome):
         self.calls.append((trigger, request, outcome))
         self.events.append("record_delivery")
 
-    def record_inbound_reply_completed(self, *, trigger, delivered):
-        self.events.append(("record_inbound_reply_completed", delivered))
+    def record_inbound_reply_completed(
+        self,
+        *,
+        trigger,
+        delivered,
+        onboarding_guidance_delivered=False,
+    ):
+        self.events.append(
+            (
+                "record_inbound_reply_completed",
+                delivered,
+                onboarding_guidance_delivered,
+            )
+        )
+
+    def record_render_failure(self, *, trigger, turn_id, reason_code):
+        self.render_failures.append((trigger, turn_id, reason_code))
+        self.events.append(("record_render_failure", reason_code))
 
 
 class StaticFocusRepository:
@@ -409,8 +426,80 @@ def test_inbound_reply_completion_lifecycle_runs_after_delivery(harness):
     assert result.disposition == "replied"
     assert lifecycle.events == [
         "record_delivery",
-        ("record_inbound_reply_completed", True),
+        ("record_inbound_reply_completed", True, False),
     ]
+
+
+def test_visible_onboarding_reply_records_first_guidance_after_delivery(harness):
+    lifecycle = FakeDeliveryLifecycle()
+    harness["runner"].delivery_lifecycle = lifecycle
+    harness["gate_port"].activation_guidance_required = True
+    harness["gate_port"].trust_facts.update(
+        {
+            "assistant_name": "Coke",
+            "user_address_name": "Eva",
+            "memory_enabled": True,
+            "proactive_enabled": True,
+        }
+    )
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    request = harness["agent"].requests[-1]
+    guidance = request.trusted_facts["onboarding_guidance"]
+    assert guidance["user_address_name"] == "Eva"
+    assert "reminders" in guidance["supported_capabilities"]
+    assert "shared_reminders_with_friends" in guidance["supported_capabilities"]
+    assert "availability_checks" in guidance["supported_capabilities"]
+    assert "long_term_memory_preferences" in guidance["supported_capabilities"]
+    assert lifecycle.events[-1] == (
+        "record_inbound_reply_completed",
+        True,
+        True,
+    )
+
+
+def test_onboarding_reply_delivery_failure_does_not_mark_first_guidance(harness):
+    lifecycle = FakeDeliveryLifecycle()
+    harness["runner"].delivery_lifecycle = lifecycle
+    harness["gate_port"].activation_guidance_required = True
+    harness["delivery"].outcomes = [
+        SimpleNamespace(status="failed", error_code="provider_network_error")
+    ]
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert lifecycle.events[-1] == (
+        "record_inbound_reply_completed",
+        False,
+        False,
+    )
+
+
+def test_pending_async_waiting_does_not_mark_first_guidance_until_final_reply(harness):
+    lifecycle = FakeDeliveryLifecycle()
+    harness["runner"].delivery_lifecycle = lifecycle
+    harness["gate_port"].activation_guidance_required = True
+    harness["agent"].next_result = AgentResult.timeout(task_id="async-1")
+    harness["agent"].next_async_result = AgentResult.completed(
+        {"type": "reply", "segments": ["onboarding final"]}
+    )
+
+    pending = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert pending.disposition == "pending_async_reply"
+    assert lifecycle.events == []
+
+    final = harness["runner"].complete_async_reply(pending.async_task_id)
+
+    assert final.disposition == "replied"
+    assert lifecycle.events[-1] == (
+        "record_inbound_reply_completed",
+        True,
+        True,
+    )
 
 
 def test_interaction_agent_can_still_intentionally_no_reply(harness):
@@ -1802,6 +1891,90 @@ def test_render_delivery_request_links_committed_outbound_message_id(harness):
     assert harness["delivery"].deliveries[-1].message_id == outbound[0].id
 
 
+def test_notification_turn_invalid_output_settles_recipients_failed(harness):
+    lifecycle = FakeDeliveryLifecycle()
+    harness["runner"].delivery_lifecycle = lifecycle
+    harness["agent"].queued_results = [
+        AgentResult.completed({"type": "no_reply", "reason": "intentional_no_reply"}),
+        AgentResult.completed({"type": "no_reply", "reason": "intentional_no_reply"}),
+    ]
+
+    result = harness["runner"].run_render_turn(
+        TurnTrigger(
+            trigger_id="notification:fact-invalid",
+            trigger_type="NotificationTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={
+                "notification_fact_id": "fact_1",
+                "recipient_account_ids": ["account_1", "account_2"],
+            },
+        )
+    )
+
+    assert result.disposition == "failed"
+    assert lifecycle.render_failures == [
+        (
+            lifecycle.render_failures[0][0],
+            result.turn_id,
+            "notification_requires_visible_reply",
+        )
+    ]
+    assert lifecycle.render_failures[0][0].payload["recipient_account_ids"] == [
+        "account_1",
+        "account_2",
+    ]
+
+
+def test_notification_turn_lock_failure_settles_recipients_failed(harness):
+    lifecycle = FakeDeliveryLifecycle()
+    redis = FakeRedis()
+    lock_manager = ConversationLockManager(
+        redis_client=redis,
+        ttl_ms=30_000,
+        token_factory=lambda: "owner-notification-lock",
+    )
+    held = lock_manager.acquire(harness["trigger"].conversation_id)
+    assert held is not None
+    runner = TurnRunner(
+        conversation_runtime=harness["runtime"],
+        lock_manager=lock_manager,
+        pre_llm_gate=PreLLMGateService(harness["gate_port"]),
+        semantic_interpreter=harness["semantic"],
+        memory_port=harness["memory"],
+        interaction_agent=harness["agent"],
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=harness["delivery"],
+        tool_ports=AgentToolPorts(reminder_tool=harness["reminder_tool"]),
+        delivery_lifecycle=lifecycle,
+        now=harness["clock"].now,
+    )
+
+    result = runner.run_render_turn(
+        TurnTrigger(
+            trigger_id="notification:fact-lock-failed",
+            trigger_type="NotificationTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={
+                "notification_fact_id": "fact_1",
+                "recipient_account_ids": ["account_1"],
+            },
+        )
+    )
+
+    assert result.disposition == "failed"
+    assert lifecycle.render_failures == [
+        (
+            lifecycle.render_failures[0][0],
+            result.turn_id,
+            "conversation_lock_unavailable",
+        )
+    ]
+
+
 def test_denied_access_gate_yields_access_denied_turn_rendered_in_constrained_mode(
     harness,
 ):
@@ -1919,9 +2092,7 @@ def test_render_turn_context_contains_source_framing_for_system_trigger(harness)
 
 
 def test_reminder_fire_render_turn_injects_trusted_domain_result(harness):
-    result = harness["runner"].run_render_turn(
-        _reminder_fire_trigger(harness)
-    )
+    result = harness["runner"].run_render_turn(_reminder_fire_trigger(harness))
 
     assert result.disposition == "replied"
     request = harness["agent"].requests[-1]
@@ -2094,8 +2265,13 @@ def test_timeout_yields_waiting_text_pending_async_then_transitions_to_replied(
     assert harness["delivery"].deliveries[0].message_type == "waiting"
     assert harness["delivery"].deliveries[0].visible_text == "我还在处理，稍等一下。"
     assert harness["delivery"].deliveries[0].idempotency_key == (
-        f"{pending.turn_id}:waiting"
+        f"{pending.turn_id}:waiting:1"
     )
+    assert harness["delivery"].deliveries[0].delivery_source == "waiting_sync_timeout"
+    assert harness["delivery"].deliveries[0].delivery_intent == (
+        f"{pending.turn_id}:waiting:1"
+    )
+    assert harness["delivery"].deliveries[0].retry_attempt == 1
     assert final.disposition == "replied"
     assert final.visible_text == "final answer"
     assert harness["runtime"].get_disposition(final.turn_id).disposition == "replied"
@@ -2143,20 +2319,41 @@ def test_close_boundary_commits_before_waiting_text_delivery(harness):
 
 
 def test_pending_async_state_survives_waiting_delivery_failure_and_replay(harness):
+    initial_closed_seq = (
+        harness["repository"]
+        .get_conversation(harness["trigger"].conversation_id)
+        .last_closed_inbound_seq
+    )
     harness["agent"].next_result = AgentResult.timeout(task_id="async-1")
+    harness["agent"].next_async_result = AgentResult.completed(
+        {"type": "reply", "segments": ["final answer"]}
+    )
 
-    def deliver(_request):
+    def deliver(request):
+        harness["delivery"].deliveries.append(request)
         raise RuntimeError("provider_down")
 
     harness["delivery"].deliver = deliver
 
-    with pytest.raises(RuntimeError, match="provider_down"):
-        harness["runner"].run_inbound_turn(harness["trigger"])
+    pending = harness["runner"].run_inbound_turn(harness["trigger"])
 
-    replay = harness["runner"].run_inbound_turn(harness["trigger"])
+    assert pending.disposition == "pending_async_reply"
+    assert pending.async_task_id == "async-1"
+    assert harness["delivery"].deliveries[0].message_type == "waiting"
+    assert harness["runtime"].get_disposition(pending.turn_id).disposition == (
+        "pending_async_reply"
+    )
+    assert (
+        harness["repository"]
+        .get_conversation(harness["trigger"].conversation_id)
+        .last_closed_inbound_seq
+        == initial_closed_seq
+    )
 
-    assert replay.disposition == "pending_async_reply"
-    assert replay.async_task_id == "async-1"
+    final = harness["runner"].complete_async_reply(pending.async_task_id)
+
+    assert final.disposition == "replied"
+    assert final.visible_text == "final answer"
 
 
 def test_claim_boundary_commits_before_gate_and_agent_work(harness):

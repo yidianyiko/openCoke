@@ -671,6 +671,13 @@ Verification:
 - Regression test that a later final reply can still transition from
   `pending_async_reply` to `replied` after waiting delivery failed.
 
+2026-06-07 implementation note:
+
+- Track B now records delivery-envelope diagnostics on delivery attempts, shares
+  waiting-delivery code between the timer and sync-timeout paths, uses bounded
+  logical waiting intents with one retry for retryable transport errors, and keeps
+  failed waiting delivery as observable evidence while the turn remains active.
+
 ### Track C: Shared-Reminder Reply Contract Enforcement
 
 Target files:
@@ -834,9 +841,10 @@ Repair shape:
   primary fix, so that a completed `NotificationTurn` can never leave a recipient
   `pending`. Only after that, add a reconciliation path for recipients that remain
   `pending` past a threshold after their render turn has terminally completed; the
-  reconciler marks them failed or reschedules based on provider/turn evidence. The
-  reconciler is a crash/history backstop only and must not be the primary fix —
-  leading with a reconciler would hide the settlement bug rather than fix it.
+  reconciler marks them failed or undelivered based on provider/turn evidence. It
+  does not retry sends or execute actions. The reconciler is a crash/history
+  backstop only and must not be the primary fix — leading with a reconciler would
+  hide the settlement bug rather than fix it.
 - Keep notification facts informational only. Do not introduce approval or action
   execution through notification retries.
 
@@ -847,6 +855,14 @@ Verification:
   corresponding recipient row pending.
 - Production query or smoke evidence that stale pending recipients are either
   retried or converted to structured failed/undelivered state.
+
+2026-06-07 implementation note:
+
+- Track F terminal paths now call the notification render-failure lifecycle so
+  invalid output, no-reply retry failure, generic failure, lock/start failure, and
+  supersession settle recipients. The reconciler only marks stale pending
+  recipients after a terminal turn disposition and does not resend or execute
+  product actions.
 
 ### Track G: Onboarding Prompt Wiring
 
@@ -887,6 +903,13 @@ Verification:
   visible onboarding reply.
 - Prompt test that unavailable capabilities are not introduced by the default
   onboarding configuration.
+
+2026-06-07 implementation note:
+
+- Track G now injects onboarding guidance as a trusted fact block only when the
+  identity gate requires it, restricts the default capability wording to current
+  product surfaces, and stamps first guidance only after a visible final
+  onboarding reply delivery succeeds.
 
 ### Track H: Friend-Add Personalized Feedback
 

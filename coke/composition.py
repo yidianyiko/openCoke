@@ -25,11 +25,11 @@ from coke.domains.channel_reachability.repository import (
     PostgresChannelReachabilityRepository,
 )
 from coke.domains.channel_reachability.service import ChannelReachabilityService
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
     PostgresConversationRuntimeRepository,
 )
-from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.identity_access.email import NullEmailSender, ResendEmailSender
 from coke.domains.identity_access.models import IdentityAccessError
@@ -212,10 +212,27 @@ class ChannelReachabilityOutboundDelivery:
     def deliver(self, request: DeliveryRequest):
         try:
             context_token = request.context_token
+            context_token_source = request.context_token_source
+            context_token_age_seconds = request.context_token_age_seconds
+            traceparent = request.traceparent
             if context_token is None and self.conversation_runtime is not None:
-                context_token = self.conversation_runtime.latest_context_token(
-                    request.conversation_id
+                observation_reader = getattr(
+                    self.conversation_runtime,
+                    "latest_context_token_observation",
+                    None,
                 )
+                if callable(observation_reader):
+                    observation = observation_reader(request.conversation_id)
+                    context_token = observation.token
+                    context_token_source = context_token_source or observation.source
+                    context_token_age_seconds = (
+                        context_token_age_seconds or observation.age_seconds
+                    )
+                    traceparent = traceparent or observation.traceparent
+                else:
+                    context_token = self.conversation_runtime.latest_context_token(
+                        request.conversation_id
+                    )
             return self.channel_reachability.send_text(
                 account_id=request.account_id,
                 text=request.visible_text,
@@ -223,6 +240,13 @@ class ChannelReachabilityOutboundDelivery:
                 turn_id=request.turn_id,
                 message_id=request.message_id,
                 context_token=context_token,
+                delivery_source=request.delivery_source,
+                delivery_intent=request.delivery_intent,
+                retry_attempt=request.retry_attempt,
+                traceparent=traceparent,
+                container=request.container,
+                context_token_source=context_token_source,
+                context_token_age_seconds=context_token_age_seconds,
             )
         except ChannelReachabilityError:
             raise
@@ -235,10 +259,12 @@ class OutputLifecycleDeliveryCallbacks:
         reminder_service: ReminderService,
         social_scheduling_service: SocialSchedulingService,
         conversation_runtime_service: ConversationRuntimeService | None = None,
+        identity_access_service: IdentityAccessService | None = None,
     ) -> None:
         self.reminder_service = reminder_service
         self.social_scheduling_service = social_scheduling_service
         self.conversation_runtime_service = conversation_runtime_service
+        self.identity_access_service = identity_access_service
 
     def record_delivery(self, *, trigger, request, outcome) -> None:
         delivered = outcome.status in {"sent", "delivered"}
@@ -323,7 +349,22 @@ class OutputLifecycleDeliveryCallbacks:
                 turn_id=turn_id,
             )
 
-    def record_inbound_reply_completed(self, *, trigger, delivered: bool) -> None:
+    def record_inbound_reply_completed(
+        self,
+        *,
+        trigger,
+        delivered: bool,
+        onboarding_guidance_delivered: bool = False,
+    ) -> None:
+        if (
+            delivered
+            and onboarding_guidance_delivered
+            and self.identity_access_service is not None
+            and trigger.trigger_type == "InboundTurn"
+        ):
+            account_id = getattr(trigger, "account_id", None)
+            if isinstance(account_id, str) and account_id:
+                self.identity_access_service.mark_first_guidance_sent(account_id)
         if not delivered or self.conversation_runtime_service is None:
             return
         if trigger.trigger_type != "InboundTurn":
@@ -1395,6 +1436,7 @@ def compose_coke_runtime(
             reminder_service=reminder_service,
             social_scheduling_service=social_scheduling_service,
             conversation_runtime_service=conversation_runtime_service,
+            identity_access_service=identity_access_service,
         ),
         staged_command_materializer=staged_command_materializer,
         now=now,

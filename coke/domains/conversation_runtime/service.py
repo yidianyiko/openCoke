@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from coke.domains.conversation_runtime.models import (
     TERMINAL_DISPOSITIONS,
+    ContextTokenObservation,
     Conversation,
     ConversationRuntimeError,
     CurrentInputMessage,
@@ -456,8 +457,29 @@ class ConversationRuntimeService:
         return message
 
     def latest_context_token(self, conversation_id: str) -> str | None:
+        return self.latest_context_token_observation(conversation_id).token
+
+    def latest_context_token_observation(
+        self,
+        conversation_id: str,
+    ) -> ContextTokenObservation:
         self._require_conversation(conversation_id)
-        return self.repository.latest_inbound_context_token(conversation_id)
+        observation = self.repository.latest_inbound_context_observation(
+            conversation_id
+        )
+        if observation.observed_at is None:
+            return observation
+        now = self._now()
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=UTC)
+        observed_at = observation.observed_at
+        if observed_at.tzinfo is None:
+            observed_at = observed_at.replace(tzinfo=UTC)
+        return replace(
+            observation,
+            observed_at=observed_at,
+            age_seconds=max(0, int((now - observed_at).total_seconds())),
+        )
 
     def enqueue_render_turn(
         self,

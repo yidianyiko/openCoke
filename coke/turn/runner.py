@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
+import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -9,7 +12,10 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from coke.domains.conversation_runtime.models import ConversationRuntimeError
+from coke.domains.conversation_runtime.models import (
+    TERMINAL_DISPOSITIONS,
+    ConversationRuntimeError,
+)
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
@@ -27,6 +33,7 @@ from coke.turn.semantic_interpreter import (
 )
 
 WAITING_TEXT = "我还在处理，稍等一下。"
+LOGGER = logging.getLogger(__name__)
 NOTIFICATION_VISIBLE_REPLY_REQUIRED = "notification_requires_visible_reply"
 REMINDER_FIRE_VISIBLE_REPLY_REQUIRED = "reminder_fire_requires_visible_reply"
 REMINDER_FIRE_FACT_MISMATCH = "reminder_fire_fact_mismatch"
@@ -91,6 +98,13 @@ class DeliveryRequest:
     message_id: str | None = None
     segments: tuple[str, ...] = ()
     context_token: str | None = None
+    delivery_source: str | None = None
+    delivery_intent: str | None = None
+    retry_attempt: int | None = None
+    traceparent: str | None = None
+    container: str | None = None
+    context_token_source: str | None = None
+    context_token_age_seconds: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +112,214 @@ class DeliveryOutcome:
     status: str
     error_code: str | None = None
     attempt: Any | None = None
+
+
+WAITING_RETRYABLE_ERROR_CODES = frozenset(
+    {
+        "provider_network_error",
+        "provider_down",
+        "network_error",
+        "transport_error",
+        "request_timeout",
+        "timeout",
+        "connection_error",
+        "http_5xx",
+        "provider_timeout",
+    }
+)
+WAITING_NON_RETRYABLE_ERROR_FRAGMENTS = (
+    "context_token_required",
+    "invalid_context_token",
+    "invalid_token",
+    "ret_-2",
+    "session_window",
+    "session_expired",
+    "reconnection_required",
+)
+
+
+class WaitingDeliveryCircuitBreaker:
+    def __init__(self, *, failure_threshold: int = 3) -> None:
+        self.failure_threshold = max(1, failure_threshold)
+        self._failures_by_route: dict[tuple[str, str], int] = {}
+
+    def allow(self, route_key: tuple[str, str]) -> bool:
+        return self._failures_by_route.get(route_key, 0) < self.failure_threshold
+
+    def observe(self, route_key: tuple[str, str], outcome: DeliveryOutcome) -> None:
+        if outcome.status in {"sent", "delivered"}:
+            self._failures_by_route.pop(route_key, None)
+            return
+        if not _waiting_delivery_retryable(outcome):
+            return
+        self._failures_by_route[route_key] = (
+            self._failures_by_route.get(route_key, 0) + 1
+        )
+
+
+def send_waiting_delivery(
+    *,
+    outbound_delivery: OutboundDeliveryPort,
+    account_id: str,
+    conversation_id: str,
+    turn_id: str,
+    message_id: str | None,
+    context_token: str | None,
+    delivery_source: str,
+    traceparent: str | None,
+    context_token_source: str | None,
+    context_token_age_seconds: int | None,
+    turn_disposition: Callable[[str], Any] | None = None,
+    retry_jitter: Callable[[int], float] | None = None,
+    sleep: Callable[[float], None] | None = None,
+    circuit_breaker: WaitingDeliveryCircuitBreaker | None = None,
+    logger: logging.Logger | None = None,
+) -> tuple[DeliveryOutcome, ...]:
+    retry_jitter = retry_jitter or (lambda _attempt: 0.25)
+    sleep = sleep or time.sleep
+    logger = logger or LOGGER
+    outcomes: list[DeliveryOutcome] = []
+    last_route_key: tuple[str, str] = (account_id, "unknown")
+    for attempt_number in (1, 2):
+        if attempt_number == 2:
+            previous = outcomes[-1] if outcomes else None
+            if previous is None or not _waiting_delivery_retryable(previous):
+                break
+            last_route_key = _waiting_delivery_route_key(account_id, previous)
+            if circuit_breaker is not None and not circuit_breaker.allow(
+                last_route_key
+            ):
+                logger.warning(
+                    "waiting_reply_delivery_circuit_open",
+                    extra={
+                        "turn_id": turn_id,
+                        "conversation_id": conversation_id,
+                        "account_id": account_id,
+                        "route_key": last_route_key[1],
+                    },
+                )
+                break
+            if _waiting_turn_terminal(turn_id, turn_disposition):
+                break
+            delay = max(0.0, float(retry_jitter(attempt_number)))
+            if delay:
+                sleep(delay)
+            if _waiting_turn_terminal(turn_id, turn_disposition):
+                break
+        intent = f"{turn_id}:waiting:{attempt_number}"
+        request = DeliveryRequest(
+            account_id=account_id,
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            message_type="waiting",
+            visible_text=WAITING_TEXT,
+            idempotency_key=intent,
+            message_id=message_id,
+            segments=(WAITING_TEXT,),
+            context_token=context_token,
+            delivery_source=delivery_source,
+            delivery_intent=intent,
+            retry_attempt=attempt_number,
+            traceparent=traceparent,
+            container=os.environ.get("HOSTNAME"),
+            context_token_source=context_token_source,
+            context_token_age_seconds=context_token_age_seconds,
+        )
+        outcome = _safe_delivery_outcome(outbound_delivery, request)
+        outcomes.append(outcome)
+        route_key = _waiting_delivery_route_key(account_id, outcome)
+        last_route_key = route_key
+        if circuit_breaker is not None:
+            circuit_breaker.observe(route_key, outcome)
+        if outcome.status == "failed":
+            logger.warning(
+                "waiting_reply_delivery_failed",
+                extra={
+                    "turn_id": turn_id,
+                    "conversation_id": conversation_id,
+                    "account_id": account_id,
+                    "delivery_source": delivery_source,
+                    "delivery_intent": intent,
+                    "retry_attempt": attempt_number,
+                    "error_code": outcome.error_code,
+                    "route_key": route_key[1],
+                    "traceparent": traceparent,
+                    "context_token_source": context_token_source,
+                    "context_token_age_seconds": context_token_age_seconds,
+                },
+            )
+        else:
+            logger.info(
+                "waiting_reply_delivery_scheduled",
+                extra={
+                    "turn_id": turn_id,
+                    "conversation_id": conversation_id,
+                    "account_id": account_id,
+                    "delivery_source": delivery_source,
+                    "delivery_intent": intent,
+                    "retry_attempt": attempt_number,
+                    "delivery_status": outcome.status,
+                    "route_key": route_key[1],
+                },
+            )
+            break
+    return tuple(outcomes)
+
+
+def _safe_delivery_outcome(
+    outbound_delivery: OutboundDeliveryPort,
+    request: DeliveryRequest,
+) -> DeliveryOutcome:
+    try:
+        raw_outcome = outbound_delivery.deliver(request)
+    except Exception as error:
+        return DeliveryOutcome(
+            status="failed",
+            error_code=str(getattr(error, "code", None) or type(error).__name__),
+        )
+    return DeliveryOutcome(
+        status=str(getattr(raw_outcome, "status", "delivered")),
+        error_code=getattr(raw_outcome, "error_code", None),
+        attempt=raw_outcome,
+    )
+
+
+def _waiting_delivery_retryable(outcome: DeliveryOutcome) -> bool:
+    if outcome.status != "failed":
+        return False
+    error_code = str(outcome.error_code or "").casefold()
+    if not error_code:
+        return False
+    if any(
+        fragment in error_code for fragment in WAITING_NON_RETRYABLE_ERROR_FRAGMENTS
+    ):
+        return False
+    return error_code in WAITING_RETRYABLE_ERROR_CODES
+
+
+def _waiting_delivery_route_key(
+    account_id: str,
+    outcome: DeliveryOutcome,
+) -> tuple[str, str]:
+    attempt = outcome.attempt
+    route_id = getattr(attempt, "route_id", None)
+    provider_type = getattr(attempt, "provider_type", None)
+    provider_route = route_id or provider_type or "unknown"
+    return (account_id, str(provider_route))
+
+
+def _waiting_turn_terminal(
+    turn_id: str,
+    turn_disposition: Callable[[str], Any] | None,
+) -> bool:
+    if turn_disposition is None:
+        return False
+    try:
+        disposition = turn_disposition(turn_id)
+    except Exception:
+        return False
+    value = getattr(disposition, "disposition", disposition)
+    return str(value) in TERMINAL_DISPOSITIONS
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +344,7 @@ class _AsyncState:
     conversation_id: str
     account_id: str
     context_token: str | None
+    onboarding_guidance_required: bool = False
     current_input_messages: tuple[Any, ...] = ()
 
 
@@ -149,6 +372,9 @@ class TurnRunner:
         claim_boundary_committer: Callable[[], None] | None = None,
         close_boundary_committer: Callable[[], None] | None = None,
         lock_wait_interval_s: float = 0.05,
+        waiting_retry_jitter: Callable[[int], float] | None = None,
+        waiting_retry_sleep: Callable[[float], None] | None = None,
+        waiting_circuit_breaker: WaitingDeliveryCircuitBreaker | None = None,
     ) -> None:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
@@ -170,6 +396,11 @@ class TurnRunner:
         self._claim_boundary_committer = claim_boundary_committer or (lambda: None)
         self._close_boundary_committer = close_boundary_committer or (lambda: None)
         self._lock_wait_interval_s = lock_wait_interval_s
+        self._waiting_retry_jitter = waiting_retry_jitter
+        self._waiting_retry_sleep = waiting_retry_sleep
+        self._waiting_circuit_breaker = (
+            waiting_circuit_breaker or WaitingDeliveryCircuitBreaker()
+        )
         self._async_states: dict[str, _AsyncState] = {}
 
     def run_inbound_turn(self, trigger: TurnTrigger) -> TurnRunResult:
@@ -268,6 +499,7 @@ class TurnRunner:
                 semantic_decision=semantic_decision,
                 now=self._now,
                 account_timezone=self._account_timezone,
+                onboarding_guidance_required=gate.activation_guidance_required,
             )
             trusted_facts = _add_pending_clarification_resolution(
                 trusted_facts,
@@ -399,6 +631,7 @@ class TurnRunner:
                     semantic_decision=semantic_decision,
                     now=self._now,
                     account_timezone=self._account_timezone,
+                    onboarding_guidance_required=gate.activation_guidance_required,
                 )
                 trusted_facts = _add_pending_clarification_resolution(
                     trusted_facts,
@@ -475,6 +708,11 @@ class TurnRunner:
             disposition = self.conversation_runtime.mark_failed(
                 state.turn_id, "async_timeout_after_budget"
             )
+            self._record_render_failure_lifecycle(
+                trigger,
+                state.turn_id,
+                disposition.reason_code or "async_timeout_after_budget",
+            )
             return self._result_from_disposition(
                 turn_id=state.turn_id,
                 trigger=trigger,
@@ -489,6 +727,7 @@ class TurnRunner:
             trigger=trigger,
             validated=validated,
             current_input_messages=state.current_input_messages,
+            onboarding_guidance_required=state.onboarding_guidance_required,
         )
 
     def _run_access_denied_turn(
@@ -669,6 +908,11 @@ class TurnRunner:
             disposition = self.conversation_runtime.mark_failed(
                 start.turn.id, "conversation_lock_unavailable"
             )
+            self._record_render_failure_lifecycle(
+                trigger,
+                start.turn.id,
+                disposition.reason_code or "conversation_lock_unavailable",
+            )
             return self._result_from_disposition(
                 turn_id=start.turn.id,
                 trigger=trigger,
@@ -789,6 +1033,9 @@ class TurnRunner:
             trigger=trigger,
             validated=validated,
             current_input_messages=agent_request.current_input_messages,
+            onboarding_guidance_required=bool(
+                getattr(context, "onboarding_guidance_required", False)
+            ),
         )
 
     async def _invoke_agent_and_record_async(
@@ -845,6 +1092,9 @@ class TurnRunner:
             trigger=trigger,
             validated=validated,
             current_input_messages=agent_request.current_input_messages,
+            onboarding_guidance_required=bool(
+                getattr(context, "onboarding_guidance_required", False)
+            ),
         )
 
     def _validate_agent_output(
@@ -877,6 +1127,7 @@ class TurnRunner:
             semantic_decision=None,
             now=self._now,
             account_timezone=self._account_timezone,
+            onboarding_guidance_required=gate.activation_guidance_required,
         )
         trusted_facts = _add_pending_clarification_resolution(
             trusted_facts,
@@ -950,22 +1201,29 @@ class TurnRunner:
             conversation_id=trigger.conversation_id,
             account_id=trigger.account_id,
             context_token=_context_token_from_trigger(trigger),
+            onboarding_guidance_required=bool(
+                getattr(context, "onboarding_guidance_required", False)
+            ),
             current_input_messages=current_input_messages,
         )
         self._commit_close_boundary()
         self._async_states[agent_result.task_id] = async_state
-        self.outbound_delivery.deliver(
-            DeliveryRequest(
-                account_id=trigger.account_id,
-                conversation_id=trigger.conversation_id,
-                turn_id=context.freshness_guard.turn_id,
-                message_type="waiting",
-                visible_text=WAITING_TEXT,
-                idempotency_key=f"{context.freshness_guard.turn_id}:waiting",
-                message_id=waiting_message.id,
-                segments=(WAITING_TEXT,),
-                context_token=_context_token_from_trigger(trigger),
-            )
+        context_token = _context_token_from_trigger(trigger)
+        send_waiting_delivery(
+            outbound_delivery=self.outbound_delivery,
+            account_id=trigger.account_id,
+            conversation_id=trigger.conversation_id,
+            turn_id=context.freshness_guard.turn_id,
+            message_id=waiting_message.id,
+            context_token=context_token,
+            delivery_source="waiting_sync_timeout",
+            traceparent=_traceparent_from_trigger(trigger),
+            context_token_source="trigger_payload" if context_token else "none",
+            context_token_age_seconds=None,
+            turn_disposition=self.conversation_runtime.get_disposition,
+            retry_jitter=self._waiting_retry_jitter,
+            sleep=self._waiting_retry_sleep,
+            circuit_breaker=self._waiting_circuit_breaker,
         )
         return self._result_from_disposition(
             turn_id=context.freshness_guard.turn_id,
@@ -984,6 +1242,7 @@ class TurnRunner:
         trigger: TurnTrigger,
         validated: ValidatedOutput,
         current_input_messages: tuple[Any, ...] = (),
+        onboarding_guidance_required: bool = False,
     ) -> TurnRunResult:
         if not validated.valid:
             disposition = self.conversation_runtime.mark_failed(
@@ -1008,6 +1267,11 @@ class TurnRunner:
                 reason_code="intentional_no_reply",
                 materialize_staged_command=self._materialize_staged_command,
             )
+            self._record_render_failure_lifecycle(
+                trigger,
+                turn_id,
+                disposition.reason_code or "intentional_no_reply",
+            )
             self._commit_close_boundary()
             return self._result_from_disposition(
                 turn_id=turn_id,
@@ -1031,6 +1295,7 @@ class TurnRunner:
             if (message.segment_index or 0) > 0
         ]
         delivered_reply = False
+        reply_outcomes: list[DeliveryOutcome] = []
         for request in self._reply_delivery_requests(
             trigger=trigger,
             turn_id=turn_id,
@@ -1039,14 +1304,24 @@ class TurnRunner:
             outbound_messages=outbound_messages,
         ):
             outcome = self._deliver(request)
+            reply_outcomes.append(outcome)
             self._record_delivery_lifecycle(trigger, request, outcome)
             delivered_reply = delivered_reply or outcome.status in {
                 "sent",
                 "delivered",
             }
+        onboarding_guidance_delivered = (
+            onboarding_guidance_required
+            and trigger.trigger_type == "InboundTurn"
+            and bool(reply_outcomes)
+            and all(
+                outcome.status in {"sent", "delivered"} for outcome in reply_outcomes
+            )
+        )
         self._record_inbound_reply_completed_lifecycle(
             trigger,
             delivered=delivered_reply,
+            onboarding_guidance_delivered=onboarding_guidance_delivered,
         )
         return self._result_from_disposition(
             turn_id=turn_id,
@@ -1148,6 +1423,7 @@ class TurnRunner:
                 idempotency_key = f"{turn_id}:reply:{index}"
                 if multiple or account_id != trigger.account_id:
                     idempotency_key = f"{idempotency_key}:{account_id}"
+                context_token = _context_token_from_trigger(trigger)
                 requests.append(
                     DeliveryRequest(
                         account_id=account_id,
@@ -1158,24 +1434,21 @@ class TurnRunner:
                         idempotency_key=idempotency_key,
                         message_id=message_id,
                         segments=(segment,),
-                        context_token=_context_token_from_trigger(trigger),
+                        context_token=context_token,
+                        delivery_source="reply",
+                        delivery_intent=idempotency_key,
+                        retry_attempt=1,
+                        traceparent=_traceparent_from_trigger(trigger),
+                        container=os.environ.get("HOSTNAME"),
+                        context_token_source=(
+                            "trigger_payload" if context_token else "none"
+                        ),
                     )
                 )
         return requests
 
     def _deliver(self, request: DeliveryRequest) -> DeliveryOutcome:
-        try:
-            raw_outcome = self.outbound_delivery.deliver(request)
-        except Exception as error:
-            return DeliveryOutcome(
-                status="failed",
-                error_code=str(getattr(error, "code", None) or type(error).__name__),
-            )
-        return DeliveryOutcome(
-            status=str(getattr(raw_outcome, "status", "delivered")),
-            error_code=getattr(raw_outcome, "error_code", None),
-            attempt=raw_outcome,
-        )
+        return _safe_delivery_outcome(self.outbound_delivery, request)
 
     def _record_delivery_lifecycle(
         self,
@@ -1209,6 +1482,7 @@ class TurnRunner:
         trigger: TurnTrigger,
         *,
         delivered: bool,
+        onboarding_guidance_delivered: bool,
     ) -> None:
         if self.delivery_lifecycle is None or trigger.trigger_type != "InboundTurn":
             return
@@ -1219,7 +1493,11 @@ class TurnRunner:
         )
         if not callable(recorder):
             return
-        recorder(trigger=trigger, delivered=delivered)
+        recorder(
+            trigger=trigger,
+            delivered=delivered,
+            onboarding_guidance_delivered=onboarding_guidance_delivered,
+        )
 
     def _conversation_runtime_error_result(
         self,
@@ -1231,6 +1509,11 @@ class TurnRunner:
     ) -> TurnRunResult:
         if error.code == "turn_superseded":
             disposition = self.conversation_runtime.get_disposition(turn_id)
+            self._record_render_failure_lifecycle(
+                trigger,
+                turn_id,
+                disposition.reason_code or "turn_superseded",
+            )
             return self._result_from_disposition(
                 turn_id=turn_id,
                 trigger=trigger,
@@ -1239,6 +1522,11 @@ class TurnRunner:
                 current_input_messages=current_input_messages,
             )
         disposition = self.conversation_runtime.mark_failed(turn_id, error.code)
+        self._record_render_failure_lifecycle(
+            trigger,
+            turn_id,
+            disposition.reason_code or error.code,
+        )
         return self._result_from_disposition(
             turn_id=turn_id,
             trigger=trigger,
@@ -1359,11 +1647,7 @@ def _object_mapping(value: Any) -> dict[str, Any]:
         return asdict(value)
     if isinstance(value, Mapping):
         return dict(value)
-    return {
-        key: item
-        for key, item in vars(value).items()
-        if not key.startswith("_")
-    }
+    return {key: item for key, item in vars(value).items() if not key.startswith("_")}
 
 
 def _string_list(value: Any) -> list[str]:
@@ -1597,6 +1881,7 @@ def _trusted_facts_for_agent(
     semantic_decision: SemanticDecision | None,
     now: Callable[[], datetime],
     account_timezone: Callable[[str], str | None] | None = None,
+    onboarding_guidance_required: bool = False,
 ) -> dict[str, Any]:
     facts = {
         **dict(trust_facts),
@@ -1612,6 +1897,8 @@ def _trusted_facts_for_agent(
     )
     if semantic_decision is not None:
         facts["semantic_decision"] = _semantic_decision_fact(semantic_decision)
+    if onboarding_guidance_required:
+        facts["onboarding_guidance"] = _onboarding_guidance_fact(facts)
     if (
         semantic_decision is not None
         and semantic_decision.required_clarification != "none"
@@ -1622,6 +1909,46 @@ def _trusted_facts_for_agent(
             "instruction": "Ask exactly this clarification before any domain action.",
         }
     return facts
+
+
+def _onboarding_guidance_fact(facts: Mapping[str, Any]) -> dict[str, Any]:
+    memory_enabled = bool(facts.get("memory_enabled", True))
+    supported_capabilities = [
+        "reminders",
+        "shared_reminders_with_friends",
+        "availability_checks",
+    ]
+    if memory_enabled:
+        supported_capabilities.append("long_term_memory_preferences")
+    guidance = {
+        "assistant_name": facts.get("assistant_name") or "Coke",
+        "supported_capabilities": supported_capabilities,
+        "memory_enabled": memory_enabled,
+        "proactive_enabled": bool(facts.get("proactive_enabled", True)),
+        "instruction": (
+            "Offer concise first-use guidance while still responding to the user's "
+            "current message. Mention only supported capabilities."
+        ),
+    }
+    user_address_name = facts.get("user_address_name")
+    if isinstance(user_address_name, str) and user_address_name.strip():
+        guidance["user_address_name"] = user_address_name.strip()
+    agent_settings = facts.get("agent_settings")
+    if isinstance(agent_settings, Mapping):
+        guidance["configured_settings"] = {
+            key: agent_settings[key]
+            for key in (
+                "assistant_name",
+                "user_address_name",
+                "persona",
+                "speaking_style",
+                "extra_rules",
+                "proactive_enabled",
+                "memory_enabled",
+            )
+            if key in agent_settings and agent_settings[key] not in (None, "")
+        }
+    return guidance
 
 
 REFERENCE_CLARIFICATIONS = {"ask_context", "ask_reference_choice"}
@@ -2010,4 +2337,16 @@ def _context_token_from_trigger(trigger: TurnTrigger) -> str | None:
         token = nested.get("context_token")
         if isinstance(token, str) and token.strip():
             return token.strip()
+    return None
+
+
+def _traceparent_from_trigger(trigger: TurnTrigger) -> str | None:
+    direct = trigger.payload.get("traceparent")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    nested = trigger.payload.get("payload")
+    if isinstance(nested, dict):
+        traceparent = nested.get("traceparent")
+        if isinstance(traceparent, str) and traceparent.strip():
+            return traceparent.strip()
     return None
