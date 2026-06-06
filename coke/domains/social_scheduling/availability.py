@@ -56,6 +56,7 @@ class AvailabilityWindow:
 class FriendAvailability:
     friend_account_id: str
     windows: list[AvailabilityWindow]
+    friend_display_name: str | None = None
 
 
 def build_busy_free_windows(

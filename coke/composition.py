@@ -2189,6 +2189,7 @@ def _availability_facts(result: Any) -> list[dict[str, Any]]:
     return [
         {
             "friend_account_id": item.friend_account_id,
+            "friend_display_name": item.friend_display_name or item.friend_account_id,
             "windows": [window.to_public_dict() for window in item.windows],
         }
         for item in items

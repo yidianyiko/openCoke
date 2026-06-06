@@ -560,6 +560,7 @@ class SocialSchedulingService:
             results.append(
                 FriendAvailability(
                     friend_account_id=friend_account_id,
+                    friend_display_name=self.display_name_resolver(friend_account_id),
                     windows=build_busy_free_windows(local_start, local_end, intervals),
                 )
             )

@@ -643,6 +643,7 @@ def test_availability_query_is_authorized_bounded_and_privacy_safe():
     )
 
     assert result.friend_account_id == "friend"
+    assert result.friend_display_name == "friend"
     assert [window.state for window in result.windows] == ["free", "busy", "free"]
     serialized = [window.to_public_dict() for window in result.windows]
     assert serialized == [
@@ -652,6 +653,25 @@ def test_availability_query_is_authorized_bounded_and_privacy_safe():
     ]
     assert "private-reminder" not in str(serialized)
     assert "personal" not in str(serialized)
+
+
+def test_availability_result_includes_public_friend_display_name():
+    service, _, _, reminder_availability = make_service({"requester", "friend"})
+    create_active_friendship(service, "requester", "friend")
+    service.display_name_resolver = lambda account_id: {"friend": "Oliver"}[
+        account_id
+    ]
+    reminder_availability.intervals["friend"] = []
+
+    result = service.query_availability(
+        requester_account_id="requester",
+        friend_account_ids=["friend"],
+        local_start=datetime(2026, 6, 1, 9, 0),
+        local_end=datetime(2026, 6, 1, 10, 0),
+        requester_timezone="Asia/Tokyo",
+    )
+
+    assert result.friend_display_name == "Oliver"
 
 
 def test_availability_query_accepts_more_than_one_active_friend():

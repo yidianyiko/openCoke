@@ -92,6 +92,7 @@ class FakeSocialSchedulingService:
         self.calls.append(("query_availability", kwargs))
         return FriendAvailability(
             friend_account_id="friend_1",
+            friend_display_name="Oliver",
             windows=[
                 AvailabilityWindow(
                     start=datetime.fromisoformat("2026-06-01T09:00:00"),
@@ -224,6 +225,7 @@ def test_social_scheduling_tool_exposes_privacy_safe_availability_query():
         "availability": [
             {
                 "friend_account_id": "friend_1",
+                "friend_display_name": "Oliver",
                 "windows": [
                     {
                         "start": "2026-06-01T09:00:00",
@@ -234,6 +236,9 @@ def test_social_scheduling_tool_exposes_privacy_safe_availability_query():
             }
         ]
     }
+    serialized = result.facts["availability"][0]
+    assert set(serialized) == {"friend_account_id", "friend_display_name", "windows"}
+    assert set(serialized["windows"][0]) == {"start", "end", "state"}
     assert service.calls == [
         (
             "query_availability",
