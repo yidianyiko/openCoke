@@ -43,7 +43,7 @@
 - Modify: `tests/unit/coke/social_scheduling/test_social_scheduling_schema_contract.py`
 - Add: `tests/unit/coke/social_scheduling/test_recoverable_scheduling_intent.py`
 
-- [ ] **Step 1: Write failing schema contract tests**
+- [x] **Step 1: Write failing schema contract tests**
 
 Add assertions that `recoverable_scheduling_intent` exists with these columns:
 
@@ -79,7 +79,7 @@ def test_recoverable_scheduling_intent_schema_tracks_single_open_artifact():
     assert "recoverable_scheduling_intent.status = 'open'" in _compiled_where(index)
 ```
 
-- [ ] **Step 2: Run schema test and verify red**
+- [x] **Step 2: Run schema test and verify red**
 
 Run:
 
@@ -89,7 +89,7 @@ Run:
 
 Expected: FAIL with missing `recoverable_scheduling_intent`.
 
-- [ ] **Step 3: Add dataclasses and schema**
+- [x] **Step 3: Add dataclasses and schema**
 
 Add `RecoverableSchedulingIntent` and related literals to `models.py`, the SQLAlchemy table/index to `schema.py`, and the Alembic migration.
 
@@ -100,7 +100,7 @@ revision = "20260607_0001"
 down_revision = "20260531_0001"
 ```
 
-- [ ] **Step 4: Run schema test and verify green**
+- [x] **Step 4: Run schema test and verify green**
 
 Run:
 
@@ -110,7 +110,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Write failing repository tests**
+- [x] **Step 5: Write failing repository tests**
 
 Create tests named
 `test_recoverable_intent_open_supersedes_previous_open_for_conversation`,
@@ -121,7 +121,7 @@ becomes `superseded`; the second reads after `expires_at` and asserts the
 artifact becomes `expired`; the third consumes with a wrong hash and expects an
 error, then consumes with the matching hash and asserts `status == "consumed"`.
 
-- [ ] **Step 6: Run repository tests and verify red**
+- [x] **Step 6: Run repository tests and verify red**
 
 Run:
 
@@ -131,7 +131,7 @@ Run:
 
 Expected: FAIL with missing repository/service methods.
 
-- [ ] **Step 7: Implement repository methods**
+- [x] **Step 7: Implement repository methods**
 
 Add protocol, in-memory, and Postgres methods named
 `save_recoverable_intent`, `open_recoverable_intent_for_conversation`, and
@@ -144,7 +144,7 @@ artifact, marking expired artifacts as `expired` before returning `None`.
 
 Postgres reads must return `None` for invalid UUID strings rather than throwing.
 
-- [ ] **Step 8: Run repository tests and verify green**
+- [x] **Step 8: Run repository tests and verify green**
 
 Run:
 
@@ -154,7 +154,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit schema/domain artifact slice**
+- [x] **Step 9: Commit schema/domain artifact slice**
 
 Commit:
 

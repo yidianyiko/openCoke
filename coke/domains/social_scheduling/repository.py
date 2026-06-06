@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from contextlib import nullcontext
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -26,6 +27,7 @@ from coke.domains.social_scheduling.models import (
     Friendship,
     NotificationFact,
     NotificationRecipient,
+    RecoverableSchedulingIntent,
     ReminderProjection,
     SharedReminder,
 )
@@ -120,6 +122,25 @@ class SocialSchedulingRepository(Protocol):
         self, notification_fact_id: str
     ) -> list[NotificationRecipient]: ...
 
+    def save_recoverable_intent(self, intent: RecoverableSchedulingIntent) -> None: ...
+
+    def get_recoverable_intent(
+        self, intent_id: str
+    ) -> RecoverableSchedulingIntent | None: ...
+
+    def open_recoverable_intent_for_conversation(
+        self, conversation_id: str, *, now: datetime
+    ) -> RecoverableSchedulingIntent | None: ...
+
+    def consume_recoverable_intent(
+        self,
+        intent_id: str,
+        *,
+        facts_hash: str,
+        consumed_turn_id: str,
+        now: datetime,
+    ) -> RecoverableSchedulingIntent: ...
+
 
 def unordered_pair(account_a: str, account_b: str) -> tuple[str, str]:
     if account_a <= account_b:
@@ -143,6 +164,7 @@ class InMemorySocialSchedulingRepository:
         self.notification_facts_by_idempotency: dict[str, str] = {}
         self.notification_recipients_by_id: dict[str, NotificationRecipient] = {}
         self.notification_recipients_by_fact_account: dict[tuple[str, str], str] = {}
+        self.recoverable_intents_by_id: dict[str, RecoverableSchedulingIntent] = {}
         self.generated_ids: list[str] = []
         self.generated_tokens: list[str] = []
 
@@ -417,6 +439,67 @@ class InMemorySocialSchedulingRepository:
             for recipient in self.notification_recipients_by_id.values()
             if recipient.notification_fact_id == notification_fact_id
         ]
+
+    def save_recoverable_intent(self, intent: RecoverableSchedulingIntent) -> None:
+        if intent.status == "open":
+            for existing in list(self.recoverable_intents_by_id.values()):
+                if (
+                    existing.conversation_id == intent.conversation_id
+                    and existing.status == "open"
+                    and existing.id != intent.id
+                ):
+                    self.recoverable_intents_by_id[existing.id] = replace(
+                        existing,
+                        status="superseded",
+                        updated_at=intent.updated_at,
+                    )
+        self.recoverable_intents_by_id[intent.id] = intent
+
+    def get_recoverable_intent(
+        self, intent_id: str
+    ) -> RecoverableSchedulingIntent | None:
+        return self.recoverable_intents_by_id.get(intent_id)
+
+    def open_recoverable_intent_for_conversation(
+        self, conversation_id: str, *, now: datetime
+    ) -> RecoverableSchedulingIntent | None:
+        for intent in self.recoverable_intents_by_id.values():
+            if intent.conversation_id != conversation_id or intent.status != "open":
+                continue
+            if intent.expires_at <= now:
+                expired = replace(intent, status="expired", updated_at=now)
+                self.recoverable_intents_by_id[intent.id] = expired
+                return None
+            return intent
+        return None
+
+    def consume_recoverable_intent(
+        self,
+        intent_id: str,
+        *,
+        facts_hash: str,
+        consumed_turn_id: str,
+        now: datetime,
+    ) -> RecoverableSchedulingIntent:
+        intent = self.get_recoverable_intent(intent_id)
+        if intent is None:
+            raise ValueError("recoverable_intent_not_found")
+        if intent.status != "open":
+            raise ValueError("recoverable_intent_not_open")
+        if intent.expires_at <= now:
+            expired = replace(intent, status="expired", updated_at=now)
+            self.recoverable_intents_by_id[intent.id] = expired
+            raise ValueError("recoverable_intent_expired")
+        if intent.facts_hash != facts_hash:
+            raise ValueError("recoverable_intent_facts_hash_mismatch")
+        consumed = replace(
+            intent,
+            status="consumed",
+            consumed_turn_id=consumed_turn_id,
+            updated_at=now,
+        )
+        self.recoverable_intents_by_id[consumed.id] = consumed
+        return consumed
 
 
 class PostgresSocialSchedulingRepository:
@@ -877,6 +960,106 @@ class PostgresSocialSchedulingRepository:
             )
         ]
 
+    def save_recoverable_intent(self, intent: RecoverableSchedulingIntent) -> None:
+        existing = self.get_recoverable_intent(intent.id)
+
+        def _write() -> None:
+            if intent.status == "open":
+                self.session.execute(
+                    schema.recoverable_scheduling_intent.update()
+                    .where(
+                        schema.recoverable_scheduling_intent.c.conversation_id
+                        == intent.conversation_id,
+                        schema.recoverable_scheduling_intent.c.status == "open",
+                        schema.recoverable_scheduling_intent.c.id != intent.id,
+                    )
+                    .values(status="superseded", updated_at=intent.updated_at)
+                )
+            if existing is None:
+                self.session.execute(
+                    schema.recoverable_scheduling_intent.insert().values(
+                        **_recoverable_intent_values(intent)
+                    )
+                )
+            else:
+                self.session.execute(
+                    schema.recoverable_scheduling_intent.update()
+                    .where(schema.recoverable_scheduling_intent.c.id == intent.id)
+                    .values(**_recoverable_intent_values(intent))
+                )
+
+        write_with_integrity(
+            self.session,
+            _write,
+            {
+                "pk_recoverable_scheduling_intent": "duplicate_recoverable_intent_id",
+                "uq_recoverable_intent_one_open_per_conversation": "duplicate_open_recoverable_intent",
+            },
+            default_error="recoverable_intent_write_failed",
+        )
+
+    def get_recoverable_intent(
+        self, intent_id: str
+    ) -> RecoverableSchedulingIntent | None:
+        if not _is_db_uuid(intent_id):
+            return None
+        row = one_or_none(
+            self.session,
+            schema.recoverable_scheduling_intent,
+            schema.recoverable_scheduling_intent.c.id == intent_id,
+        )
+        return _recoverable_intent(row) if row else None
+
+    def open_recoverable_intent_for_conversation(
+        self, conversation_id: str, *, now: datetime
+    ) -> RecoverableSchedulingIntent | None:
+        if not _is_db_uuid(conversation_id):
+            return None
+        row = one_or_none(
+            self.session,
+            schema.recoverable_scheduling_intent,
+            schema.recoverable_scheduling_intent.c.conversation_id == conversation_id,
+            schema.recoverable_scheduling_intent.c.status == "open",
+        )
+        if row is None:
+            return None
+        intent = _recoverable_intent(row)
+        if intent.expires_at <= now:
+            self.save_recoverable_intent(
+                replace(intent, status="expired", updated_at=now)
+            )
+            return None
+        return intent
+
+    def consume_recoverable_intent(
+        self,
+        intent_id: str,
+        *,
+        facts_hash: str,
+        consumed_turn_id: str,
+        now: datetime,
+    ) -> RecoverableSchedulingIntent:
+        intent = self.get_recoverable_intent(intent_id)
+        if intent is None:
+            raise ValueError("recoverable_intent_not_found")
+        if intent.status != "open":
+            raise ValueError("recoverable_intent_not_open")
+        if intent.expires_at <= now:
+            self.save_recoverable_intent(
+                replace(intent, status="expired", updated_at=now)
+            )
+            raise ValueError("recoverable_intent_expired")
+        if intent.facts_hash != facts_hash:
+            raise ValueError("recoverable_intent_facts_hash_mismatch")
+        consumed = replace(
+            intent,
+            status="consumed",
+            consumed_turn_id=consumed_turn_id,
+            updated_at=now,
+        )
+        self.save_recoverable_intent(consumed)
+        return consumed
+
     def _participant_ids(self, shared_reminder_id: str) -> tuple[str, ...]:
         if not _is_db_uuid(shared_reminder_id):
             return ()
@@ -1029,6 +1212,58 @@ def _shared(row: Mapping, participant_ids: tuple[str, ...]) -> SharedReminder:
         row["duration_minutes"],
         row["status"],
         row["cancelled_at"],
+        row["created_at"],
+        row["updated_at"],
+    )
+
+
+def _recoverable_intent_values(intent: RecoverableSchedulingIntent) -> dict:
+    return {
+        "id": intent.id,
+        "conversation_id": intent.conversation_id,
+        "creator_account_id": intent.creator_account_id,
+        "operation": intent.operation,
+        "status": intent.status,
+        "blocker": intent.blocker,
+        "title": intent.title,
+        "local_trigger_at": intent.local_trigger_at,
+        "captured_timezone": intent.captured_timezone,
+        "duration_minutes": intent.duration_minutes,
+        "unresolved_reference_text": intent.unresolved_reference_text,
+        "source_turn_id": intent.source_turn_id,
+        "source_input_from_seq": intent.source_input_from_seq,
+        "source_input_to_seq": intent.source_input_to_seq,
+        "source_message_ids": json_value(intent.source_message_ids),
+        "facts": json_value(intent.facts),
+        "facts_hash": intent.facts_hash,
+        "expires_at": intent.expires_at,
+        "consumed_turn_id": intent.consumed_turn_id,
+        "created_at": intent.created_at,
+        "updated_at": intent.updated_at,
+    }
+
+
+def _recoverable_intent(row: Mapping) -> RecoverableSchedulingIntent:
+    return RecoverableSchedulingIntent(
+        db_id(row["id"]),
+        db_id(row["conversation_id"]),
+        db_id(row["creator_account_id"]),
+        row["operation"],
+        row["status"],
+        row["blocker"],
+        row["title"],
+        row["local_trigger_at"],
+        row["captured_timezone"],
+        row["duration_minutes"],
+        row["unresolved_reference_text"],
+        db_id(row["source_turn_id"]),
+        int(row["source_input_from_seq"]),
+        int(row["source_input_to_seq"]),
+        tuple(str(message_id) for message_id in row["source_message_ids"]),
+        dict(row["facts"]),
+        row["facts_hash"],
+        row["expires_at"],
+        db_id(row["consumed_turn_id"]) if row["consumed_turn_id"] is not None else None,
         row["created_at"],
         row["updated_at"],
     )

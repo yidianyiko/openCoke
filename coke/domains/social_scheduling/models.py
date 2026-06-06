@@ -10,6 +10,10 @@ SharedReminderStatus = Literal["active", "cancelled"]
 ProjectionLifecycle = Literal["active", "cancelled"]
 ProjectionCompletionStatus = Literal["pending", "completed"]
 NotificationDeliveryState = Literal["pending", "delivered", "undelivered", "failed"]
+RecoverableSchedulingIntentStatus = Literal[
+    "open", "consumed", "expired", "superseded"
+]
+RecoverableSchedulingIntentBlocker = Literal["unmatched_friend", "ambiguous_friend"]
 
 
 class SocialSchedulingError(RuntimeError):
@@ -100,6 +104,31 @@ class SharedReminder:
     duration_minutes: int
     status: SharedReminderStatus
     cancelled_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class RecoverableSchedulingIntent:
+    id: str
+    conversation_id: str
+    creator_account_id: str
+    operation: Literal["shared_reminder_create"]
+    status: RecoverableSchedulingIntentStatus
+    blocker: RecoverableSchedulingIntentBlocker
+    title: str
+    local_trigger_at: datetime
+    captured_timezone: str
+    duration_minutes: int | None
+    unresolved_reference_text: str
+    source_turn_id: str
+    source_input_from_seq: int
+    source_input_to_seq: int
+    source_message_ids: tuple[str, ...]
+    facts: dict[str, Any]
+    facts_hash: str
+    expires_at: datetime
+    consumed_turn_id: str | None
     created_at: datetime
     updated_at: datetime
 
