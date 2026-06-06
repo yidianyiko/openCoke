@@ -39,7 +39,7 @@
 - Modify: `coke/api/friend_routes.py`
 - Modify: `coke/composition.py`
 
-- [ ] **Step 1: Add failing service tests for counterpart identity**
+- [x] **Step 1: Add failing service tests for counterpart identity**
 
 In `tests/unit/coke/social_scheduling/test_social_scheduling_service.py`, update `test_friend_link_join_creates_active_friendship_without_joiner_channel`:
 
@@ -73,7 +73,7 @@ Then add these assertions after `assert second.friendship.id == first.friendship
     assert second.counterpart_display_name == "Oliver"
 ```
 
-- [ ] **Step 2: Run service tests to verify they fail**
+- [x] **Step 2: Run service tests to verify they fail**
 
 Run:
 
@@ -86,7 +86,7 @@ Run:
 
 Expected: FAIL with `AttributeError: 'FriendshipResult' object has no attribute 'counterpart_account_id'`.
 
-- [ ] **Step 3: Add failing route and adapter expectations**
+- [x] **Step 3: Add failing route and adapter expectations**
 
 In `tests/unit/coke/social_scheduling/test_social_scheduling_routes.py`, update each fake friendship result returned by `FakeSocialSchedulingService.establish_friendship_from_token`, `establish_friendship_from_code`, and `complete_deferred_friend_link`:
 
@@ -130,7 +130,7 @@ class FakeFriendshipResult:
     continuation: dict[str, Any] = {}
 ```
 
-- [ ] **Step 4: Run route and adapter tests to verify they fail**
+- [x] **Step 4: Run route and adapter tests to verify they fail**
 
 Run:
 
@@ -143,7 +143,7 @@ Run:
 
 Expected: FAIL because the route and adapter do not serialize counterpart fields yet.
 
-- [ ] **Step 5: Implement the backend contract**
+- [x] **Step 5: Implement the backend contract**
 
 In `coke/domains/social_scheduling/models.py`, replace `FriendshipResult` with:
 
@@ -223,7 +223,7 @@ In `coke/composition.py`, update the `establish_friendship_from_token` facts:
                     },
 ```
 
-- [ ] **Step 6: Run backend contract tests to verify they pass**
+- [x] **Step 6: Run backend contract tests to verify they pass**
 
 Run:
 
@@ -249,7 +249,7 @@ Expected: PASS for all four tests.
 - Modify: `web/lib/i18n.ts`
 - Modify: `web/app/(customer)/account/friends/page.tsx`
 
-- [ ] **Step 1: Add failing web wrapper expectation**
+- [x] **Step 1: Add failing web wrapper expectation**
 
 In `web/lib/customer-friends.test.ts`, update the join mock in `joins a friend by clean link code and preserves created status`:
 
@@ -275,7 +275,7 @@ Update the expected result:
       },
 ```
 
-- [ ] **Step 2: Add failing Friends page tests**
+- [x] **Step 2: Add failing Friends page tests**
 
 In `web/app/(customer)/account/friends/page.test.tsx`, change `renderPage` to accept a locale:
 
@@ -387,7 +387,7 @@ Add disabled-link and invalid-link coverage:
   });
 ```
 
-- [ ] **Step 3: Run web tests to verify they fail**
+- [x] **Step 3: Run web tests to verify they fail**
 
 Run:
 
@@ -397,7 +397,7 @@ cd web && pnpm test lib/customer-friends.test.ts app/\(customer\)/account/friend
 
 Expected: FAIL because the page still renders generic copy and the i18n keys do not exist.
 
-- [ ] **Step 4: Implement web wrapper, i18n, and page behavior**
+- [x] **Step 4: Implement web wrapper, i18n, and page behavior**
 
 In `web/lib/customer-friends.ts`, keep `CustomerFriendshipJoin` in snake case to match the clean API:
 
@@ -492,7 +492,7 @@ Update the `runJoinByCode` dependency list:
     [copy, loadData, replace],
 ```
 
-- [ ] **Step 5: Run web tests to verify they pass**
+- [x] **Step 5: Run web tests to verify they pass**
 
 Run:
 
@@ -509,7 +509,7 @@ Expected: PASS for customer-friends wrapper and Friends page tests.
 **Files:**
 - Modify: `docs/product-specs/FEATURE_TREE.md`
 
-- [ ] **Step 1: Update product/API surface doc**
+- [x] **Step 1: Update product/API surface doc**
 
 In `docs/product-specs/FEATURE_TREE.md`, replace:
 
@@ -529,7 +529,7 @@ friendship id, and counterpart account/display identity needed for immediate
 user feedback.
 ```
 
-- [ ] **Step 2: Run focused backend verification**
+- [x] **Step 2: Run focused backend verification**
 
 Run:
 
@@ -544,7 +544,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 3: Run focused web verification**
+- [x] **Step 3: Run focused web verification**
 
 Run:
 
@@ -554,7 +554,7 @@ cd web && pnpm test lib/customer-friends.test.ts app/\(customer\)/account/friend
 
 Expected: PASS.
 
-- [ ] **Step 4: Run diff-aware verification routing**
+- [x] **Step 4: Run diff-aware verification routing**
 
 Run:
 
@@ -570,7 +570,7 @@ run it.
 
 Expected: PASS or a classified environment/test failure recorded in the final report.
 
-- [ ] **Step 5: Run web build if feasible**
+- [x] **Step 5: Run web build if feasible**
 
 Run:
 
@@ -580,7 +580,7 @@ cd web && pnpm build
 
 Expected: PASS. If build dependencies or environment constraints fail before compiling this change, capture the exact output and classify the failure.
 
-- [ ] **Step 6: Commit implementation and docs**
+- [x] **Step 6: Commit implementation and docs**
 
 Run:
 
@@ -612,7 +612,7 @@ Expected: one implementation commit.
 **Files:**
 - No source edits unless verification identifies a real product or test bug.
 
-- [ ] **Step 1: Run supervisor-requested backend scope**
+- [x] **Step 1: Run supervisor-requested backend scope**
 
 Run:
 
@@ -626,7 +626,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 2: Run supervisor-requested web scope**
+- [x] **Step 2: Run supervisor-requested web scope**
 
 Run:
 
@@ -636,7 +636,7 @@ cd web && pnpm test lib/customer-friends.test.ts app/\(customer\)/account/friend
 
 Expected: PASS.
 
-- [ ] **Step 3: Re-run `suggest-verification` after the implementation commit**
+- [x] **Step 3: Re-run `suggest-verification` after the implementation commit**
 
 Run:
 
@@ -646,13 +646,13 @@ zsh scripts/suggest-verification --base HEAD~1
 
 Expected: suggested verification surfaces for the implementation commit.
 
-- [ ] **Step 4: Run suggested surface command**
+- [x] **Step 4: Run suggested surface command**
 
 Run the exact command from Step 3. If it repeats a command already run, re-run it after the implementation commit so the evidence is fresh.
 
 Expected: PASS or a classified failure with exact output.
 
-- [ ] **Step 5: Run web build**
+- [x] **Step 5: Run web build**
 
 Run:
 
@@ -662,7 +662,7 @@ cd web && pnpm build
 
 Expected: PASS or a classified environment failure with exact output.
 
-- [ ] **Step 6: Collect commit list**
+- [x] **Step 6: Collect commit list**
 
 Run:
 
@@ -672,7 +672,7 @@ git log --oneline --decorate -5
 
 Expected: includes the spec commit and implementation commit on `fix/eva-rca-web`.
 
-- [ ] **Step 7: Final report**
+- [x] **Step 7: Final report**
 
 Report the spec path, plan path, commit list from `git log --oneline`, exact
 verification commands with the real output observed in this run, deviations from
