@@ -1095,9 +1095,21 @@ class TurnRunner:
         tool_events: tuple[Mapping[str, Any], ...] = (),
     ) -> ValidatedOutput:
         validated = self.output_protocol.validate_first_answer(output)
+        social_outcomes = _social_scheduling_outcomes_from_tool_events(tool_events)
+        claim_required = _requires_social_scheduling_claim(request)
+        if (
+            claim_required
+            and not social_outcomes
+            and self._has_current_turn_social_scheduling_create_stage(request.turn_id)
+        ):
+            claim_required = False
         validated = self.output_protocol.validate_social_scheduling_claim(
             validated,
-            outcomes=_social_scheduling_outcomes_from_tool_events(tool_events),
+            outcomes=social_outcomes,
+            claim_required=claim_required,
+            active_shared_reminder_exists=(
+                self._active_shared_reminder_exists_for_request(request)
+            ),
         )
         validated = _validate_for_trigger(trigger, validated)
         return _validate_reminder_fire_output(request, validated)
@@ -1112,6 +1124,41 @@ class TurnRunner:
             return self.social_scheduling_service
         tool = self.tool_ports.social_scheduling_tool
         return getattr(tool, "social_scheduling_service", None)
+
+    def _active_shared_reminder_exists_for_request(
+        self,
+        request: AgentRequest,
+    ) -> Callable[[str], bool] | None:
+        service = self._social_scheduling_service()
+        if service is None:
+            return None
+
+        def exists(shared_reminder_id: str) -> bool:
+            try:
+                reminder = service.view_shared_reminder(
+                    request.account_id,
+                    shared_reminder_id,
+                )
+            except Exception:
+                return False
+            return getattr(reminder, "status", None) == "active"
+
+        return exists
+
+    def _has_current_turn_social_scheduling_create_stage(self, turn_id: str) -> bool:
+        repository = getattr(self.conversation_runtime, "repository", None)
+        staged_commands_for_turn = getattr(repository, "staged_commands_for_turn", None)
+        if not callable(staged_commands_for_turn):
+            return False
+        for command in staged_commands_for_turn(turn_id):
+            if (
+                getattr(command, "status", None) == "staged"
+                and getattr(command, "domain", None) == "social_scheduling"
+                and getattr(command, "operation", None)
+                in {"create_shared_reminder", "detect_and_create_shared_reminder"}
+            ):
+                return True
+        return False
 
     def _pending_clarification_context(
         self,
@@ -2324,6 +2371,22 @@ def _tool_profile_for_interactive_decision(
     if semantic_decision.required_clarification != "none":
         return ToolProfile.clarification()
     return ToolProfile.interactive(tool_ports)
+
+
+def _requires_social_scheduling_claim(request: AgentRequest) -> bool:
+    if request.trigger_type != "InboundTurn":
+        return False
+    if not getattr(request.tool_profile, "intent_tools_enabled", False):
+        return False
+    if getattr(request.tool_profile, "social_scheduling_tool", None) is None:
+        return False
+    semantic = request.trusted_facts.get("semantic_decision")
+    if not isinstance(semantic, Mapping):
+        return "recoverable_scheduling_intent" in request.trusted_facts
+    return (
+        semantic.get("intent_family") == "scheduling"
+        and semantic.get("intent_action") == "create_shared_reminder"
+    )
 
 
 def _require_agent_visibility_for_inbound_no_reply(

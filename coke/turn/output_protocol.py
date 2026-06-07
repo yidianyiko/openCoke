@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping, Sequence
 
@@ -23,6 +24,8 @@ SOCIAL_SCHEDULING_ALLOWED_CLAIMS: dict[str, set[str]] = {
     "invalid": {"failed"},
     "staged_pending_close": {"no_success_claim"},
 }
+
+SOCIAL_SCHEDULING_ACTIVE_STATUSES = {"created_active", "duplicate_active"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,11 +102,15 @@ class OutputProtocolValidator:
         validated: ValidatedOutput,
         *,
         outcomes: Sequence[Mapping[str, Any]],
+        claim_required: bool = False,
+        active_shared_reminder_exists: Callable[[str], bool] | None = None,
     ) -> ValidatedOutput:
         if not validated.valid:
             return validated
         claim = validated.domain_claim
         if not outcomes:
+            if claim_required:
+                return self._invalid("social_scheduling_outcome_missing")
             if (
                 isinstance(claim, Mapping)
                 and claim.get("domain") == "social_scheduling"
@@ -129,6 +136,20 @@ class OutputProtocolValidator:
         outcome_blocker = outcome.get("blocker")
         if outcome_blocker is not None and claim.get("blocker") != outcome_blocker:
             return self._invalid("social_scheduling_claim_blocker_mismatch")
+
+        if outcome_status in SOCIAL_SCHEDULING_ACTIVE_STATUSES:
+            shared_reminder_id = outcome.get("shared_reminder_id")
+            if not isinstance(shared_reminder_id, str) or not shared_reminder_id:
+                return self._invalid(
+                    "social_scheduling_active_shared_reminder_missing"
+                )
+            if (
+                active_shared_reminder_exists is not None
+                and not active_shared_reminder_exists(shared_reminder_id)
+            ):
+                return self._invalid(
+                    "social_scheduling_active_shared_reminder_missing"
+                )
 
         return validated
 

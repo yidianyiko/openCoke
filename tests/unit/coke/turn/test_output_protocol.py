@@ -113,12 +113,104 @@ def test_social_scheduling_claim_matches_created_outcome():
                 "outcome_id": "outcome-1",
                 "operation": "shared_reminder_create",
                 "status": "created_active",
+                "shared_reminder_id": "shared_1",
             }
         ],
     )
 
     assert result.valid is True
     assert result.domain_claim["claim"] == "active_created"
+
+
+def test_social_scheduling_claim_rejects_created_outcome_without_shared_reminder_id():
+    validator = OutputProtocolValidator()
+    validated = validator.validate_first_answer(
+        {
+            "type": "reply",
+            "segments": ["done"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "created_active",
+                "claim": "active_created",
+            },
+        }
+    )
+
+    result = validator.validate_social_scheduling_claim(
+        validated,
+        outcomes=[
+            {
+                "outcome_id": "outcome-1",
+                "operation": "shared_reminder_create",
+                "status": "created_active",
+            }
+        ],
+    )
+
+    assert result.valid is False
+    assert result.retry_guidance == "social_scheduling_active_shared_reminder_missing"
+
+
+def test_social_scheduling_claim_rejects_duplicate_outcome_without_shared_reminder_id():
+    validator = OutputProtocolValidator()
+    validated = validator.validate_first_answer(
+        {
+            "type": "reply",
+            "segments": ["already exists"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "duplicate_active",
+                "claim": "active_duplicate",
+            },
+        }
+    )
+
+    result = validator.validate_social_scheduling_claim(
+        validated,
+        outcomes=[
+            {
+                "outcome_id": "outcome-1",
+                "operation": "shared_reminder_create",
+                "status": "duplicate_active",
+            }
+        ],
+    )
+
+    assert result.valid is False
+    assert result.retry_guidance == "social_scheduling_active_shared_reminder_missing"
+
+
+def test_social_scheduling_claim_accepts_duplicate_outcome_with_shared_reminder_id():
+    validator = OutputProtocolValidator()
+    validated = validator.validate_first_answer(
+        {
+            "type": "reply",
+            "segments": ["already exists"],
+            "domain_claim": {
+                "domain": "social_scheduling",
+                "outcome_id": "outcome-1",
+                "status": "duplicate_active",
+                "claim": "active_duplicate",
+            },
+        }
+    )
+
+    result = validator.validate_social_scheduling_claim(
+        validated,
+        outcomes=[
+            {
+                "outcome_id": "outcome-1",
+                "operation": "shared_reminder_create",
+                "status": "duplicate_active",
+                "shared_reminder_id": "shared_1",
+            }
+        ],
+    )
+
+    assert result.valid is True
+    assert result.domain_claim["claim"] == "active_duplicate"
 
 
 def test_social_scheduling_claim_rejects_staged_pending_close_success():
