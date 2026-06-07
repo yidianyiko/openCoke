@@ -16,6 +16,13 @@ from coke.llm.config import (
     SILICONFLOW_BASE_URL,
 )
 
+# WeChat personal sends go worker -> connector -> upstream iLink synchronously.
+# The connector allows up to ~60s upstream (2x30s iLink) under gunicorn
+# --timeout 90, so the worker-side send timeout must exceed slow-but-successful
+# iLink calls instead of false-failing at 10s. Kept below the 60s stream reclaim
+# idle so an in-flight send is never re-delivered to a second worker.
+DEFAULT_WECHAT_PERSONAL_SEND_TIMEOUT_S = 45.0
+
 
 class ConfigurationError(RuntimeError):
     """Raised when required runtime configuration is missing or invalid."""
@@ -32,6 +39,7 @@ class Settings:
     evolution_instance: str | None = None
     wechat_personal_endpoint_url: str | None = None
     wechat_personal_api_key: str | None = None
+    wechat_personal_send_timeout_s: float = DEFAULT_WECHAT_PERSONAL_SEND_TIMEOUT_S
     wechat_ecloud_endpoint_url: str | None = None
     wechat_ecloud_token: str | None = None
     wechat_ecloud_app_id: str | None = None
@@ -117,6 +125,11 @@ class Settings:
             ),
             wechat_personal_api_key=_optional(
                 source, "COKE_PROVIDER_WECHAT_PERSONAL_API_KEY"
+            ),
+            wechat_personal_send_timeout_s=_positive_float(
+                source,
+                "COKE_PROVIDER_WECHAT_PERSONAL_SEND_TIMEOUT_S",
+                DEFAULT_WECHAT_PERSONAL_SEND_TIMEOUT_S,
             ),
             wechat_ecloud_endpoint_url=_optional(
                 source, "COKE_PROVIDER_WECHAT_ECLOUD_ENDPOINT_URL"

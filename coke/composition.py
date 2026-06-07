@@ -1646,6 +1646,7 @@ def _provider_adapters_from_settings(
             WeChatPersonalAdapter(
                 endpoint_url=settings.wechat_personal_endpoint_url,
                 api_key=settings.wechat_personal_api_key,
+                timeout=settings.wechat_personal_send_timeout_s,
                 now=now,
             ),
             WeChatECloudAdapter(

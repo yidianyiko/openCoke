@@ -665,6 +665,20 @@ def test_whatsapp_evolution_send_text_posts_real_send_text_request():
     assert result.delivered_at is None
 
 
+def test_wechat_personal_adapter_honors_configured_send_timeout():
+    adapter = WeChatPersonalAdapter(
+        endpoint_url="http://connector.test/send", timeout=60.0
+    )
+
+    assert adapter._client.timeout == httpx.Timeout(60.0)
+
+
+def test_wechat_personal_adapter_send_timeout_defaults_to_safe_floor():
+    adapter = WeChatPersonalAdapter(endpoint_url="http://connector.test/send")
+
+    assert adapter._client.timeout == httpx.Timeout(45.0)
+
+
 @pytest.mark.parametrize("status_code", [400, 500])
 def test_whatsapp_evolution_send_text_maps_non_2xx_to_failed(status_code):
     adapter = WhatsAppEvolutionAdapter(

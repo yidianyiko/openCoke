@@ -31,7 +31,7 @@ class WeChatPersonalAdapter:
         endpoint_url: str | None = None,
         api_key: str | None = None,
         *,
-        timeout: float = 10.0,
+        timeout: float = 45.0,
         http_client: httpx.Client | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:

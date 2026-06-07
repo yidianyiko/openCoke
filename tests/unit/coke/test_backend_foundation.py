@@ -261,6 +261,32 @@ def test_settings_from_env_reads_interaction_timeout(monkeypatch):
     assert settings.interaction_timeout_s == 18.75
 
 
+def test_settings_from_env_defaults_wechat_personal_send_timeout(monkeypatch):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.delenv("COKE_PROVIDER_WECHAT_PERSONAL_SEND_TIMEOUT_S", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.wechat_personal_send_timeout_s == 45.0
+
+
+def test_settings_from_env_reads_wechat_personal_send_timeout(monkeypatch):
+    from coke.config import Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.setenv("COKE_PROVIDER_WECHAT_PERSONAL_SEND_TIMEOUT_S", "60")
+
+    settings = Settings.from_env()
+
+    assert settings.wechat_personal_send_timeout_s == 60.0
+
+
 def test_settings_from_env_reads_media_model_configuration(monkeypatch):
     from coke.config import Settings
 
