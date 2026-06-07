@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
+from coke.domains.social_scheduling.models import (
+    NotificationFact,
+    NotificationRecipient,
+)
+from coke.domains.social_scheduling.repository import InMemorySocialSchedulingRepository
+from coke.domains.social_scheduling.service import SocialSchedulingService
 from coke.worker.__main__ import _handle_event, _turn_trigger_from_event
 from coke.worker.stream_consumer import StreamEvent
+
+NOW = datetime(2026, 6, 7, 12, 0, tzinfo=UTC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +47,12 @@ class FakeRuntime:
 
 
 class FakeConversationRuntimeRepository:
+    def __init__(self, missing_accounts: set[str] | None = None) -> None:
+        self._missing_accounts = missing_accounts or set()
+
     def get_conversation_by_account(self, account_id: str):
+        if account_id in self._missing_accounts:
+            return None
         return type("Conversation", (), {"id": f"conversation:{account_id}"})()
 
 
@@ -69,15 +83,24 @@ class RecordingTurnRunner:
 
 
 class WorkerRuntime:
-    def __init__(self, social_scheduling) -> None:
+    def __init__(
+        self,
+        social_scheduling,
+        *,
+        conversation_runtime=None,
+        social_scheduling_service=None,
+    ) -> None:
         self.repositories = type(
             "Repositories",
             (),
             {
                 "social_scheduling": social_scheduling,
-                "conversation_runtime": FakeConversationRuntimeRepository(),
+                "conversation_runtime": (
+                    conversation_runtime or FakeConversationRuntimeRepository()
+                ),
             },
         )()
+        self.social_scheduling_service = social_scheduling_service
         self.turn_runner = RecordingTurnRunner()
         self.session = FakeSession()
         self.reply_pubsub = None
@@ -92,6 +115,124 @@ class RecordingSupervisor:
 
     async def drain_completed(self):
         return []
+
+
+class FakeReachability:
+    def has_usable_channel(self, account_id: str) -> bool:
+        return True
+
+
+class FakeReminderAvailability:
+    def personal_busy_intervals(self, account_id, start, end, requester_timezone):
+        return []
+
+
+def id_factory(prefix: str) -> str:
+    id_factory.count += 1
+    return f"{prefix}_{id_factory.count}"
+
+
+id_factory.count = 0
+
+
+def make_social_service_for_notification(recipients: list[str]):
+    id_factory.count = 0
+    repo = InMemorySocialSchedulingRepository()
+    service = SocialSchedulingService(
+        repository=repo,
+        reachability=FakeReachability(),
+        reminder_availability=FakeReminderAvailability(),
+        now=lambda: NOW,
+        id_factory=id_factory,
+        token_factory=lambda prefix: f"{prefix}_token",
+    )
+    repo.add_notification_fact(
+        NotificationFact(
+            id="notification_fact_1",
+            type="shared_reminder_created",
+            actor_account_id="creator_1",
+            object_type="shared_reminder",
+            object_id="shared_1",
+            status="created",
+            facts={"title": "Lunch", "delivery_recipients": list(recipients)},
+            facts_hash="hash_1",
+            idempotency_key="shared_1:created",
+            outbox_id="outbox_1",
+            created_at=NOW,
+        )
+    )
+    for recipient in recipients:
+        repo.add_notification_recipient(
+            NotificationRecipient(
+                id=f"notification_recipient:{recipient}",
+                notification_fact_id="notification_fact_1",
+                recipient_account_id=recipient,
+                delivery_state="pending",
+                error_facts={},
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+    return service, repo
+
+
+def notification_event(account_id: str) -> StreamEvent:
+    return StreamEvent(
+        event_id="event_1",
+        topic="turn.notification",
+        idempotency_key="notification:1",
+        traceparent="traceparent",
+        payload={
+            "trigger_id": "notification:notification_fact_1",
+            "notification_fact_id": "notification_fact_1",
+            "account_id": account_id,
+            "recipient_account_ids": [account_id],
+            "object_type": "shared_reminder",
+            "object_id": "shared_1",
+            "facts_hash": "hash_1",
+        },
+        stream_message_id="1-0",
+    )
+
+
+def test_notification_without_recipient_conversation_settles_failed_and_drains():
+    service, repo = make_social_service_for_notification(["receiver_1"])
+    runtime = WorkerRuntime(
+        repo,
+        conversation_runtime=FakeConversationRuntimeRepository(
+            missing_accounts={"receiver_1"}
+        ),
+        social_scheduling_service=service,
+    )
+
+    _handle_event(
+        runtime, notification_event("receiver_1"), supervisor=RecordingSupervisor()
+    )
+
+    recipient = repo.get_notification_recipient("notification_fact_1", "receiver_1")
+    assert runtime.turn_runner.triggers == []
+    assert runtime.session.commits == 1
+    assert recipient.delivery_state == "failed"
+    assert recipient.turn_id is None
+    assert recipient.error_facts == {
+        "type": "channel_optional_join_no_conversation",
+        "reason_code": "conversation_not_found",
+    }
+
+
+def test_notification_with_recipient_conversation_still_produces_render_trigger():
+    service, repo = make_social_service_for_notification(["receiver_1"])
+    runtime = WorkerRuntime(repo, social_scheduling_service=service)
+
+    trigger = _turn_trigger_from_event(runtime, notification_event("receiver_1"))
+
+    recipient = repo.get_notification_recipient("notification_fact_1", "receiver_1")
+    assert trigger.trigger_type == "NotificationTurn"
+    assert trigger.account_id == "receiver_1"
+    assert trigger.conversation_id == "conversation:receiver_1"
+    assert trigger.payload["recipient_account_ids"] == ["receiver_1"]
+    assert recipient.delivery_state == "pending"
+    assert recipient.error_facts == {}
 
 
 def test_notification_render_trigger_hydrates_structured_facts_from_repository():

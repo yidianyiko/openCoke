@@ -33,6 +33,10 @@ RENDER_TURN_TOPICS = frozenset(
 )
 TURN_TOPICS = frozenset({"turn.inbound", *RENDER_TURN_TOPICS})
 SUPERVISED_TURN_FAILURE_RETRY_LIMIT = 1
+NO_CONVERSATION_NOTIFICATION_ERROR_FACTS = {
+    "type": "channel_optional_join_no_conversation",
+    "reason_code": "conversation_not_found",
+}
 
 
 def run_worker_loop(
@@ -479,10 +483,12 @@ def _turn_triggers_from_event(
         trigger = _inbound_trigger_after_media_resolution(runtime, payload)
         return [trigger] if trigger is not None else []
     if topic in RENDER_TURN_TOPICS:
-        return [
-            _render_trigger(runtime, topic, render_payload)
-            for render_payload in _render_payloads(runtime, topic, payload)
-        ]
+        triggers: list[TurnTrigger] = []
+        for render_payload in _render_payloads(runtime, topic, payload):
+            trigger = _render_trigger(runtime, topic, render_payload)
+            if trigger is not None:
+                triggers.append(trigger)
+        return triggers
     raise RuntimeError(f"unsupported_worker_topic:{topic}")
 
 
@@ -572,7 +578,7 @@ def _render_trigger(
     runtime: CokeRuntime,
     topic: str,
     payload: Mapping[str, Any],
-) -> TurnTrigger:
+) -> TurnTrigger | None:
     trigger_payload = dict(payload)
     if topic == "turn.notification":
         trigger_payload = _hydrate_notification_payload(runtime, trigger_payload)
@@ -587,6 +593,13 @@ def _render_trigger(
             )
         )
         if conversation is None:
+            if topic == "turn.notification":
+                _settle_no_conversation_notification_recipient(
+                    runtime,
+                    trigger_payload,
+                    account_id,
+                )
+                return None
             raise RuntimeError(f"conversation_not_found_for_account:{account_id}")
         conversation_id = conversation.id
     trigger_type = {
@@ -603,6 +616,36 @@ def _render_trigger(
         conversation_id=conversation_id,
         account_id=account_id,
         payload=trigger_payload,
+    )
+
+
+def _settle_no_conversation_notification_recipient(
+    runtime: CokeRuntime,
+    payload: Mapping[str, Any],
+    account_id: str,
+) -> None:
+    fact_id = payload.get("notification_fact_id")
+    if not isinstance(fact_id, str) or not fact_id:
+        raise RuntimeError(
+            "notification_fact_id_required_for_no_conversation_settlement"
+        )
+    service = getattr(runtime, "social_scheduling_service", None)
+    record_delivery = getattr(service, "record_notification_delivery", None)
+    if not callable(record_delivery):
+        raise RuntimeError("notification_settlement_service_unavailable")
+    record_delivery(
+        notification_fact_id=fact_id,
+        recipient_account_id=account_id,
+        delivery_state="failed",
+        error_facts=dict(NO_CONVERSATION_NOTIFICATION_ERROR_FACTS),
+    )
+    LOGGER.warning(
+        "notification_recipient_settled_without_conversation",
+        extra={
+            "notification_fact_id": fact_id,
+            "recipient_account_id": account_id,
+            "reason_code": NO_CONVERSATION_NOTIFICATION_ERROR_FACTS["reason_code"],
+        },
     )
 
 
