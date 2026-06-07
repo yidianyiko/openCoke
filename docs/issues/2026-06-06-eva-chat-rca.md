@@ -1073,17 +1073,52 @@ Verification:
   contradictions or labels; remove the contaminating history source and keep
   validation structural (per D2).
 
+## 2026-06-07 Eva Reply Fix Deploy
+
+Commit `b4859e057486e00498ed4c802ebc3a32482e3703` was deployed to the clean
+production stack on `gcp-coke` over previously deployed
+`fb3efb5c699c17fc23cf913dad1171bc8fe4baab`.
+
+This deploy covers two concrete no-reply contributors observed after the RCA:
+
+- fenced JSON from the Interaction Agent is now normalized before output
+  protocol validation, preventing `invalid_output_protocol` from turning a
+  valid model reply into no reply;
+- `coke-outbox-relay` now has `host.docker.internal:host-gateway`, so relay-owned
+  waiting delivery can reach the personal-WeChat connector instead of failing
+  with host connection refusal.
+
+Production verification used eva account
+`94566791-4d39-4b28-9d9f-367c1ed0be2c` and marker
+`server-verify-20260607T070825Z`. The clean `/webhooks/wechat/personal` endpoint
+accepted one inbound reminder request with eva's current connector context token
+(token value was not printed). Postgres verdict:
+
+- turn `272feff9-6715-49cf-9a9d-b5637a42d584` completed with
+  `output_disposition.disposition='replied'` and `reason_code='reply_ready'`;
+- outbound reply message `c98b2440-c375-47d5-8f8c-f5cb2cc6ff8d` existed;
+- delivery attempt `b5cdb1d3-a73c-4cb0-b7fe-b8a8eb0e741f` had
+  `status='sent'` and a provider message id present;
+- no waiting message was emitted for that turn (`waiting_attempt_count=0`);
+- the marked reminder `1b84e908-53a9-46ef-b253-4073d226aa00` was cleaned up
+  through `ReminderService.delete_reminder` and ended `lifecycle='deleted'`.
+
+Evidence is saved under
+`artifacts/evidence/2026-06-07-eva-reply-fix-deploy/`.
+
 ## Current Status
 
-Open. Production was inspected read-only. No code or deployment change was made
-as part of this investigation. On `2026-06-07`, the local issue record was
-expanded with implementation-oriented fix tracks, then revised the same day after
-a six-agent design review ("2026-06-07 Multi-Agent Design Review"): Track A, B, C,
-D, E, F, and I now reflect the single-user-facing-producer architecture, structural
-render-history isolation, close-time outcome binding, the narrow
-`recoverable_scheduling_intent` artifact, and diagnostic-first delivery recovery.
-No runtime code or deployment change was made in either follow-up; the open
-decisions deferred to product/human in the design review remain open.
+Open for the broader Eva RCA tracks that were outside this workstream. The
+specific no-reply deploy slice above is verified in production: fenced-JSON turn
+normalization and relay-to-connector reachability are deployed, and eva's real
+wechat_personal turn path produced a sent reply. On `2026-06-07`, the local issue
+record was expanded with implementation-oriented fix tracks, then revised the
+same day after a six-agent design review ("2026-06-07 Multi-Agent Design Review"):
+Track A, B, C, D, E, F, and I now reflect the single-user-facing-producer
+architecture, structural render-history isolation, close-time outcome binding,
+the narrow `recoverable_scheduling_intent` artifact, and diagnostic-first
+delivery recovery. The open decisions deferred to product/human in the design
+review remain open.
 
 ## Evidence Commands
 
