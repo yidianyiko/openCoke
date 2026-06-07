@@ -1,0 +1,4 @@
+local_sha=a5c2b8dbc57cbd5040c5eb1bf70eac9a27b587df
+remote_deployed_sha=a5c2b8dbc57cbd5040c5eb1bf70eac9a27b587df
+public_healthz={"ok":true}
+

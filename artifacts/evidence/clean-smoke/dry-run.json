@@ -1,0 +1,16 @@
+{
+  "run_id": "dry-run",
+  "status": "passed",
+  "created_at": "2026-06-07T01:50:06.704625+00:00",
+  "events": [],
+  "verdicts": [
+    {
+      "phase": "dry_run",
+      "status": "passed",
+      "message": "compiled clean-schema verdict queries",
+      "details": {
+        "query_count": 12
+      }
+    }
+  ]
+}

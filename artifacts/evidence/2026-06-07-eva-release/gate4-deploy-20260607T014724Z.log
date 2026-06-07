@@ -1,0 +1,290 @@
+[deploy-clean] local sha a5c2b8dbc57cbd5040c5eb1bf70eac9a27b587df
+[deploy-clean] last deployed sha b1a19cbbce05c135d8985ee3a75a5d030b665228
+[deploy-clean] deploy tier full
+[deploy-clean] changed paths since deployed sha:
+  artifacts/evidence/2026-06-07-eva-regression-corpus/pytest-eva-corpus.txt
+  artifacts/evidence/2026-06-07-eva-regression-corpus/review-trigger.txt
+  artifacts/evidence/2026-06-07-eva-regression-corpus/suggest-verification.txt
+  artifacts/evidence/2026-06-07-eva-regression-corpus/verify-surface.txt
+  artifacts/evidence/2026-06-07-eva-release/gate1-backend-unit-pytest.log
+  artifacts/evidence/2026-06-07-eva-release/gate1-web-pnpm-build.log
+  artifacts/evidence/2026-06-07-eva-release/gate1-web-pnpm-test.log
+  artifacts/evidence/2026-06-07-eva-release/gate2-alembic-downgrade-new-revisions.log
+  artifacts/evidence/2026-06-07-eva-release/gate2-alembic-reupgrade-head.log
+  artifacts/evidence/2026-06-07-eva-release/gate2-alembic-upgrade-head-from-base.log
+  artifacts/evidence/2026-06-07-eva-release/gate2-docker-run-postgres.log
+  artifacts/evidence/2026-06-07-eva-release/gate2-docker-stop-postgres.log
+  artifacts/evidence/2026-06-07-eva-release/gate2-integration-social-scheduling-outbox.log
+  artifacts/evidence/2026-06-07-eva-release/gate2-postgres-readiness.log
+  artifacts/evidence/2026-06-07-eva-release/gate3-deploy-dry-run.log
+  artifacts/evidence/2026-06-07-eva-release/gate4-deploy.log
+  coke/api/friend_routes.py
+  coke/composition.py
+  coke/domains/channel_reachability/models.py
+  coke/domains/channel_reachability/repository.py
+  coke/domains/channel_reachability/service.py
+  coke/domains/conversation_runtime/models.py
+  coke/domains/conversation_runtime/repository.py
+  coke/domains/conversation_runtime/service.py
+  coke/domains/reminder/models.py
+  coke/domains/reminder/service.py
+  coke/domains/social_scheduling/availability.py
+  coke/domains/social_scheduling/models.py
+  coke/domains/social_scheduling/repository.py
+  coke/domains/social_scheduling/service.py
+  coke/llm/agno_interaction_agent.py
+  coke/llm/semantic_interpreter.py
+  coke/schema.py
+  coke/turn/agent.py
+  coke/turn/output_protocol.py
+  coke/turn/runner.py
+  coke/turn/semantic_interpreter.py
+  coke/worker/waiting_reply.py
+  docs/ARCHITECTURE.md
+  docs/issues/2026-06-06-eva-chat-rca.md
+  docs/product-specs/FEATURE_TREE.md
+  docs/superpowers/plans/2026-06-07-delivery-reliability-onboarding.md
+  docs/superpowers/plans/2026-06-07-eva-regression-corpus.md
+  docs/superpowers/plans/2026-06-07-friend-add-feedback.md
+  docs/superpowers/plans/2026-06-07-render-trusted-facts.md
+  docs/superpowers/plans/2026-06-07-response-contract-recovery.md
+  docs/superpowers/specs/2026-06-07-delivery-reliability-onboarding-design.md
+  docs/superpowers/specs/2026-06-07-eva-regression-corpus-design.md
+  docs/superpowers/specs/2026-06-07-friend-add-feedback-design.md
+  docs/superpowers/specs/2026-06-07-render-trusted-facts-design.md
+  docs/superpowers/specs/2026-06-07-response-contract-recovery-design.md
+  migrations/versions/20260607_0001_recoverable_scheduling_intent.py
+  migrations/versions/20260607_0002_delivery_attempt_diagnostics.py
+  tests/unit/coke/channel_reachability/test_channel_reachability_service.py
+  tests/unit/coke/llm/test_interaction_agent.py
+  tests/unit/coke/llm/test_semantic_interpreter.py
+  tests/unit/coke/social_scheduling/test_recoverable_scheduling_intent.py
+  tests/unit/coke/social_scheduling/test_social_scheduling_routes.py
+  tests/unit/coke/social_scheduling/test_social_scheduling_schema_contract.py
+  tests/unit/coke/social_scheduling/test_social_scheduling_service.py
+  tests/unit/coke/test_clean_schema_contract.py
+  tests/unit/coke/test_delivery_lifecycle_callbacks.py
+  tests/unit/coke/test_social_scheduling_tool_adapter.py
+  tests/unit/coke/turn/test_eva_regression_corpus.py
+  tests/unit/coke/turn/test_output_protocol.py
+  tests/unit/coke/turn/test_turn_runner.py
+  tests/unit/coke/worker/test_waiting_reply.py
+  web/app/(customer)/account/friends/page.test.tsx
+  web/app/(customer)/account/friends/page.tsx
+  web/lib/customer-friends.test.ts
+  web/lib/customer-friends.ts
+  web/lib/i18n.ts
+[deploy-clean] creating clean remote root gcp-coke:/home/whoami/coke-clean
+[deploy-clean] rsync clean stack sources
+[deploy-clean] writing clean runtime env on remote host
+Clean env written to /home/whoami/coke-clean/.env
+[deploy-clean] starting clean compose project coke-clean
+ Container coke-clean-redis-1 Running 
+ Container coke-clean-postgres-1 Running 
+ Image coke-clean-coke-migrate Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 528B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 558B 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.12-slim
+#3 DONE 0.6s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 320B done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 ...
+
+#6 [1/6] FROM docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+#6 resolve docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203 0.1s done
+#6 DONE 0.2s
+
+#5 [internal] load build context
+#5 transferring context: 59.11MB 5.1s
+#5 transferring context: 157.44MB 9.5s done
+#5 DONE 9.5s
+
+#7 [2/6] RUN apt-get update     && apt-get install -y --no-install-recommends         build-essential         ca-certificates         curl     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [3/6] WORKDIR /app
+#8 CACHED
+
+#9 [4/6] COPY requirements.txt ./requirements.txt
+#9 CACHED
+
+#10 [5/6] RUN pip install --upgrade pip setuptools wheel     && pip install -r requirements.txt
+#10 CACHED
+
+#11 [6/6] COPY . .
+#11 DONE 5.8s
+
+#12 exporting to image
+#12 exporting layers
+#12 exporting layers 11.8s done
+#12 exporting manifest sha256:ba24d5ded28d114c64bade73ebd99af2021649fd64dd532655906056d5f0b446 0.0s done
+#12 exporting config sha256:8377f060d125e72aa6ee4ae0095fac3741aa798423717fdafe73687054bab0bb 0.0s done
+#12 exporting attestation manifest sha256:e3de854af93f19cfa2dde83a8fecf5c087c0d85e9accdd5e8df4ecfe5cdd3700 0.0s done
+#12 exporting manifest list sha256:d2d5479ee090df9cb2f4088284a9b203bdb7f62085349bfe375c0c3fb0d30b74 0.0s done
+#12 naming to docker.io/library/coke-clean-coke-migrate:latest done
+#12 unpacking to docker.io/library/coke-clean-coke-migrate:latest
+#12 unpacking to docker.io/library/coke-clean-coke-migrate:latest 5.0s done
+#12 DONE 17.0s
+
+#13 resolving provenance for metadata file
+#13 DONE 0.1s
+ Image coke-clean-coke-migrate Built 
+ Container coke-clean-postgres-1 Running 
+ Container coke-clean-postgres-1 Waiting 
+ Container coke-clean-postgres-1 Healthy 
+ Container coke-clean-coke-migrate-run-373b8994091b Creating 
+ Container coke-clean-coke-migrate-run-373b8994091b Created 
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 20260531_0001 -> 20260607_0001
+INFO  [alembic.runtime.migration] Running upgrade 20260607_0001 -> 20260607_0002
+ Container coke-clean-postgres-1 Running 
+ Container coke-clean-postgres-1 Waiting 
+ Container coke-clean-postgres-1 Healthy 
+ Container coke-clean-coke-migrate-run-6e9778b23afb Creating 
+ Container coke-clean-coke-migrate-run-6e9778b23afb Created 
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.schemas
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.tables
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.types
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.constraints
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments
+No new upgrade operations detected.
+ Image coke-clean-coke-scheduler Building 
+ Image coke-clean-coke-worker Building 
+ Image coke-clean-coke-outbox-relay Building 
+ Image coke-clean-coke-api Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.86kB done
+#1 DONE 0.0s
+
+#2 [coke-worker internal] load build definition from Dockerfile
+#2 transferring dockerfile: 558B 0.0s done
+#2 DONE 0.1s
+
+#3 [coke-outbox-relay internal] load metadata for docker.io/library/python:3.12-slim
+#3 DONE 0.3s
+
+#4 [coke-scheduler internal] load .dockerignore
+#4 transferring context: 320B 0.0s done
+#4 DONE 0.0s
+
+#5 [coke-outbox-relay 1/6] FROM docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+#5 resolve docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+#5 resolve docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203 0.5s done
+#5 DONE 0.5s
+
+#6 [coke-worker internal] load build context
+#6 transferring context: 324.19kB 1.1s done
+#6 DONE 1.2s
+
+#7 [coke-scheduler 3/6] WORKDIR /app
+#7 CACHED
+
+#8 [coke-scheduler 4/6] COPY requirements.txt ./requirements.txt
+#8 CACHED
+
+#9 [coke-scheduler 2/6] RUN apt-get update     && apt-get install -y --no-install-recommends         build-essential         ca-certificates         curl     && rm -rf /var/lib/apt/lists/*
+#9 CACHED
+
+#10 [coke-scheduler 5/6] RUN pip install --upgrade pip setuptools wheel     && pip install -r requirements.txt
+#10 CACHED
+
+#11 [coke-scheduler 6/6] COPY . .
+#11 CACHED
+
+#12 [coke-api] exporting to image
+#12 exporting layers 0.0s done
+#12 exporting manifest sha256:8d7482d126b8f71a0dd0f2d8d8c31605e2817123bcb9c717f377b06ae833b25a
+#12 exporting manifest sha256:8d7482d126b8f71a0dd0f2d8d8c31605e2817123bcb9c717f377b06ae833b25a 0.1s done
+#12 exporting config sha256:a957598136599889d7cd31465e2a1f6af1c1dcb7bd77e7335f5eada6007485d9
+#12 exporting config sha256:a957598136599889d7cd31465e2a1f6af1c1dcb7bd77e7335f5eada6007485d9 0.2s done
+#12 exporting attestation manifest sha256:de2c2ededa2395c84f5e7f260b64a5e381ecddbd92ffd66147bf11c36551acef
+#12 exporting attestation manifest sha256:de2c2ededa2395c84f5e7f260b64a5e381ecddbd92ffd66147bf11c36551acef 0.2s done
+#12 exporting manifest list sha256:7c6838fb2c9685ccc7b19cf1ef05a86b2109f85b005472c65e75d4e4164dfa82
+#12 exporting manifest list sha256:7c6838fb2c9685ccc7b19cf1ef05a86b2109f85b005472c65e75d4e4164dfa82 0.2s done
+#12 naming to docker.io/library/coke-clean-coke-api:latest 0.0s done
+#12 unpacking to docker.io/library/coke-clean-coke-api:latest
+#12 unpacking to docker.io/library/coke-clean-coke-api:latest 0.2s done
+#12 ...
+
+#13 [coke-worker] exporting to image
+#13 exporting layers 0.1s done
+#13 exporting manifest sha256:0bd386b852f0e3092f96b940e9a9f70444079a6d72f4075642bdeeb3749aa0e4 0.1s done
+#13 exporting config sha256:fc3cb6b6694e34667f8993e958f0201c30c28b4498cc6953782924a04e45899d 0.2s done
+#13 exporting attestation manifest sha256:f9309a03012db1c10856aa0dcf332dce92eb58bdf509e56c34cea9ee5bb6d77d 0.3s done
+#13 exporting manifest list sha256:49517804048d7a674b67a9481aeb8fe4981b39d94eddb4fc16ddc55abce0f64d 0.1s done
+#13 naming to docker.io/library/coke-clean-coke-worker:latest 0.1s done
+#13 unpacking to docker.io/library/coke-clean-coke-worker:latest 0.2s done
+#13 DONE 1.6s
+
+#14 [coke-outbox-relay] exporting to image
+#14 exporting layers 0.0s done
+#14 exporting manifest sha256:0f2c448d1a1471b5879c997ab2d6f502d14f582e30d483482e6e6f56f8eadf45 0.1s done
+#14 exporting config sha256:a7798e70630cb6a990cc8b4fd538480de85cce0414ec5d5935d52731015d7b9c 0.2s done
+#14 exporting attestation manifest sha256:25350a005bafccfe313429a4f58f638dc7eb3a30edaa47d153584a2fa78c0f25 0.2s done
+#14 exporting manifest list sha256:82f5ecba8870fd50424e791678fd8f3039a32a12dce8de2f8a9fc5c11f2bda4e 0.1s done
+#14 naming to docker.io/library/coke-clean-coke-outbox-relay:latest 0.1s done
+#14 unpacking to docker.io/library/coke-clean-coke-outbox-relay:latest 0.2s done
+#14 DONE 1.6s
+
+#15 [coke-scheduler] exporting to image
+#15 exporting layers 0.0s done
+#15 exporting manifest sha256:6abc59afd2b1ad7d5ad52112e66c34d887cb1d9a31d2640fc75ed92935e50cce 0.1s done
+#15 exporting config sha256:895ca3e9394cdc141227587c20db8acd6e70d2508dea70b86dbf0ea119cc0db6 0.2s done
+#15 exporting attestation manifest sha256:9cfc05fb7d1486a49a7c9689131ecee6ce61a9f95752997912c102fafe4e746b 0.2s done
+#15 exporting manifest list sha256:62cce060b92b41e21ea17836dbd9f49e3cf1d88ca0d92ef1bbe8c055cf506d75 0.2s done
+#15 naming to docker.io/library/coke-clean-coke-scheduler:latest 0.0s done
+#15 unpacking to docker.io/library/coke-clean-coke-scheduler:latest 0.3s done
+#15 DONE 1.6s
+
+#12 [coke-api] exporting to image
+#12 DONE 1.6s
+
+#16 [coke-worker] resolving provenance for metadata file
+#16 ...
+
+#17 [coke-scheduler] resolving provenance for metadata file
+#17 DONE 0.6s
+
+#18 [coke-api] resolving provenance for metadata file
+#18 DONE 1.2s
+
+#19 [coke-outbox-relay] resolving provenance for metadata file
+#19 DONE 0.9s
+
+#16 [coke-worker] resolving provenance for metadata file
+#16 DONE 1.2s
+ Image coke-clean-coke-worker Built 
+ Image coke-clean-coke-api Built 
+ Image coke-clean-coke-outbox-relay Built 
+ Image coke-clean-coke-scheduler Built 
+ Container coke-clean-coke-scheduler-1 Recreate 
+ Container coke-clean-coke-worker-1 Recreate 
+ Container coke-clean-coke-outbox-relay-1 Recreate 
+ Container coke-clean-coke-api-1 Recreate 
+ Container coke-clean-coke-api-1 Recreated 
+ Container coke-clean-coke-outbox-relay-1 Recreated 
+ Container coke-clean-coke-scheduler-1 Recreated 
+ Container coke-clean-coke-worker-1 Recreated 
+ Container coke-clean-coke-scheduler-1 Starting 
+ Container coke-clean-coke-worker-1 Starting 
+ Container coke-clean-coke-outbox-relay-1 Starting 
+ Container coke-clean-coke-api-1 Starting 
+ Container coke-clean-coke-worker-1 Started 
+ Container coke-clean-coke-scheduler-1 Started 
+ Container coke-clean-coke-outbox-relay-1 Started 
+ Container coke-clean-coke-api-1 Started 
+[deploy-clean] clean deploy health checks passed

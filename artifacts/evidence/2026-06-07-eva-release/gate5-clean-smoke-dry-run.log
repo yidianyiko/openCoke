@@ -1,0 +1,54 @@
+{
+  "status": "passed",
+  "compiled_queries": [
+    {
+      "name": "first_contact_account",
+      "sql": "SELECT account.id AS account_id, account.origin, channel_identity.id AS channel_identity_id, channel_identity.is_account_anchor \nFROM channel_identity JOIN account ON channel_identity.account_id = account.id \nWHERE channel_identity.provider_type = %(provider_type_1)s AND channel_identity.provider_subject = %(provider_subject)s AND channel_identity.lifecycle = %(lifecycle_1)s"
+    },
+    {
+      "name": "first_contact_message",
+      "sql": "SELECT conversation.id AS conversation_id, message.id AS message_id, message.seq, message.text, message.causal_inbound_event_id \nFROM conversation JOIN message ON message.conversation_id = conversation.id \nWHERE conversation.account_id = %(account_id)s::UUID AND message.direction = %(direction_1)s AND message.causal_inbound_event_id = %(event_id)s ORDER BY message.created_at DESC"
+    },
+    {
+      "name": "first_contact_message_by_text",
+      "sql": "SELECT conversation.id AS conversation_id, message.id AS message_id, message.seq, message.text, message.causal_inbound_event_id \nFROM conversation JOIN message ON message.conversation_id = conversation.id \nWHERE conversation.account_id = %(account_id)s::UUID AND message.direction = %(direction_1)s AND message.text ILIKE %(text_like)s ORDER BY message.created_at DESC"
+    },
+    {
+      "name": "first_contact_turn_disposition",
+      "sql": "SELECT turn.id AS turn_id, turn.trigger_type, turn.mode, output_disposition.disposition, output_disposition.reason_code \nFROM turn JOIN output_disposition ON output_disposition.turn_id = turn.id \nWHERE turn.conversation_id = %(conversation_id)s::UUID ORDER BY turn.created_at DESC"
+    },
+    {
+      "name": "first_contact_outbound",
+      "sql": "SELECT message.id, message.text, message.payload \nFROM message \nWHERE message.turn_id = %(turn_id)s::UUID AND message.direction = %(direction_1)s ORDER BY message.segment_index"
+    },
+    {
+      "name": "personal_reminder_unique",
+      "sql": "SELECT reminder.id, reminder.owner_account_id, reminder.content, reminder.content_hash, reminder.kind, reminder.next_fire_at, reminder.recurrence_rule, reminder.captured_timezone, reminder.duration_minutes, reminder.lifecycle, reminder.hidden_from_calendar, reminder.shared_reminder_id, reminder.created_at, reminder.updated_at \nFROM reminder \nWHERE reminder.owner_account_id = %(account_id)s::UUID AND reminder.lifecycle = %(lifecycle_1)s AND reminder.kind IN (__[POSTCOMPILE_kind_1]) AND reminder.content ILIKE %(title_like)s ORDER BY reminder.created_at DESC"
+    },
+    {
+      "name": "active_friendship",
+      "sql": "SELECT friendship.id, friendship.account_low_id, friendship.account_high_id, friendship.lifecycle, friendship.established_at, friendship.removed_at, friendship.created_at, friendship.updated_at \nFROM friendship \nWHERE friendship.account_low_id = %(account_low_id)s::UUID AND friendship.account_high_id = %(account_high_id)s::UUID AND friendship.lifecycle = %(lifecycle_1)s"
+    },
+    {
+      "name": "shared_reminder_active",
+      "sql": "SELECT shared_reminder.id, shared_reminder.creator_account_id, shared_reminder.participant_set_hash, shared_reminder.title, shared_reminder.title_hash, shared_reminder.local_trigger_at, shared_reminder.captured_timezone, shared_reminder.duration_minutes, shared_reminder.status, shared_reminder.cancelled_at, shared_reminder.created_at, shared_reminder.updated_at \nFROM shared_reminder \nWHERE shared_reminder.id = %(shared_reminder_id)s::UUID AND shared_reminder.status = %(status_1)s"
+    },
+    {
+      "name": "shared_reminder_projections",
+      "sql": "SELECT reminder_projection.id, reminder_projection.shared_reminder_id, reminder_projection.account_id, reminder_projection.reminder_id, reminder_projection.lifecycle, reminder_projection.completion_status, reminder_projection.created_at, reminder_projection.updated_at \nFROM reminder_projection \nWHERE reminder_projection.shared_reminder_id = %(shared_reminder_id)s::UUID AND reminder_projection.lifecycle = %(lifecycle_1)s ORDER BY reminder_projection.account_id"
+    },
+    {
+      "name": "notification_fact_without_text_payload",
+      "sql": "SELECT notification_fact.id, notification_fact.type, notification_fact.object_id, notification_fact.facts, notification_fact.facts_hash \nFROM notification_fact \nWHERE notification_fact.object_id = %(shared_reminder_id)s::UUID AND notification_fact.facts_hash IS NOT NULL ORDER BY notification_fact.created_at DESC"
+    },
+    {
+      "name": "reminder_fire_delivered",
+      "sql": "SELECT reminder_fire.id, reminder_fire.reminder_id, reminder_fire.occurrence_key, reminder_fire.due_at, reminder_fire.fire_state, reminder_fire.delivery_result, reminder_fire.handled_at, reminder_fire.completed_at, reminder_fire.missed_catch_up, reminder_fire.created_at, reminder_fire.updated_at, reminder.content \nFROM reminder_fire JOIN reminder ON reminder_fire.reminder_id = reminder.id \nWHERE reminder_fire.reminder_id = %(reminder_id)s::UUID AND reminder_fire.delivery_result = %(delivery_result_1)s ORDER BY reminder_fire.created_at DESC"
+    },
+    {
+      "name": "outbound_message_containing_title",
+      "sql": "SELECT message.id, message.text \nFROM message JOIN turn ON message.turn_id = turn.id JOIN conversation ON turn.conversation_id = conversation.id \nWHERE conversation.account_id = %(account_id)s::UUID AND message.direction = %(direction_1)s AND message.text ILIKE %(title_like)s ORDER BY message.created_at DESC"
+    }
+  ],
+  "evidence_path": "artifacts/evidence/clean-smoke/dry-run.json"
+}

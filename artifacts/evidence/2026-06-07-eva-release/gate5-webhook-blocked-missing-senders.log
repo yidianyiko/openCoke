@@ -1,0 +1,1 @@
+{"status": "failed", "error": "missing required env vars: COKE_SMOKE_SENDER_A, COKE_SMOKE_SENDER_B"}
