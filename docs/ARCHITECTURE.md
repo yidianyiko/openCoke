@@ -152,6 +152,25 @@ context-token source and age, retry attempt, latency, and provider error code.
 These diagnostics must make waiting-message failures buckettable separately from
 final-reply failures even when they use the same provider adapter.
 
+Provider delivery confirmation is channel-bound and must not be overstated. A
+`delivery_attempt.status` of `sent` means the provider adapter accepted the
+outbound message (for `wechat_personal`, the iLink connector returned a success
+`ret` and assigned a `provider_message_id`); it does NOT mean the recipient's
+device received or read it. For `wechat_personal` (iLink driving a real personal
+WeChat account), there is no delivery or read receipt at all: personal WeChat does
+not expose one, and the connector only learns of inbound messages by polling iLink
+`get_updates` — it never receives an outbound delivery/read callback. Consequently
+`delivery_attempt.delivered_at` is always NULL for `wechat_personal`; this is a
+protocol limitation, not a bug, and the absence of `delivered`/`delivered_at` must
+never be treated as a missing feature to implement. The strongest server-side
+signal for this channel is `sent`; a failed send (e.g. iLink `ret=-2`,
+session-window/context-token failure) is recorded as `failed`, but "no failure"
+still does not prove receipt. Actual receipt for a WeChat recipient can only be
+inferred from the recipient's own subsequent inbound activity, never asserted from
+delivery rows. Channels that do expose delivery/read status (e.g. WhatsApp via
+Evolution `messages.update`) may legitimately populate `delivered`/`delivered_at`;
+that capability is per-provider and is not synthesizable for channels that lack it.
+
 Runtime-owned waiting text is emitted independently of the blocked Interaction
 Agent call. `coke-outbox-relay` scans active inbound turns and, after
 `COKE_WAITING_REPLY_AFTER_SECONDS` (default 20 seconds), persists

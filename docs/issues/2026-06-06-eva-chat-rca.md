@@ -1120,6 +1120,19 @@ the narrow `recoverable_scheduling_intent` artifact, and diagnostic-first
 delivery recovery. The open decisions deferred to product/human in the design
 review remain open.
 
+`2026-06-07` delivery-confirmation finding (closed, not a TODO): production data
+showed `wechat_personal` records only `sent`, never `delivered`/`delivered_at`.
+Investigation of the iLink connector confirmed this is a protocol limitation, not
+a missing feature: personal WeChat exposes no delivery/read receipt, and the
+connector only learns of inbound messages by polling iLink `get_updates` — there is
+no outbound delivery/read callback to record. The server therefore cannot prove a
+`wechat_personal` recipient received a message; `sent` (iLink success `ret` +
+`provider_message_id`) is the strongest achievable signal. This limitation and the
+exact `sent` semantics are documented in `docs/ARCHITECTURE.md` (provider delivery
+confirmation). The earlier "add delivery-receipt observability for wechat_personal"
+item is closed as not implementable; the actionable parts (honest `sent` semantics,
+recording negative/`failed` signals) are already in place.
+
 ## Evidence Commands
 
 The investigation used production SQL over:
