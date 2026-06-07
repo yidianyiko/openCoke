@@ -57,6 +57,8 @@ worker can commit the settlement and return normally, allowing the stream event
 to be acknowledged. Non-notification render topics still raise on missing
 account conversation, and explicit conversation lookup behavior is unchanged.
 
+Fix commit: `fd9f2268 fix(worker): drain no-conversation notification recipients`.
+
 ## Evidence
 
 - TDD red check:
