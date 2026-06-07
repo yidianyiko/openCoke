@@ -1,0 +1,4 @@
+internal_api_health={"ok":true}
+
+public_health={"ok":true}
+

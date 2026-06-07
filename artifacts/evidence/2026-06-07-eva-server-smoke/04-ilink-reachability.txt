@@ -1,0 +1,5 @@
+endpoint_url=http://host.docker.internal:8095/send
+connector_base=http://host.docker.internal:8095
+GET /healthz -> 200 {"connected":true,"connected_session_count":3,"ok":true,"status":"connected"}
+
+GET /login/status?account_id=probe&session_id=probe -> ERROR HTTPError: HTTP Error 404: NOT FOUND

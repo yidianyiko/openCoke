@@ -1,0 +1,6 @@
+   table_name    | count 
+-----------------+-------
+ shared_reminder |     0
+ reminder        |     0
+(2 rows)
+

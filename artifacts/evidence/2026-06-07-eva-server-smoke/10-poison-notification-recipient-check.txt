@@ -1,0 +1,8 @@
+                  id                  |        type        | object_type |              object_id               | status  |         recipient_account_id         | delivery_state | turn_id | error_facts |      recipient_conversation_id       
+--------------------------------------+--------------------+-------------+--------------------------------------+---------+--------------------------------------+----------------+---------+-------------+--------------------------------------
+ 20729d2e-4a16-4214-99a3-1b9230fdf050 | friendship_created | friendship  | bf47a5c7-6d7c-44a5-b1cd-1bf74b65a09c | created | 7920f2f7-a3ff-40b6-bdb6-f54b5f55b3ab | pending        |         | {}          | 
+ 20729d2e-4a16-4214-99a3-1b9230fdf050 | friendship_created | friendship  | bf47a5c7-6d7c-44a5-b1cd-1bf74b65a09c | created | ae02ff01-6fcd-4d39-a189-e51c8c8a31e6 | pending        |         | {}          | 7fed5c7c-08f9-4778-bdcc-c14b7f2cf346
+ 5793483d-2983-444e-9bbc-4daf4a892210 | friendship_created | friendship  | 26161b5c-b444-49d5-af31-081b79ab9e40 | created | 2eb7766d-c95c-45fb-84ab-78abdbdaf372 | pending        |         | {}          | 
+ 5793483d-2983-444e-9bbc-4daf4a892210 | friendship_created | friendship  | 26161b5c-b444-49d5-af31-081b79ab9e40 | created | ae02ff01-6fcd-4d39-a189-e51c8c8a31e6 | pending        |         | {}          | 7fed5c7c-08f9-4778-bdcc-c14b7f2cf346
+(4 rows)
+

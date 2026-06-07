@@ -1,12 +1,12 @@
 ---
 kind: active_issue
-status: resolved
+status: active
 surface:
   - worker-runtime
   - social-scheduling
   - product-notification
 created_at: 2026-05-31
-updated_at: 2026-05-31
+updated_at: 2026-06-07
 ---
 
 # 2026-05-31 Notification Turn Suppressed Shared-Reminder Recipient Delivery
@@ -102,3 +102,42 @@ Implemented a recipient-scoped notification render boundary:
   `549 passed in 17.22s` and `scripts/check` passed.
 - Evidence artifact:
   `artifacts/evidence/shared-reminder-real-user-smoke/2026-05-31-notification-turn-recipient-suppression.md`.
+
+## 2026-06-07 Follow-Up: Conversation-Less Notification Recipient Poisons Worker Reclaim
+
+The original recipient-scoped render fix remains the baseline, but the Eva
+server-side real-account smoke found a new production blocker before smoke
+scenario execution:
+
+- the clean stack and iLink connector were reachable;
+- `eva`, `olivers`, and `lizihao` had active `wechat_personal` channels, and
+  both `eva`/`olivers` and `lizihao`/`olivers` had active friendships;
+- `coke.work` had two pending `turn.notification` events, both
+  `friendship_created` notifications created by earlier
+  `channel_optional_join_smoke_*` accounts;
+- each poison event starts with an `account_id` that has no `conversation` row;
+- the worker loop reclaims pending events before polling new events, so it
+  repeatedly raises `conversation_not_found_for_account` and does not reach new
+  smoke turns.
+
+This should not be resolved by manually deleting unmarked production data. The
+runtime needs a product-safe handling path for notification recipients that have
+no reachable conversation, such as failing that recipient with structured
+`notification_render_failed` facts while allowing other reachable recipients to
+render.
+
+Evidence is saved under:
+
+```text
+artifacts/evidence/2026-06-07-eva-server-smoke/
+```
+
+Key evidence files:
+
+- `05-worker-stream-pending.txt`: `coke.work` group has `pending=2`.
+- `06-worker-log-blocker.txt`: repeated
+  `RuntimeError: conversation_not_found_for_account`.
+- `09-poison-outbox-conversation-check.txt`: both poison outbox account ids have
+  no conversation.
+- `10-poison-notification-recipient-check.txt`: affected recipients remain
+  `pending` with no `turn_id`.

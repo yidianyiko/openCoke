@@ -1,0 +1,42 @@
+coke-worker-1  | ERROR:__main__:worker loop iteration failed
+coke-worker-1  | Traceback (most recent call last):
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 83, in run_worker_loop
+coke-worker-1  |     count = consumer.reclaim_pending_once(
+coke-worker-1  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/stream_consumer.py", line 90, in reclaim_pending_once
+coke-worker-1  |     return self._handle_received(claimed, handler)
+coke-worker-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/stream_consumer.py", line 104, in _handle_received
+coke-worker-1  |     handler(event)
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 84, in <lambda>
+coke-worker-1  |     lambda event: _handle_event(
+coke-worker-1  |                   ^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 124, in _handle_event
+coke-worker-1  |     for trigger in _turn_triggers_from_event(runtime, event):
+coke-worker-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 483, in _turn_triggers_from_event
+coke-worker-1  |     _render_trigger(runtime, topic, render_payload)
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 590, in _render_trigger
+coke-worker-1  |     raise RuntimeError(f"conversation_not_found_for_account:{account_id}")
+coke-worker-1  | RuntimeError: conversation_not_found_for_account:2eb7766dc95c45fb84ab78abdbdaf372
+coke-worker-1  | ERROR:__main__:worker loop iteration failed
+coke-worker-1  | Traceback (most recent call last):
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 83, in run_worker_loop
+coke-worker-1  |     count = consumer.reclaim_pending_once(
+coke-worker-1  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/stream_consumer.py", line 90, in reclaim_pending_once
+coke-worker-1  |     return self._handle_received(claimed, handler)
+coke-worker-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/stream_consumer.py", line 104, in _handle_received
+coke-worker-1  |     handler(event)
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 84, in <lambda>
+coke-worker-1  |     lambda event: _handle_event(
+coke-worker-1  |                   ^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 124, in _handle_event
+coke-worker-1  |     for trigger in _turn_triggers_from_event(runtime, event):
+coke-worker-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 483, in _turn_triggers_from_event
+coke-worker-1  |     _render_trigger(runtime, topic, render_payload)
+coke-worker-1  |   File "/app/coke/worker/__main__.py", line 590, in _render_trigger
+coke-worker-1  |     raise RuntimeError(f"conversation_not_found_for_account:{account_id}")
+coke-worker-1  | RuntimeError: conversation_not_found_for_account:7920f2f7a3ff40b6bdb6f54b5f55b3ab

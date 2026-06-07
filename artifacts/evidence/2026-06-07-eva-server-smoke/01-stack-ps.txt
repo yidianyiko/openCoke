@@ -1,0 +1,8 @@
+NAME                             IMAGE                          COMMAND                  SERVICE             CREATED          STATUS                    PORTS
+coke-clean-coke-api-1            coke-clean-coke-api            "gunicorn coke.api.w…"   coke-api            55 minutes ago   Up 55 minutes (healthy)   127.0.0.1:8000->8000/tcp
+coke-clean-coke-outbox-relay-1   coke-clean-coke-outbox-relay   "python -m coke.work…"   coke-outbox-relay   55 minutes ago   Up 55 minutes             8000/tcp
+coke-clean-coke-scheduler-1      coke-clean-coke-scheduler      "python -m coke.sche…"   coke-scheduler      55 minutes ago   Up 55 minutes             8000/tcp
+coke-clean-coke-web-1            node:22-alpine                 "docker-entrypoint.s…"   coke-web            14 hours ago     Up 14 hours               127.0.0.1:4042->4040/tcp
+coke-clean-coke-worker-1         coke-clean-coke-worker         "python -m coke.work…"   coke-worker         55 minutes ago   Up 55 minutes             8000/tcp
+coke-clean-postgres-1            postgres:17-alpine             "docker-entrypoint.s…"   postgres            7 days ago       Up 7 days (healthy)       127.0.0.1:55432->5432/tcp
+coke-clean-redis-1               redis:7.2-alpine               "docker-entrypoint.s…"   redis               7 days ago       Up 7 days (healthy)       127.0.0.1:56379->6379/tcp
