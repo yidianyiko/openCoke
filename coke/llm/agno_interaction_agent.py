@@ -1437,18 +1437,24 @@ def _user_text(request: AgentRequest) -> str:
 
 def _json_text(content: str) -> str:
     stripped = content.strip()
-    if stripped.startswith("```"):
-        first_newline = stripped.find("\n")
-        if first_newline != -1:
-            stripped = stripped[first_newline + 1 :]
-        if stripped.endswith("```"):
-            stripped = stripped[:-3]
-        return stripped.strip()
-    start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        return stripped[start : end + 1]
+    fenced = _json_text_from_code_fence(stripped)
+    if fenced is not None:
+        return fenced
     return stripped
+
+
+def _json_text_from_code_fence(stripped: str) -> str | None:
+    # Normalize only a whole-response markdown envelope, never prose containing JSON.
+    if not stripped.startswith("```") or not stripped.endswith("```"):
+        return None
+    first_newline = stripped.find("\n")
+    if first_newline == -1:
+        return None
+    opening_line = stripped[:first_newline].strip()
+    if not opening_line.startswith("```"):
+        return None
+    inner = stripped[first_newline + 1 : -3]
+    return inner.strip()
 
 
 def _looks_like_serialized_tool_call(content: str) -> bool:

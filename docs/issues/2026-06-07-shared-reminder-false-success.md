@@ -37,12 +37,22 @@ claims must require a durable active shared-reminder fact, and a create intent
 with no social-scheduling outcome must fail closed instead of allowing pure
 language inference from a duplicated input window.
 
+Separate first-turn output-envelope finding: the 11:38 Interaction Agent answer
+was valid Coke output JSON wrapped in a markdown code fence. That is a common
+LLM output envelope and should normalize before JSON parsing. The bounded fix
+must unwrap only a clear whole-response code fence and must not scrape JSON from
+arbitrary prose or accept incomplete fences.
+
 ## Acceptance
 
 - A retry after a failed, unmaterialized staged command must not deliver an
   already-exists or created reply when no active shared reminder exists.
 - A legitimate `duplicate_active` claim is allowed only when it references an
   active shared reminder visible to the current user.
+- A valid reply object wrapped in a closed markdown code fence parses as the
+  same output mapping as an unfenced JSON string.
+- Genuinely invalid output, arbitrary prose containing JSON, incomplete fences,
+  and serialized tool-call text still fail closed.
 - Verification includes targeted regression tests, unit suite, and diff-aware
   surface routing.
 
@@ -63,6 +73,19 @@ layer:
   requires a social-scheduling outcome unless the current turn has actually
   staged a fresh social-scheduling create command for close materialization.
 
+Follow-up fix commit: this branch handoff commit,
+`fix: normalize fenced interaction JSON output`.
+
+The output-envelope fix is in `coke/llm/agno_interaction_agent.py` at the
+single `_json_text` / `_mapping_or_none` parse seam:
+
+- A whole-response markdown code fence with an opening line and trailing
+  closing fence is stripped before `json.loads`.
+- Unfenced JSON is still parsed directly.
+- Prose containing a JSON-looking substring and unclosed fences are passed to
+  `json.loads` unchanged and therefore fail closed.
+- Serialized tool-call text is still classified before envelope normalization.
+
 ## Verification
 
 - RED evidence: targeted regression run initially failed because unbacked
@@ -81,3 +104,15 @@ layer:
   `zsh scripts/review-trigger --base HEAD~1` returned
   `human_review_required: no`; medium non-blocking triggers were repo-OS docs
   and evidence-gap warnings.
+- RED output-envelope evidence:
+  `.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py -q -k "fenced_json or prose_wrapped_json or unclosed_code_fence or malformed_agno_response or serialized_tool_call_content or unfenced_json_string"`
+  initially failed because prose-wrapped JSON and an unclosed fence were parsed
+  as replies.
+- Targeted green after output-envelope normalization:
+  the same focused command passed: 7 passed in 1.97s.
+- Full Interaction Agent file after output-envelope normalization:
+  `.venv/bin/python -m pytest tests/unit/coke/llm/test_interaction_agent.py -q`
+  passed: 71 passed in 2.08s.
+- Full unit suite after output-envelope normalization:
+  `.venv/bin/python -m pytest tests/unit/coke -q` passed: 823 passed in
+  21.62s.

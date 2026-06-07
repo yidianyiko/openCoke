@@ -239,6 +239,36 @@ def test_malformed_agno_response_is_not_rewritten_to_prose():
     assert result.timed_out is False
 
 
+def test_prose_wrapped_json_agno_response_is_not_scraped_from_text():
+    fake_agent = FakeAgentInstance(
+        content='Here is the answer:\n{"type":"reply","segments":["ok"]}\nThanks'
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(_request(memory_enabled=True))
+
+    assert result.output is None
+    assert result.timed_out is False
+
+
+def test_unclosed_code_fence_agno_response_is_not_treated_as_clear_envelope():
+    fake_agent = FakeAgentInstance(
+        content='```json\n{"type":"reply","segments":["ok"]}'
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(_request(memory_enabled=True))
+
+    assert result.output is None
+    assert result.timed_out is False
+
+
 def test_serialized_tool_call_content_is_classified_for_protocol_retry():
     fake_agent = FakeAgentInstance(
         content=(
@@ -288,9 +318,31 @@ def test_unstructured_state_change_reply_is_not_phrase_scanned():
     assert fake_agent.calls
 
 
-def test_fenced_json_agno_response_maps_to_agent_result():
+@pytest.mark.parametrize(
+    ("content", "expected_segment"),
+    [
+        ('```json\n{"type":"reply","segments":["json fence"]}\n```', "json fence"),
+        ('\n  ```\n{"type":"reply","segments":["bare fence"]}\n```\n', "bare fence"),
+    ],
+)
+def test_fenced_json_agno_response_maps_to_agent_result(
+    content: str, expected_segment: str
+):
+    fake_agent = FakeAgentInstance(content=content)
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(_request(memory_enabled=True))
+
+    assert result.output == {"type": "reply", "segments": [expected_segment]}
+    assert result.timed_out is False
+
+
+def test_unfenced_json_string_agno_response_maps_to_agent_result():
     fake_agent = FakeAgentInstance(
-        content='```json\n{"type":"reply","segments":["ok"]}\n```'
+        content='{"type":"reply","segments":["plain json"]}'
     )
     agent = AgnoInteractionAgent(
         model=object(),
@@ -299,7 +351,7 @@ def test_fenced_json_agno_response_maps_to_agent_result():
 
     result = agent.invoke(_request(memory_enabled=True))
 
-    assert result.output == {"type": "reply", "segments": ["ok"]}
+    assert result.output == {"type": "reply", "segments": ["plain json"]}
     assert result.timed_out is False
 
 
