@@ -217,23 +217,53 @@ so it is a SECOND typed exception. The implementation change MUST document it in
 `invalid_output_protocol` on shared bookings is the trigger that Component 1
 gracefully catches; Component 2 reduces how often it fires.
 
-**Reproduction first (gate).** Build a regression case that drives a shared
-booking ("约 {friend} {time} 健身") through the interaction agent against the
-real social-scheduling contract validator and reproduces an
-`invalid_output_protocol` with a `social_scheduling_*` retry-guidance code. The
-exact production output for eva's turn is unrecoverable (worker container was
-recreated), so reproduction defines the fix.
+**Reproduction (DONE, 2026-06-08, prod live injection on test account olivers).**
+A synthetic wechat inbound "上午11点约 lizihao 健身" (lizihao is an EXACT friend
+match — so this is NOT friend ambiguity) reproduced the failure. Evidence from
+the staged command + preview facts:
 
-**Likely cause and fix direction (to confirm via reproduction).** The validator
-fails when the agent's claim does not match a durable social-scheduling outcome
-(`output_protocol.py:100-156`). The fix is at the agent-contract layer: make the
-agent's shared-booking reply contract reliably emit a claim that matches the
-staged/committed outcome (or no claim when it staged a create command for close
-materialization), so a legitimate booking validates instead of failing closed.
-Do NOT weaken the validator to pass — that would reopen the false-success hole
-(`8ff8de1c`). If reproduction shows the failure is genuine model malformation
-(not a contract mismatch), Component 1 is the correct and sufficient handling and
-Component 2 reduces to prompt/contract hardening only.
+- The tool staged `social_scheduling/detect_and_create_shared_reminder` with
+  outcome `status: "staged_pending_close"` (a create that materializes title/time
+  on a clean close; `title`/`local_trigger_at` are null pre-close).
+- The validator map (`output_protocol.py:25`) allows EXACTLY ONE claim for that
+  status: `"staged_pending_close": {"no_success_claim"}`. So the agent's reply
+  must carry `domain_claim {status: staged_pending_close, claim: no_success_claim,
+  outcome_id: ...}`. When it emits anything else (a success-ish claim, a
+  mismatched status, or no claim), validation fails → `invalid_output_protocol`.
+- C1 confirmed working: the turn went `recovered` (not silent), staged command
+  `superseded`, NO `shared_reminder`/`notification_fact` created, no false
+  success.
+
+So the root cause is **contract-adherence**: the agent intermittently fails to
+emit the exact `no_success_claim`/`staged_pending_close` structured claim that the
+runtime already knows is correct. This matches the intermittent recurrence.
+
+**Chosen fix — runtime derives the claim for `staged_pending_close` (option 1).**
+The outcome status for a staged create is deterministic and known to the runtime,
+so do not depend on the LLM to re-emit the matching structured claim. When the
+gathered social-scheduling outcome is `staged_pending_close`, the contract layer
+derives `no_success_claim` itself and accepts the reply (the LLM owns only the
+natural-language prose; the runtime owns the structured claim). Likely seam:
+`_enforce_tool_reply_contracts` (`agno_interaction_agent.py:705`) /
+`validate_social_scheduling_claim` (`output_protocol.py:100`).
+
+**Hard guardrail (must not reopen `8ff8de1c`).** Runtime-derive applies ONLY to
+the `staged_pending_close` (no-success) case. An affirmative over-claim — agent
+asserting `created_active`/`duplicate_active` (an ACTIVE shared reminder exists)
+when the outcome is not active / has no durable `shared_reminder_id` — MUST still
+fail closed exactly as today. The existing false-success regressions
+(`2026-06-07-shared-reminder-false-success.md`,
+`tests/unit/coke/turn/test_turn_runner.py`) MUST stay green.
+
+### Component 1 follow-up bug (found during C2 reproduction)
+
+`_grounded_recovery_text` showed a raw participant account UUID
+("我没能帮你完成「635d3bdc…」") because a `detect_and_create_shared_reminder`
+staged command has `title == null` pre-close, and
+`_recovery_intent_from_staged_command` fell back to `participant_account_ids[0]`.
+Fix: when `title` is null, ground the recovery intent on the staged command's
+`raw_text` (the user's own words, present in `command_payload`), never on a
+participant account id.
 
 ### Component 3 — Coalesced-window answer completeness (DEFERRED)
 
