@@ -82,7 +82,12 @@ def test_openai_like_model_uses_siliconflow_settings_and_interaction_timeout():
 
     assert interaction_model.id == "zai-org/GLM-5.1-interaction"
     assert interaction_model.timeout == 31.5
+    # Thinking is disabled on every turn-path model, not just the detector:
+    # GLM-5.1 thinking mode leaks reasoning into final content and breaks the
+    # JSON output protocol (forcing full agent re-runs) while inflating latency.
+    assert interaction_model.extra_body == {"enable_thinking": False}
     assert interpreter_model.timeout is None
+    assert interpreter_model.extra_body == {"enable_thinking": False}
     assert model.id == "zai-org/GLM-5.1"
     assert str(model.base_url) == SILICONFLOW_BASE_URL
     assert model.api_key == "test-key"

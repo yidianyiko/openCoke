@@ -8,7 +8,9 @@ from agno.models.openai.like import OpenAILike
 
 # Verified against the live SiliconFlow model catalog (/v1/models): the GLM-5.1
 # serverless id carries the `Pro/` prefix; `zai-org/GLM-5.1` returns
-# "Model does not exist". Detector stays on GLM-5.1 thinking-off (locked).
+# "Model does not exist". All turn-path models (interaction, interpreter,
+# detector) run GLM-5.1 with thinking disabled: thinking mode breaks the JSON
+# output protocol and inflates latency without a verified quality gain.
 SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
 DEFAULT_INTERACTION_MODEL = "Pro/zai-org/GLM-5.1"
 DEFAULT_INTERPRETER_MODEL = "Pro/zai-org/GLM-5.1"
@@ -82,13 +84,21 @@ class SiliconFlowLLMConfig:
         )
 
     def create_interaction_model(self) -> OpenAILike:
+        # Thinking is disabled on the interaction agent: GLM-5.1 thinking mode
+        # leaks reasoning into the final message and frequently breaks the JSON
+        # output protocol, forcing a full agent re-run, while also multiplying
+        # per-call latency across the agent's tool loop.
         return self._create_model(
             self.interaction_model,
             timeout=self.interaction_timeout_s,
+            extra_body={"enable_thinking": False},
         )
 
     def create_interpreter_model(self) -> OpenAILike:
-        return self._create_model(self.interpreter_model)
+        return self._create_model(
+            self.interpreter_model,
+            extra_body={"enable_thinking": False},
+        )
 
     def create_detector_model(self) -> OpenAILike:
         return self._create_model(
