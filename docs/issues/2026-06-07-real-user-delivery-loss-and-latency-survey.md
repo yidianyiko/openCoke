@@ -264,6 +264,38 @@ resend rescuing deliveries during the outage. Current failures (2026-06-06:
   priority; consider closing superseded turns promptly so duration metrics are
   not polluted.
 
+## Reminder Fire Latency (measured 2026-06-08)
+
+Operator-reported reminder slowness ("feels like 2-3 min"). Measured on
+`reminder_fire` (gcp-coke prod), n=13 delivered fires over 14 days, excluding one
+53-min cutover-period outlier (2026-06-02). The runtime tracks fire lifecycle via
+`created_at` (scheduler claimed the due fire) and `updated_at` (delivered);
+`handled_at`/`completed_at` columns exist but are never populated.
+
+| Phase | source | p50 | p90 |
+|-------|--------|-----|-----|
+| Detection lag | `created_at - due_at` | 37s | 43s |
+| Render + send | `updated_at - created_at` | 26s | 38s |
+| Total (fire -> send) | `updated_at - due_at` | 58s | 81s |
+
+Steady-state median is ~1 min, not 2-3 min, but perceived latency is inflated by
+(a) co-due reminders queueing (same-minute fires took 78-99s for the later one),
+(b) no delivery receipt (`updated_at` is when we sent, not when iLink delivered),
+and (c) the 53-min tail outlier.
+
+Root cause of the floor: `scheduler_interval_s` defaulted to **60s**, so the
+scheduler scans for due reminders only once per minute. That detection lag
+(p50 37s) was the single largest latency component — pure wait before any
+render/send work begins. Render+send (~26s) is dominated by the same ~18-20s LLM
+turn floor as chat (bucket 3).
+
+**Fix applied (2026-06-08):** lowered `scheduler_interval_s` default 60 -> 15
+(`coke/config.py`; prod has `COKE_SCHEDULER_INTERVAL_S` unset, so the default
+governs). Expected detection lag p50 ~7.5s, cutting ~30s off every reminder
+(total ~58s -> ~30s). The indexed `due_at` scan stays cheap at 15s cadence.
+Remaining latency is the LLM render turn; templating reminder copy to skip the
+LLM is a separate product decision (not done here).
+
 ## Verification Method (reproducible)
 
 Read-only `psql` against `coke-clean-postgres-1` on `gcp-coke`. Key joins:
