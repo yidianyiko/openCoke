@@ -66,7 +66,7 @@ from coke.infra.redis import (
 )
 from coke.infra.tracing import ensure_traceparent
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
-from coke.llm.config import SiliconFlowLLMConfig
+from coke.llm.config import SiliconFlowMediaConfig, ZAILLMConfig
 from coke.llm.media_text import (
     MediaTextResolver,
     SiliconFlowAsrClient,
@@ -1672,42 +1672,50 @@ def _llm_from_settings(settings: Settings):
             FakeReminderDetector(),
             None,
         )
-    if not settings.siliconflow_api_key:
-        raise ConfigurationError("SiliconFlow_API_KEY is required for LLM composition")
-    llm_config = SiliconFlowLLMConfig(
-        api_key=settings.siliconflow_api_key,
-        base_url=settings.siliconflow_base_url,
+    if not settings.zai_api_key:
+        raise ConfigurationError("ZAI_API_KEY is required for LLM composition")
+    llm_config = ZAILLMConfig(
+        api_key=settings.zai_api_key,
+        base_url=settings.zai_base_url,
         interaction_model=settings.interaction_model,
         interpreter_model=settings.interpreter_model,
         detector_model=settings.detector_model,
         interaction_timeout_s=settings.interaction_timeout_s,
         agno_database_url=settings.agno_database_url,
         agno_create_schema=settings.agno_create_schema,
-        asr_model=settings.asr_model,
-        vision_text_model=settings.vision_text_model,
-        media_model_timeout_s=settings.media_model_timeout_s,
     )
     media_text_resolver = None
-    if llm_config.asr_model or llm_config.vision_text_model:
+    if settings.asr_model or settings.vision_text_model:
+        if not settings.siliconflow_api_key:
+            raise ConfigurationError(
+                "SiliconFlow_API_KEY is required for media model composition"
+            )
+        media_config = SiliconFlowMediaConfig(
+            api_key=settings.siliconflow_api_key,
+            base_url=settings.siliconflow_base_url,
+            asr_model=settings.asr_model,
+            vision_text_model=settings.vision_text_model,
+            media_model_timeout_s=settings.media_model_timeout_s,
+        )
         media_text_resolver = MediaTextResolver(
             asr_client=(
                 SiliconFlowAsrClient(
-                    api_key=llm_config.api_key,
-                    base_url=llm_config.base_url,
-                    model_id=llm_config.asr_model,
-                    timeout_s=llm_config.media_model_timeout_s,
+                    api_key=media_config.api_key,
+                    base_url=media_config.base_url,
+                    model_id=media_config.asr_model,
+                    timeout_s=media_config.media_model_timeout_s,
                 )
-                if llm_config.asr_model
+                if media_config.asr_model
                 else None
             ),
             vision_text_client=(
                 SiliconFlowVisionTextClient(
-                    api_key=llm_config.api_key,
-                    base_url=llm_config.base_url,
-                    model_id=llm_config.vision_text_model,
-                    timeout_s=llm_config.media_model_timeout_s,
+                    api_key=media_config.api_key,
+                    base_url=media_config.base_url,
+                    model_id=media_config.vision_text_model,
+                    timeout_s=media_config.media_model_timeout_s,
                 )
-                if llm_config.vision_text_model
+                if media_config.vision_text_model
                 else None
             ),
         )

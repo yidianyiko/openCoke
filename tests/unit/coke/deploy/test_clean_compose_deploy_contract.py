@@ -231,6 +231,16 @@ def test_deploy_script_targets_clean_project_without_legacy_gateway_logic() -> N
         assert legacy_term not in lowered
 
 
+def test_deploy_script_writes_zai_key_for_official_text_glm_provider() -> None:
+    script = DEPLOY_SCRIPT.read_text()
+
+    assert 'zai_api_key="$(read_env ZAI_API_KEY)"' in script
+    assert '[[ -n "$zai_api_key" ]] || missing+=("ZAI_API_KEY")' in script
+    assert "ZAI_API_KEY=${zai_api_key}" in script
+    assert "SiliconFlow_API_KEY=${siliconflow_api_key}" in script
+    assert 'missing+=("SiliconFlow_API_KEY")' not in script
+
+
 def test_docker_build_context_excludes_clean_web_package_caches() -> None:
     dockerignore = DOCKERIGNORE.read_text()
     script = DEPLOY_SCRIPT.read_text()

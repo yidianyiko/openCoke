@@ -10,7 +10,7 @@ from agno.agent import Agent
 from agno.db.postgres import PostgresDb
 from agno.memory.manager import MemoryManager as AgnoMemoryManager
 
-from coke.llm.config import SiliconFlowLLMConfig
+from coke.llm.config import ZAILLMConfig
 from coke.turn.agent import (
     AgentRequest,
     AgentResult,
@@ -115,7 +115,7 @@ class AgnoInteractionAgent:
         self,
         *,
         model,
-        config: SiliconFlowLLMConfig | None = None,
+        config: ZAILLMConfig | None = None,
         agent_factory: AgentFactory = Agent,
         db: Any | None = None,
         memory_manager_factory: Callable[..., Any] = CokeAgnoMemoryManager,
@@ -130,7 +130,7 @@ class AgnoInteractionAgent:
         self._async_requests: dict[str, AgentRequest] = {}
 
     @classmethod
-    def from_config(cls, config: SiliconFlowLLMConfig) -> AgnoInteractionAgent:
+    def from_config(cls, config: ZAILLMConfig) -> AgnoInteractionAgent:
         return cls(model=config.create_interaction_model(), config=config)
 
     def invoke(self, request: AgentRequest) -> AgentResult:
@@ -325,7 +325,7 @@ class AgnoInteractionAgent:
     def _input_payload(self, request: AgentRequest) -> dict[str, Any]:
         return _support_payload(request)
 
-    def _build_db(self, config: SiliconFlowLLMConfig | None):
+    def _build_db(self, config: ZAILLMConfig | None):
         if config is None or config.agno_database_url is None:
             return None
         return PostgresDb(

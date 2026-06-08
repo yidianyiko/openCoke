@@ -63,6 +63,7 @@ def test_runtime_wires_media_text_resolver_when_media_models_are_configured(
     settings = Settings(
         database_url="sqlite://",
         redis_url="redis://localhost:6379/0",
+        zai_api_key="zai-key",
         siliconflow_api_key="sf-key",
         llm_fake=False,
         asr_model="sensevoice-candidate",
@@ -74,6 +75,11 @@ def test_runtime_wires_media_text_resolver_when_media_models_are_configured(
     )
 
     assert runtime.media_text_resolver is not None
+    assert runtime.turn_runner.interaction_agent.model.api_key == "zai-key"
+    assert runtime.turn_runner.semantic_interpreter.client.model.api_key == "zai-key"
+    assert runtime.reminder_service.detector.client.model.api_key == "zai-key"
+    assert runtime.media_text_resolver.asr_client.api_key == "sf-key"
+    assert runtime.media_text_resolver.vision_text_client.api_key == "sf-key"
 
 
 def test_wsgi_import_builds_app_with_fake_llm_without_live_model(monkeypatch):

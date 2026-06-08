@@ -203,6 +203,7 @@ def test_settings_from_env_rejects_public_base_url_query_for_production(
 
 
 def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
+    from coke.llm.config import ZAI_BASE_URL
     from coke.config import Settings
 
     monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
@@ -210,6 +211,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_BASE_URL", "https://evolution.test")
     monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_API_KEY", "evolution-key")
     monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_INSTANCE", "coke")
+    monkeypatch.setenv("ZAI_API_KEY", "zai-key")
     monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
     monkeypatch.setenv("COKE_INTERACTION_MODEL", "custom/interaction")
     monkeypatch.setenv("COKE_INTERPRETER_MODEL", "custom/interpreter")
@@ -231,6 +233,8 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     assert settings.evolution_base_url == "https://evolution.test"
     assert settings.evolution_api_key == "evolution-key"
     assert settings.evolution_instance == "coke"
+    assert settings.zai_api_key == "zai-key"
+    assert settings.zai_base_url == ZAI_BASE_URL
     assert settings.siliconflow_api_key == "sf-key"
     assert settings.interaction_model == "custom/interaction"
     assert settings.interpreter_model == "custom/interpreter"
@@ -300,6 +304,7 @@ def test_settings_from_env_reads_media_model_configuration(monkeypatch):
 
     settings = Settings.from_env()
 
+    assert settings.siliconflow_api_key == "sf-key"
     assert settings.asr_model == "sensevoice-candidate"
     assert settings.vision_text_model == "qwen-vl-candidate"
     assert settings.media_model_timeout_s == 75.0
@@ -317,21 +322,23 @@ def test_settings_from_env_rejects_invalid_interaction_timeout(monkeypatch):
         Settings.from_env()
 
 
-def test_settings_from_env_allows_fake_llm_without_siliconflow_key(monkeypatch):
+def test_settings_from_env_allows_fake_llm_without_model_keys(monkeypatch):
     from coke.config import Settings
 
     monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
     monkeypatch.setenv("REDIS_URL", REDIS_URL)
     monkeypatch.setenv("COKE_LLM_FAKE", "1")
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
     monkeypatch.delenv("SiliconFlow_API_KEY", raising=False)
 
     settings = Settings.from_env()
 
     assert settings.llm_fake is True
+    assert settings.zai_api_key is None
     assert settings.siliconflow_api_key is None
 
 
-def test_settings_from_env_requires_siliconflow_key_for_real_llm(monkeypatch):
+def test_settings_from_env_requires_zai_key_for_real_llm(monkeypatch):
     from coke.config import ConfigurationError, Settings
 
     monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
@@ -339,6 +346,25 @@ def test_settings_from_env_requires_siliconflow_key_for_real_llm(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("COKE_PUBLIC_BASE_URL", "https://coke.example.com")
     monkeypatch.setenv("RESEND_API_KEY", "resend-key")
+    monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
+    monkeypatch.delenv("COKE_LLM_FAKE", raising=False)
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError, match="ZAI_API_KEY"):
+        Settings.from_env()
+
+
+def test_settings_from_env_requires_siliconflow_key_for_production_media_models(
+    monkeypatch,
+):
+    from coke.config import ConfigurationError, Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("COKE_PUBLIC_BASE_URL", "https://coke.example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "resend-key")
+    monkeypatch.setenv("ZAI_API_KEY", "zai-key")
     monkeypatch.delenv("COKE_LLM_FAKE", raising=False)
     monkeypatch.delenv("SiliconFlow_API_KEY", raising=False)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
-from coke.llm.config import SiliconFlowLLMConfig
+from coke.llm.config import SiliconFlowMediaConfig, ZAILLMConfig
 from coke.llm.media_text import (
     AsrClient,
     MediaTextResolution,
@@ -18,10 +18,11 @@ __all__ = [
     "AsrClient",
     "MediaTextResolution",
     "MediaTextResolver",
-    "SiliconFlowLLMConfig",
+    "SiliconFlowMediaConfig",
     "SiliconFlowAsrClient",
     "SiliconFlowVisionTextClient",
     "SiliconFlowReminderDetector",
     "SiliconFlowSemanticInterpreter",
     "VisionTextClient",
+    "ZAILLMConfig",
 ]

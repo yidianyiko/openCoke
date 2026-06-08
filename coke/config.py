@@ -14,6 +14,7 @@ from coke.llm.config import (
     DEFAULT_MEDIA_MODEL_TIMEOUT_S,
     DEFAULT_VISION_TEXT_MODEL,
     SILICONFLOW_BASE_URL,
+    ZAI_BASE_URL,
 )
 
 # WeChat personal sends go worker -> connector -> upstream iLink synchronously.
@@ -48,6 +49,8 @@ class Settings:
     resend_api_key: str | None = None
     email_from: str = "noreply@keep4oforever.com"
     email_from_name: str | None = None
+    zai_api_key: str | None = None
+    zai_base_url: str = ZAI_BASE_URL
     siliconflow_api_key: str | None = None
     siliconflow_base_url: str = SILICONFLOW_BASE_URL
     interaction_model: str = DEFAULT_INTERACTION_MODEL
@@ -111,10 +114,24 @@ class Settings:
             raise ConfigurationError(
                 "RESEND_API_KEY is required for production email delivery"
             )
+        zai_api_key = _optional(source, "ZAI_API_KEY")
         siliconflow_api_key = _optional(source, "SiliconFlow_API_KEY")
-        if app_env == "production" and not llm_fake and not siliconflow_api_key:
+        asr_model = _optional(source, "COKE_ASR_MODEL") or DEFAULT_ASR_MODEL
+        vision_text_model = (
+            _optional(source, "COKE_VISION_TEXT_MODEL") or DEFAULT_VISION_TEXT_MODEL
+        )
+        if app_env == "production" and not llm_fake and not zai_api_key:
             raise ConfigurationError(
-                "SiliconFlow_API_KEY is required for production LLM startup"
+                "ZAI_API_KEY is required for production LLM startup"
+            )
+        if (
+            app_env == "production"
+            and not llm_fake
+            and (asr_model or vision_text_model)
+            and not siliconflow_api_key
+        ):
+            raise ConfigurationError(
+                "SiliconFlow_API_KEY is required for production media model startup"
             )
 
         return cls(
@@ -148,6 +165,8 @@ class Settings:
             resend_api_key=resend_api_key,
             email_from=(_optional(source, "EMAIL_FROM") or "noreply@keep4oforever.com"),
             email_from_name=_optional(source, "EMAIL_FROM_NAME"),
+            zai_api_key=zai_api_key,
+            zai_base_url=_optional(source, "ZAI_BASE_URL") or ZAI_BASE_URL,
             siliconflow_api_key=siliconflow_api_key,
             siliconflow_base_url=(
                 _optional(source, "SILICONFLOW_BASE_URL") or SILICONFLOW_BASE_URL
@@ -170,10 +189,8 @@ class Settings:
                 _optional(source, "COKE_AGNO_DATABASE_URL") or database_url
             ),
             agno_create_schema=_bool_env(source, "COKE_AGNO_CREATE_SCHEMA"),
-            asr_model=_optional(source, "COKE_ASR_MODEL") or DEFAULT_ASR_MODEL,
-            vision_text_model=(
-                _optional(source, "COKE_VISION_TEXT_MODEL") or DEFAULT_VISION_TEXT_MODEL
-            ),
+            asr_model=asr_model,
+            vision_text_model=vision_text_model,
             media_model_timeout_s=_positive_float(
                 source,
                 "COKE_MEDIA_MODEL_TIMEOUT_S",
