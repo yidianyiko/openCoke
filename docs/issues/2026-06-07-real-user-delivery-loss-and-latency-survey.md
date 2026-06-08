@@ -289,12 +289,21 @@ scheduler scans for due reminders only once per minute. That detection lag
 render/send work begins. Render+send (~26s) is dominated by the same ~18-20s LLM
 turn floor as chat (bucket 3).
 
-**Fix applied (2026-06-08):** lowered `scheduler_interval_s` default 60 -> 15
-(`coke/config.py`; prod has `COKE_SCHEDULER_INTERVAL_S` unset, so the default
-governs). Expected detection lag p50 ~7.5s, cutting ~30s off every reminder
-(total ~58s -> ~30s). The indexed `due_at` scan stays cheap at 15s cadence.
-Remaining latency is the LLM render turn; templating reminder copy to skip the
-LLM is a separate product decision (not done here).
+**Fix applied + deployed (2026-06-08, SHA `e13012ac`):** lowered
+`scheduler_interval_s` default 60 -> 15 (`coke/config.py`; prod has
+`COKE_SCHEDULER_INTERVAL_S` unset, so the default governs). Deployed to gcp-coke
+and verified live: scheduler container runs the new default and re-registered
+`scheduler_scan_job` cleanly. Expected detection lag p50 ~7.5s, cutting ~30s off
+every reminder (total ~58s -> ~30s); to be confirmed once post-deploy fires
+accumulate. The indexed `due_at` scan stays cheap at 15s cadence.
+
+Remaining latency is the ~18-20s LLM render turn (`run_render_turn` ->
+interaction agent with the `render_reminder_fire` contract). A bare templated
+fallback `_minimal_reminder_fire_reply` already exists (`runner.py`) but only as
+a validation-failure fallback and produces machine-like copy
+(`{title} {YYYY-MM-DD HH:MM} {tz}`). Removing the LLM from the fire critical path
+(best option: pre-render warm copy at reminder-creation time, store it, send
+verbatim at fire time) is a separate product decision (not done here).
 
 ## Verification Method (reproducible)
 
