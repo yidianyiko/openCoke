@@ -42,6 +42,13 @@ class ConnectorMediaPayload:
         }
 
 
+# Upper bound on per-message webhook delivery attempts. Once an inbound message
+# has been rejected this many times across poll cycles, the connector drops it
+# and advances the cursor so one poison message can never block a session
+# forever. Re-delivery of already-recorded events is idempotent server-side.
+MAX_WEBHOOK_DELIVERY_ATTEMPTS = 5
+
+
 @dataclass(frozen=True)
 class ConnectorConfig:
     api_key: str | None = None
@@ -471,21 +478,50 @@ def _poll_session_once(
     )
     next_cursor = updates.get("get_updates_buf")
     context_tokens = dict(session.get("context_tokens") or {})
+    delivery_attempts = _delivery_attempts(session)
     delivered = 0
     for message in updates.get("msgs") or []:
         payload = _clean_webhook_payload(message, session_id, session)
         if not payload:
             continue
+        message_id = payload["message_id"]
         context_tokens[payload["wxid"]] = payload["context_token"]
-        response = webhook_client.post(
-            config.webhook_url,
-            json=payload,
-            headers=_webhook_headers(config),
-            timeout=10.0,
-        )
-        response.raise_for_status()
+        try:
+            response = webhook_client.post(
+                config.webhook_url,
+                json=payload,
+                headers=_webhook_headers(config),
+                timeout=10.0,
+            )
+            response.raise_for_status()
+        except Exception as error:  # noqa: BLE001 - delivery must stay bounded
+            attempts = delivery_attempts.get(message_id, 0) + 1
+            if attempts < MAX_WEBHOOK_DELIVERY_ATTEMPTS:
+                # Bounded retry: keep the cursor so this batch is re-polled, but
+                # persist the attempt count and back off. A single rejected
+                # inbound must not be silently lost on its first transient error.
+                delivery_attempts[message_id] = attempts
+                state.update_session(
+                    session_id,
+                    {
+                        "context_tokens": context_tokens,
+                        "delivery_attempts": delivery_attempts,
+                        **_poll_error_updates(session, error),
+                    },
+                )
+                return delivered
+            # Attempt cap reached: drop the poison message and let the cursor
+            # advance. A persistently rejected inbound can never again block the
+            # session's cursor forever.
+            _log_webhook_delivery_dropped(message_id, attempts, error)
+            delivery_attempts.pop(message_id, None)
+            continue
+        delivery_attempts.pop(message_id, None)
         delivered += 1
-    updates_to_save: dict[str, Any] = {"context_tokens": context_tokens}
+    updates_to_save: dict[str, Any] = {
+        "context_tokens": context_tokens,
+        "delivery_attempts": delivery_attempts,
+    }
     if next_cursor is not None:
         updates_to_save["cursor"] = next_cursor
     if session.get("last_poll_error"):
@@ -819,6 +855,31 @@ def _poll_error_count(session: dict[str, Any]) -> int:
 def _poll_retry_delay_seconds(error_count: int) -> float:
     exponent = min(max(error_count - 1, 0), 5)
     return min(60.0, 2.0**exponent)
+
+
+def _delivery_attempts(session: dict[str, Any]) -> dict[str, int]:
+    raw = session.get("delivery_attempts")
+    if not isinstance(raw, dict):
+        return {}
+    attempts: dict[str, int] = {}
+    for key, value in raw.items():
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            continue
+        if count > 0:
+            attempts[str(key)] = count
+    return attempts
+
+
+def _log_webhook_delivery_dropped(
+    message_id: str, attempts: int, error: BaseException
+) -> None:
+    print(
+        "[connector] webhook delivery dropped after "
+        f"{attempts} attempts message_id={message_id} error={error!r}",
+        flush=True,
+    )
 
 
 def _authorized(config: ConnectorConfig) -> bool:

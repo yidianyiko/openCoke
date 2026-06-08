@@ -9,7 +9,15 @@ from coke.domains.channel_reachability.models import (
     PRODUCT_CHANNEL_PROVIDER_TYPES,
     ChannelReachabilityError,
 )
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.infra.tracing import ensure_traceparent
+
+# Provider webhooks are at-least-once: a connector may re-deliver an inbound
+# event it already delivered. When the inbound was already recorded and
+# enqueued, recording it again collides on the `inbound:<event_id>` outbox
+# idempotency key. That is an idempotent replay, not a fault — acknowledge it so
+# the connector stops re-delivering instead of looping on a 500 forever.
+_IDEMPOTENT_INBOUND_REPLAY_CODES = frozenset({"duplicate_outbox_idempotency_key"})
 
 
 def create_provider_webhook_blueprint(
@@ -61,15 +69,21 @@ def create_provider_webhook_blueprint(
         inbound_event = adapter.normalize_inbound(_json_payload())
         accepted = reachability_service.accept_provider_inbound(inbound_event)
         if conversation_runtime_service is not None:
-            conversation_runtime_service.record_inbound(
-                account_id=accepted.account_id,
-                channel_identity_id=accepted.channel_identity_id,
-                causal_inbound_event_id=accepted.raw_event_id,
-                text=inbound_event.text,
-                payload=dict(inbound_event.payload or {}),
-                traceparent=_request_traceparent(),
-                media=inbound_event.media,
-            )
+            try:
+                conversation_runtime_service.record_inbound(
+                    account_id=accepted.account_id,
+                    channel_identity_id=accepted.channel_identity_id,
+                    causal_inbound_event_id=accepted.raw_event_id,
+                    text=inbound_event.text,
+                    payload=dict(inbound_event.payload or {}),
+                    traceparent=_request_traceparent(),
+                    media=inbound_event.media,
+                )
+            except ConversationRuntimeError as error:
+                if error.code not in _IDEMPOTENT_INBOUND_REPLAY_CODES:
+                    raise
+                # Idempotent re-delivery: the event is already recorded and
+                # enqueued. Fall through to acknowledge it as accepted.
             if commit_callback is not None:
                 commit_callback()
         return (

@@ -11,6 +11,7 @@ from coke.domains.channel_reachability.models import (
     NormalizedInbound,
     ProviderWebhookAcceptance,
 )
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.providers.wechat_personal import WeChatPersonalAdapter
 
 
@@ -590,3 +591,66 @@ def test_provider_webhook_maps_reachability_error_to_json_error():
             "fact": {"type": "channel_conflict", "account_id": "acct_1"},
         }
     }
+
+
+def _whatsapp_payload(raw_event_id="wa_msg_1"):
+    return {
+        "event": "messages.upsert",
+        "instance": "coke",
+        "data": {
+            "key": {
+                "remoteJid": "15555550123@s.whatsapp.net",
+                "fromMe": False,
+                "id": raw_event_id,
+            },
+            "pushName": "Alice",
+            "message": {"conversation": "hello"},
+            "messageTimestamp": 1_700_000_000,
+        },
+    }
+
+
+def test_provider_webhook_acknowledges_duplicate_inbound_delivery_idempotently():
+    # At-least-once provider re-delivery of an already-recorded inbound event
+    # must be acknowledged (202), not raised as 500. Otherwise the connector
+    # never gets a success ack and re-delivers the same message forever.
+    commits = []
+
+    class DuplicateRuntime:
+        def record_inbound(self, **kwargs):
+            raise ConversationRuntimeError("duplicate_outbox_idempotency_key")
+
+    client, _service, _adapters = make_client(
+        conversation_runtime_service=DuplicateRuntime(),
+        commit_callback=lambda: commits.append("committed"),
+    )
+
+    response = client.post("/webhooks/whatsapp/evolution", json=_whatsapp_payload())
+
+    assert response.status_code == 202
+    body = response.get_json()
+    assert body["accepted"] is True
+    assert body["raw_event_id"] == "wa_msg_1"
+    # The transaction must still commit so any idempotent accept-side state is
+    # persisted and the connection is released cleanly.
+    assert commits == ["committed"]
+
+
+def test_provider_webhook_propagates_non_idempotent_runtime_error():
+    # Only the duplicate-delivery signal is swallowed; a genuine runtime fault
+    # must still surface (not be masked as success).
+    commits = []
+
+    class FailingRuntime:
+        def record_inbound(self, **kwargs):
+            raise ConversationRuntimeError("conversation_not_found")
+
+    client, _service, _adapters = make_client(
+        conversation_runtime_service=FailingRuntime(),
+        commit_callback=lambda: commits.append("committed"),
+    )
+
+    response = client.post("/webhooks/whatsapp/evolution", json=_whatsapp_payload())
+
+    assert response.status_code == 500
+    assert commits == []

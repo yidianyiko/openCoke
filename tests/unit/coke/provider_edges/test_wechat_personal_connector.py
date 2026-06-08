@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from provider_edges.wechat_personal_connector.app import (
+    MAX_WEBHOOK_DELIVERY_ATTEMPTS,
     ConnectorConfig,
     ConnectorState,
     _poll_login_status_once,
@@ -1009,3 +1010,66 @@ def test_compose_provides_inbound_defaults():
         "WECHAT_CONNECTOR_WEBHOOK_URL": "${WECHAT_CONNECTOR_WEBHOOK_URL:-http://coke-api:8000/webhooks/wechat/personal}",
         "WECHAT_CONNECTOR_AUTOSTART_POLL": "${WECHAT_CONNECTOR_AUTOSTART_POLL:-1}",
     }
+
+
+class RejectingWebhookClient:
+    """Webhook that always rejects, simulating a poison inbound the API 500s."""
+
+    def __init__(self, status_code: int = 500) -> None:
+        self.status_code = status_code
+        self.calls = 0
+
+    def post(self, url, *, json, headers=None, timeout=None):
+        self.calls += 1
+        return FakeResponse(self.status_code, {"error": "rejected"})
+
+
+def _poison_ilink():
+    return FakeIlinkClient(
+        updates={
+            "get_updates_buf": "cursor-1",
+            "msgs": [
+                {
+                    "from_user_id": "wxid_alice",
+                    "context_token": "ctx-poison",
+                    "item_list": [{"type": 1, "text_item": {"text": "boom"}}],
+                }
+            ],
+        }
+    )
+
+
+def test_poll_once_caps_retries_and_drops_poison_message(state):
+    # A single inbound the webhook keeps rejecting must not block the cursor
+    # forever. After the bounded attempt cap the connector drops the poison
+    # message and advances the cursor so the session recovers.
+    ilink = _poison_ilink()
+    webhook = RejectingWebhookClient(status_code=500)
+    config = ConnectorConfig(webhook_url="http://coke-api/webhooks/wechat/personal")
+
+    for _ in range(MAX_WEBHOOK_DELIVERY_ATTEMPTS + 3):
+        # Clear backoff so each iteration actually polls (simulates time passing).
+        state.update_session("session-1", {"next_poll_after": 0})
+        poll_once(config, state=state, ilink_client=ilink, webhook_client=webhook)
+
+    # Bounded: the poison message is attempted at most the cap, never forever.
+    assert webhook.calls == MAX_WEBHOOK_DELIVERY_ATTEMPTS
+    session = state.snapshot()["sessions"]["session-1"]
+    # Cursor advanced past the dropped poison batch; session no longer stuck.
+    assert session["cursor"] == "cursor-1"
+    assert not session.get("delivery_attempts")
+
+
+def test_poll_once_keeps_cursor_while_under_retry_cap(state):
+    # Before the cap is reached, the cursor must stay put so the message is
+    # retried (not silently lost on the first transient failure).
+    ilink = _poison_ilink()
+    webhook = RejectingWebhookClient(status_code=503)
+    config = ConnectorConfig(webhook_url="http://coke-api/webhooks/wechat/personal")
+
+    state.update_session("session-1", {"next_poll_after": 0})
+    poll_once(config, state=state, ilink_client=ilink, webhook_client=webhook)
+
+    session = state.snapshot()["sessions"]["session-1"]
+    assert session["cursor"] == "cursor-0"
+    assert session["delivery_attempts"]["ctx-poison"] == 1
