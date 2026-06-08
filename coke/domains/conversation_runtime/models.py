@@ -11,10 +11,13 @@ OutputDispositionState = Literal[
     "no_reply",
     "pending_async_reply",
     "failed",
+    "recovered",
     "superseded",
 ]
 
-TERMINAL_DISPOSITIONS = frozenset({"replied", "no_reply", "failed", "superseded"})
+TERMINAL_DISPOSITIONS = frozenset(
+    {"replied", "no_reply", "failed", "recovered", "superseded"}
+)
 NON_TERMINAL_DISPOSITIONS = frozenset({"pending_async_reply"})
 
 

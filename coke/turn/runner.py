@@ -1010,6 +1010,25 @@ class TurnRunner:
                 fallback = _minimal_reminder_fire_reply(retry_request)
                 if fallback is not None:
                     validated = fallback
+                else:
+                    recovery_text = _grounded_recovery_text(
+                        retry_request,
+                        tool_events=record_tool_events,
+                    )
+                    if recovery_text is not None:
+                        return self._record_recovery_reply(
+                            turn_id=context.freshness_guard.turn_id,
+                            trigger=trigger,
+                            recovery_text=recovery_text,
+                            current_input_messages=agent_request.current_input_messages,
+                            onboarding_guidance_required=bool(
+                                getattr(
+                                    context,
+                                    "onboarding_guidance_required",
+                                    False,
+                                )
+                            ),
+                        )
         return self._record_validated_output(
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
@@ -1075,6 +1094,25 @@ class TurnRunner:
                 fallback = _minimal_reminder_fire_reply(retry_request)
                 if fallback is not None:
                     validated = fallback
+                else:
+                    recovery_text = _grounded_recovery_text(
+                        retry_request,
+                        tool_events=record_tool_events,
+                    )
+                    if recovery_text is not None:
+                        return self._record_recovery_reply(
+                            turn_id=context.freshness_guard.turn_id,
+                            trigger=trigger,
+                            recovery_text=recovery_text,
+                            current_input_messages=agent_request.current_input_messages,
+                            onboarding_guidance_required=bool(
+                                getattr(
+                                    context,
+                                    "onboarding_guidance_required",
+                                    False,
+                                )
+                            ),
+                        )
         return self._record_validated_output(
             turn_id=context.freshness_guard.turn_id,
             trigger=trigger,
@@ -1280,6 +1318,66 @@ class TurnRunner:
             reason_code=disposition.reason_code,
             visible_text=WAITING_TEXT,
             async_task_id=agent_result.task_id,
+            current_input_messages=current_input_messages,
+        )
+
+    def _record_recovery_reply(
+        self,
+        *,
+        turn_id: str,
+        trigger: TurnTrigger,
+        recovery_text: str,
+        current_input_messages: tuple[Any, ...] = (),
+        onboarding_guidance_required: bool = False,
+    ) -> TurnRunResult:
+        segments = (recovery_text,)
+        disposition = self.conversation_runtime.commit_recovery_reply(
+            turn_id=turn_id,
+            segments=segments,
+            reason_code="grounded_failure_recovery",
+        )
+        self._commit_close_boundary()
+        visible_text = "\n".join(segments)
+        outbound_messages = [
+            message
+            for message in self.conversation_runtime.outbound_messages_for_turn(turn_id)
+            if (message.segment_index or 0) > 0
+        ]
+        delivered_reply = False
+        reply_outcomes: list[DeliveryOutcome] = []
+        for request in self._reply_delivery_requests(
+            trigger=trigger,
+            turn_id=turn_id,
+            visible_text=visible_text,
+            segments=segments,
+            outbound_messages=outbound_messages,
+        ):
+            outcome = self._deliver(request)
+            reply_outcomes.append(outcome)
+            self._record_delivery_lifecycle(trigger, request, outcome)
+            delivered_reply = delivered_reply or outcome.status in {
+                "sent",
+                "delivered",
+            }
+        onboarding_guidance_delivered = (
+            onboarding_guidance_required
+            and trigger.trigger_type == "InboundTurn"
+            and bool(reply_outcomes)
+            and all(
+                outcome.status in {"sent", "delivered"} for outcome in reply_outcomes
+            )
+        )
+        self._record_inbound_reply_completed_lifecycle(
+            trigger,
+            delivered=delivered_reply,
+            onboarding_guidance_delivered=onboarding_guidance_delivered,
+        )
+        return self._result_from_disposition(
+            turn_id=turn_id,
+            trigger=trigger,
+            disposition=disposition.disposition,
+            reason_code=disposition.reason_code,
+            visible_text=visible_text,
             current_input_messages=current_input_messages,
         )
 
@@ -2016,6 +2114,195 @@ def _validate_reminder_fire_output(
                 retry_guidance="reminder_fire_time_must_match_trusted_fact",
             )
     return validated
+
+
+@dataclass(frozen=True, slots=True)
+class _RecoveryGrounding:
+    intent: str
+    ask: str
+
+
+def _grounded_recovery_text(
+    request: AgentRequest,
+    *,
+    tool_events: tuple[Mapping[str, Any], ...],
+) -> str | None:
+    if request.trigger_type != "InboundTurn":
+        return None
+    grounding = (
+        _recovery_grounding_from_staged_commands(request)
+        or _recovery_grounding_from_tool_events(tool_events)
+        or _recovery_grounding_from_input(request)
+    )
+    if grounding is None:
+        return None
+    return f"我没能帮你完成「{grounding.intent}」，{grounding.ask}"
+
+
+def _recovery_grounding_from_staged_commands(
+    request: AgentRequest,
+) -> _RecoveryGrounding | None:
+    runtime = getattr(request.freshness_guard, "conversation_runtime", None)
+    repository = getattr(runtime, "repository", None)
+    staged_commands_for_turn = getattr(repository, "staged_commands_for_turn", None)
+    if not callable(staged_commands_for_turn):
+        return None
+    for command in staged_commands_for_turn(request.turn_id):
+        if getattr(command, "status", None) != "staged":
+            continue
+        intent = _recovery_intent_from_staged_command(command)
+        if intent is not None:
+            return _RecoveryGrounding(
+                intent=intent,
+                ask="请再说一次或确认后重试。",
+            )
+    return None
+
+
+def _recovery_intent_from_staged_command(command: Any) -> str | None:
+    preview_facts = getattr(command, "preview_facts", {})
+    if isinstance(preview_facts, Mapping):
+        outcome = preview_facts.get("social_scheduling_outcome")
+        if isinstance(outcome, Mapping):
+            intent = _recovery_intent_from_social_outcome(outcome)
+            if intent is not None:
+                return intent
+    payload = getattr(command, "command_payload", {})
+    if not isinstance(payload, Mapping):
+        return None
+    title = _clean_recovery_text(
+        payload.get("title")
+        or payload.get("content")
+        or payload.get("text")
+        or payload.get("summary")
+    )
+    local_time = _clean_recovery_text(
+        payload.get("local_trigger_at") or payload.get("due_at") or payload.get("time")
+    )
+    participants = _clean_recovery_text(_recovery_participants(payload))
+    pieces = [piece for piece in (title, local_time, participants) if piece]
+    if pieces:
+        return " ".join(pieces)
+    operation = _clean_recovery_text(getattr(command, "operation", None))
+    if operation is None:
+        return None
+    return operation.replace("_", " ")
+
+
+def _recovery_grounding_from_tool_events(
+    tool_events: tuple[Mapping[str, Any], ...],
+) -> _RecoveryGrounding | None:
+    for event in tool_events:
+        if not isinstance(event, Mapping):
+            continue
+        facts = event.get("facts")
+        if not isinstance(facts, Mapping):
+            continue
+        outcome = facts.get("social_scheduling_outcome")
+        outcome_mapping = outcome if isinstance(outcome, Mapping) else None
+        intent = (
+            _recovery_intent_from_social_outcome(outcome_mapping)
+            if outcome_mapping is not None
+            else None
+        )
+        if intent is None:
+            intent = _clean_recovery_text(facts.get("title"))
+        ask = _recovery_ask_from_structured_facts(facts, outcome_mapping)
+        if ask is not None:
+            return _RecoveryGrounding(
+                intent=intent or "这次请求",
+                ask=ask,
+            )
+    return None
+
+
+def _recovery_ask_from_structured_facts(
+    facts: Mapping[str, Any],
+    outcome: Mapping[str, Any] | None,
+) -> str | None:
+    follow_up_facts = facts.get("follow_up_facts")
+    if not isinstance(follow_up_facts, Mapping):
+        follow_up_facts = {}
+    status = _clean_recovery_text(
+        (outcome or {}).get("status") or facts.get("status") or facts.get("type")
+    )
+    missing = _clean_recovery_text(follow_up_facts.get("missing"))
+    blocker = _clean_recovery_text(
+        (outcome or {}).get("blocker") or follow_up_facts.get("reason")
+    )
+    if missing == "time" or status in {
+        "needs_time",
+        "needs_past_time_confirmation",
+        "needs_incomplete_date_clarification",
+    }:
+        return "请补充具体时间后再发一次。"
+    if missing == "title" or status == "needs_title":
+        return "请补充要安排的内容后再发一次。"
+    if missing in {"participants", "participant"} or status == "needs_participants":
+        return "请补充参与人后再发一次。"
+    if blocker == "ambiguous_friend":
+        return "请确认具体是哪位参与人后再发一次。"
+    if blocker in {"unmatched_friend", "receiver_not_active_friend"}:
+        return "请确认参与人名称后再发一次。"
+    if blocker in {"receiver_conflict", "unreachable_participant"}:
+        return "请调整参与人或时间后再发一次。"
+    if outcome is not None:
+        return "请再说一次或补充关键信息。"
+    return None
+
+
+def _recovery_grounding_from_input(request: AgentRequest) -> _RecoveryGrounding | None:
+    texts = [
+        text
+        for message in request.current_input_messages
+        if (text := _clean_recovery_text(getattr(message, "text", None))) is not None
+    ]
+    if not texts:
+        payload_text = _clean_recovery_text(request.payload.get("text"))
+        if payload_text is not None:
+            texts.append(payload_text)
+    if not texts:
+        return None
+    return _RecoveryGrounding(
+        intent="；".join(texts),
+        ask="请再说一次或补充关键信息。",
+    )
+
+
+def _recovery_intent_from_social_outcome(
+    outcome: Mapping[str, Any] | None,
+) -> str | None:
+    if outcome is None:
+        return None
+    title = _clean_recovery_text(outcome.get("title"))
+    local_time = _clean_recovery_text(outcome.get("local_trigger_at"))
+    participants = _clean_recovery_text(_recovery_participants(outcome))
+    pieces = [piece for piece in (title, local_time, participants) if piece]
+    if not pieces:
+        return None
+    return " ".join(pieces)
+
+
+def _recovery_participants(source: Mapping[str, Any]) -> str | None:
+    value = source.get("participant_account_ids") or source.get("receiver_account_ids")
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list | tuple):
+        participants = [item for item in value if isinstance(item, str) and item]
+        if participants:
+            return "、".join(participants)
+    return None
+
+
+def _clean_recovery_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).replace("\n", " ").strip()
+    if not text:
+        return None
+    if len(text) > 120:
+        return f"{text[:117]}..."
+    return text
 
 
 def _minimal_reminder_fire_reply(request: AgentRequest) -> ValidatedOutput | None:

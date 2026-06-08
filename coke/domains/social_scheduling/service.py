@@ -747,7 +747,13 @@ class SocialSchedulingService:
     ) -> int:
         cutoff = self._now() - pending_older_than
         settled = 0
-        terminal_dispositions = {"replied", "no_reply", "failed", "superseded"}
+        terminal_dispositions = {
+            "replied",
+            "no_reply",
+            "failed",
+            "recovered",
+            "superseded",
+        }
         for fact in self.repository.list_notification_facts():
             for recipient in self.repository.list_notification_recipients(fact.id):
                 if recipient.delivery_state != "pending":
@@ -833,9 +839,7 @@ class SocialSchedulingService:
             status=status,
             friendship=friendship,
             counterpart_account_id=counterpart_account_id,
-            counterpart_display_name=self.display_name_resolver(
-                counterpart_account_id
-            ),
+            counterpart_display_name=self.display_name_resolver(counterpart_account_id),
         )
 
     def _create_friendship_notification(

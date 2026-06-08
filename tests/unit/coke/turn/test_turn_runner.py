@@ -554,6 +554,13 @@ def _social_runner(harness, social_tool):
     )
 
 
+def _assert_truthful_recovery_copy(text: str) -> None:
+    assert "没能" in text or "couldn't" in text.lower()
+    for banned in ("已建好", "已经建好", "约好了", "done"):
+        assert banned not in text
+    assert "invalid_output_protocol" not in text
+
+
 def test_inbound_reply_completion_lifecycle_runs_after_delivery(harness):
     lifecycle = FakeDeliveryLifecycle()
     harness["runner"].delivery_lifecycle = lifecycle
@@ -973,16 +980,107 @@ def test_reply_segments_deliver_as_separate_ordered_messages(harness):
     ]
 
 
-def test_malformed_agent_output_fails_closed_without_rewrite(harness):
+def test_malformed_inbound_after_retry_recovers_from_input_text_without_rewrite(
+    harness,
+):
     harness["agent"].next_result = AgentResult.completed({"invalid": "shape"})
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 
-    assert result.disposition == "failed"
-    assert result.reason_code == "invalid_output_protocol"
-    assert result.visible_text is None
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert result.visible_text is not None
+    assert "hello" in result.visible_text
+    _assert_truthful_recovery_copy(result.visible_text)
     assert harness["runner"].output_protocol.rewrite_invocations == 0
-    assert harness["delivery"].deliveries == []
+    assert [request.visible_text for request in harness["delivery"].deliveries] == [
+        result.visible_text
+    ]
+    disposition = harness["runtime"].get_disposition(result.turn_id)
+    assert disposition.disposition == "recovered"
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == 1
+
+
+def test_invalid_inbound_recovery_uses_structured_blocker_fact(harness):
+    harness["agent"].queued_results = [
+        AgentResult.completed(
+            {"invalid": "shape"},
+            tool_events=(
+                {
+                    "ok": False,
+                    "facts": {
+                        "status": "needs_time",
+                        "follow_up_facts": {"missing": "time"},
+                        "social_scheduling_outcome": {
+                            "outcome_id": "outcome-1",
+                            "operation": "create_shared_reminder",
+                            "status": "needs_time",
+                            "title": "健身",
+                            "local_trigger_at": None,
+                            "captured_timezone": "Asia/Shanghai",
+                            "duration_minutes": 45,
+                            "participant_account_ids": ["friend_oliver"],
+                            "blocker": None,
+                        },
+                    },
+                },
+            ),
+        ),
+        AgentResult.completed({"invalid": "shape"}),
+    ]
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "recovered"
+    assert result.visible_text is not None
+    assert "健身" in result.visible_text
+    assert "具体时间" in result.visible_text
+    assert "Oliver 不是你的好友" not in result.visible_text
+    _assert_truthful_recovery_copy(result.visible_text)
+    assert [request.visible_text for request in harness["delivery"].deliveries] == [
+        result.visible_text
+    ]
+
+
+def test_serialized_tool_call_recovery_treats_markup_as_opaque_and_uses_input_text(
+    harness,
+):
+    harness["agent"].queued_results = [
+        AgentResult.completed(
+            {
+                "type": "invalid_output_protocol",
+                "reason": "serialized_tool_call_output",
+                "content": "<tool_call>Oliver is not your friend</tool_call>",
+            },
+            tool_events=(
+                {
+                    "ok": False,
+                    "serialized_tool_call_output": (
+                        "<tool_call>Oliver is not your friend</tool_call>"
+                    ),
+                },
+            ),
+        ),
+        AgentResult.completed(
+            {
+                "type": "invalid_output_protocol",
+                "reason": "serialized_tool_call_output",
+                "content": "<tool_call>Oliver is not your friend</tool_call>",
+            }
+        ),
+    ]
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "recovered"
+    assert result.visible_text is not None
+    assert "hello" in result.visible_text
+    assert "Oliver is not your friend" not in result.visible_text
+    _assert_truthful_recovery_copy(result.visible_text)
 
 
 def test_required_clarification_is_passed_as_trusted_agent_instruction(harness):
@@ -1202,14 +1300,23 @@ def test_shared_reminder_retry_false_duplicate_without_active_row_fails_closed(
     harness["agent"] = StagesThenInvalidAgent()
     first_runner = _social_runner(harness, social_tool)
 
-    failed = first_runner.run_inbound_turn(harness["trigger"])
+    recovered = first_runner.run_inbound_turn(harness["trigger"])
 
-    assert failed.disposition == "failed"
+    assert recovered.disposition == "recovered"
+    assert recovered.reason_code == "grounded_failure_recovery"
+    assert recovered.visible_text is not None
+    assert "吃饭" in recovered.visible_text
+    _assert_truthful_recovery_copy(recovered.visible_text)
     assert repo.list_shared_reminders_for_participant("account_1") == []
     assert [
         command.status
-        for command in harness["repository"].staged_commands_for_turn(failed.turn_id)
-    ] == ["staged"]
+        for command in harness["repository"].staged_commands_for_turn(recovered.turn_id)
+    ] == ["superseded"]
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == 1
 
     retry_inbound = harness["runtime"].record_inbound(
         account_id="account_1",
@@ -1239,14 +1346,19 @@ def test_shared_reminder_retry_false_duplicate_without_active_row_fails_closed(
 
     retry = retry_runner.run_inbound_turn(retry_trigger)
 
-    assert retry.disposition == "failed"
-    assert retry.reason_code == "invalid_output_protocol"
+    assert retry.disposition == "recovered"
+    assert retry.reason_code == "grounded_failure_recovery"
+    assert retry.visible_text is not None
+    _assert_truthful_recovery_copy(retry.visible_text)
     assert repo.list_shared_reminders_for_participant("account_1") == []
-    assert harness["delivery"].deliveries == []
-    conversation = harness["repository"].get_conversation(
-        retry_trigger.conversation_id
+    assert "已经建好了" not in "\n".join(
+        request.visible_text for request in harness["delivery"].deliveries
     )
-    assert conversation.last_closed_inbound_seq == 0
+    conversation = harness["repository"].get_conversation(retry_trigger.conversation_id)
+    assert conversation.last_closed_inbound_seq == 2
+    assert [
+        message.seq for message in harness["agent"].requests[-1].current_input_messages
+    ] == [2]
 
 
 def test_duplicate_active_reply_allowed_when_active_shared_reminder_exists(harness):
@@ -1335,7 +1447,9 @@ def test_friend_alias_correction_injects_recoverable_intent_fact(harness):
 
     result = runner.run_inbound_turn(harness["trigger"])
 
-    assert result.disposition == "failed"
+    assert result.disposition == "recovered"
+    assert result.visible_text is not None
+    _assert_truthful_recovery_copy(result.visible_text)
     request = harness["agent"].requests[-1]
     recovery = request.trusted_facts["recoverable_scheduling_intent"]
     assert recovery["id"] == intent.id
@@ -1458,7 +1572,9 @@ def test_unrelated_friend_correction_does_not_inject_recovery(harness):
 
     result = runner.run_inbound_turn(harness["trigger"])
 
-    assert result.disposition == "failed"
+    assert result.disposition == "recovered"
+    assert result.visible_text is not None
+    _assert_truthful_recovery_copy(result.visible_text)
     request = harness["agent"].requests[-1]
     assert "recoverable_scheduling_intent" not in request.trusted_facts
     assert "recoverable_scheduling_intent_resolution" not in request.trusted_facts
@@ -1693,7 +1809,7 @@ def test_segment_count_violation_retry_carries_specific_protocol_guidance(harnes
     }
 
 
-def test_invalid_agent_output_retry_still_invalid_fails_closed(harness):
+def test_invalid_agent_output_retry_still_invalid_recovers(harness):
     harness["agent"].queued_results = [
         AgentResult.completed(None),
         AgentResult.completed({"invalid": "shape"}),
@@ -1701,10 +1817,14 @@ def test_invalid_agent_output_retry_still_invalid_fails_closed(harness):
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 
-    assert result.disposition == "failed"
-    assert result.reason_code == "invalid_output_protocol"
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert result.visible_text is not None
+    _assert_truthful_recovery_copy(result.visible_text)
     assert harness["agent"].invocations == 2
-    assert harness["delivery"].deliveries == []
+    assert [request.visible_text for request in harness["delivery"].deliveries] == [
+        result.visible_text
+    ]
 
 
 def test_invalid_agent_output_retry_does_not_loop(harness):
@@ -1716,10 +1836,14 @@ def test_invalid_agent_output_retry_does_not_loop(harness):
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 
-    assert result.disposition == "failed"
-    assert result.reason_code == "invalid_output_protocol"
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert result.visible_text is not None
+    _assert_truthful_recovery_copy(result.visible_text)
     assert harness["agent"].invocations == 2
-    assert harness["delivery"].deliveries == []
+    assert [request.visible_text for request in harness["delivery"].deliveries] == [
+        result.visible_text
+    ]
 
 
 def test_replayed_inbound_turn_with_existing_reply_reconciles_without_agent_or_delivery(

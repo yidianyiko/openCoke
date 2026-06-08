@@ -52,8 +52,10 @@ coke-web -> coke-api -> Postgres-backed domains
 All chat/channel-visible product prose flows through The Turn. Turn triggers are
 InboundTurn, ReminderFireTurn, ProactiveFireTurn, NightlySummaryTurn,
 NotificationTurn, AccessDeniedTurn, and UndeliveredResendTurn. The only normal
-prose producer is the Interaction Agent. The runtime-owned waiting text is the
-sole typed signal exception.
+prose producer is the Interaction Agent. Runtime-owned prose has two typed
+signal exceptions: waiting text while an Interaction Agent call is still active,
+and grounded failure-recovery text when an interactive inbound turn remains
+invalid after its same-turn protocol retry.
 
 Turn execution has one spine:
 
@@ -66,10 +68,10 @@ Turn execution has one spine:
 5. Invoke the Interaction Agent in interactive mode for inbound user turns or
    render mode for structured reminder, notification, access, and recovery facts.
 6. Validate the first returned structured output. Malformed, empty, blocked, or
-   timed-out-after-budget output is a failed turn, not an invented replacement
-   reply.
+   timed-out-after-budget output is a failed or recovered turn, not an invented
+   success reply.
 7. Record exactly one turn disposition:
-   `replied | no_reply | pending_async_reply | failed | superseded`.
+   `replied | no_reply | pending_async_reply | failed | recovered | superseded`.
 8. Persist outbound messages with deterministic segment ids.
 9. Deliver through the current channel route with provider idempotency keys and
    record delivery attempts.
@@ -132,13 +134,16 @@ the replacement turn processes the old and new messages together in sequence
 order.
 
 The close boundary is close-result persistence, not provider delivery. A
-conversation-closing decision for a claimed input window is `replied` or
-product-approved terminal `no_reply`. The close transaction must atomically
-verify that no newer inbound has arrived for the claimed window, materialize
-staged interactive commands, persist the close result, and advance
-`last_closed_inbound_seq` to the turn's `input_to_seq`. `failed` and
-`superseded` complete the stale or failed turn audit without claiming the input
-window as product-handled.
+conversation-closing decision for a claimed input window is `replied`,
+product-approved terminal `no_reply`, or `recovered`. The `replied` and
+`no_reply` close transactions must atomically verify that no newer inbound has
+arrived for the claimed window, materialize staged interactive commands, persist
+the close result, and advance `last_closed_inbound_seq` to the turn's
+`input_to_seq`. A `recovered` close uses grounded runtime-owned recovery text,
+marks staged commands superseded without materializing them, persists the
+distinct `recovered` disposition, and advances `last_closed_inbound_seq`.
+`failed` and `superseded` complete the stale or failed turn audit without
+claiming the input window as product-handled.
 
 `pending_async_reply` is an intermediate visibility disposition, not a close
 decision. It records that runtime-owned waiting text was attempted, but it must

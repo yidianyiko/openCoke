@@ -280,6 +280,59 @@ class ConversationRuntimeService:
         )
         return disposition
 
+    def commit_recovery_reply(
+        self,
+        turn_id: str,
+        segments: Sequence[str],
+        reason_code: str = "grounded_failure_recovery",
+    ) -> OutputDisposition:
+        if not 1 <= len(segments) <= 3:
+            raise ConversationRuntimeError("invalid_segment_count")
+        turn = self._require_turn(turn_id)
+        existing = self.repository.get_disposition(turn_id)
+        if existing is not None and existing.disposition == "recovered":
+            return existing
+        self._ensure_turn_can_transition(existing, target="recovered")
+        conversation = self._ensure_turn_can_close(turn)
+
+        now = self._now()
+        for command in self.repository.staged_commands_for_turn(turn.id):
+            if command.status == "staged":
+                self.repository.save_staged_command(
+                    replace(command, status="superseded", updated_at=now)
+                )
+        for index, text in enumerate(segments, start=1):
+            self.repository.add_outbound_message(
+                Message(
+                    id=self._id_factory("message"),
+                    conversation_id=turn.conversation_id,
+                    turn_id=turn.id,
+                    direction="outbound",
+                    segment_index=index,
+                    seq=None,
+                    channel_identity_id=None,
+                    causal_inbound_event_id=None,
+                    text=text,
+                    payload={"segment_index": index, "message_type": "recovery"},
+                    facts_hash=None,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        disposition = self._disposition_for_transition(
+            existing,
+            turn.id,
+            "recovered",
+            reason_code,
+        )
+        self.repository.save_disposition(disposition)
+        self._save_close_state(
+            conversation,
+            replace(turn, completed_at=now, updated_at=now),
+            now,
+        )
+        return disposition
+
     def mark_pending_async_reply(
         self,
         turn_id: str,
@@ -679,6 +732,7 @@ class ConversationRuntimeService:
         if existing.disposition == "pending_async_reply" and target in {
             "replied",
             "failed",
+            "recovered",
         }:
             return
         if existing.disposition in TERMINAL_DISPOSITIONS:
