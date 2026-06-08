@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, Mapping, Sequence
 
 OutputKind = Literal["reply", "no_reply"]
@@ -118,6 +118,12 @@ class OutputProtocolValidator:
                 return self._invalid("social_scheduling_outcome_missing")
             return validated
         if not isinstance(claim, Mapping) or claim.get("domain") != "social_scheduling":
+            derived_claim = _derive_staged_pending_close_no_success_claim(
+                outcomes,
+                claim,
+            )
+            if derived_claim is not None:
+                return replace(validated, domain_claim=derived_claim)
             return self._invalid("social_scheduling_claim_required")
 
         outcome_id = claim.get("outcome_id")
@@ -172,3 +178,29 @@ def _find_social_scheduling_outcome(
         if outcome.get("outcome_id") == outcome_id:
             return outcome
     return None
+
+
+def _derive_staged_pending_close_no_success_claim(
+    outcomes: Sequence[Mapping[str, Any]],
+    claim: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    if isinstance(claim, Mapping) and claim.get("domain") == "social_scheduling":
+        return None
+    if len(outcomes) != 1:
+        return None
+    staged_outcomes = [
+        outcome
+        for outcome in outcomes
+        if outcome.get("status") == "staged_pending_close"
+        and isinstance(outcome.get("outcome_id"), str)
+        and outcome.get("outcome_id")
+    ]
+    if len(staged_outcomes) != 1:
+        return None
+    outcome = staged_outcomes[0]
+    return {
+        "domain": "social_scheduling",
+        "outcome_id": outcome["outcome_id"],
+        "status": "staged_pending_close",
+        "claim": "no_success_claim",
+    }

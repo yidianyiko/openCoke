@@ -2160,6 +2160,17 @@ def _recovery_grounding_from_staged_commands(
 
 
 def _recovery_intent_from_staged_command(command: Any) -> str | None:
+    payload = getattr(command, "command_payload", {})
+    if isinstance(payload, Mapping):
+        raw_text = _clean_recovery_text(payload.get("raw_text"))
+        title = _clean_recovery_text(payload.get("title"))
+        if (
+            raw_text is not None
+            and title is None
+            and getattr(command, "operation", None)
+            == "detect_and_create_shared_reminder"
+        ):
+            return raw_text
     preview_facts = getattr(command, "preview_facts", {})
     if isinstance(preview_facts, Mapping):
         outcome = preview_facts.get("social_scheduling_outcome")
@@ -2167,7 +2178,6 @@ def _recovery_intent_from_staged_command(command: Any) -> str | None:
             intent = _recovery_intent_from_social_outcome(outcome)
             if intent is not None:
                 return intent
-    payload = getattr(command, "command_payload", {})
     if not isinstance(payload, Mapping):
         return None
     title = _clean_recovery_text(

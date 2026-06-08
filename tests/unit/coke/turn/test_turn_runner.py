@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 import time
 from contextlib import suppress
@@ -1359,6 +1360,123 @@ def test_shared_reminder_retry_false_duplicate_without_active_row_fails_closed(
     assert [
         message.seq for message in harness["agent"].requests[-1].current_input_messages
     ] == [2]
+
+
+def test_staged_social_scheduling_reply_without_claim_materializes_on_clean_close(
+    harness,
+):
+    service, repo = _make_social_service(
+        names={"friend_lizihao": "lizihao"},
+        reachable={"account_1", "friend_lizihao"},
+    )
+    _add_social_friend(repo, "account_1", "friend_lizihao")
+    social_tool = SocialSchedulingToolAdapter(service)
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="scheduling",
+        intent_action="create_shared_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+    )
+
+    class StagesThenRepliesWithoutClaim(FakeAgent):
+        def invoke(self, request):
+            self.invocations += 1
+            self.requests.append(request)
+            tool_result = request.tool_profile.social_scheduling_tool.execute(
+                {
+                    "operation": "create_shared_reminder",
+                    "creator_account_id": "account_1",
+                    "receiver_account_ids": ["friend_lizihao"],
+                    "title": "健身",
+                    "local_trigger_at": "2026-06-06T11:00:00",
+                    "captured_timezone": "Asia/Shanghai",
+                    "duration_minutes": 60,
+                    "context": {"source": "staged_claim_derivation_regression"},
+                },
+                request.freshness_guard,
+            )
+            return AgentResult.completed(
+                {"type": "reply", "segments": ["我会继续确认这次安排。"]},
+                tool_events=(
+                    {
+                        "ok": tool_result.ok,
+                        "facts": dict(tool_result.facts),
+                        "reason_code": tool_result.reason_code,
+                    },
+                ),
+            )
+
+    harness["agent"] = StagesThenRepliesWithoutClaim()
+    runner = _social_runner(harness, social_tool)
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "我会继续确认这次安排。"
+    commands = harness["repository"].staged_commands_for_turn(result.turn_id)
+    assert [command.status for command in commands] == ["materialized"]
+    shared = repo.list_shared_reminders_for_participant("account_1")
+    assert len(shared) == 1
+    assert shared[0].title == "健身"
+
+
+def test_recovery_from_detect_shared_reminder_uses_raw_text_not_participant_uuid(
+    harness,
+):
+    participant_account_id = "635d3bdc4a5f67890123456789abcdef"
+    raw_text = "上午11点约 lizihao 健身"
+    service, repo = _make_social_service(
+        names={participant_account_id: "lizihao"},
+        reachable={"account_1", participant_account_id},
+    )
+    _add_social_friend(repo, "account_1", participant_account_id)
+    social_tool = SocialSchedulingToolAdapter(service)
+    harness["semantic"].next_decision = SemanticDecision(
+        reply_necessity="reply_needed",
+        intent_family="scheduling",
+        intent_action="create_shared_reminder",
+        ambiguity="clear",
+        required_clarification="none",
+        language_hint="zh",
+    )
+
+    class StagesDetectThenInvalid(FakeAgent):
+        def invoke(self, request):
+            self.invocations += 1
+            self.requests.append(request)
+            request.tool_profile.social_scheduling_tool.execute(
+                {
+                    "operation": "detect_and_create_shared_reminder",
+                    "creator_account_id": "account_1",
+                    "receiver_account_ids": [participant_account_id],
+                    "raw_text": raw_text,
+                    "title": None,
+                    "captured_timezone": "Asia/Shanghai",
+                    "duration_minutes": 60,
+                    "context": {"source": "recovery_uuid_grounding_regression"},
+                },
+                request.freshness_guard,
+            )
+            return AgentResult.completed(
+                {
+                    "type": "invalid_output_protocol",
+                    "reason": "serialized_tool_call_output",
+                }
+            )
+
+    harness["agent"] = StagesDetectThenInvalid()
+    runner = _social_runner(harness, social_tool)
+
+    result = runner.run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "recovered"
+    assert result.visible_text is not None
+    assert raw_text in result.visible_text
+    assert re.search(r"[0-9a-f]{32}", result.visible_text) is None
+    _assert_truthful_recovery_copy(result.visible_text)
+    assert repo.list_shared_reminders_for_participant("account_1") == []
 
 
 def test_duplicate_active_reply_allowed_when_active_shared_reminder_exists(harness):
