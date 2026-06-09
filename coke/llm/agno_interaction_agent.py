@@ -20,6 +20,13 @@ from coke.turn.agent import (
 from coke.turn.context import TurnMode
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.output_protocol import OutputProtocolValidator
+from coke.turn.reminder_list_render import looks_chinese as _shared_looks_chinese
+from coke.turn.reminder_list_render import (
+    render_reminder_list_line as _shared_render_reminder_list_line,
+)
+from coke.turn.reminder_list_render import (
+    render_reminder_list_reply as _shared_render_reminder_list_reply,
+)
 
 AgentFactory = Callable[..., Any]
 TaskIdFactory = Callable[[], str]
@@ -856,36 +863,21 @@ def _reminder_list_reply_is_complete(
 
 
 def _render_reminder_list_reply(facts: Mapping[str, Any], request: AgentRequest) -> str:
-    count = facts.get("count", 0)
-    chinese = _looks_chinese(_user_text(request))
-    if chinese:
-        lines = [f"你现在一共有 {count} 个提醒："]
-    else:
-        lines = [f"You currently have {count} reminders:"]
-
-    reminders = facts.get("reminders")
-    if isinstance(reminders, list):
-        for index, reminder in enumerate(reminders, start=1):
-            if isinstance(reminder, Mapping):
-                lines.append(_render_reminder_list_line(index, reminder, chinese))
-    return "\n".join(lines)
+    return _shared_render_reminder_list_reply(
+        facts,
+        user_text=_user_text(request),
+        account_id=request.account_id,
+    )
 
 
 def _render_reminder_list_line(
     index: int, reminder: Mapping[str, Any], chinese: bool
 ) -> str:
-    content = str(reminder.get("content") or "").strip()
-    time_value = reminder.get("display_time_label") or reminder.get("next_fire_at")
-    time_label = (
-        str(time_value) if time_value else ("未设定时间" if chinese else "unscheduled")
-    )
-    if chinese:
-        return f"{index}. {content}（{time_label}）"
-    return f"{index}. {content} ({time_label})"
+    return _shared_render_reminder_list_line(index, reminder, chinese)
 
 
 def _looks_chinese(text: str) -> bool:
-    return any("\u4e00" <= char <= "\u9fff" for char in text)
+    return _shared_looks_chinese(text)
 
 
 def build_prompt_blocks(request: AgentRequest) -> tuple[PromptBlock, ...]:
