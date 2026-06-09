@@ -2,7 +2,20 @@
 
 ## Status
 
-approved-for-implementation (2026-06-09)
+superseded (2026-06-10) by
+`docs/superpowers/specs/2026-06-10-turn-path-plan-execute-express-design.md`.
+
+The list prepared-action and chat-streaming slices below were implemented and
+deployed (SHA `46d76896`), but the fast-path direction — a parallel runtime
+bypass plus bolted-on streaming — was rejected as architectural debt: it
+duplicates the reasoning brain, adds a second execution path, and uses a dual
+renderer. The successor design rebuilds the turn path as a single uniform
+`Plan → Execute → Express` shape with no fast path. This document is retained as
+the record of what is currently deployed until the successor rebuild replaces it.
+
+---
+
+(original status: approved-for-implementation, 2026-06-09)
 
 ## Problem
 
