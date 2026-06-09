@@ -155,7 +155,9 @@ class AgnoInteractionAgent:
         content_buffer = ""
         final_content: Any = None
         try:
-            stream = await agent.arun(
+            # Agno's arun returns an AsyncIterator directly when stream=True
+            # (it is not a coroutine), so it must NOT be awaited.
+            stream = agent.arun(
                 _agent_input(request),
                 **self._run_kwargs(
                     request,

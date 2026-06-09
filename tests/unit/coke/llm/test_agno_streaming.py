@@ -17,7 +17,10 @@ class StreamingFakeAgentInstance:
     final_content: str
     calls: list[dict[str, Any]]
 
-    async def arun(self, input, **kwargs):
+    def arun(self, input, **kwargs):
+        # Agno's arun returns an AsyncIterator directly (not a coroutine) when
+        # stream=True. The fake must match that contract or it would hide the
+        # "await an async iterator" bug.
         self.calls.append({"method": "arun", "input": input, "kwargs": kwargs})
 
         async def stream():
@@ -33,9 +36,9 @@ class ToolCallingStreamingFakeAgentInstance(StreamingFakeAgentInstance):
         super().__init__(chunks=chunks, final_content=final_content, calls=[])
         self.factory_kwargs: dict[str, Any] = {}
 
-    async def arun(self, input, **kwargs):
+    def arun(self, input, **kwargs):
         self.factory_kwargs["tools"][0](command={"operation": "list_reminders"})
-        return await super().arun(input, **kwargs)
+        return super().arun(input, **kwargs)
 
 
 class FakeAgentFactory:
