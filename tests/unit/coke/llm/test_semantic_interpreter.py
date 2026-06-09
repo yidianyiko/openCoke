@@ -81,6 +81,7 @@ def test_interpret_maps_structured_model_output_to_semantic_decision():
     assert decision.ambiguity == "missing_time"
     assert decision.required_clarification == "ask_trigger_time"
     assert decision.language_hint == "zh"
+    assert decision.list_is_plain is False
     assert client.calls[0]["schema_name"] == "semantic_decision"
     assert (
         "contains_remind_keyword"
@@ -117,6 +118,106 @@ def test_interpret_prompt_exposes_typed_actions_ambiguity_and_examples():
     assert "follow-up that only supplies the missing time" in call["system"]
     assert "new topic does not reopen" in call["system"]
     assert "Do not use keyword routing" in call["system"]
+    assert "list_is_plain" in call["system"]
+    assert (
+        "no keyword, no specific date/time window, no status/kind filter"
+        in call["system"]
+    )
+
+
+@pytest.mark.parametrize("list_is_plain", [True, False])
+def test_interpret_maps_list_is_plain_for_list_reminder_output(list_is_plain):
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "reminder_op",
+            "intent_action": "list_reminders",
+            "ambiguity": "clear",
+            "required_clarification": "none",
+            "list_is_plain": list_is_plain,
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    decision = interpreter.interpret(_request())
+
+    assert decision.list_is_plain is list_is_plain
+
+
+def test_interpret_defaults_list_is_plain_false_when_absent():
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "reminder_op",
+            "intent_action": "list_reminders",
+            "ambiguity": "clear",
+            "required_clarification": "none",
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    decision = interpreter.interpret(_request())
+
+    assert decision.list_is_plain is False
+
+
+def test_interpret_forces_list_is_plain_false_for_non_list_intent():
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "reminder_op",
+            "intent_action": "create_reminder",
+            "ambiguity": "clear",
+            "required_clarification": "none",
+            "list_is_plain": True,
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    decision = interpreter.interpret(_request())
+
+    assert decision.list_is_plain is False
+
+
+@pytest.mark.parametrize(
+    ("text", "intent_action", "model_list_is_plain", "expected"),
+    [
+        ("list my reminders", "list_reminders", True, True),
+        ("列一下我的提醒", "list_reminders", True, True),
+        ("what's on Friday", "list_reminders", False, False),
+        ("my gym reminders", "list_reminders", False, False),
+        ("show overdue", "list_reminders", False, False),
+        ("remind me tomorrow", "create_reminder", True, False),
+    ],
+)
+def test_interpret_list_is_plain_cases(
+    text,
+    intent_action,
+    model_list_is_plain,
+    expected,
+):
+    client = FakeJSONClient(
+        {
+            "reply_necessity": "reply_needed",
+            "intent_family": "reminder_op",
+            "intent_action": intent_action,
+            "ambiguity": "clear",
+            "required_clarification": "none",
+            "list_is_plain": model_list_is_plain,
+        }
+    )
+    interpreter = SiliconFlowSemanticInterpreter(client)
+
+    decision = interpreter.interpret(
+        SemanticInterpreterRequest(
+            account_id="account_1",
+            conversation_id="conversation_1",
+            payload={"text": text},
+            trusted_facts={"account_id": "account_1", "memory_enabled": True},
+        )
+    )
+
+    assert decision.list_is_plain is expected
 
 
 def test_interpret_accepts_friend_reference_correction_follow_up_action():

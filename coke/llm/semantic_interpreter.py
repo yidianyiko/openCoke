@@ -94,7 +94,8 @@ FOLLOW_UP_ACTION_SCOPES: set[FollowUpActionScope] = {
 SEMANTIC_SYSTEM_PROMPT = """
 Classify this Coke turn semantically. Do not use keyword routing.
 Return only JSON with reply_necessity, intent_family, intent_action, ambiguity,
-required_clarification, optional language_hint, and optional follow_up_action.
+required_clarification, list_is_plain, optional language_hint, and optional
+follow_up_action.
 language_hint is non-authoritative.
 
 Ownership:
@@ -105,6 +106,10 @@ Ownership:
   arguments here.
 - Transcript is language evidence only. Trusted facts, focus, domain results,
   and environment are authoritative for product state.
+- list_is_plain is true only when the user asks to list or count their reminders
+  with no filter: no keyword, no specific date/time window, no status/kind filter.
+  It is false for filtered or specific-subset list requests. Always emit
+  list_is_plain=false when intent_action is not list_reminders.
 
 Examples:
 - User: "提醒我明天早上9点跑步" -> reminder_op/create_reminder, clear, none.
@@ -224,12 +229,16 @@ class SiliconFlowSemanticInterpreter:
         if language_hint is not None and not isinstance(language_hint, str):
             raise LLMOutputError("invalid language_hint")
         follow_up_action = _optional_follow_up_action(payload)
+        list_is_plain = _optional_bool(payload, "list_is_plain")
+        if intent_action != "list_reminders" or list_is_plain is None:
+            list_is_plain = False
         return SemanticDecision(
             reply_necessity=reply_necessity,
             intent_family=intent_family,
             intent_action=intent_action,
             ambiguity=ambiguity,
             required_clarification=required_clarification,
+            list_is_plain=list_is_plain,
             language_hint=language_hint,
             follow_up_action=follow_up_action,
         )
@@ -255,6 +264,15 @@ def _required_enum(
 ) -> Any:
     value = payload.get(field)
     if value not in allowed:
+        raise LLMOutputError(f"invalid {field}")
+    return value
+
+
+def _optional_bool(payload: Mapping[str, Any], field: str) -> bool | None:
+    if field not in payload:
+        return None
+    value = payload.get(field)
+    if not isinstance(value, bool):
         raise LLMOutputError(f"invalid {field}")
     return value
 

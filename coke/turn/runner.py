@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -19,6 +20,7 @@ from coke.domains.conversation_runtime.models import (
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.social_scheduling.models import SocialSchedulingOutcome
 from coke.observability.turn_latency import turn_latency_span
+from coke.turn.action_runner import ActionRunner
 from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
 from coke.turn.focus import FocusResolver
@@ -28,11 +30,13 @@ from coke.turn.memory import MemoryManager, MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator, ValidatedOutput
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.reference_resolver import ReferenceResolver
+from coke.turn.routing import derive_route
 from coke.turn.semantic_interpreter import (
     SemanticDecision,
     SemanticInterpreter,
     SemanticInterpreterRequest,
 )
+from coke.turn.streaming import is_streaming_eligible
 
 WAITING_TEXT = "我还在处理，稍等一下。"
 LOGGER = logging.getLogger(__name__)
@@ -386,6 +390,7 @@ class TurnRunner:
         self.memory_manager = MemoryManager(memory_port)
         self.interaction_agent = interaction_agent
         self.output_protocol = output_protocol
+        self.action_runner = ActionRunner()
         self.outbound_delivery = outbound_delivery
         self.delivery_lifecycle = delivery_lifecycle
         self.reminder_fire_facts = reminder_fire_facts
@@ -550,6 +555,14 @@ class TurnRunner:
                         turn_source=trusted_facts["turn_source"],
                         current_input_messages=start.input_messages,
                     )
+                prepared_result = self._run_prepared_action_if_available(
+                    trigger=trigger,
+                    context=context,
+                    semantic_decision=semantic_decision,
+                    current_input_messages=start.input_messages,
+                )
+                if prepared_result is not None:
+                    return prepared_result
                 return self._invoke_agent_and_record(
                     trigger,
                     context,
@@ -704,6 +717,14 @@ class TurnRunner:
                             turn_source=trusted_facts["turn_source"],
                             current_input_messages=start.input_messages,
                         )
+                    prepared_result = self._run_prepared_action_if_available(
+                        trigger=trigger,
+                        context=context,
+                        semantic_decision=semantic_decision,
+                        current_input_messages=start.input_messages,
+                    )
+                    if prepared_result is not None:
+                        return prepared_result
                     return await self._invoke_agent_and_record_async(
                         trigger,
                         context,
@@ -1039,6 +1060,58 @@ class TurnRunner:
             finally:
                 lock.release()
 
+    def _run_prepared_action_if_available(
+        self,
+        *,
+        trigger: TurnTrigger,
+        context: Any,
+        semantic_decision: SemanticDecision,
+        current_input_messages: tuple[Any, ...] = (),
+    ) -> TurnRunResult | None:
+        route = derive_route(semantic_decision)
+        if route != "prepared_list":
+            return None
+        reminder_tool = self.tool_ports.reminder_tool
+        if reminder_tool is None or not hasattr(
+            reminder_tool, "execute_without_staging"
+        ):
+            return None
+        with turn_latency_span(
+            "turn.prepared_action",
+            turn_id=context.freshness_guard.turn_id,
+            trigger_type=trigger.trigger_type,
+            mode=trigger.mode,
+            account_id=trigger.account_id,
+            conversation_id=trigger.conversation_id,
+            extra={"route": route, "action": "list_reminders"},
+        ) as latency_fields:
+            result = self.action_runner.run_plain_reminder_list(
+                account_id=str(
+                    context.trusted_facts.get("account_id") or trigger.account_id
+                ),
+                display_timezone=str(
+                    context.trusted_facts.get("default_timezone") or "UTC"
+                ),
+                user_text=_user_text_from_payload(trigger.payload),
+                reminder_tool=reminder_tool,
+                guard=context.freshness_guard,
+            )
+            latency_fields["tool_count"] = len(result.tool_events)
+        if not result.handled or result.validated is None:
+            return None
+        return self._record_validated_output(
+            turn_id=context.freshness_guard.turn_id,
+            trigger=trigger,
+            validated=result.validated,
+            current_input_messages=tuple(
+                current_input_messages or getattr(context, "current_input_messages", ())
+            ),
+            tool_events=tuple(result.tool_events),
+            onboarding_guidance_required=bool(
+                getattr(context, "onboarding_guidance_required", False)
+            ),
+        )
+
     def _invoke_agent_and_record(
         self,
         trigger: TurnTrigger,
@@ -1171,6 +1244,8 @@ class TurnRunner:
                 fallback=context.freshness_guard.turn_id,
             ),
         )
+        streamed_segment_count = 0
+        streamed_reply_outcomes: tuple[DeliveryOutcome, ...] = ()
         with turn_latency_span(
             "agent.primary",
             turn_id=agent_request.turn_id,
@@ -1179,7 +1254,31 @@ class TurnRunner:
             account_id=trigger.account_id,
             conversation_id=trigger.conversation_id,
         ) as latency_fields:
-            agent_result = await self.interaction_agent.ainvoke(agent_request)
+            streaming_invoke = getattr(
+                self.interaction_agent, "ainvoke_streaming", None
+            )
+            if (
+                semantic_decision is not None
+                and callable(streaming_invoke)
+                and is_streaming_eligible(
+                    trigger, semantic_decision, context.tool_profile
+                )
+            ):
+                (
+                    agent_result,
+                    streamed_segment_count,
+                    first_segment_ms,
+                    streamed_reply_outcomes,
+                ) = await self._consume_streaming_agent_reply(
+                    trigger=trigger,
+                    request=agent_request,
+                    streaming_invoke=streaming_invoke,
+                )
+                latency_fields["streamed"] = streamed_segment_count > 0
+                if first_segment_ms is not None:
+                    latency_fields["first_segment_ms"] = first_segment_ms
+            else:
+                agent_result = await self.interaction_agent.ainvoke(agent_request)
             latency_fields["tool_count"] = len(agent_result.tool_events)
             latency_fields["timeout"] = agent_result.timed_out
         if agent_result.timed_out:
@@ -1247,6 +1346,70 @@ class TurnRunner:
             onboarding_guidance_required=bool(
                 getattr(context, "onboarding_guidance_required", False)
             ),
+            skip_delivered_segment_count=streamed_segment_count,
+            pre_delivered_reply_outcomes=streamed_reply_outcomes,
+        )
+
+    async def _consume_streaming_agent_reply(
+        self,
+        *,
+        trigger: TurnTrigger,
+        request: AgentRequest,
+        streaming_invoke: Callable[[AgentRequest], Any],
+    ) -> tuple[AgentResult, int, int | None, tuple[DeliveryOutcome, ...]]:
+        started_at = time.perf_counter()
+        streamed_segment_count = 0
+        first_segment_ms: int | None = None
+        reply_outcomes: list[DeliveryOutcome] = []
+        final_result: AgentResult | None = None
+        streaming_suppressed = False
+        async for event in streaming_invoke(request):
+            if isinstance(event, AgentResult):
+                final_result = event
+                break
+            if (
+                streaming_suppressed
+                or streamed_segment_count > 0
+                or not isinstance(event, str)
+            ):
+                continue
+            segment = event.strip()
+            if not segment:
+                continue
+            if _contains_serialized_tool_call(segment):
+                streaming_suppressed = True
+                continue
+            first_segment_validation = self._validate_agent_output(
+                trigger,
+                request,
+                {"type": "reply", "segments": [segment]},
+                tool_events=(),
+            )
+            if not first_segment_validation.valid:
+                streaming_suppressed = True
+                continue
+            first_segment_ms = max(
+                0, int(round((time.perf_counter() - started_at) * 1000))
+            )
+            for delivery_request in self._reply_delivery_requests(
+                trigger=trigger,
+                turn_id=request.turn_id,
+                visible_text=segment,
+                segments=(segment,),
+                outbound_messages=[],
+                start_index=1,
+            ):
+                outcome = self._deliver(delivery_request)
+                reply_outcomes.append(outcome)
+                self._record_delivery_lifecycle(trigger, delivery_request, outcome)
+            streamed_segment_count = 1
+        if final_result is None:
+            final_result = AgentResult.completed(None, blank_output=True)
+        return (
+            final_result,
+            streamed_segment_count,
+            first_segment_ms,
+            tuple(reply_outcomes),
         )
 
     def _validate_agent_output(
@@ -1515,6 +1678,8 @@ class TurnRunner:
         current_input_messages: tuple[Any, ...] = (),
         tool_events: tuple[Mapping[str, Any], ...] = (),
         onboarding_guidance_required: bool = False,
+        skip_delivered_segment_count: int = 0,
+        pre_delivered_reply_outcomes: tuple[DeliveryOutcome, ...] = (),
     ) -> TurnRunResult:
         if not validated.valid:
             disposition = self.conversation_runtime.mark_failed(
@@ -1574,14 +1739,19 @@ class TurnRunner:
             for message in self.conversation_runtime.outbound_messages_for_turn(turn_id)
             if (message.segment_index or 0) > 0
         ]
-        delivered_reply = False
-        reply_outcomes: list[DeliveryOutcome] = []
+        reply_outcomes: list[DeliveryOutcome] = list(pre_delivered_reply_outcomes)
+        delivered_reply = any(
+            outcome.status in {"sent", "delivered"} for outcome in reply_outcomes
+        )
+        delivery_start_index = max(1, skip_delivered_segment_count + 1)
+        remaining_segments = segments[skip_delivered_segment_count:]
         for request in self._reply_delivery_requests(
             trigger=trigger,
             turn_id=turn_id,
             visible_text=visible_text,
-            segments=segments,
+            segments=remaining_segments,
             outbound_messages=outbound_messages,
+            start_index=delivery_start_index,
         ):
             outcome = self._deliver(request)
             reply_outcomes.append(outcome)
@@ -1727,6 +1897,7 @@ class TurnRunner:
         visible_text: str,
         segments: tuple[str, ...],
         outbound_messages: list[Any],
+        start_index: int = 1,
     ) -> list[DeliveryRequest]:
         recipients = _recipient_account_ids(trigger)
         multiple = len(recipients) > 1
@@ -1739,7 +1910,7 @@ class TurnRunner:
         )
         requests: list[DeliveryRequest] = []
         for account_id in recipients:
-            for index, segment in enumerate(segments, start=1):
+            for index, segment in enumerate(segments, start=start_index):
                 message_id = _outbound_message_id_for_segment(ordered_messages, index)
                 idempotency_key = f"{turn_id}:reply:{index}"
                 if multiple or account_id != trigger.account_id:
@@ -2902,6 +3073,13 @@ def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo | Any]:
 
 def _semantic_decision_fact(decision: SemanticDecision) -> dict[str, Any]:
     return asdict(decision)
+
+
+def _user_text_from_payload(payload: Mapping[str, Any]) -> str:
+    text = payload.get("text")
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+    return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 def _turn_source_for_trigger(trigger: TurnTrigger) -> dict[str, Any]:

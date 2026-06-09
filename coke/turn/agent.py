@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
@@ -84,6 +85,10 @@ class InteractionAgent(Protocol):
     def invoke(self, request: AgentRequest) -> AgentResult: ...
 
     async def ainvoke(self, request: AgentRequest) -> AgentResult: ...
+
+    def ainvoke_streaming(
+        self, request: AgentRequest
+    ) -> AsyncIterator[str | AgentResult]: ...
 
     async def cancel(self, run_id: str) -> bool: ...
 
