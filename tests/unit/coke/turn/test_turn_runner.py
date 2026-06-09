@@ -15,6 +15,14 @@ import pytest
 
 import coke.llm.agno_interaction_agent as agno_agent_module
 from coke.composition import ReminderToolAdapter, SocialSchedulingToolAdapter
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
+from coke.domains.conversation_runtime.repository import (
+    InMemoryConversationRuntimeRepository,
+)
+from coke.domains.conversation_runtime.service import ConversationRuntimeService
+from coke.domains.reminder.models import Reminder, ReminderBatchItem, ReminderFire
+from coke.domains.reminder.repository import InMemoryReminderRepository
+from coke.domains.reminder.service import ReminderService
 from coke.domains.social_scheduling.availability import (
     ParticipantReachabilityPort,
     ReminderAvailabilityPort,
@@ -27,14 +35,6 @@ from coke.domains.social_scheduling.repository import (
     InMemorySocialSchedulingRepository,
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
-from coke.domains.conversation_runtime.models import ConversationRuntimeError
-from coke.domains.conversation_runtime.repository import (
-    InMemoryConversationRuntimeRepository,
-)
-from coke.domains.conversation_runtime.service import ConversationRuntimeService
-from coke.domains.reminder.models import Reminder, ReminderBatchItem, ReminderFire
-from coke.domains.reminder.repository import InMemoryReminderRepository
-from coke.domains.reminder.service import ReminderService
 from coke.turn.agent import AgentResult, AgentToolPorts, ToolExecutionResult
 from coke.turn.context import ToolProfile, TurnMode, TurnTrigger
 from coke.turn.focus import FocusResolver, MessageSubject
@@ -2604,6 +2604,52 @@ def test_render_delivery_request_links_committed_outbound_message_id(harness):
     assert result.disposition == "replied"
     assert len(outbound) == 1
     assert harness["delivery"].deliveries[-1].message_id == outbound[0].id
+
+
+def test_notification_render_collapses_segments_into_single_delivery(harness):
+    # A product notification rendered as multiple segments must be delivered as
+    # one outbound message. Each segment is otherwise a separate provider send
+    # subject to the WeChat per-send context-token window; losing the second
+    # send (ilink ret_-2) would strand the content and leave the recipient with
+    # a contentless header. See docs/issues/2026-06-09-shared-reminder-invite-
+    # content-segment-lost.md.
+    harness["agent"].next_result = AgentResult.completed(
+        {
+            "type": "reply",
+            "segments": [
+                "olivers 和你共享了一个提醒",
+                "6月11日 15:00「和 eva 约Peter演讲」，时长15分钟",
+            ],
+        }
+    )
+
+    result = harness["runner"].run_render_turn(
+        TurnTrigger(
+            trigger_id="notification:fact-1",
+            trigger_type="NotificationTurn",
+            mode=TurnMode.RENDER,
+            conversation_id=harness["trigger"].conversation_id,
+            account_id="account_1",
+            payload={
+                "notification_fact_id": "fact_1",
+                "recipient_account_ids": ["account_1"],
+            },
+        )
+    )
+
+    assert result.disposition == "replied"
+    assert [request.visible_text for request in harness["delivery"].deliveries] == [
+        "olivers 和你共享了一个提醒\n6月11日 15:00「和 eva 约Peter演讲」，时长15分钟"
+    ]
+    assert [request.idempotency_key for request in harness["delivery"].deliveries] == [
+        f"{result.turn_id}:reply:1"
+    ]
+    outbound = [
+        message
+        for message in harness["runtime"].outbound_messages_for_turn(result.turn_id)
+        if (message.segment_index or 0) > 0
+    ]
+    assert len(outbound) == 1
 
 
 def test_notification_turn_invalid_output_settles_recipients_failed(harness):

@@ -1428,9 +1428,10 @@ class TurnRunner:
                 current_input_messages=current_input_messages,
             )
 
+        segments = self._delivery_segments(trigger, validated.segments)
         disposition = self.conversation_runtime.commit_reply(
             turn_id=turn_id,
-            segments=validated.segments,
+            segments=segments,
             reason_code=validated.reason_code or "reply_ready",
             materialize_staged_command=self._materialize_staged_command,
         )
@@ -1442,7 +1443,7 @@ class TurnRunner:
             tool_events=tool_events,
             current_input_messages=current_input_messages,
         )
-        visible_text = "\n".join(validated.segments)
+        visible_text = "\n".join(segments)
         outbound_messages = [
             message
             for message in self.conversation_runtime.outbound_messages_for_turn(turn_id)
@@ -1454,7 +1455,7 @@ class TurnRunner:
             trigger=trigger,
             turn_id=turn_id,
             visible_text=visible_text,
-            segments=validated.segments,
+            segments=segments,
             outbound_messages=outbound_messages,
         ):
             outcome = self._deliver(request)
@@ -1577,6 +1578,21 @@ class TurnRunner:
             if state.turn_id == turn_id:
                 return task_id
         return None
+
+    def _delivery_segments(
+        self, trigger: TurnTrigger, segments: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        # Interactive inbound replies may legitimately deliver as multiple
+        # conversational bubbles. System-initiated product notifications must
+        # deliver as a single message: each segment is a separate provider send
+        # bound by the WeChat per-send context-token window, and losing a later
+        # send (ilink ret_-2) would strand the content segment and leave the
+        # recipient with a contentless header while the creator is falsely told
+        # it was delivered. See
+        # docs/issues/2026-06-09-shared-reminder-invite-content-segment-lost.md.
+        if trigger.trigger_type == "InboundTurn" or len(segments) <= 1:
+            return segments
+        return ("\n".join(segments),)
 
     def _reply_delivery_requests(
         self,
