@@ -52,10 +52,10 @@ Plan        propose intent + a flat list of requested actions (natural-language
 PlanCompile  deterministic validation of action enums, required params, and
    →        whether a missing-param clarification is required before execution.
 Execute     runtime runs each action through domain services, which OWN
-   →        reference resolution and return typed outcomes; Execute derives a
-            settled_outcome + a response_obligation from the real results.
-Express     bounded streaming agent renders the response_obligation. It only
-   →        describes settled_outcome, so no-false-success is structural.
+   →        reference resolution and return typed outcomes; Execute assembles
+            them into settled_outcome (the per-action typed outcomes).
+Express     bounded streaming agent renders settled_outcome. It only describes
+   →        settled_outcome, so no-false-success is structural.
 Close/Deliver  materialize, set disposition, advance close state, deliver.
 Background   post-analysis / memory, off the critical path.
 ```
@@ -63,9 +63,9 @@ Background   post-analysis / memory, off the critical path.
 **Complexity is data, not a branch.** No `simple`/`complex` marking and no
 routing to different handlers. A greeting is zero actions; a reminder is one;
 "move the meeting, remind me to bring the contract, add 老王" is three.
-Clarification is not a separate path — it is a `response_obligation` value
-produced either by PlanCompile (missing param) or by Execute (ambiguous/blocked
-outcome). The same machine runs all of them.
+Clarification is not a separate path — it is a typed outcome (`needs_input` from
+PlanCompile, or `needs_choice`/`not_possible` from a service). The same machine
+runs all of them.
 
 ### The key correction from review: response is derived, not pre-decided
 
@@ -76,15 +76,15 @@ a service result. The corrected contract:
 - **Plan proposes**; it does not decide success vs clarification vs blocked.
 - **Domain services resolve and judge** (see "Service-side resolution" below) and
   return typed outcomes.
-- **Execute derives** `settled_outcome` + `response_obligation` from those real
-  results.
-- **Express renders** the obligation; because it can only describe
-  `settled_outcome`, no-false-success is structural and needs no downstream
-  verifier (see Express role).
+- **Execute assembles** the per-action typed outcomes into `settled_outcome`.
+- **Express renders** `settled_outcome`; because it can only describe it,
+  no-false-success is structural and needs no downstream verifier (see Express
+  role).
 
-The result-conditioned branching the old ReAct loop did becomes an explicit,
-deterministic **outcome → obligation policy owned by Execute** — not an LLM
-re-reasoning loop and not a second code path.
+The result-conditioned branching the old ReAct loop did becomes the **typed
+outcome a domain service deterministically returns** — not an LLM re-reasoning
+loop and not a second code path. Expressing that outcome is rendering, not a
+decision.
 
 ## Service-Side Resolution (the legacy lesson)
 
@@ -99,14 +99,28 @@ This design adopts that contract uniformly:
 
 - Plan emits actions with **keyword / natural-reference params**, never invented
   IDs. ("delete my gym reminder" → `reminder.delete {match: "gym"}`.)
-- The **domain service owns resolution** and returns a typed outcome:
-  `done`, `ambiguous{candidates}`, `not_found`, `blocked{reason}`, or
-  `counts{...}`.
-- **Execute maps the typed outcome to a `response_obligation`**:
-  `report_success`, `ask_clarification{candidates|missing}`,
-  `explain_blocked{reason}`, `report_counts{...}`, or `converse`.
-- When the obligation is `ask_clarification`, **interact with the user** — that is
-  a first-class, expected outcome, rendered by Express like any other.
+- The **domain service owns resolution** and returns a **typed outcome** from one
+  small universal vocabulary (the data payload is domain-specific):
+
+  | typed outcome | meaning | payload |
+  | --- | --- | --- |
+  | `done` | the action succeeded | `facts` — what happened (created X, the list, counts) |
+  | `needs_choice` | ambiguous; the user must pick | `candidates` |
+  | `needs_input` | a required field is missing | `missing` (e.g. trigger time) |
+  | `not_possible` | cannot be done | `reason` (not a friend, unreachable, duplicate, unsupported) |
+  | `nothing` | no-op | — |
+
+- When the outcome is `needs_choice` / `needs_input`, **interact with the user** —
+  asking is a first-class, expected outcome.
+
+There is **no separate `response_obligation` concept and no `ObligationResolver`
+unit.** The typed outcome IS the deterministic, testable contract, and it is
+produced where the decision is actually made — the **domain service** (the
+reminder service already returns ambiguous/not-found today). Execute assembles
+the per-action typed outcomes into `settled_outcome`; Express renders them. The
+"how to respond" is not a decision layer: the decision (which outcome) is the
+service's deterministic result; turning it into prose (confirm / ask which /
+explain) is Express's rendering job.
 
 Within-turn reference resolution that is DB-backed (resolving a friend name or a
 focus/reference to a concrete row) stays **runtime-owned inside the domain
@@ -142,7 +156,8 @@ conditionals.** Service-side resolution removes the need for conditional plans:
   a query-then-update chain. The ReAct "list friends first, then create with the
   ID" pattern is exactly the chaining that service-side resolution deletes.
 - Where the service cannot resolve a single target, the outcome is `ambiguous` or
-  `not_found` → a **clarification obligation**, never a cross-action dependency.
+  `not_found` → a **`needs_choice`/`needs_input` outcome (clarification)**, never a
+  cross-action dependency.
 
 **Precondition (a real requirement on domains):** each domain service owns
 resolution and selectors (keyword, ordering like "earliest", "if absent", …) and
@@ -157,8 +172,8 @@ aggregates**:
 
 - Cleanly resolved actions are staged and **materialize at close** as usual.
 - Ambiguous/blocked actions do **not** mutate; each contributes its outcome to a
-  combined `response_obligation` (e.g. "moved the meeting to 10:00; you have two
-  reminders matching 'gym' — which one?").
+  combined reply (e.g. "moved the meeting to 10:00; you have two reminders
+  matching 'gym' — which one?").
 - An unresolved action is simply asked about. The user's next-turn answer is
   reconstructed by **Plan from windowed conversation history** — there is no
   persisted "recoverable intent". Because a blocked action never mutated, there
@@ -193,7 +208,7 @@ too harsh for the reminder product).
 
 - Validates action enums, required-param presence, and reference-candidate
   shape. If a required param is structurally missing, it sets a
-  `clarification_required` obligation **before** execution (no LLM needed to know
+  `needs_input` outcome **before** execution (no LLM needed to know
   a create has no content).
 - Keeps Plan narrow: Plan proposes language-level actions; PlanCompile turns them
   into executable, validated action specs or a clarification.
@@ -208,10 +223,10 @@ become "TurnRunner v2":
   returns typed outcomes);
 - a detector extraction step supplies precise fields where needed (reminder time,
   etc.) before a mutating handler runs;
-- `ExecutionOutcomeBuilder` assembles `settled_outcome` (preserving the
-  staged-vs-materialized and model-visible-vs-internal distinctions that exist
-  today, e.g. pruned staged shared-reminder facts);
-- an `ObligationResolver` maps typed outcomes → `response_obligation`;
+- `ExecutionOutcomeBuilder` assembles the per-action typed outcomes into
+  `settled_outcome` (preserving the staged-vs-materialized and
+  model-visible-vs-internal distinctions that exist today, e.g. pruned staged
+  shared-reminder facts);
 - `Freshness/StagingGuard`, `CloseCoordinator`, `DeliveryCoordinator` own the
   transaction boundary.
 
@@ -223,8 +238,8 @@ formatting.
 - **What it is:** the current Interaction Agent with orchestration removed — same
   user-facing-prose job, but no tools, no tool loop, bounded context. (Names are
   cosmetic; "Express" just marks the narrowed role.)
-- **Input:** `response_obligation` + `settled_outcome` + (for `converse`) windowed
-  history + persona. No tool schemas.
+- **Input:** `settled_outcome` (the per-action typed outcomes) + (for `converse`,
+  i.e. a no-action turn) windowed history + persona. No tool schemas.
 - **Output:** user-facing segments, streamed. One capable model for both render
   and converse; lists are rendered by the same model from the prompt ("list every
   item with its time"), **not** a deterministic template — the template was a
@@ -251,8 +266,8 @@ was over-stated; the close/materialization order must be exact. The contract:
 
 1. Actions run; domain services resolve and produce typed outcomes; staged
    commands are staged under `Freshness/StagingGuard`.
-2. `ObligationResolver` produces the `response_obligation`; Express generates
-   segments from `settled_outcome` (no downstream verifier).
+2. `ExecutionOutcomeBuilder` assembles `settled_outcome`; Express generates
+   segments from it (no downstream verifier).
 3. **Only after** segments exist and a final freshness/supersede check passes does
    `CloseCoordinator` **materialize** staged commands, set the disposition, and
    advance `last_closed_inbound_seq` — atomically, as today.
@@ -311,7 +326,7 @@ not by a downstream claim verifier.
 greeting:     Plan([]) → Execute(none) → Express(converse, stream)
 list:         Plan([list {filter}]) → Execute(query → counts) → Express(render list, stream)
 create:       Plan([create {content, time-phrase}]) → detector extract → Execute(stage) → Express(confirm) → materialize@close
-delete vague: Plan([delete {match:"gym"}]) → Execute(service → ambiguous{c}) → obligation=ask → Express(ask which)
+delete vague: Plan([delete {match:"gym"}]) → Execute(service → needs_choice{c}) → Express(ask which)
 multi-action: Plan([update…, create…, add_participant…]) → Execute(run all, typed outcomes) → Express(summary, stream)
 ```
 
@@ -323,15 +338,16 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 
 - **Plan extraction parity** if/when the detector is folded in — gated on eval,
   not assumed.
-- **ObligationResolver completeness** — every domain's typed outcomes must map to
-  an obligation; an unmapped outcome must fail closed (block + explain), never a
-  false success. This table is the new home of result-conditioned logic and must
-  be exhaustively tested.
+- **Typed-outcome coverage** — every domain action must return one of the
+  universal typed outcomes; an unexpected/edge case must return `not_possible`
+  (fail closed, explain), never a `done` it did not achieve. The typed-outcome
+  contract is the deterministic, exhaustively-tested surface (at the service
+  boundary).
 - **settled_outcome fidelity** — must preserve model-visible-vs-internal pruning
   (shared reminders) and full counts (calendar import) or Express will
   under-report.
 - **Plan must propose correct multi-action sets**; a set it cannot form becomes a
-  clarification obligation, the same shape — never a second path.
+  clarification (`needs_input`), the same shape — never a second path.
 
 ## Verification Strategy
 
@@ -342,12 +358,14 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
   midnight/DST, vague/incomplete/past times, recurrence, duration, batch,
   no-trigger, missing-time follow-up, new-topic, and shared-reminder extraction;
   false concrete time and missed clarification are zero-tolerance.
-- **ObligationResolver tests**: every typed domain outcome → correct obligation,
-  including ambiguous/not_found/blocked/counts; unmapped → fail closed.
+- **Typed-outcome tests** (at the service boundary): each domain action returns
+  the right typed outcome for done/needs_choice/needs_input/not_possible/nothing,
+  including ambiguous/not_found/duplicate/unreachable; edge cases → `not_possible`,
+  never a false `done`.
 - **Close-boundary tests**: stage → verify → materialize → disposition →
   close-advance ordering; supersede before materialize delivers nothing and
   mutates nothing; `pending_async_reply` non-closing.
-- **Express tests**: renders the obligation from `settled_outcome` only;
+- **Express tests**: renders from `settled_outcome` only;
   streaming delivers complete segments. Smoke watches for any hallucinated
   success not in `settled_outcome` — if seen, fix upstream (no downstream
   verifier by decision).
@@ -360,12 +378,8 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 
 ## Still To Discuss (not yet decided)
 
-1. **Express model role** — reuse the interaction model vs a smaller/faster
-   render model; decided by render-quality + latency measurement.
-2. **Exact `response_obligation` taxonomy** and the per-domain typed-outcome
-   surface (implementation-plan detail, but the taxonomy shape affects testing).
-3. **Detector end-state** — stays as an Execute step now; the bar and corpus to
-   ever fold it into Plan.
+1. **Detector end-state** — stays as an Execute extraction step now; the bar and
+   corpus required to ever fold it into Plan.
 
 Resolved (2026-06-10):
 - **Flat action list, no `depends_on`** — dependencies collapse into
@@ -375,13 +389,21 @@ Resolved (2026-06-10):
   subsystem, facts hash, and `follow_up_action` are deleted; Plan reconstructs a
   deferred/remaining action from windowed history (see "No Persisted Recovery
   State").
+- **One Express model, no downstream verifier** — one capable model renders list
+  and converse from the prompt; no list template; no-false-success is structural
+  (see Express role).
+- **Universal typed-outcome vocabulary, no `response_obligation`/ObligationResolver**
+  — domain services return `done`/`needs_choice`/`needs_input`/`not_possible`/
+  `nothing` (domain data attached); `settled_outcome` is the per-action list;
+  Express renders it (see Service-Side Resolution).
 
 ## Summary
 
 Keep legacy's clean linear reality — one path that absorbs difficulty, with
 resolution pushed into the services — and keep clean Coke's bounded-context
 protection, by splitting the old single agent into **Plan (propose) → PlanCompile
-(validate) → Execute (resolve via services, derive obligation, guarded, no LLM) →
+(validate) → Execute (resolve via services, assemble settled_outcome, guarded, no
+LLM) →
 Express (bounded streaming render, one model, no downstream verifier)**. The
 response is derived from real outcomes, not pre-decided. Complexity is plan size;
 result-conditioned branching is a deterministic Execute-owned outcome policy.
