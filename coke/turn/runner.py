@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -20,6 +21,7 @@ from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.social_scheduling.models import SocialSchedulingOutcome
 from coke.observability.turn_latency import turn_latency_span
 from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
+from coke.turn.action_runner import ActionRunner
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
 from coke.turn.focus import FocusResolver
 from coke.turn.freshness import FreshnessGuard
@@ -28,6 +30,7 @@ from coke.turn.memory import MemoryManager, MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator, ValidatedOutput
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.reference_resolver import ReferenceResolver
+from coke.turn.routing import derive_route
 from coke.turn.semantic_interpreter import (
     SemanticDecision,
     SemanticInterpreter,
@@ -386,6 +389,7 @@ class TurnRunner:
         self.memory_manager = MemoryManager(memory_port)
         self.interaction_agent = interaction_agent
         self.output_protocol = output_protocol
+        self.action_runner = ActionRunner()
         self.outbound_delivery = outbound_delivery
         self.delivery_lifecycle = delivery_lifecycle
         self.reminder_fire_facts = reminder_fire_facts
@@ -550,6 +554,14 @@ class TurnRunner:
                         turn_source=trusted_facts["turn_source"],
                         current_input_messages=start.input_messages,
                     )
+                prepared_result = self._run_prepared_action_if_available(
+                    trigger=trigger,
+                    context=context,
+                    semantic_decision=semantic_decision,
+                    current_input_messages=start.input_messages,
+                )
+                if prepared_result is not None:
+                    return prepared_result
                 return self._invoke_agent_and_record(
                     trigger,
                     context,
@@ -704,6 +716,14 @@ class TurnRunner:
                             turn_source=trusted_facts["turn_source"],
                             current_input_messages=start.input_messages,
                         )
+                    prepared_result = self._run_prepared_action_if_available(
+                        trigger=trigger,
+                        context=context,
+                        semantic_decision=semantic_decision,
+                        current_input_messages=start.input_messages,
+                    )
+                    if prepared_result is not None:
+                        return prepared_result
                     return await self._invoke_agent_and_record_async(
                         trigger,
                         context,
@@ -1038,6 +1058,57 @@ class TurnRunner:
                 )
             finally:
                 lock.release()
+
+    def _run_prepared_action_if_available(
+        self,
+        *,
+        trigger: TurnTrigger,
+        context: Any,
+        semantic_decision: SemanticDecision,
+        current_input_messages: tuple[Any, ...] = (),
+    ) -> TurnRunResult | None:
+        route = derive_route(semantic_decision)
+        if route != "prepared_list":
+            return None
+        reminder_tool = self.tool_ports.reminder_tool
+        if reminder_tool is None or not hasattr(reminder_tool, "execute_without_staging"):
+            return None
+        with turn_latency_span(
+            "turn.prepared_action",
+            turn_id=context.freshness_guard.turn_id,
+            trigger_type=trigger.trigger_type,
+            mode=trigger.mode,
+            account_id=trigger.account_id,
+            conversation_id=trigger.conversation_id,
+            extra={"route": route, "action": "list_reminders"},
+        ) as latency_fields:
+            result = self.action_runner.run_plain_reminder_list(
+                account_id=str(
+                    context.trusted_facts.get("account_id") or trigger.account_id
+                ),
+                display_timezone=str(
+                    context.trusted_facts.get("default_timezone") or "UTC"
+                ),
+                user_text=_user_text_from_payload(trigger.payload),
+                reminder_tool=reminder_tool,
+                guard=context.freshness_guard,
+            )
+            latency_fields["tool_count"] = len(result.tool_events)
+        if not result.handled or result.validated is None:
+            return None
+        return self._record_validated_output(
+            turn_id=context.freshness_guard.turn_id,
+            trigger=trigger,
+            validated=result.validated,
+            current_input_messages=tuple(
+                current_input_messages
+                or getattr(context, "current_input_messages", ())
+            ),
+            tool_events=tuple(result.tool_events),
+            onboarding_guidance_required=bool(
+                getattr(context, "onboarding_guidance_required", False)
+            ),
+        )
 
     def _invoke_agent_and_record(
         self,
@@ -2902,6 +2973,13 @@ def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo | Any]:
 
 def _semantic_decision_fact(decision: SemanticDecision) -> dict[str, Any]:
     return asdict(decision)
+
+
+def _user_text_from_payload(payload: Mapping[str, Any]) -> str:
+    text = payload.get("text")
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+    return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 def _turn_source_for_trigger(trigger: TurnTrigger) -> dict[str, Any]:
