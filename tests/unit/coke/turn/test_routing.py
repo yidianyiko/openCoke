@@ -30,9 +30,7 @@ def test_required_clarification_routes_to_clarification():
 
 
 def test_intentional_no_reply_routes_to_no_reply():
-    assert (
-        derive_route(Decision(reply_necessity="intentional_no_reply")) == "no_reply"
-    )
+    assert derive_route(Decision(reply_necessity="intentional_no_reply")) == "no_reply"
 
 
 def test_create_reminder_routes_to_full_agent():

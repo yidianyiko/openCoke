@@ -19,7 +19,6 @@ from coke.turn.agent import (
 )
 from coke.turn.context import TurnMode
 from coke.turn.output_protocol import OutputProtocolValidator
-from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.reminder_list_render import looks_chinese as _shared_looks_chinese
 from coke.turn.reminder_list_render import (
     render_reminder_list_line as _shared_render_reminder_list_line,

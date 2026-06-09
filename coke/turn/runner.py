@@ -20,8 +20,8 @@ from coke.domains.conversation_runtime.models import (
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.social_scheduling.models import SocialSchedulingOutcome
 from coke.observability.turn_latency import turn_latency_span
-from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
 from coke.turn.action_runner import ActionRunner
+from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
 from coke.turn.focus import FocusResolver
 from coke.turn.freshness import FreshnessGuard
@@ -1071,7 +1071,9 @@ class TurnRunner:
         if route != "prepared_list":
             return None
         reminder_tool = self.tool_ports.reminder_tool
-        if reminder_tool is None or not hasattr(reminder_tool, "execute_without_staging"):
+        if reminder_tool is None or not hasattr(
+            reminder_tool, "execute_without_staging"
+        ):
             return None
         with turn_latency_span(
             "turn.prepared_action",
@@ -1101,8 +1103,7 @@ class TurnRunner:
             trigger=trigger,
             validated=result.validated,
             current_input_messages=tuple(
-                current_input_messages
-                or getattr(context, "current_input_messages", ())
+                current_input_messages or getattr(context, "current_input_messages", ())
             ),
             tool_events=tuple(result.tool_events),
             onboarding_guidance_required=bool(

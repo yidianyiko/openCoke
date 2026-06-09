@@ -12,8 +12,12 @@ from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
 )
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
-from coke.turn.agent import AgentResult, AgentToolPorts, DomainExecutionResult
-from coke.turn.agent import ToolExecutionResult
+from coke.turn.agent import (
+    AgentResult,
+    AgentToolPorts,
+    DomainExecutionResult,
+    ToolExecutionResult,
+)
 from coke.turn.context import TurnMode, TurnTrigger
 from coke.turn.locks import ConversationLockManager
 from coke.turn.output_protocol import OutputProtocolValidator
@@ -277,6 +281,7 @@ def _prepared_env(
         ],
     }
     gate_port = FakeGatePort()
+
     def record_newer_inbound() -> None:
         runtime.record_inbound(
             account_id="account_1",

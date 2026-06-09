@@ -119,9 +119,10 @@ def test_interpret_prompt_exposes_typed_actions_ambiguity_and_examples():
     assert "new topic does not reopen" in call["system"]
     assert "Do not use keyword routing" in call["system"]
     assert "list_is_plain" in call["system"]
-    assert "no keyword, no specific date/time window, no status/kind filter" in call[
-        "system"
-    ]
+    assert (
+        "no keyword, no specific date/time window, no status/kind filter"
+        in call["system"]
+    )
 
 
 @pytest.mark.parametrize("list_is_plain", [True, False])
