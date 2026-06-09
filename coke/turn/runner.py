@@ -33,6 +33,7 @@ from coke.turn.semantic_interpreter import (
     SemanticInterpreter,
     SemanticInterpreterRequest,
 )
+from coke.turn.streaming import is_streaming_eligible
 
 WAITING_TEXT = "我还在处理，稍等一下。"
 LOGGER = logging.getLogger(__name__)
@@ -1171,6 +1172,8 @@ class TurnRunner:
                 fallback=context.freshness_guard.turn_id,
             ),
         )
+        streamed_segment_count = 0
+        streamed_reply_outcomes: tuple[DeliveryOutcome, ...] = ()
         with turn_latency_span(
             "agent.primary",
             turn_id=agent_request.turn_id,
@@ -1179,7 +1182,31 @@ class TurnRunner:
             account_id=trigger.account_id,
             conversation_id=trigger.conversation_id,
         ) as latency_fields:
-            agent_result = await self.interaction_agent.ainvoke(agent_request)
+            streaming_invoke = getattr(
+                self.interaction_agent, "ainvoke_streaming", None
+            )
+            if (
+                semantic_decision is not None
+                and callable(streaming_invoke)
+                and is_streaming_eligible(
+                    trigger, semantic_decision, context.tool_profile
+                )
+            ):
+                (
+                    agent_result,
+                    streamed_segment_count,
+                    first_segment_ms,
+                    streamed_reply_outcomes,
+                ) = await self._consume_streaming_agent_reply(
+                    trigger=trigger,
+                    request=agent_request,
+                    streaming_invoke=streaming_invoke,
+                )
+                latency_fields["streamed"] = streamed_segment_count > 0
+                if first_segment_ms is not None:
+                    latency_fields["first_segment_ms"] = first_segment_ms
+            else:
+                agent_result = await self.interaction_agent.ainvoke(agent_request)
             latency_fields["tool_count"] = len(agent_result.tool_events)
             latency_fields["timeout"] = agent_result.timed_out
         if agent_result.timed_out:
@@ -1247,6 +1274,53 @@ class TurnRunner:
             onboarding_guidance_required=bool(
                 getattr(context, "onboarding_guidance_required", False)
             ),
+            skip_delivered_segment_count=streamed_segment_count,
+            pre_delivered_reply_outcomes=streamed_reply_outcomes,
+        )
+
+    async def _consume_streaming_agent_reply(
+        self,
+        *,
+        trigger: TurnTrigger,
+        request: AgentRequest,
+        streaming_invoke: Callable[[AgentRequest], Any],
+    ) -> tuple[AgentResult, int, int | None, tuple[DeliveryOutcome, ...]]:
+        started_at = time.perf_counter()
+        streamed_segment_count = 0
+        first_segment_ms: int | None = None
+        reply_outcomes: list[DeliveryOutcome] = []
+        final_result: AgentResult | None = None
+        async for event in streaming_invoke(request):
+            if isinstance(event, AgentResult):
+                final_result = event
+                break
+            if streamed_segment_count > 0 or not isinstance(event, str):
+                continue
+            segment = event.strip()
+            if not segment:
+                continue
+            first_segment_ms = max(
+                0, int(round((time.perf_counter() - started_at) * 1000))
+            )
+            for delivery_request in self._reply_delivery_requests(
+                trigger=trigger,
+                turn_id=request.turn_id,
+                visible_text=segment,
+                segments=(segment,),
+                outbound_messages=[],
+                start_index=1,
+            ):
+                outcome = self._deliver(delivery_request)
+                reply_outcomes.append(outcome)
+                self._record_delivery_lifecycle(trigger, delivery_request, outcome)
+            streamed_segment_count = 1
+        if final_result is None:
+            final_result = AgentResult.completed(None, blank_output=True)
+        return (
+            final_result,
+            streamed_segment_count,
+            first_segment_ms,
+            tuple(reply_outcomes),
         )
 
     def _validate_agent_output(
@@ -1515,6 +1589,8 @@ class TurnRunner:
         current_input_messages: tuple[Any, ...] = (),
         tool_events: tuple[Mapping[str, Any], ...] = (),
         onboarding_guidance_required: bool = False,
+        skip_delivered_segment_count: int = 0,
+        pre_delivered_reply_outcomes: tuple[DeliveryOutcome, ...] = (),
     ) -> TurnRunResult:
         if not validated.valid:
             disposition = self.conversation_runtime.mark_failed(
@@ -1574,14 +1650,19 @@ class TurnRunner:
             for message in self.conversation_runtime.outbound_messages_for_turn(turn_id)
             if (message.segment_index or 0) > 0
         ]
-        delivered_reply = False
-        reply_outcomes: list[DeliveryOutcome] = []
+        reply_outcomes: list[DeliveryOutcome] = list(pre_delivered_reply_outcomes)
+        delivered_reply = any(
+            outcome.status in {"sent", "delivered"} for outcome in reply_outcomes
+        )
+        delivery_start_index = max(1, skip_delivered_segment_count + 1)
+        remaining_segments = segments[skip_delivered_segment_count:]
         for request in self._reply_delivery_requests(
             trigger=trigger,
             turn_id=turn_id,
             visible_text=visible_text,
-            segments=segments,
+            segments=remaining_segments,
             outbound_messages=outbound_messages,
+            start_index=delivery_start_index,
         ):
             outcome = self._deliver(request)
             reply_outcomes.append(outcome)
@@ -1727,6 +1808,7 @@ class TurnRunner:
         visible_text: str,
         segments: tuple[str, ...],
         outbound_messages: list[Any],
+        start_index: int = 1,
     ) -> list[DeliveryRequest]:
         recipients = _recipient_account_ids(trigger)
         multiple = len(recipients) > 1
@@ -1739,7 +1821,7 @@ class TurnRunner:
         )
         requests: list[DeliveryRequest] = []
         for account_id in recipients:
-            for index, segment in enumerate(segments, start=1):
+            for index, segment in enumerate(segments, start=start_index):
                 message_id = _outbound_message_id_for_segment(ordered_messages, index)
                 idempotency_key = f"{turn_id}:reply:{index}"
                 if multiple or account_id != trigger.account_id:
