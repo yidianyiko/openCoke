@@ -2,246 +2,307 @@
 
 ## Status
 
-approved-design (2026-06-10). Supersedes the fast-path direction in
-`docs/superpowers/specs/2026-06-09-agent-flow-time-optimization-design.md`.
-This is a clean-slate rebuild of the interactive turn path with **no migration,
-no compatibility shims, and no historical remnants**. Current production keeps
-running the existing path until this rebuild reaches correctness and latency
-parity, then it is replaced wholesale.
+design-in-review (2026-06-10). Revised after two independent design reviews
+(correctness-regression lens and architecture-purity lens) that both returned
+"not ready for an implementation plan" with strongly convergent findings. This
+revision applies the clear, agreed corrections; remaining open questions are in
+"Still To Discuss".
+
+Supersedes the fast-path direction in
+`docs/superpowers/specs/2026-06-09-agent-flow-time-optimization-design.md`. Clean
+slate, no compatibility shims. Production keeps running the existing path until
+this rebuild reaches correctness-boundary and latency parity, then is replaced
+wholesale.
+
+## Scope
+
+This design replaces the **inbound interactive turn** path only. Notification and
+render turns (non-inbound, with their own segment-merge behavior) are out of
+scope here and are not changed by this work.
 
 ## Problem
 
-The current clean turn path feels contorted, and the feeling points at real
-architectural debt:
+The current clean turn path feels contorted and the feeling points at real debt:
 
-1. **Three LLM brains that duplicate each other.** A `SemanticInterpreter`
-   classifies intent, the `Interaction Agent` then re-decides which tools to call
-   (re-judging intent), and a separate `reminder_detector` extracts fields. The
-   same understanding work happens more than once.
-2. **The Interaction Agent is both orchestrator and expresser.** It carries tool
-   schemas, runs a tool-calling loop, accumulates tool results, and then
-   generates prose — all in one growing context. This is the real
-   context-growth source.
-3. **Performance was patched by adding parallel paths.** A reminder-list "fast
-   path" (`ActionRunner` + `routing.derive_route` + `is_streaming_eligible`)
-   bypasses the agent for some turns and re-implements the correctness guards on
-   a second path. Two ways to handle a turn, each needing independent
-   verification.
-4. **Two renderers for the same output.** For reminder lists the agent generates
-   prose and then `_enforce_tool_reply_contracts` discards it and substitutes a
-   runtime template. The agent's generation is wasted.
-5. **Streaming was bolted onto a validate-then-send core.** The agent both acts
-   and expresses, so streaming risked claiming success before materialization,
-   forcing awkward suppression logic.
+1. **Three LLM brains that duplicate each other** — `SemanticInterpreter`
+   classifies intent, the `Interaction Agent` re-decides which tools to call, and
+   `reminder_detector` extracts fields; understanding happens more than once.
+2. **The Interaction Agent is both orchestrator and expresser** — it carries tool
+   schemas, runs a tool loop, accumulates results, then generates prose in one
+   growing context. This is the real context-growth source.
+3. **Performance was patched by adding a parallel path** — the reminder-list fast
+   path bypasses the agent and re-implements the guards on a second path.
+4. **Two renderers for one output** — the agent renders a list, then
+   `_enforce_tool_reply_contracts` discards it and substitutes a template.
+5. **Streaming was bolted onto a validate-then-send core**, forcing awkward
+   eligibility/suppression logic.
 
-The constraint that justifies keeping a dedicated expression agent is real:
-**expression must run on a bounded context to avoid context explosion.** A single
-legacy-style agent that reasons, orchestrates tools, and expresses in one context
-grows without bound on long conversations. So "collapse back to one agent" is not
-acceptable. The goal is to keep bounded expression while removing the duplication,
-the parallel paths, and the bolted-on streaming.
+The constraint that justifies a dedicated expression agent is real: **expression
+must run on a bounded context to avoid context explosion.** So "collapse back to
+one legacy agent" is rejected. The goal: keep bounded expression while removing
+the duplication, the parallel path, and the bolted-on streaming.
 
 ## Decision
 
-Rebuild the interactive turn as **one uniform shape**:
+Rebuild the inbound interactive turn as **one uniform pipeline**:
 
 ```text
-Plan      reason over the conversation, emit a declarative plan
-   →      (0..N domain actions + how to respond). The only reasoning brain.
-Execute   runtime runs the plan's domain actions behind correctness guards.
-   →      No LLM. Produces a settled, trusted outcome.
-Express   bounded streaming agent renders the settled outcome, or converses
-   →      for action-free turns. No tools, no orchestration.
-Background  post-analysis / memory, off the critical path.
+Plan        propose intent + a flat list of requested actions (natural-language
+   →        / keyword params, NOT resolved IDs). The only reasoning brain.
+PlanCompile  deterministic validation of action enums, required params, and
+   →        whether a missing-param clarification is required before execution.
+Execute     runtime runs each action through domain services, which OWN
+   →        reference resolution and return typed outcomes; Execute derives a
+            settled_outcome + a response_obligation from the real results.
+Express     bounded streaming agent renders the response_obligation; a
+   →        deterministic post-verifier binds its claims to settled_outcome.
+Close/Deliver  materialize, set disposition, advance close state, deliver.
+Background   post-analysis / memory, off the critical path.
 ```
 
-**Complexity is data, not a branch.** There is no `simple` vs `complex` marking
-and no routing to different handlers. A greeting is a plan with zero actions; a
-single reminder is a plan with one action; "move the meeting, remind me to bring
-the contract, and add 老王" is a plan with three actions. The same machine runs
-all of them. Clarification is a plan with zero actions whose response directive
-is "ask one question." This is the legacy reality (one path absorbs the
-difficulty) without legacy's context explosion (expression is split out and
-bounded).
+**Complexity is data, not a branch.** No `simple`/`complex` marking and no
+routing to different handlers. A greeting is zero actions; a reminder is one;
+"move the meeting, remind me to bring the contract, add 老王" is three.
+Clarification is not a separate path — it is a `response_obligation` value
+produced either by PlanCompile (missing param) or by Execute (ambiguous/blocked
+outcome). The same machine runs all of them.
 
-This collapses three brains into two clean roles — **Plan** and **Express** —
-each doing its job exactly once.
+### The key correction from review: response is derived, not pre-decided
+
+The earlier draft had Plan decide the response up front. Both reviews showed this
+is unsafe: many turns cannot know the right user-visible response until **after**
+a service result. The corrected contract:
+
+- **Plan proposes**; it does not decide success vs clarification vs blocked.
+- **Domain services resolve and judge** (see "Service-side resolution" below) and
+  return typed outcomes.
+- **Execute derives** `settled_outcome` + `response_obligation` from those real
+  results.
+- **Express renders** the obligation and is **verified** against settled facts.
+
+The result-conditioned branching the old ReAct loop did becomes an explicit,
+deterministic **outcome → obligation policy owned by Execute** — not an LLM
+re-reasoning loop and not a second code path.
+
+## Service-Side Resolution (the legacy lesson)
+
+Legacy pushed resolution down into the tool/service side: it operated on
+**keywords and natural references, not pre-resolved IDs**. The service resolved
+the reference and returned a typed result; ambiguity was a service outcome, not
+an agent guess. The clean domain services already work this way — e.g.
+reminder `update_by_keyword`/delete/complete resolve a match and return
+`no_matching_reminder` or `ambiguous_reminder_reference` with candidates.
+
+This design adopts that contract uniformly:
+
+- Plan emits actions with **keyword / natural-reference params**, never invented
+  IDs. ("delete my gym reminder" → `reminder.delete {match: "gym"}`.)
+- The **domain service owns resolution** and returns a typed outcome:
+  `done`, `ambiguous{candidates}`, `not_found`, `blocked{reason}`, or
+  `counts{...}`.
+- **Execute maps the typed outcome to a `response_obligation`**:
+  `report_success`, `ask_clarification{candidates|missing}`,
+  `explain_blocked{reason}`, `report_counts{...}`, or `converse`.
+- When the obligation is `ask_clarification`, **interact with the user** — that is
+  a first-class, expected outcome, rendered by Express like any other.
+
+Reference resolution that is DB-backed (friend reference, focus/reference
+recovery, recoverable scheduling-intent correction across turns) stays
+**runtime-owned inside Execute**, not folded into Plan's prompt.
 
 ## Roles
 
-### Plan (the single reasoning layer)
+### Plan (single reasoning brain, narrow)
 
 - **Input:** windowed conversation, trusted facts, focus/reference context.
-  Bounded by conversation length, which is windowed and summarized — it does NOT
-  carry tool schemas, tool-call results, or a multi-step orchestration loop.
-- **Output:** a declarative `TurnPlan`:
-  - `actions`: ordered list of domain actions. Each action has a `domain`
-    (reminder, social_scheduling, settings, friendship, calendar_import, …), an
-    `operation` (create, update, cancel, list, schedule, add_via_code, …), and
-    typed `params` already extracted from the message (e.g. reminder
-    `trigger_time`, `content`). The list may be empty.
-  - `response_directive`: how Express should respond — `render_outcome`,
-    `converse`, `ask_clarification` (with the clarification subject), or
-    `acknowledge`.
-  - `reply_necessity`: `reply_needed` or `intentional_no_reply`.
-- **Discipline:** no `confidence` field, no numeric thresholds, no keyword/regex
-  routing. If Plan is wrong, fix its prompt, schema, examples, and eval corpus.
-- Plan replaces the current `SemanticInterpreter`. Field extraction that the
-  `reminder_detector` does today is **folded into Plan's action params** — there
-  is no separate extraction brain. (See Risks for the eval gate on this.)
+  Bounded by conversation, windowed/summarized. No tool-call loop, no tool
+  results.
+- **Output `TurnPlan`:** linguistic understanding + an ordered list of *requested*
+  actions, each `{domain, operation, keyword/natural params}`, plus
+  `reply_necessity`. It does **not** emit a final response decision.
+- **Discipline:** no `confidence`, no thresholds, no keyword/regex routing in
+  runtime. Fix errors via prompt/schema/examples/eval.
+- Plan replaces `SemanticInterpreter`. Plan does **not** yet own precise field
+  extraction (trigger time, durations, IDs) — that stays with the detector as an
+  Execute step (see "Detector").
 
-### Execute (runtime, no LLM)
+### PlanCompile (deterministic, no LLM)
 
-- Runs each action in `TurnPlan.actions` in order through existing domain
-  services and ports.
-- All correctness guards live here, as runtime gates around execution:
-  - `FreshnessGuard` before any state change and before close;
-  - staged commands for every mutation; nothing materializes until the staged
-    command is allowed to commit;
-  - supersede / input-window / `last_closed_inbound_seq` handling;
-  - dispositions: `replied`, `no_reply`, `pending_async_reply`, `failed`,
-    `recovered`, `superseded`;
-  - separate turn outcome and delivery state; delivery audit; provider adapters
-    behind canonical delivery contracts.
-- Produces a `settled_outcome`: trusted facts describing exactly what happened
-  (created/updated/listed/failed), suitable for Express to describe truthfully.
+- Validates action enums, required-param presence, and reference-candidate
+  shape. If a required param is structurally missing, it sets a
+  `clarification_required` obligation **before** execution (no LLM needed to know
+  a create has no content).
+- Keeps Plan narrow: Plan proposes language-level actions; PlanCompile turns them
+  into executable, validated action specs or a clarification.
 
-### Express (bounded streaming expression)
+### Execute (runtime, no LLM, internally structured)
 
-- **Input:** `settled_outcome` + `response_directive` + (for `converse`) windowed
-  conversation history + persona. Nothing else. No tool schemas, no tool loop.
-- **Output:** user-facing segments, **streamed** as each segment completes.
-- **Has no tools and performs no domain mutation.** It can only describe a
-  settled outcome or converse.
-- Express is the single renderer. The runtime list template and the agent's
-  prose generation collapse into this one owner; the discard-and-substitute step
-  is deleted.
+Execute is **not** a monolith. It is composed of small units so it does not
+become "TurnRunner v2":
 
-## Why Streaming Becomes Unconditionally Safe
+- `ActionExecutor` drives the ordered actions;
+- per-domain `ActionHandler`s call the domain service (which owns resolution and
+  returns typed outcomes);
+- a detector extraction step supplies precise fields where needed (reminder time,
+  etc.) before a mutating handler runs;
+- `ExecutionOutcomeBuilder` assembles `settled_outcome` (preserving the
+  staged-vs-materialized and model-visible-vs-internal distinctions that exist
+  today, e.g. pruned staged shared-reminder facts);
+- an `ObligationResolver` maps typed outcomes → `response_obligation`;
+- `Freshness/StagingGuard`, `CloseCoordinator`, `DeliveryCoordinator` own the
+  transaction boundary.
 
-In the current path the agent acts and expresses together, so a streamed segment
-could claim success before the action materialized. In the new shape **Execute
-fully completes — including the staging/materialization decision — before Express
-starts.** Express only ever describes an already-settled outcome. Therefore:
+Execute touches **no** LLM, streaming, prompt rules, or provider payload
+formatting.
 
-- streaming a success statement can never precede materialization (it already
-  happened);
-- there is no eligibility predicate and no per-action streaming gate — streaming
-  is a universal property of Express;
-- a superseded turn is stopped in Execute/close handling before Express delivers,
-  with the same supersede rules as any reply.
+### Express (bounded streaming, verified)
 
-The entire "no streamed success before materialization" hazard dissolves
-structurally rather than being defended with suppression logic.
+- **Input:** `response_obligation` + `settled_outcome` + (for `converse`) windowed
+  history + persona. No tool schemas, no tool loop.
+- **Output:** user-facing segments, streamed, **plus structured claim/coverage
+  references** against `settled_outcome` so the output is verifiable.
+- **Post-verifier (deterministic):** rejects false success, staged-success
+  wording, missing counts (e.g. calendar import imported/skipped/downgraded/
+  failed), incomplete reminder lists, and unsupported no-reply. "Bounded prompt"
+  is **not** the safety boundary — the verifier is. This is the focused successor
+  to today's social-claim validator and list-substitution, not their deletion.
+- Exact list rendering may use a deterministic renderer inside the Express layer
+  rather than free prose, to guarantee coverage.
+
+## Close Boundary And Streaming (made explicit)
+
+The earlier claim "streaming is structurally safe because Execute settles first"
+was over-stated; the close/materialization order must be exact. The contract:
+
+1. Actions run; domain services resolve and produce typed outcomes; staged
+   commands are staged under `Freshness/StagingGuard`.
+2. `ObligationResolver` produces the `response_obligation`; Express generates
+   segments; the post-verifier validates them against `settled_outcome`.
+3. **Only after** verified segments exist and a final freshness/supersede check
+   passes does `CloseCoordinator` **materialize** staged commands, set the
+   disposition, and advance `last_closed_inbound_seq` — atomically, as today.
+4. **Streaming rule:** Express may stream **descriptive** segments derived from a
+   settled-or-staged outcome, but a **success claim for a state change** must use
+   wording valid at staging time and is only delivered as final after
+   materialization in step 3. A newer inbound or freshness failure before step 3
+   supersedes the turn: nothing materializes and no success is delivered. This
+   preserves the clean invariant (no materialization before close) while still
+   cutting time-to-first-token for the descriptive/conversational portion.
+
+`pending_async_reply` remains visibility-only: it does not materialize, set
+`completed_at`, or advance the close sequence.
+
+## Detector
+
+Do **not** fold `reminder_detector` into Plan yet. Field extraction (timezone,
+relative/vague time, recurrence, duration, missing-time follow-up, "do not
+guess") is a deliberate, specialized responsibility today and the GLM
+thinking-off path is tuned for it. Keep the detector as an **Execute extraction
+step**. Deleting it later is gated on a strong live-model paired eval (see
+Verification); until that passes, the detector stays.
 
 ## What Gets Deleted (no remnants)
 
-- the standalone fast path: `coke/turn/action_runner.py` as a *bypass*,
-  `coke/turn/routing.py` as a bypass gate, `coke/turn/streaming.py`
-  (`is_streaming_eligible`) — the runtime-execution idea survives as Execute, but
-  the "second path" framing is gone;
-- `list_is_plain` and any field that existed only to gate the bypass;
-- `_enforce_tool_reply_contracts` template substitution and the dual renderer;
-- the Interaction Agent's tool profile, tool-calling loop, and orchestration
-  responsibilities;
-- the separate `SemanticInterpreter` classify step (promoted into Plan) and the
-  separate `reminder_detector` brain (folded into Plan's extraction);
+- the reminder-list **fast path as a parallel bypass**: `action_runner` as a
+  bypass, `routing.derive_route` as a gate, `streaming.is_streaming_eligible`,
+  `list_is_plain` — the runtime-execution idea survives inside Execute, the
+  "second path" framing is gone;
+- `_enforce_tool_reply_contracts` as a *post-hoc substitution* (replaced by the
+  Express deterministic renderer + verifier);
+- the Interaction Agent's tool profile, tool-calling loop, and orchestration;
+- the standalone `SemanticInterpreter` classify step (promoted into Plan);
 - the bolted-on streaming consumption / eligibility wiring in `runner.py`.
 
-## What Is Kept (as Execute guards, not separate brains)
+The detector and the no-false-success verification are **not** deleted — they are
+relocated into Execute / the Express verifier respectively.
 
-`FreshnessGuard`, staged commands, dispositions, supersede / input-window,
-separate turn-vs-delivery state, delivery audit, provider adapters, and the
-no-false-success contract. These move from "phases and parallel paths in front of
-the agent" to "runtime gates wrapping Execute." `pending_async_reply` remains a
-visibility-only disposition that does not materialize staged commands, set
-`completed_at`, or advance the input window.
+## What Is Kept (as Execute-owned guards)
+
+`FreshnessGuard`, staged commands, dispositions, supersede / input-window /
+`last_closed_inbound_seq`, separate turn-vs-delivery state, delivery audit,
+provider adapters, recoverable scheduling-intent semantics (creation after a
+blocked unmatched/ambiguous outcome, later correction matching, facts hash,
+consumption, no durable alias learning), and the no-false-success contract.
 
 ## Expected Shape Per Turn
 
 ```text
-greeting:      Plan(actions=[], converse) → Express(stream)
-list:          Plan(actions=[list {filter}], render) → Execute(query) → Express(stream)
-create:        Plan(actions=[create {time, content}], render) → Execute(stage+materialize) → Express(stream)
-multi-action:  Plan(actions=[update…, create…, add_participant…], render) → Execute(run all) → Express(stream)
-clarification: Plan(actions=[], ask_clarification) → Express(stream one question)
+greeting:     Plan([]) → Execute(none) → Express(converse, stream)
+list:         Plan([list {filter}]) → Execute(query → counts) → Express(render list, verified)
+create:       Plan([create {content, time-phrase}]) → detector extract → Execute(stage) → Express(confirm) → materialize@close
+delete vague: Plan([delete {match:"gym"}]) → Execute(service → ambiguous{c}) → obligation=ask → Express(ask which)
+multi-action: Plan([update…, create…, add_participant…]) → Execute(run all, typed outcomes) → Express(summary, verified)
 ```
 
-One capable bounded Plan call plus one bounded streaming Express call per turn,
-with a guarded no-LLM Execute in between — fewer serial LLM hops than the current
-interpreter + orchestrating agent + detector + protocol retry chain.
+One bounded Plan call + a no-LLM Execute + one bounded streaming Express call
+(plus the detector only where extraction is needed) — fewer serial LLM hops than
+the current interpreter + orchestrating agent + detector + protocol-retry chain.
 
-## Risks And How They Are Handled
+## Risks
 
-- **Plan must be a capable planner and extractor.** Folding multi-action planning
-  and field extraction into one structured call raises the bar on that call.
-  Mitigation: this is the same "hard turns are hard" problem every architecture
-  has; a plan it cannot complete becomes `actions=[]` +
-  `ask_clarification`, which is the same shape, not a second path. The
-  extraction-into-Plan decision is gated on an eval comparing Plan-extracted
-  reminder fields against the current detector on a representative corpus before
-  the detector is deleted.
-- **No complexity branch means Plan owns all difficulty.** Accepted on purpose:
-  branching on difficulty is exactly the smell being removed. Difficulty is
-  expressed as plan size and as clarification, never as a routing decision.
-- **Express must never exceed the settled outcome.** Express is constrained to
-  describe `settled_outcome` and allowed conversational content only; the
-  no-false-success contract is enforced at the Execute/close boundary, not by
-  trusting Express prose.
-
-## Migration
-
-Clean-slate, no compatibility:
-
-1. Production stays on the current path (it works) for the duration of the
-   rebuild. Do not degrade production to chase cleanliness mid-flight.
-2. Build Plan / Execute / Express as new, focused units. Delete the superseded
-   constructs listed above in the same change that replaces them — no aliases, no
-   dual code paths kept "just in case".
-3. Replace the production turn path wholesale only after correctness-boundary
-   parity (staged commands, freshness, dispositions, supersede, no-false-success)
-   and latency/time-to-first-token parity-or-better are demonstrated on the real
-   user path.
+- **Plan extraction parity** if/when the detector is folded in — gated on eval,
+  not assumed.
+- **ObligationResolver completeness** — every domain's typed outcomes must map to
+  an obligation; an unmapped outcome must fail closed (block + explain), never a
+  false success. This table is the new home of result-conditioned logic and must
+  be exhaustively tested.
+- **settled_outcome fidelity** — must preserve model-visible-vs-internal pruning
+  (shared reminders) and full counts (calendar import) or Express will
+  under-report.
+- **Plan must propose correct multi-action sets**; a set it cannot form becomes a
+  clarification obligation, the same shape — never a second path.
 
 ## Verification Strategy
 
-- **Plan eval** on a representative corpus (30–50 cases per the project's
-  eval-subset norm): intent + action set + extracted params + response directive,
-  including multi-action and clarification cases. Gate the detector deletion on
-  extraction parity.
-- **Execute correctness tests**: every guard (freshness, staged-command commit,
-  supersede non-delivery, disposition correctness, `pending_async_reply`
-  non-closing) holds under the new shape.
-- **Express contract tests**: describes only the settled outcome; no domain
-  mutation; streaming delivers complete segments and never a success claim absent
-  a settled outcome.
+- **Plan eval** (intent + proposed action set + reply necessity) on the
+  representative corpus; multi-action and clarification cases included.
+- **Detector parity eval** before any detector deletion: live-model paired
+  against current behavior across Chinese/English, timezone boundaries,
+  midnight/DST, vague/incomplete/past times, recurrence, duration, batch,
+  no-trigger, missing-time follow-up, new-topic, and shared-reminder extraction;
+  false concrete time and missed clarification are zero-tolerance.
+- **ObligationResolver tests**: every typed domain outcome → correct obligation,
+  including ambiguous/not_found/blocked/counts; unmapped → fail closed.
+- **Close-boundary tests**: stage → verify → materialize → disposition →
+  close-advance ordering; supersede before materialize delivers nothing and
+  mutates nothing; `pending_async_reply` non-closing.
+- **Express verifier tests**: reject false/staged success, missing counts,
+  incomplete lists, unsupported no-reply; streaming delivers complete segments.
 - **Real-account smoke** on the deployed rebuild for greeting, list, create,
-  update, cancel, multi-action, and clarification, reading the new telemetry
-  phases (`turn.plan`, `turn.execute`, `turn.express` with first-segment timing).
-  Per project rule: green unit tests with stubbed models are necessary but not
-  sufficient — probe the real model and the real user path before claiming the
-  rebuild is at parity.
-- **Latency evidence**: before/after turn total and time-to-first-token.
+  update, cancel, ambiguous-delete, shared-reminder, calendar-import,
+  multi-action, clarification — reading new telemetry phases (`turn.plan`,
+  `turn.execute`, `turn.express` first-segment timing). Green stubbed unit tests
+  are necessary but not sufficient; probe the real model and user path.
+- **Latency evidence**: turn total and time-to-first-token, before/after.
 
-## Open Implementation Parameters
+## Still To Discuss (not yet decided)
 
-- whether reminder field extraction lives fully inside Plan or as a typed
-  Execute-step validator after Plan proposes params (decided by the extraction
-  eval, default: inside Plan);
-- the Express model role (small/fast streaming model vs the current interaction
-  model) — decided by render-quality and latency measurement;
-- exact `TurnPlan` schema field names and the domain/operation enum surface
-  (implementation plan);
-- waiting-signal threshold and emergency-deadline value remain guardrails from
-  the prior design and are unchanged by this restructure.
+1. **Conditional/dependent actions vs flat list + Execute resolution.** Current
+   choice: flat proposed list + Execute/service-owned resolution and obligation
+   (the legacy keyword approach). Confirm this covers every multi-action
+   dependency (e.g. an action whose params depend on a prior action's result),
+   or whether a minimal `depends_on` is still needed.
+2. **Recoverable friend-reference correction across turns** — exact mapping into
+   the new model (blocked outcome → recoverable intent → later turn injects
+   resolved facts) needs its own walkthrough.
+3. **Express model role** — reuse the interaction model vs a smaller/faster
+   render model; decided by render-quality + latency measurement.
+4. **Exact `response_obligation` taxonomy** and the per-domain typed-outcome
+   surface (implementation-plan detail, but the taxonomy shape affects testing).
+5. **Detector end-state** — stays as an Execute step now; the bar and corpus to
+   ever fold it into Plan.
 
 ## Summary
 
-Keep legacy's clean linear reality — one path that absorbs difficulty — and keep
-clean Coke's bounded-context protection, by splitting the old single agent into
-**Plan (reason → declarative plan) → Execute (runtime, guarded, no LLM) →
-Express (bounded streaming render/converse)**. Complexity is plan size, not a
-branch. Each job is done once. Streaming is structurally safe. The fast path, the
-dual renderer, the duplicate brains, and the bolted-on streaming do not exist in
-the new architecture — not as migrated code, but as deleted concepts.
+Keep legacy's clean linear reality — one path that absorbs difficulty, with
+resolution pushed into the services — and keep clean Coke's bounded-context
+protection, by splitting the old single agent into **Plan (propose) → PlanCompile
+(validate) → Execute (resolve via services, derive obligation, guarded, no LLM) →
+Express (bounded streaming render, verified)**. The response is derived from real
+outcomes, not pre-decided. Complexity is plan size; result-conditioned branching
+is a deterministic Execute-owned outcome policy. Streaming cuts time-to-first
+token for descriptive content while materialization stays atomic at close. The
+fast path, the dual renderer, and the duplicate reasoning are deleted as
+concepts; the detector and the no-false-success verifier are relocated, not
+removed.
 ```
