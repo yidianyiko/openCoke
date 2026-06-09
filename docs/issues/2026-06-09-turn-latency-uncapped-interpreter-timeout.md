@@ -120,8 +120,35 @@ worker logs for the absence of multi-minute gaps between Z.AI calls.
 
 ## Follow-Ups
 
-- Per-request timeout bounds one attempt; the OpenAI client still retries
-  (default 2), so worst case is ~3×timeout per model call. If Z.AI 500-storms
-  recur, consider bounding `max_retries` and/or a turn-level deadline.
+Two further hardening ideas were investigated on 2026-06-09 and **rejected as
+net-negative**:
+
+1. **A 90s turn-total deadline — rejected.** Normal multi-step turns (e.g.
+   friend-availability and shared-scheduling) legitimately run ~60-85s because a
+   turn chains several LLM calls (interpreter → interaction agent tool loop →
+   render). A 90s total cap sits barely above that envelope and would clip
+   legitimate slow-but-valid turns under any provider slowness, and a hard
+   mid-turn abort risks inconsistent state. Product-distorting, not shipped.
+2. **Reducing `max_retries` below 2 — rejected.** `agno.OpenAIChat`
+   forwards `timeout` and `max_retries` to the OpenAI client (`_get_client_params`).
+   In this very incident the stalled call recovered only on the third attempt
+   (`max_retries=2`): attempt1 500, attempt2 stalled/500, attempt3 200. Cutting
+   to `max_retries=1` would have failed that call during exactly the Z.AI
+   500-storm the retries exist to absorb. The per-request timeout (now 45s)
+   already bounds the amplification at ~3×45s=135s/call, which is acceptable.
+
+Recommended future work (separate, designed change — not a P0 hotfix):
+
+- **Generous turn-total wall-clock budget (~150s) in `InteractiveTurnSupervisor`.**
+  The supervisor already runs each turn as an asyncio task with cancellation
+  (`task.cancel` + `interaction_agent.cancel(run_id)`) and session rollback on
+  `BaseException`, and tracks `close_committed`, so a deadline can fire cleanly
+  only on turns still in processing. ~150s is ~1.8× the normal worst case, so it
+  catches pathological accumulation without clipping legitimate turns. Design
+  decisions to settle first: the graceful timeout reply to the user (today they
+  get only the "processing" placeholder, so a hard abort would be placeholder →
+  silence), the budget value, and whether to lean on idempotent inbound replay
+  to re-run the aborted turn.
 - Z.AI (official GLM) returned intermittent 500s in this window; track provider
-  stability separately from the client-timeout fix.
+  stability (and a possible provider fallback / circuit breaker) separately from
+  the client-timeout fix.
