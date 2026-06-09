@@ -20,7 +20,6 @@ from coke.turn.agent import (
 )
 from coke.turn.context import TurnMode
 from coke.turn.output_protocol import OutputProtocolValidator
-from coke.turn.output_protocol import OutputProtocolValidator
 
 AgentFactory = Callable[..., Any]
 TaskIdFactory = Callable[[], str]
@@ -185,9 +184,7 @@ class AgnoInteractionAgent:
                     final_content = content
                     continue
                 if isinstance(content, str):
-                    delta, content_buffer = _stream_text_delta(
-                        content_buffer, content
-                    )
+                    delta, content_buffer = _stream_text_delta(content_buffer, content)
                     for segment in parser.feed(delta):
                         yield segment
                 elif isinstance(content, Mapping):

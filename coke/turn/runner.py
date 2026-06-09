@@ -1290,14 +1290,31 @@ class TurnRunner:
         first_segment_ms: int | None = None
         reply_outcomes: list[DeliveryOutcome] = []
         final_result: AgentResult | None = None
+        streaming_suppressed = False
         async for event in streaming_invoke(request):
             if isinstance(event, AgentResult):
                 final_result = event
                 break
-            if streamed_segment_count > 0 or not isinstance(event, str):
+            if (
+                streaming_suppressed
+                or streamed_segment_count > 0
+                or not isinstance(event, str)
+            ):
                 continue
             segment = event.strip()
             if not segment:
+                continue
+            if _contains_serialized_tool_call(segment):
+                streaming_suppressed = True
+                continue
+            first_segment_validation = self._validate_agent_output(
+                trigger,
+                request,
+                {"type": "reply", "segments": [segment]},
+                tool_events=(),
+            )
+            if not first_segment_validation.valid:
+                streaming_suppressed = True
                 continue
             first_segment_ms = max(
                 0, int(round((time.perf_counter() - started_at) * 1000))

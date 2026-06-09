@@ -17,7 +17,7 @@ from coke.turn.context import TurnMode, TurnTrigger
 from coke.turn.locks import ConversationLockManager
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
-from coke.turn.runner import TurnRunner
+from coke.turn.runner import INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON, TurnRunner
 from coke.turn.semantic_interpreter import SemanticDecision
 
 NOW = datetime(2026, 6, 9, 10, 0, tzinfo=UTC)
@@ -121,6 +121,20 @@ class PausingStreamingAgent:
         raise AssertionError("streaming test does not use async completion")
 
 
+class InvalidFirstSegmentStreamingAgent(PausingStreamingAgent):
+    async def ainvoke_streaming(self, request):
+        self.streaming_requests.append(request)
+        yield "<tool_call>query_reminder</tool_call>"
+        await self.release.wait()
+        yield AgentResult.completed({"invalid": "shape"})
+
+    async def ainvoke(self, request):
+        self.ainvoke_requests.append(request)
+        return AgentResult.completed(
+            {"type": "reply", "segments": ["I can help with that"]}
+        )
+
+
 class EventedDelivery:
     def __init__(self) -> None:
         self.deliveries = []
@@ -190,6 +204,50 @@ async def test_eligible_chat_streams_first_segment_before_close_and_skips_duplic
     assert isinstance(getattr(primary_event, "first_segment_ms"), int)
 
 
+@pytest.mark.asyncio
+async def test_newer_inbound_cancellation_stops_stream_after_first_segment():
+    runtime, trigger = _runtime_and_trigger()
+    agent = PausingStreamingAgent()
+    delivery = EventedDelivery()
+    runner = _runner(runtime=runtime, agent=agent, delivery=delivery)
+
+    task = asyncio.create_task(runner.run_inbound_turn_async(trigger))
+    await asyncio.wait_for(delivery.first_delivery.wait(), timeout=1)
+
+    task.cancel(INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON)
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    turn_id = agent.streaming_requests[0].turn_id
+    disposition = runtime.get_disposition(turn_id)
+    assert disposition.disposition == "superseded"
+    assert disposition.reason_code == "interrupted_by_newer_inbound"
+    assert [request.visible_text for request in delivery.deliveries] == ["Hello there"]
+
+
+@pytest.mark.asyncio
+async def test_invalid_first_streamed_segment_is_suppressed_until_retry_correction():
+    runtime, trigger = _runtime_and_trigger()
+    agent = InvalidFirstSegmentStreamingAgent()
+    delivery = EventedDelivery()
+    runner = _runner(runtime=runtime, agent=agent, delivery=delivery)
+
+    task = asyncio.create_task(runner.run_inbound_turn_async(trigger))
+    await asyncio.sleep(0)
+
+    assert not task.done()
+    assert delivery.deliveries == []
+
+    agent.release.set()
+    result = await task
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "I can help with that"
+    assert [request.visible_text for request in delivery.deliveries] == [
+        "I can help with that"
+    ]
+
+
 def _runtime_and_trigger() -> tuple[ConversationRuntimeService, TurnTrigger]:
     repository = InMemoryConversationRuntimeRepository(now=lambda: NOW)
     runtime = ConversationRuntimeService(
@@ -215,3 +273,26 @@ def _runtime_and_trigger() -> tuple[ConversationRuntimeService, TurnTrigger]:
         payload={"text": "hello"},
     )
     return runtime, trigger
+
+
+def _runner(
+    *,
+    runtime: ConversationRuntimeService,
+    agent,
+    delivery: EventedDelivery,
+) -> TurnRunner:
+    return TurnRunner(
+        conversation_runtime=runtime,
+        lock_manager=ConversationLockManager(
+            redis_client=FakeRedis(),
+            ttl_ms=30_000,
+            token_factory=lambda: "owner-streaming",
+        ),
+        pre_llm_gate=PreLLMGateService(FakeGatePort()),
+        semantic_interpreter=FakeSemanticInterpreter(),
+        memory_port=FakeMemoryPort(),
+        interaction_agent=agent,
+        output_protocol=OutputProtocolValidator(),
+        outbound_delivery=delivery,
+        now=lambda: NOW,
+    )
