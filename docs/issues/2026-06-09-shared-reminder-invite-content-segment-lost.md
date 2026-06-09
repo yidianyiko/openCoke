@@ -94,7 +94,7 @@ container env), 2026-06-09:
 
 ## Current Status
 
-- Resolved in code; production deploy in progress (see Resolution).
+- Resolved and deployed to production (`gcp-coke` / `coke-clean`).
 - User decision (2026-06-09): record this issue first, then fix **both** the
   mid-segment content loss and the false delivery confirmation. Chosen
   mechanism: collapse product notifications to a single delivered segment.
@@ -131,4 +131,26 @@ genuine full delivery.
   844 passed.
 - Repo-OS: `zsh scripts/check` → passed.
 
-Fix commit and production smoke evidence recorded on deploy below.
+Fix commit: `40ee4443` `fix(notification): deliver product notifications as a
+single segment`.
+
+Production deploy (2026-06-09, `scripts/deploy-compose-to-gcp.sh`, backend
+tier):
+
+- `clean deploy health checks passed` (api `/healthz`, web `/auth/login`).
+- `gcp-coke:/home/whoami/coke-clean/.deployed-sha` = `40ee4443...` (matches
+  fix commit).
+- Backend containers `coke-api` (healthy), `coke-worker`, `coke-scheduler`,
+  `coke-outbox-relay` recreated and up.
+- Fix confirmed live in the running delivery processes:
+  `_delivery_segments` present in `/app/coke/turn/runner.py` inside the
+  `coke-api`, `coke-worker`, and `coke-scheduler` containers.
+
+The original failure mode was a notification emitting two delivery attempts
+(`...:reply:1` sent, `...:reply:2` failed `ilink_send_failed_ret_-2`). With the
+fix, a product notification emits exactly one delivery attempt per recipient
+(`...:reply:1` carrying the full joined content), so the content can no longer
+be stranded and the creator's delivery-confirmed receipt only fires on genuine
+full delivery. The next organic `olivers -> eva` shared reminder is the
+production user-path confirmation; verify a single `reply:1` delivery attempt on
+the recipient route with no `reply:2`.
