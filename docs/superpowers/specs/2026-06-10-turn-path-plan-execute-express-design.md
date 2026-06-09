@@ -2,11 +2,11 @@
 
 ## Status
 
-design-in-review (2026-06-10). Revised after two independent design reviews
-(correctness-regression lens and architecture-purity lens) that both returned
-"not ready for an implementation plan" with strongly convergent findings. This
-revision applies the clear, agreed corrections; remaining open questions are in
-"Still To Discuss".
+design-ready, re-review pending (2026-06-10). Revised after two independent design
+reviews (correctness-regression lens and architecture-purity lens) that both
+returned "not ready for an implementation plan", then refined through a full
+decision pass with the user. All previously open questions are now decided (see
+"Resolved Design Decisions"). Pending a second dual review before implementation.
 
 Supersedes the fast-path direction in
 `docs/superpowers/specs/2026-06-09-agent-flow-time-optimization-design.md`. Clean
@@ -284,12 +284,22 @@ was over-stated; the close/materialization order must be exact. The contract:
 
 ## Detector
 
-Do **not** fold `reminder_detector` into Plan yet. Field extraction (timezone,
+The detector is **not a brain and not duplication** — it is a specialized
+extraction step that turns a natural time phrase ("明天9点") into a concrete
+datetime in the user's timezone. Plan proposes the natural phrase; the detector
+resolves it; their jobs do not overlap, so keeping it does not reintroduce the
+duplication smell. Natural-language time parsing (Chinese relative/vague/recurring
+time) is genuinely hard and brittle as deterministic code, which is why it is an
+LLM step rather than runtime code.
+
+**End-state: the detector stays long-term as an Execute extraction step.** It is
+the one remaining extra serial LLM hop on the create/update path. Folding it into
+Plan (extract during planning, removing the hop) is an **optional, measured
+latency optimization — not a goal** — pursued only if the serial hop proves a
+meaningful latency cost AND a strong live-model parity eval passes (timezone,
 relative/vague time, recurrence, duration, missing-time follow-up, "do not
-guess") is a deliberate, specialized responsibility today and the GLM
-thinking-off path is tuned for it. Keep the detector as an **Execute extraction
-step**. Deleting it later is gated on a strong live-model paired eval (see
-Verification); until that passes, the detector stays.
+guess"; false concrete time and missed clarification are zero-tolerance). If the
+eval does not pass, the detector simply stays.
 
 ## What Gets Deleted (no remnants)
 
@@ -376,12 +386,10 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
   are necessary but not sufficient; probe the real model and user path.
 - **Latency evidence**: turn total and time-to-first-token, before/after.
 
-## Still To Discuss (not yet decided)
+## Resolved Design Decisions (2026-06-10)
 
-1. **Detector end-state** — stays as an Execute extraction step now; the bar and
-   corpus required to ever fold it into Plan.
+All open questions are decided; the spec is ready for re-review.
 
-Resolved (2026-06-10):
 - **Flat action list, no `depends_on`** — dependencies collapse into
   service-resolved selectors or clarification; multi-action turns use
   **run-all + aggregate** with per-action staging (see "Multi-Action Turns").
@@ -396,6 +404,9 @@ Resolved (2026-06-10):
   — domain services return `done`/`needs_choice`/`needs_input`/`not_possible`/
   `nothing` (domain data attached); `settled_outcome` is the per-action list;
   Express renders it (see Service-Side Resolution).
+- **Detector stays long-term as an Execute extraction step** — not a brain, not
+  duplication; folding it into Plan is an optional measured latency optimization
+  gated on a parity eval, not a goal (see Detector).
 
 ## Summary
 
