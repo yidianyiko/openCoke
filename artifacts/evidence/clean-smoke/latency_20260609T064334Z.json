@@ -1,0 +1,102 @@
+{
+  "run_id": "latency_20260609T064334Z",
+  "status": "failed",
+  "created_at": "2026-06-09T06:50:45.419297+00:00",
+  "events": [
+    {
+      "at": "2026-06-09T06:46:30.040108+00:00",
+      "phase": "first_contact_alice",
+      "action": "posted_webhook",
+      "details": {
+        "accepted": true,
+        "account_id": "266bc8b5b5294e03a53849ed0921456a",
+        "channel_id": "54ecf0bcafaa4d0d9083d3fa3465d58e",
+        "channel_identity_id": "82018c1dc59c43169591a4f68ae97194",
+        "created_account": false,
+        "provider_subject": "155530103547",
+        "provider_type": "whatsapp_evolution",
+        "raw_event_id": "latency_20260609T064334Z_alice_first_contact"
+      }
+    },
+    {
+      "at": "2026-06-09T06:46:30.246496+00:00",
+      "phase": "first_contact_bob",
+      "action": "posted_webhook",
+      "details": {
+        "accepted": true,
+        "account_id": "af24c9a6710d4244a53d0c576560dcfc",
+        "channel_id": "7ff94508cc6d45199093d7726b004724",
+        "channel_identity_id": "eb3dcb555bae40f690c749b9154e76ba",
+        "created_account": true,
+        "provider_subject": "999999999999999",
+        "provider_type": "whatsapp_evolution",
+        "raw_event_id": "latency_20260609T064334Z_bob_first_contact"
+      }
+    },
+    {
+      "at": "2026-06-09T06:46:44.536966+00:00",
+      "phase": "personal_reminder",
+      "action": "posted_webhook",
+      "details": {
+        "accepted": true,
+        "account_id": "266bc8b5b5294e03a53849ed0921456a",
+        "channel_id": "54ecf0bcafaa4d0d9083d3fa3465d58e",
+        "channel_identity_id": "82018c1dc59c43169591a4f68ae97194",
+        "created_account": false,
+        "provider_subject": "155530103547",
+        "provider_type": "whatsapp_evolution",
+        "raw_event_id": "latency_20260609T064334Z_personal_reminder"
+      }
+    }
+  ],
+  "verdicts": [
+    {
+      "phase": "healthz",
+      "status": "passed",
+      "message": "clean API healthz ok",
+      "details": {
+        "ok": true
+      }
+    },
+    {
+      "phase": "first_contact_alice",
+      "status": "passed",
+      "message": "first contact rows verified",
+      "details": {
+        "account_id": "266bc8b5-b529-4e03-a538-49ed0921456a",
+        "origin": "messaging_first",
+        "channel_identity_id": "82018c1d-c59c-4316-9591-a4f68ae97194",
+        "is_account_anchor": true,
+        "conversation_id": "4da6ef4e-f208-4bfd-8d4b-502a54582b8a",
+        "message_id": "039b144e-d111-453b-bb37-575572a03393",
+        "turn_id": "80b332b6-a4f8-4195-a868-6c0c28a30e9d",
+        "disposition": "replied",
+        "outbound_count": 1
+      }
+    },
+    {
+      "phase": "first_contact_bob",
+      "status": "passed",
+      "message": "first contact rows verified",
+      "details": {
+        "account_id": "af24c9a6-710d-4244-a53d-0c576560dcfc",
+        "origin": "messaging_first",
+        "channel_identity_id": "eb3dcb55-5bae-40f6-90c7-49b9154e76ba",
+        "is_account_anchor": true,
+        "conversation_id": "1ad02acc-66bd-4be5-a930-4de0ec0b2165",
+        "message_id": "19f83a05-90fe-4fda-b826-072a4c645256",
+        "turn_id": "09f6117f-978f-43b5-89e8-f61c5a1ab7a7",
+        "disposition": "replied",
+        "outbound_count": 3
+      }
+    },
+    {
+      "phase": "personal_reminder",
+      "status": "failed",
+      "message": "timed out waiting for exactly one active owner-scoped personal reminder",
+      "details": {
+        "last_error": null
+      }
+    }
+  ]
+}

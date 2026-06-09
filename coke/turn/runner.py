@@ -442,6 +442,7 @@ class TurnRunner:
             if replay_result is not None:
                 return replay_result
             gate = self.pre_llm_gate.evaluate(trigger)
+            self._commit_claim_boundary()
             if not gate.permitted:
                 return self._run_access_denied_turn(
                     trigger=trigger,
@@ -600,6 +601,7 @@ class TurnRunner:
                 if replay_result is not None:
                     return replay_result
                 gate = self.pre_llm_gate.evaluate(trigger)
+                self._commit_claim_boundary()
                 if not gate.permitted:
                     return await self._run_access_denied_turn_async(
                         trigger=trigger,

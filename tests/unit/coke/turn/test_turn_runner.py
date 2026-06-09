@@ -3185,7 +3185,7 @@ def test_pending_async_state_survives_waiting_delivery_failure_and_replay(harnes
     assert final.visible_text == "final answer"
 
 
-def test_claim_boundary_commits_before_gate_and_agent_work(harness):
+def test_claim_boundary_commits_before_gate_and_again_before_agent_work(harness):
     events = []
     runner = runner_with_claim_boundary(
         harness,
@@ -3207,4 +3207,30 @@ def test_claim_boundary_commits_before_gate_and_agent_work(harness):
     result = runner.run_inbound_turn(harness["trigger"])
 
     assert result.disposition == "replied"
-    assert events[:3] == ["claim_commit", "gate", "agent"]
+    assert events[:4] == ["claim_commit", "gate", "claim_commit", "agent"]
+
+
+@pytest.mark.asyncio
+async def test_async_claim_boundary_commits_again_before_agent_work(harness):
+    events = []
+    runner = runner_with_claim_boundary(
+        harness,
+        claim_boundary_committer=lambda: events.append("claim_commit"),
+    )
+
+    original_evaluate = harness["gate_port"].evaluate
+
+    def evaluate(trigger):
+        events.append("gate")
+        return original_evaluate(trigger)
+
+    def before_agent():
+        events.append("agent")
+
+    harness["gate_port"].evaluate = evaluate
+    harness["agent"].before_tool = before_agent
+
+    result = await runner.run_inbound_turn_async(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert events[:4] == ["claim_commit", "gate", "claim_commit", "agent"]
