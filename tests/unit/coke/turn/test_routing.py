@@ -18,6 +18,16 @@ def test_plain_clear_list_routes_to_prepared_list():
     assert derive_route(Decision()) == "prepared_list"
 
 
+def test_plain_list_with_none_ambiguity_routes_to_prepared_list():
+    # Production interpreter emits ambiguity="none" (not "clear") for unambiguous
+    # plain list queries. Both mean "no blocking ambiguity" and must route.
+    assert derive_route(Decision(ambiguity="none")) == "prepared_list"
+
+
+def test_blocking_ambiguity_does_not_route_to_prepared_list():
+    assert derive_route(Decision(ambiguity="ambiguous_reference")) == "full_agent"
+
+
 def test_filtered_list_routes_to_full_agent():
     assert derive_route(Decision(list_is_plain=False)) == "full_agent"
 

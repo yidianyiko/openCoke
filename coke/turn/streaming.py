@@ -20,7 +20,7 @@ def is_streaming_eligible(
         return False
     if semantic_decision.reply_necessity != "reply_needed":
         return False
-    if semantic_decision.ambiguity != "clear":
+    if semantic_decision.ambiguity not in {"clear", "none"}:
         return False
     if semantic_decision.required_clarification != "none":
         return False

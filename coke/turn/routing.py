@@ -10,7 +10,7 @@ Route = Literal["prepared_list", "clarification", "no_reply", "full_agent"]
 def derive_route(decision: SemanticDecision) -> Route:
     if (
         decision.intent_action == "list_reminders"
-        and decision.ambiguity == "clear"
+        and decision.ambiguity in {"clear", "none"}
         and decision.required_clarification == "none"
         and decision.list_is_plain
         and decision.reply_necessity == "reply_needed"
