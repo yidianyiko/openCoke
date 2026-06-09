@@ -84,6 +84,7 @@ class SemanticDecision:
     intent_action: IntentAction = "none"
     ambiguity: AmbiguityState = "none"
     required_clarification: RequiredClarification = "none"
+    list_is_plain: bool = False
     language_hint: str | None = None
     follow_up_action: FollowUpAction | None = None
 

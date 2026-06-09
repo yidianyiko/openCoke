@@ -23,6 +23,8 @@ SAFE_EXTRA_FIELDS = frozenset(
         "model_role",
         "phase",
         "retry_attempt",
+        "action",
+        "route",
         "status",
         "timeout",
         "tool_count",
