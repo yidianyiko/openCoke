@@ -54,8 +54,8 @@ PlanCompile  deterministic validation of action enums, required params, and
 Execute     runtime runs each action through domain services, which OWN
    →        reference resolution and return typed outcomes; Execute derives a
             settled_outcome + a response_obligation from the real results.
-Express     bounded streaming agent renders the response_obligation; a
-   →        deterministic post-verifier binds its claims to settled_outcome.
+Express     bounded streaming agent renders the response_obligation. It only
+   →        describes settled_outcome, so no-false-success is structural.
 Close/Deliver  materialize, set disposition, advance close state, deliver.
 Background   post-analysis / memory, off the critical path.
 ```
@@ -78,7 +78,9 @@ a service result. The corrected contract:
   return typed outcomes.
 - **Execute derives** `settled_outcome` + `response_obligation` from those real
   results.
-- **Express renders** the obligation and is **verified** against settled facts.
+- **Express renders** the obligation; because it can only describe
+  `settled_outcome`, no-false-success is structural and needs no downstream
+  verifier (see Express role).
 
 The result-conditioned branching the old ReAct loop did becomes an explicit,
 deterministic **outcome → obligation policy owned by Execute** — not an LLM
@@ -216,19 +218,31 @@ become "TurnRunner v2":
 Execute touches **no** LLM, streaming, prompt rules, or provider payload
 formatting.
 
-### Express (bounded streaming, verified)
+### Express (bounded streaming, one model, no downstream verifier)
 
+- **What it is:** the current Interaction Agent with orchestration removed — same
+  user-facing-prose job, but no tools, no tool loop, bounded context. (Names are
+  cosmetic; "Express" just marks the narrowed role.)
 - **Input:** `response_obligation` + `settled_outcome` + (for `converse`) windowed
-  history + persona. No tool schemas, no tool loop.
-- **Output:** user-facing segments, streamed, **plus structured claim/coverage
-  references** against `settled_outcome` so the output is verifiable.
-- **Post-verifier (deterministic):** rejects false success, staged-success
-  wording, missing counts (e.g. calendar import imported/skipped/downgraded/
-  failed), incomplete reminder lists, and unsupported no-reply. "Bounded prompt"
-  is **not** the safety boundary — the verifier is. This is the focused successor
-  to today's social-claim validator and list-substitution, not their deletion.
-- Exact list rendering may use a deterministic renderer inside the Express layer
-  rather than free prose, to guarantee coverage.
+  history + persona. No tool schemas.
+- **Output:** user-facing segments, streamed. One capable model for both render
+  and converse; lists are rendered by the same model from the prompt ("list every
+  item with its time"), **not** a deterministic template — the template was a
+  crutch for the overloaded agent and the focused Express does not need it.
+- **No downstream claim/coverage verifier.** The no-false-success guarantee is
+  **structural, not a second-layer check**: Express only ever describes a
+  `settled_outcome` produced by Execute, so it cannot claim a state change Execute
+  did not perform short of hallucinating its own input. Legacy lied because its
+  agent claimed success *as it decided to act*; the Plan/Execute/Express split
+  removes that root cause. If smoke ever shows Express asserting an outcome not in
+  `settled_outcome`, the fix is **upstream** (Execute outcome fidelity, Express
+  prompt), not a downstream verifier.
+
+> Deliberate override (2026-06-10): both design reviews recommended a
+> settled-outcome-bound Express verifier. That recommendation was rooted in the
+> overloaded-agent behavior this rebuild deletes. We consciously rely on the
+> structural guarantee instead and fix upstream if violated; revisit only if
+> production smoke shows hallucinated success.
 
 ## Close Boundary And Streaming (made explicit)
 
@@ -238,10 +252,10 @@ was over-stated; the close/materialization order must be exact. The contract:
 1. Actions run; domain services resolve and produce typed outcomes; staged
    commands are staged under `Freshness/StagingGuard`.
 2. `ObligationResolver` produces the `response_obligation`; Express generates
-   segments; the post-verifier validates them against `settled_outcome`.
-3. **Only after** verified segments exist and a final freshness/supersede check
-   passes does `CloseCoordinator` **materialize** staged commands, set the
-   disposition, and advance `last_closed_inbound_seq` — atomically, as today.
+   segments from `settled_outcome` (no downstream verifier).
+3. **Only after** segments exist and a final freshness/supersede check passes does
+   `CloseCoordinator` **materialize** staged commands, set the disposition, and
+   advance `last_closed_inbound_seq` — atomically, as today.
 4. **Streaming rule:** Express may stream **descriptive** segments derived from a
    settled-or-staged outcome, but a **success claim for a state change** must use
    wording valid at staging time and is only delivered as final after
@@ -268,8 +282,10 @@ Verification); until that passes, the detector stays.
   bypass, `routing.derive_route` as a gate, `streaming.is_streaming_eligible`,
   `list_is_plain` — the runtime-execution idea survives inside Execute, the
   "second path" framing is gone;
-- `_enforce_tool_reply_contracts` as a *post-hoc substitution* (replaced by the
-  Express deterministic renderer + verifier);
+- `_enforce_tool_reply_contracts` and the **output-protocol claim-validation
+  layer** (`validate_social_scheduling_claim` and the list-substitution /
+  post-hoc claim checks) — no-false-success is now structural (Express only
+  describes `settled_outcome`), not a downstream verifier;
 - the Interaction Agent's tool profile, tool-calling loop, and orchestration;
 - the standalone `SemanticInterpreter` classify step (promoted into Plan);
 - the bolted-on streaming consumption / eligibility wiring in `runner.py`;
@@ -278,23 +294,25 @@ Verification); until that passes, the detector stays.
   field — cross-turn correction is reconstructed by Plan from history (see "No
   Persisted Recovery State").
 
-The detector and the no-false-success verification are **not** deleted — they are
-relocated into Execute / the Express verifier respectively.
+The detector is **not** deleted — it is relocated into Execute as an extraction
+step (see Detector).
 
 ## What Is Kept (as Execute-owned guards)
 
 `FreshnessGuard`, staged commands, dispositions, supersede / input-window /
-`last_closed_inbound_seq`, separate turn-vs-delivery state, delivery audit,
-provider adapters, and the no-false-success contract.
+`last_closed_inbound_seq`, separate turn-vs-delivery state, delivery audit, and
+provider adapters. The **no-false-success contract is kept but enforced
+structurally** (Execute decides+performs; Express only describes the result),
+not by a downstream claim verifier.
 
 ## Expected Shape Per Turn
 
 ```text
 greeting:     Plan([]) → Execute(none) → Express(converse, stream)
-list:         Plan([list {filter}]) → Execute(query → counts) → Express(render list, verified)
+list:         Plan([list {filter}]) → Execute(query → counts) → Express(render list, stream)
 create:       Plan([create {content, time-phrase}]) → detector extract → Execute(stage) → Express(confirm) → materialize@close
 delete vague: Plan([delete {match:"gym"}]) → Execute(service → ambiguous{c}) → obligation=ask → Express(ask which)
-multi-action: Plan([update…, create…, add_participant…]) → Execute(run all, typed outcomes) → Express(summary, verified)
+multi-action: Plan([update…, create…, add_participant…]) → Execute(run all, typed outcomes) → Express(summary, stream)
 ```
 
 One bounded Plan call + a no-LLM Execute + one bounded streaming Express call
@@ -329,8 +347,10 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 - **Close-boundary tests**: stage → verify → materialize → disposition →
   close-advance ordering; supersede before materialize delivers nothing and
   mutates nothing; `pending_async_reply` non-closing.
-- **Express verifier tests**: reject false/staged success, missing counts,
-  incomplete lists, unsupported no-reply; streaming delivers complete segments.
+- **Express tests**: renders the obligation from `settled_outcome` only;
+  streaming delivers complete segments. Smoke watches for any hallucinated
+  success not in `settled_outcome` — if seen, fix upstream (no downstream
+  verifier by decision).
 - **Real-account smoke** on the deployed rebuild for greeting, list, create,
   update, cancel, ambiguous-delete, shared-reminder, calendar-import,
   multi-action, clarification — reading new telemetry phases (`turn.plan`,
@@ -362,11 +382,13 @@ Keep legacy's clean linear reality — one path that absorbs difficulty, with
 resolution pushed into the services — and keep clean Coke's bounded-context
 protection, by splitting the old single agent into **Plan (propose) → PlanCompile
 (validate) → Execute (resolve via services, derive obligation, guarded, no LLM) →
-Express (bounded streaming render, verified)**. The response is derived from real
-outcomes, not pre-decided. Complexity is plan size; result-conditioned branching
-is a deterministic Execute-owned outcome policy. Streaming cuts time-to-first
-token for descriptive content while materialization stays atomic at close. The
-fast path, the dual renderer, and the duplicate reasoning are deleted as
-concepts; the detector and the no-false-success verifier are relocated, not
-removed.
+Express (bounded streaming render, one model, no downstream verifier)**. The
+response is derived from real outcomes, not pre-decided. Complexity is plan size;
+result-conditioned branching is a deterministic Execute-owned outcome policy.
+Streaming cuts time-to-first-token for descriptive content while materialization
+stays atomic at close. No-false-success is structural — Execute decides and
+performs, Express only describes the result — so the fast path, the dual
+renderer, the duplicate reasoning, the persisted recovery subsystem, and the
+downstream claim-validation layer are all deleted as concepts. Only the detector
+is relocated (into Execute), pending an eval to fold it into Plan.
 ```
