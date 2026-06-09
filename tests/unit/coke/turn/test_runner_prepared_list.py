@@ -107,12 +107,15 @@ class FakeMemoryPort:
 
 
 class PreparedReminderListTool:
-    def __init__(self, facts: dict) -> None:
+    def __init__(self, facts: dict, *, before_return=None) -> None:
         self.facts = facts
+        self.before_return = before_return
         self.calls = []
 
     def execute_without_staging(self, command, guard):
         self.calls.append((command, guard))
+        if self.before_return is not None:
+            self.before_return()
         return ToolExecutionResult(
             ok=True,
             facts=self.facts,
@@ -234,7 +237,23 @@ async def test_filtered_list_stays_on_full_agent_path():
     assert env.reminder_tool.calls == []
 
 
-def _prepared_env(*, agent, decision: SemanticDecision | None = None):
+def test_prepared_list_superseded_before_close_does_not_deliver_final_answer():
+    env = _prepared_env(agent=ForbiddenAgent(), supersede_during_tool=True)
+
+    result = env.runner.run_inbound_turn(env.trigger)
+
+    assert result.disposition == "superseded"
+    assert result.reason_code == "interrupted_by_newer_inbound"
+    assert env.delivery.deliveries == []
+    assert env.runtime.outbound_messages_for_turn(result.turn_id) == []
+
+
+def _prepared_env(
+    *,
+    agent,
+    decision: SemanticDecision | None = None,
+    supersede_during_tool: bool = False,
+):
     clock = MutableClock(NOW)
     repository = InMemoryConversationRuntimeRepository(now=clock.now)
     runtime = ConversationRuntimeService(
@@ -258,7 +277,20 @@ def _prepared_env(*, agent, decision: SemanticDecision | None = None):
         ],
     }
     gate_port = FakeGatePort()
-    reminder_tool = PreparedReminderListTool(facts)
+    def record_newer_inbound() -> None:
+        runtime.record_inbound(
+            account_id="account_1",
+            channel_identity_id="channel_identity_1",
+            causal_inbound_event_id="provider:message-2",
+            text="actually never mind",
+            payload={"provider": "whatsapp_evolution"},
+            traceparent=TRACEPARENT,
+        )
+
+    reminder_tool = PreparedReminderListTool(
+        facts,
+        before_return=record_newer_inbound if supersede_during_tool else None,
+    )
     delivery = FakeDelivery()
     runner = TurnRunner(
         conversation_runtime=runtime,
@@ -307,6 +339,7 @@ def _prepared_env(*, agent, decision: SemanticDecision | None = None):
         trigger=trigger,
         delivery=delivery,
         reminder_tool=reminder_tool,
+        runtime=runtime,
         expected_reply=expected_reply,
     )
 
