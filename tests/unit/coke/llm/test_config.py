@@ -92,12 +92,17 @@ def test_openai_like_model_uses_zai_settings_and_interaction_timeout():
     # GLM-5.1 thinking mode leaks reasoning into final content and breaks the
     # JSON output protocol (forcing full agent re-runs) while inflating latency.
     assert interaction_model.extra_body == {"thinking": {"type": "disabled"}}
-    assert interpreter_model.timeout is None
+    # Every turn-path text model is on the user's reply critical path, so each
+    # must carry the same bounded per-request timeout. Without it the OpenAI
+    # client falls back to its ~600s default and a single stalled Z.AI request
+    # blocks the whole turn for minutes. See
+    # docs/issues/2026-06-09-turn-latency-uncapped-interpreter-timeout.md.
+    assert interpreter_model.timeout == 31.5
     assert interpreter_model.extra_body == {"thinking": {"type": "disabled"}}
     assert model.id == "glm-5.1-detector"
     assert str(model.base_url) == ZAI_BASE_URL
     assert model.api_key == "test-key"
-    assert model.timeout is None
+    assert model.timeout == 31.5
     assert model.extra_body == {"thinking": {"type": "disabled"}}
 
 

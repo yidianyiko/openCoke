@@ -79,14 +79,20 @@ class ZAILLMConfig:
         )
 
     def create_interpreter_model(self) -> OpenAILike:
+        # Interpreter and detector run on the same user-reply critical path as
+        # interaction, so they share the same bounded per-request timeout. Left
+        # unbounded, the OpenAI client falls back to its ~600s default and a
+        # single stalled Z.AI request blocks the whole turn for minutes.
         return self._create_model(
             self.interpreter_model,
+            timeout=self.interaction_timeout_s,
             extra_body=_thinking_disabled_body(),
         )
 
     def create_detector_model(self) -> OpenAILike:
         return self._create_model(
             self.detector_model,
+            timeout=self.interaction_timeout_s,
             extra_body=_thinking_disabled_body(),
         )
 
