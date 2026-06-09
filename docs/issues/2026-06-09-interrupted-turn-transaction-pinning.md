@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: open
+status: resolved
 surface:
   - conversation-runtime
   - worker-runtime
@@ -81,13 +81,14 @@ insert/read the same default rows, so it never reached the reminder tool.
 
 ## Current Status
 
-- Open while the fix is verified and deployed.
-- Proposed fix: commit the claim boundary again immediately after the pre-LLM
-  gate, before access-denied handling, semantic interpretation, or agent work.
+- Resolved and deployed to production (`gcp-coke` / `coke-clean`).
+- Fix: commit the claim boundary again immediately after the pre-LLM gate,
+  before access-denied handling, semantic interpretation, or agent work.
 
 ## Resolution
 
-Pending production deploy and repeated smoke verification.
+Fix commit: `ce92609436fb7d32f5075ed8f9849f4a742ff407`
+`fix(turn): release gate transaction before agent work`.
 
 Local verification before deploy:
 
@@ -107,3 +108,44 @@ Local verification before deploy:
 - `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed:
   backend unit suite 853 tests plus `scripts/check`.
 - `git diff --check` passed.
+
+Production deploy:
+
+- `bash scripts/deploy-compose-to-gcp.sh` deployed backend tier and recreated
+  `coke-api`, `coke-worker`, `coke-scheduler`, and `coke-outbox-relay`.
+- Deploy health check passed.
+- Remote `.deployed-sha` =
+  `ce92609436fb7d32f5075ed8f9849f4a742ff407`.
+- Remote `curl -fsS http://127.0.0.1:8000/healthz` returned `{"ok":true}`.
+- Post-deploy lock check returned `0` for lock waits or idle transactions older
+  than two minutes.
+
+Repeated smoke:
+
+- Ran `scripts.smoke.clean_smoke --mode webhook --run-id
+  latency_fix_20260609T071153Z` inside the production `coke-api` container,
+  with sender A resolved from the active connected WhatsApp delivery route.
+- The three script-driven turns completed:
+  - `b11d30db-92b4-4fbb-b718-fb0461d5ea68` first-contact A:
+    `replied`, `reply_ready`.
+  - `4ac66154-652b-4fc0-8ec5-0fca4d2e94d5` first-contact B:
+    `replied`, `reply_ready`.
+  - `c20421a9-9aed-4545-afee-0eadda83d8cc` personal reminder:
+    `replied`, `reply_ready`.
+- The repeated personal-reminder turn created exactly one active reminder before
+  cleanup: `cb41b459-01b2-44c8-91d6-5962bb4182c9`, content
+  `check clean smoke latency_fix_20260609T071153Z`, with `next_fire_at` set.
+- Worker telemetry for the repeated personal-reminder turn showed it reached
+  `turn.semantic_interpreter` (~3.9s), `agent.primary` (~14.2s),
+  `llm_json.detected_reminder_fields` (~4.0s), and `turn.total` (~22.3s). It no
+  longer stalled before agent/tool work.
+- The script then failed at the later friendship phase with
+  `HTTP 401 ... missing_bearer_token`; that is a separate clean-smoke harness
+  auth drift, not the transaction-pinning failure.
+
+Cleanup:
+
+- The original marked smoke reminder and repeated marked smoke reminder were
+  soft-deleted with `lifecycle='deleted'`.
+- Follow-up checks returned `0` active marked reminders, `0` marked
+  `reminder_fire` rows, and `0` lock waits / long idle transactions.
