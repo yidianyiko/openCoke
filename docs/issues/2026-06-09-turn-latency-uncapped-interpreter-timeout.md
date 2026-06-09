@@ -78,7 +78,7 @@ Production reads on `gcp-coke` (2026-06-09):
 
 ## Current Status
 
-- Resolved in code; production deploy pending (see Resolution).
+- Resolved and deployed to production (`gcp-coke` / `coke-clean`).
 - Mechanism (QZS call, no further approval per user): bound interpreter and
   detector per-request timeout to the same `interaction_timeout_s` so every
   turn-path text model fails fast and retries instead of blocking on a ~600s
@@ -97,7 +97,26 @@ models now share the same bounded per-request timeout (default 45s, tunable via
 - Full backend unit suite: `.venv/bin/python -m pytest tests/unit/coke -q` →
   844 passed.
 
-Fix commit and deploy evidence recorded below on deploy.
+Fix commit: `a515bae1` `fix(llm): bound interpreter and detector per-request
+timeout`.
+
+Production deploy (2026-06-09, `scripts/deploy-compose-to-gcp.sh`, backend
+tier):
+
+- First attempt dropped on an SSH network timeout during image build; it had
+  already rebuilt and recreated services with the new code, but did not write
+  the deployed-sha marker or run the final health check. Re-ran the idempotent
+  deploy to complete cleanly: `clean deploy health checks passed`.
+- `gcp-coke:/home/whoami/coke-clean/.deployed-sha` = `a515bae1...` (matches fix
+  commit).
+- Backend containers recreated; `coke-api` `healthy`.
+- Fix confirmed live: `create_interpreter_model` carries
+  `timeout=self.interaction_timeout_s` in the running `coke-api`, `coke-worker`,
+  and `coke-scheduler` containers.
+
+Production user-path confirmation: the next turn that stalls a turn-path text
+model should now bound that single request at 45s instead of ~600s. Watch
+worker logs for the absence of multi-minute gaps between Z.AI calls.
 
 ## Follow-Ups
 
