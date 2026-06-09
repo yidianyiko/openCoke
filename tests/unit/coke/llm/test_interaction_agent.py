@@ -341,9 +341,7 @@ def test_fenced_json_agno_response_maps_to_agent_result(
 
 
 def test_unfenced_json_string_agno_response_maps_to_agent_result():
-    fake_agent = FakeAgentInstance(
-        content='{"type":"reply","segments":["plain json"]}'
-    )
+    fake_agent = FakeAgentInstance(content='{"type":"reply","segments":["plain json"]}')
     agent = AgnoInteractionAgent(
         model=object(),
         agent_factory=FakeAgentFactory(fake_agent),

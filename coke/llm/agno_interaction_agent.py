@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+import logging
+from collections.abc import AsyncIterator, Callable
 from dataclasses import asdict, dataclass, is_dataclass, replace
 from typing import Any, Mapping
 from uuid import uuid4
@@ -29,6 +30,7 @@ from coke.turn.reminder_list_render import (
 
 AgentFactory = Callable[..., Any]
 TaskIdFactory = Callable[[], str]
+LOGGER = logging.getLogger(__name__)
 _LIST_TOOL_FIELDS = frozenset(
     {
         "participants",
@@ -144,6 +146,76 @@ class AgnoInteractionAgent:
 
     async def ainvoke(self, request: AgentRequest) -> AgentResult:
         return await self._arun_request(request, store_timeout=True)
+
+    async def ainvoke_streaming(
+        self, request: AgentRequest
+    ) -> AsyncIterator[str | AgentResult]:
+        agent, tool_events = self._build_agent(request)
+        parser = _ReplySegmentStreamParser()
+        content_buffer = ""
+        final_content: Any = None
+        try:
+            stream = await agent.arun(
+                _agent_input(request),
+                **self._run_kwargs(
+                    request,
+                    run_id=request.run_id or request.turn_id,
+                ),
+                stream=True,
+                stream_events=True,
+            )
+        except TimeoutError:
+            yield self._timeout_result(request, store_timeout=True)
+            return
+        except Exception as exc:
+            LOGGER.warning(
+                "agno_streaming_start_failed",
+                extra={"turn_id": request.turn_id, "error_type": type(exc).__name__},
+            )
+            yield await self._arun_request(request, store_timeout=True)
+            return
+
+        if not hasattr(stream, "__aiter__"):
+            LOGGER.warning(
+                "agno_streaming_unavailable",
+                extra={"turn_id": request.turn_id},
+            )
+            result = _agent_result_from_content(getattr(stream, "content", None))
+            yield _enforce_tool_reply_contracts(result, tool_events, request)
+            return
+
+        try:
+            async for event in stream:
+                content = getattr(event, "content", None)
+                if _is_completed_stream_event(event):
+                    final_content = content
+                    continue
+                if isinstance(content, str):
+                    delta, content_buffer = _stream_text_delta(content_buffer, content)
+                    for segment in parser.feed(delta):
+                        yield segment
+                elif isinstance(content, Mapping):
+                    final_content = content
+        except TimeoutError:
+            yield self._timeout_result(request, store_timeout=True)
+            return
+        except Exception as exc:
+            if parser.emitted_count == 0:
+                LOGGER.warning(
+                    "agno_streaming_failed_before_segment",
+                    extra={
+                        "turn_id": request.turn_id,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                yield await self._arun_request(request, store_timeout=True)
+                return
+            raise
+
+        if final_content is None:
+            final_content = content_buffer
+        result = _agent_result_from_content(final_content)
+        yield _enforce_tool_reply_contracts(result, tool_events, request)
 
     async def cancel(self, run_id: str) -> bool:
         return bool(await Agent.acancel_run(run_id))
@@ -752,6 +824,96 @@ def _mapping_or_none(content: Any) -> Mapping[str, Any] | None:
         if isinstance(parsed, Mapping):
             return parsed
     return None
+
+
+class _ReplySegmentStreamParser:
+    def __init__(self) -> None:
+        self.buffer = ""
+        self.emitted_count = 0
+
+    def feed(self, text: str) -> tuple[str, ...]:
+        if not text:
+            return ()
+        self.buffer += text
+        segments = _complete_reply_segments_from_buffer(self.buffer)
+        if self.emitted_count >= len(segments):
+            return ()
+        new_segments = tuple(segments[self.emitted_count :])
+        self.emitted_count = len(segments)
+        return new_segments
+
+
+def _complete_reply_segments_from_buffer(buffer: str) -> tuple[str, ...]:
+    decoder = json.JSONDecoder()
+    index = 0
+    while index < len(buffer):
+        if buffer[index] != '"':
+            index += 1
+            continue
+        try:
+            value, relative_end = decoder.raw_decode(buffer[index:])
+        except json.JSONDecodeError:
+            return ()
+        end = index + relative_end
+        colon = _skip_json_whitespace(buffer, end)
+        if value == "segments" and colon < len(buffer) and buffer[colon] == ":":
+            array_start = _skip_json_whitespace(buffer, colon + 1)
+            if array_start >= len(buffer) or buffer[array_start] != "[":
+                return ()
+            return _complete_string_array_elements(buffer, array_start + 1, decoder)
+        index = end
+    return ()
+
+
+def _complete_string_array_elements(
+    buffer: str, start: int, decoder: json.JSONDecoder
+) -> tuple[str, ...]:
+    segments: list[str] = []
+    index = start
+    while True:
+        index = _skip_json_whitespace(buffer, index)
+        if index >= len(buffer):
+            return tuple(segments)
+        if buffer[index] == "]":
+            return tuple(segments)
+        if buffer[index] != '"':
+            return tuple(segments)
+        try:
+            value, relative_end = decoder.raw_decode(buffer[index:])
+        except json.JSONDecodeError:
+            return tuple(segments)
+        if not isinstance(value, str):
+            return tuple(segments)
+        end = index + relative_end
+        delimiter = _skip_json_whitespace(buffer, end)
+        if delimiter < len(buffer) and buffer[delimiter] not in {",", "]"}:
+            return tuple(segments)
+        segments.append(value)
+        if delimiter >= len(buffer):
+            return tuple(segments)
+        if buffer[delimiter] == "]":
+            return tuple(segments)
+        index = delimiter + 1
+
+
+def _skip_json_whitespace(buffer: str, index: int) -> int:
+    while index < len(buffer) and buffer[index] in " \t\r\n":
+        index += 1
+    return index
+
+
+def _stream_text_delta(previous: str, content: str) -> tuple[str, str]:
+    if content.startswith(previous):
+        delta = content[len(previous) :]
+        return delta, content
+    return content, f"{previous}{content}"
+
+
+def _is_completed_stream_event(event: Any) -> bool:
+    event_name = getattr(event, "event", None)
+    if event_name == "RunCompleted":
+        return True
+    return type(event).__name__ == "RunCompletedEvent"
 
 
 def _agent_result_from_content(content: Any) -> AgentResult:
