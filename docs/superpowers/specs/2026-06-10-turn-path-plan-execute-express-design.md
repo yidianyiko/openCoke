@@ -106,9 +106,28 @@ This design adopts that contract uniformly:
 - When the obligation is `ask_clarification`, **interact with the user** — that is
   a first-class, expected outcome, rendered by Express like any other.
 
-Reference resolution that is DB-backed (friend reference, focus/reference
-recovery, recoverable scheduling-intent correction across turns) stays
-**runtime-owned inside Execute**, not folded into Plan's prompt.
+Within-turn reference resolution that is DB-backed (resolving a friend name or a
+focus/reference to a concrete row) stays **runtime-owned inside the domain
+services / Execute**, not folded into Plan's prompt.
+
+### No Persisted Recovery State
+
+Cross-turn correction ("I meant 老王张", or answering "which gym reminder?") needs
+**no persisted recoverable-intent record, no facts hash, and no `follow_up_action`
+signal.** A blocked or ambiguous action never mutates, so there is no half-done
+state to recover — only an unresolved conversational thread, which is already in
+Plan's windowed history. Plan reconstructs the deferred or remaining action from
+that history and re-proposes it as a normal action; Execute runs it normally.
+
+This deletes a whole subsystem that existed only to compensate for the narrow
+classifier: the `RecoverableSchedulingIntent` model and its open/consumed/
+expired/superseded lifecycle, its 15-minute expiry, the repository/service
+methods, and the interpreter `follow_up_action` field. The guarantees they
+provided are covered elsewhere: double-completion by inbound idempotency + domain
+duplicate-active guards + Plan reading "already done" from history; staleness by
+history windowing + turn supersede; and "no durable alias learning" is automatic
+because nothing is persisted. The only requirement is that the unresolved turn is
+within Plan's history window, which always holds for an immediate clarification.
 
 ## Multi-Action Turns: Flat List, No Conditional Plan
 
@@ -138,8 +157,11 @@ aggregates**:
 - Ambiguous/blocked actions do **not** mutate; each contributes its outcome to a
   combined `response_obligation` (e.g. "moved the meeting to 10:00; you have two
   reminders matching 'gym' — which one?").
-- An unresolved action becomes a **recoverable intent** so the user's next-turn
-  answer completes it (this is the bridge to the cross-turn recovery flow).
+- An unresolved action is simply asked about. The user's next-turn answer is
+  reconstructed by **Plan from windowed conversation history** — there is no
+  persisted "recoverable intent". Because a blocked action never mutated, there
+  is no state to recover; only the conversational thread, which Plan already
+  reads. (See "No Persisted Recovery State".)
 - Disposition is `replied` (the turn did reply); the resolved actions' staged
   commands materialize, the unresolved one's do not. Close materialization stays
   atomic **per resolved action set**; nothing about an ambiguous action is
@@ -250,7 +272,11 @@ Verification); until that passes, the detector stays.
   Express deterministic renderer + verifier);
 - the Interaction Agent's tool profile, tool-calling loop, and orchestration;
 - the standalone `SemanticInterpreter` classify step (promoted into Plan);
-- the bolted-on streaming consumption / eligibility wiring in `runner.py`.
+- the bolted-on streaming consumption / eligibility wiring in `runner.py`;
+- the **persisted recoverable-scheduling-intent subsystem** (model + lifecycle +
+  expiry + repository/service methods) and the interpreter `follow_up_action`
+  field — cross-turn correction is reconstructed by Plan from history (see "No
+  Persisted Recovery State").
 
 The detector and the no-false-success verification are **not** deleted — they are
 relocated into Execute / the Express verifier respectively.
@@ -259,9 +285,7 @@ relocated into Execute / the Express verifier respectively.
 
 `FreshnessGuard`, staged commands, dispositions, supersede / input-window /
 `last_closed_inbound_seq`, separate turn-vs-delivery state, delivery audit,
-provider adapters, recoverable scheduling-intent semantics (creation after a
-blocked unmatched/ambiguous outcome, later correction matching, facts hash,
-consumption, no durable alias learning), and the no-false-success contract.
+provider adapters, and the no-false-success contract.
 
 ## Expected Shape Per Turn
 
@@ -316,22 +340,21 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 
 ## Still To Discuss (not yet decided)
 
-1. **Recoverable scheduling/reference correction across turns** — exact mapping
-   into the new model (blocked/ambiguous outcome → recoverable intent → later
-   turn injects resolved facts → completes the deferred action). This is now also
-   the completion path for an unresolved action in a multi-action aggregation, so
-   it needs its own walkthrough.
-2. **Express model role** — reuse the interaction model vs a smaller/faster
+1. **Express model role** — reuse the interaction model vs a smaller/faster
    render model; decided by render-quality + latency measurement.
-3. **Exact `response_obligation` taxonomy** and the per-domain typed-outcome
+2. **Exact `response_obligation` taxonomy** and the per-domain typed-outcome
    surface (implementation-plan detail, but the taxonomy shape affects testing).
-4. **Detector end-state** — stays as an Execute step now; the bar and corpus to
+3. **Detector end-state** — stays as an Execute step now; the bar and corpus to
    ever fold it into Plan.
 
-Resolved (2026-06-10): **flat action list, no `depends_on`** — dependencies
-collapse into service-resolved selectors or clarification; multi-action turns use
-**run-all + aggregate** with per-action staging and recoverable intent for
-unresolved actions (see "Multi-Action Turns").
+Resolved (2026-06-10):
+- **Flat action list, no `depends_on`** — dependencies collapse into
+  service-resolved selectors or clarification; multi-action turns use
+  **run-all + aggregate** with per-action staging (see "Multi-Action Turns").
+- **No persisted cross-turn recovery state** — the recoverable-scheduling-intent
+  subsystem, facts hash, and `follow_up_action` are deleted; Plan reconstructs a
+  deferred/remaining action from windowed history (see "No Persisted Recovery
+  State").
 
 ## Summary
 
