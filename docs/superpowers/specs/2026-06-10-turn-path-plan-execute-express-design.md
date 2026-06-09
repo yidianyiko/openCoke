@@ -110,6 +110,45 @@ Reference resolution that is DB-backed (friend reference, focus/reference
 recovery, recoverable scheduling-intent correction across turns) stays
 **runtime-owned inside Execute**, not folded into Plan's prompt.
 
+## Multi-Action Turns: Flat List, No Conditional Plan
+
+`TurnPlan.actions` is a **flat ordered list with no `depends_on` / `on_result`
+conditionals.** Service-side resolution removes the need for conditional plans:
+
+- An apparent "B depends on A's result" almost always collapses into a **richer
+  single-action selector resolved by the service** — e.g. "move my earliest
+  reminder an hour later" is one `update {select: "earliest", shift: "+1h"}`, not
+  a query-then-update chain. The ReAct "list friends first, then create with the
+  ID" pattern is exactly the chaining that service-side resolution deletes.
+- Where the service cannot resolve a single target, the outcome is `ambiguous` or
+  `not_found` → a **clarification obligation**, never a cross-action dependency.
+
+**Precondition (a real requirement on domains):** each domain service owns
+resolution and selectors (keyword, ordering like "earliest", "if absent", …) and
+returns a typed outcome. A reference it cannot resolve to a single target is a
+clarification, not a guess.
+
+### Aggregation policy: run-all + aggregate
+
+When a turn has multiple actions and they settle to mixed outcomes (some `done`,
+some `ambiguous`/`blocked`), Execute **runs every action independently and
+aggregates**:
+
+- Cleanly resolved actions are staged and **materialize at close** as usual.
+- Ambiguous/blocked actions do **not** mutate; each contributes its outcome to a
+  combined `response_obligation` (e.g. "moved the meeting to 10:00; you have two
+  reminders matching 'gym' — which one?").
+- An unresolved action becomes a **recoverable intent** so the user's next-turn
+  answer completes it (this is the bridge to the cross-turn recovery flow).
+- Disposition is `replied` (the turn did reply); the resolved actions' staged
+  commands materialize, the unresolved one's do not. Close materialization stays
+  atomic **per resolved action set**; nothing about an ambiguous action is
+  committed.
+
+Rejected alternatives: short-circuit on first block (more round-trips), and
+two-phase all-or-nothing (atomic but does zero of three when one is unclear —
+too harsh for the reminder product).
+
 ## Roles
 
 ### Plan (single reasoning brain, narrow)
@@ -277,20 +316,22 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 
 ## Still To Discuss (not yet decided)
 
-1. **Conditional/dependent actions vs flat list + Execute resolution.** Current
-   choice: flat proposed list + Execute/service-owned resolution and obligation
-   (the legacy keyword approach). Confirm this covers every multi-action
-   dependency (e.g. an action whose params depend on a prior action's result),
-   or whether a minimal `depends_on` is still needed.
-2. **Recoverable friend-reference correction across turns** — exact mapping into
-   the new model (blocked outcome → recoverable intent → later turn injects
-   resolved facts) needs its own walkthrough.
-3. **Express model role** — reuse the interaction model vs a smaller/faster
+1. **Recoverable scheduling/reference correction across turns** — exact mapping
+   into the new model (blocked/ambiguous outcome → recoverable intent → later
+   turn injects resolved facts → completes the deferred action). This is now also
+   the completion path for an unresolved action in a multi-action aggregation, so
+   it needs its own walkthrough.
+2. **Express model role** — reuse the interaction model vs a smaller/faster
    render model; decided by render-quality + latency measurement.
-4. **Exact `response_obligation` taxonomy** and the per-domain typed-outcome
+3. **Exact `response_obligation` taxonomy** and the per-domain typed-outcome
    surface (implementation-plan detail, but the taxonomy shape affects testing).
-5. **Detector end-state** — stays as an Execute step now; the bar and corpus to
+4. **Detector end-state** — stays as an Execute step now; the bar and corpus to
    ever fold it into Plan.
+
+Resolved (2026-06-10): **flat action list, no `depends_on`** — dependencies
+collapse into service-resolved selectors or clarification; multi-action turns use
+**run-all + aggregate** with per-action staging and recoverable intent for
+unresolved actions (see "Multi-Action Turns").
 
 ## Summary
 
