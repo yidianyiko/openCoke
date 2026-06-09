@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import threading
 import time
@@ -427,6 +428,73 @@ def harness():
         "trigger": trigger,
         "clock": clock,
     }
+
+
+def test_inbound_turn_emits_latency_phase_events(harness, caplog):
+    with caplog.at_level(logging.INFO, logger="coke.observability.turn_latency"):
+        result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event_name", None) == "turn_latency_event"
+    ]
+    phases = {record.phase for record in records}
+    assert {
+        "turn.semantic_interpreter",
+        "turn.context_assembly",
+        "agent.primary",
+        "turn.total",
+    } <= phases
+    for record in records:
+        assert record.turn_id == result.turn_id
+        assert record.trigger_type in {"InboundTurn", None}
+        assert not hasattr(record, "content")
+        assert not hasattr(record, "prompt")
+
+
+def test_protocol_retry_emits_retry_latency_phase(harness, caplog):
+    harness["agent"].queued_results = [
+        AgentResult.completed({"invalid": "shape"}),
+        AgentResult.completed({"type": "reply", "segments": ["retried"]}),
+    ]
+
+    with caplog.at_level(logging.INFO, logger="coke.observability.turn_latency"):
+        result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    retry_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event_name", None) == "turn_latency_event"
+        and record.phase == "agent.protocol_retry"
+    ]
+    assert len(retry_records) == 1
+    assert retry_records[0].turn_id == result.turn_id
+    assert retry_records[0].retry_attempt == 1
+
+
+def test_render_turn_emits_latency_phase_events(harness, caplog):
+    trigger = TurnTrigger(
+        trigger_id="notification:latency-test",
+        trigger_type="NotificationTurn",
+        mode=TurnMode.RENDER,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        payload={"notification": {"kind": "shared_reminder_created"}},
+    )
+
+    with caplog.at_level(logging.INFO, logger="coke.observability.turn_latency"):
+        result = harness["runner"].run_render_turn(trigger)
+
+    assert result.disposition == "replied"
+    phases = {
+        record.phase
+        for record in caplog.records
+        if getattr(record, "event_name", None) == "turn_latency_event"
+    }
+    assert {"turn.total", "turn.context_assembly", "agent.primary"} <= phases
 
 
 def test_semantic_intentional_no_reply_still_reaches_interaction_agent(harness):

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
+from types import SimpleNamespace
+
 import pytest
 
 from coke.llm.semantic_interpreter import (
+    AgnoJSONCompletionClient,
     LLMOutputError,
     SiliconFlowSemanticInterpreter,
 )
@@ -18,6 +22,42 @@ class FakeJSONClient:
     def complete_json(self, *, system: str, user: dict, schema_name: str):
         self.calls.append({"system": system, "user": user, "schema_name": schema_name})
         return self.output
+
+
+class FakeModel:
+    id = "fake-json-model"
+
+    def __init__(self) -> None:
+        self.calls = []
+
+    def response(self, messages, response_format):
+        self.calls.append({"messages": messages, "response_format": response_format})
+        return SimpleNamespace(content='{"answer": "ok"}')
+
+
+def test_agno_json_completion_client_emits_safe_latency_event(caplog):
+    model = FakeModel()
+    client = AgnoJSONCompletionClient(model)
+
+    with caplog.at_level(logging.INFO, logger="coke.observability.turn_latency"):
+        payload = client.complete_json(
+            system="system prompt must not leak",
+            user={"text": "user text must not leak"},
+            schema_name="semantic_decision",
+        )
+
+    assert payload == {"answer": "ok"}
+    record = caplog.records[-1]
+    assert record.event_name == "turn_latency_event"
+    assert record.getMessage().startswith("turn_latency_event {")
+    assert record.phase == "llm_json.semantic_decision"
+    assert record.model_role == "semantic_decision"
+    assert record.model == "fake-json-model"
+    assert record.message_count == 2
+    assert not hasattr(record, "prompt")
+    assert not hasattr(record, "content")
+    assert not hasattr(record, "user")
+    assert "must not leak" not in record.getMessage()
 
 
 def test_interpret_maps_structured_model_output_to_semantic_decision():
