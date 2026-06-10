@@ -952,7 +952,11 @@ class TurnRunner:
             payload=dict(trigger.payload),
             trusted_facts=trusted_facts,
             focus_subject=focus_subject,
-            conversation_history=_v2_conversation_history(start.input_messages),
+            conversation_history=self._v2_conversation_window(
+                trigger.conversation_id,
+                current_turn_id=start.turn.id,
+            )
+            or _v2_conversation_history(start.input_messages),
             persona=_v2_persona(trusted_facts),
             assistant_name=str(trusted_facts.get("assistant_name") or "Coke"),
             user_address_name=str(trusted_facts.get("user_address_name") or ""),
@@ -961,6 +965,40 @@ class TurnRunner:
             now=now,
             run_id=_agent_run_id_for_trigger(trigger, fallback=start.turn.id),
         )
+
+    def _v2_conversation_window(
+        self,
+        conversation_id: str,
+        *,
+        current_turn_id: str,
+        limit: int = 8,
+        max_messages: int = 20,
+    ) -> tuple[Mapping[str, Any], ...]:
+        try:
+            contexts = self.conversation_runtime.recent_turns_with_messages(
+                conversation_id, limit=limit
+            )
+        except ConversationRuntimeError:
+            return ()
+        history: list[Mapping[str, Any]] = []
+        for turn, input_messages, outbound_messages in reversed(contexts):
+            if getattr(turn, "id", None) == current_turn_id:
+                continue
+            for message in input_messages:
+                text = getattr(message, "text", None)
+                if isinstance(text, str) and text:
+                    item: dict[str, Any] = {"role": "user", "content": text}
+                    seq = getattr(message, "seq", None)
+                    if isinstance(seq, int):
+                        item["seq"] = seq
+                    history.append(item)
+            for message in outbound_messages:
+                text = getattr(message, "text", None)
+                if isinstance(text, str) and text:
+                    history.append({"role": "assistant", "content": text})
+        if len(history) > max_messages:
+            history = history[-max_messages:]
+        return tuple(history)
 
     def run_render_turn(self, trigger: TurnTrigger) -> TurnRunResult:
         gate = GateDecision.allowed(trust_facts={"account_id": trigger.account_id})

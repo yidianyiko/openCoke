@@ -389,6 +389,19 @@ class StaticFocusRepository:
         return self.subject
 
 
+class FakeConversationWindowRuntime:
+    def __init__(self, contexts=None, error: Exception | None = None) -> None:
+        self.contexts = list(contexts or ())
+        self.error = error
+        self.calls = []
+
+    def recent_turns_with_messages(self, conversation_id: str, *, limit: int):
+        self.calls.append({"conversation_id": conversation_id, "limit": limit})
+        if self.error is not None:
+            raise self.error
+        return list(self.contexts)
+
+
 @pytest.fixture
 def harness():
     clock = MutableClock(NOW)
@@ -512,6 +525,52 @@ def test_inbound_turn_with_v2_flag_invokes_pipeline(harness, monkeypatch):
     assert request.source_input_window == (1, 1)
     assert guard is not None
     assert delivery is not None
+
+
+def test_v2_conversation_window_builds_chronological_prior_history(harness):
+    current_context = (
+        SimpleNamespace(id="cur"),
+        (SimpleNamespace(text="晚上七点半", seq=2),),
+        [SimpleNamespace(text="current outbound")],
+    )
+    prior_context = (
+        SimpleNamespace(id="t1"),
+        (SimpleNamespace(text="和eva约一个明天晚上八点的晚饭", seq=1),),
+        [SimpleNamespace(text="约不了，换个时间？")],
+    )
+    runtime = FakeConversationWindowRuntime(
+        contexts=[current_context, prior_context],
+    )
+    harness["runner"].conversation_runtime = runtime
+
+    history = harness["runner"]._v2_conversation_window(
+        "conv",
+        current_turn_id="cur",
+    )
+
+    assert runtime.calls == [{"conversation_id": "conv", "limit": 8}]
+    assert history == (
+        {
+            "role": "user",
+            "content": "和eva约一个明天晚上八点的晚饭",
+            "seq": 1,
+        },
+        {"role": "assistant", "content": "约不了，换个时间？"},
+    )
+
+
+def test_v2_conversation_window_returns_empty_on_runtime_error(harness):
+    harness["runner"].conversation_runtime = FakeConversationWindowRuntime(
+        error=ConversationRuntimeError("runtime_down"),
+    )
+
+    assert (
+        harness["runner"]._v2_conversation_window(
+            "conv",
+            current_turn_id="cur",
+        )
+        == ()
+    )
 
 
 @pytest.mark.asyncio

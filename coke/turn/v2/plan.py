@@ -33,6 +33,16 @@ Ownership:
 - A delete/remove/cancel/complete request is ALWAYS that action even when the target is vague or missing; never substitute a list or a different operation. The handler will return needs_choice/needs_input for a vague target.
 - A reminder `match` keyword MUST be the reminder's topic/content (e.g. "跑步", "买牛奶"), never the generic word "提醒"/"reminder"/"提醒事项" itself. If the user names no specific topic (e.g. "删掉提醒"), OMIT `match` entirely so the turn asks which reminder.
 - Do not emit confidence fields, scores, thresholds, final prose, or tool calls.
+- conversation_history is the prior turns of THIS conversation (role user = the
+  person, role assistant = you). Use it to resolve the latest message in context.
+- The latest message may be a FOLLOW-UP that continues, answers, or corrects the
+  most recent still-open request (e.g. a bare time like "晚上七点半", a friend name
+  answering "who?", "改成X"/"换成Y", or a new time after you asked to reschedule).
+  When it is a follow-up, RECONSTRUCT the prior request's full action from
+  conversation_history: same domain and operation, carry forward ALL of its params
+  (participant/friend, content/title, etc.), then merge in the new detail. Never
+  downgrade a shared/social-scheduling request to a personal reminder, and never
+  treat such a follow-up as converse.
 - Empty actions mean converse/greeting/no product action.
 """.strip()
 
