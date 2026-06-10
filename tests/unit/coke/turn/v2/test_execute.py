@@ -86,3 +86,50 @@ def test_execution_outcome_builder_assembles_settled_outcome() -> None:
     builder.add(second)
 
     assert builder.build().outcomes == (first, second)
+
+
+def test_execute_injects_action_context_into_params() -> None:
+    handler = RecordingHandler()
+    executor = ActionExecutor({"reminder": handler})
+    plan = CompiledPlan(
+        actions=(
+            CompiledAction(
+                action=ProposedAction(
+                    domain="reminder", operation="list", params={"keyword": "gym"}
+                )
+            ),
+        )
+    )
+    executor.execute(
+        plan,
+        guard=None,
+        action_context={
+            "owner_account_id": "acct-1",
+            "captured_timezone": "Asia/Tokyo",
+        },
+    )
+    received = handler.calls[0][0].action.params
+    assert received["owner_account_id"] == "acct-1"
+    assert received["captured_timezone"] == "Asia/Tokyo"
+    # planner-provided functional params are preserved
+    assert received["keyword"] == "gym"
+
+
+def test_trusted_context_wins_over_planner_account_id() -> None:
+    # Security: a hallucinated account id from the planner must never override the
+    # authenticated trusted account.
+    handler = RecordingHandler()
+    executor = ActionExecutor({"reminder": handler})
+    plan = CompiledPlan(
+        actions=(
+            CompiledAction(
+                action=ProposedAction(
+                    domain="reminder",
+                    operation="list",
+                    params={"owner_account_id": "planner"},
+                )
+            ),
+        )
+    )
+    executor.execute(plan, guard=None, action_context={"owner_account_id": "trusted"})
+    assert handler.calls[0][0].action.params["owner_account_id"] == "trusted"

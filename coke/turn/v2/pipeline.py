@@ -105,7 +105,9 @@ class TurnPipeline:
         )
         plan = self._planner.plan(_plan_request(request, pending))
         compiled_plan = self._compile(plan)
-        settled_outcome = self._executor.execute(compiled_plan, guard)
+        settled_outcome = self._executor.execute(
+            compiled_plan, guard, _action_context(request)
+        )
         staged_command_ids = _staged_command_ids(settled_outcome)
         resolves_pending_fingerprint = _resolved_pending_fingerprint(plan, pending)
 
@@ -157,6 +159,22 @@ class TurnPipeline:
             close_result=close_result,
             streamed=streamed,
         )
+
+
+def _action_context(request: TurnPipelineRequest) -> dict[str, Any]:
+    # Authenticated trusted context injected into every action's params. The
+    # planner never provides account ids or timezone; they come from the turn.
+    timezone = str(request.trusted_facts.get("default_timezone") or "UTC")
+    return {
+        "account_id": request.account_id,
+        "owner_account_id": request.account_id,
+        "creator_account_id": request.account_id,
+        "requester_account_id": request.account_id,
+        "conversation_id": request.conversation_id,
+        "captured_timezone": timezone,
+        "requester_timezone": timezone,
+        "display_timezone": timezone,
+    }
 
 
 def _plan_request(
