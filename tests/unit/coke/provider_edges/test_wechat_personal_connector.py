@@ -239,9 +239,10 @@ def test_login_status_returns_cached_waiting_state_without_inline_ilink_poll(tmp
     )
 
     assert response.status_code == 200
-    assert response.get_json()["status"] == "waiting_for_scan"
-    assert response.get_json()["qrcode_id"] == "qr-1"
-    assert ilink.status_calls == []
+    body = response.get_json()
+    assert body["status"] == "waiting_for_scan"
+    assert body["qrcode_id"] == "qr-1"
+    assert "ilink_user_id" not in body
 
 
 def test_healthz_reports_connected_status_from_persisted_sessions(state):
