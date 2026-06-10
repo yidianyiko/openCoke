@@ -134,8 +134,12 @@ def _run_kwargs(
     return kwargs
 
 
-def _agent_input(request: ExpressRequest) -> dict[str, Any]:
-    return {
+def _agent_input(request: ExpressRequest) -> str:
+    # Pass the render context as a JSON STRING user message. Passing a raw dict
+    # makes Agno build a message with non-string content, which the GLM/ZAI API
+    # rejects with "messages parameter is illegal". This mirrors the interpreter/
+    # planner JSON client (Message(role="user", content=json.dumps(...))).
+    payload = {
         "mode": "converse" if not request.settled_outcome.outcomes else "render",
         "settled_outcome": _settled_outcome_payload(request.settled_outcome),
         "conversation_history": [
@@ -144,6 +148,7 @@ def _agent_input(request: ExpressRequest) -> dict[str, Any]:
         "persona": request.persona,
         "payload": _plain_value(request.payload),
     }
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _settled_outcome_payload(settled_outcome: SettledOutcome) -> dict[str, Any]:

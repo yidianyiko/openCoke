@@ -27,7 +27,7 @@ class PartialEchoRunAgentInstance:
 
     def run(self, input, **kwargs):
         self.calls.append({"method": "run", "input": input, "kwargs": kwargs})
-        outcome = input["settled_outcome"]["outcomes"][0]
+        outcome = json.loads(input)["settled_outcome"]["outcomes"][0]
         failed = outcome["data"]["failed"][0]
         content = json.dumps(
             {
@@ -51,7 +51,7 @@ class PartialEchoStreamingAgentInstance:
         # Agno returns an AsyncIterator directly for stream=True. This method is
         # intentionally not async so awaiting it would fail.
         self.calls.append({"method": "arun", "input": input, "kwargs": kwargs})
-        outcome = input["settled_outcome"]["outcomes"][0]
+        outcome = json.loads(input)["settled_outcome"]["outcomes"][0]
         failed = outcome["data"]["failed"][0]
         content = json.dumps(
             {
@@ -116,7 +116,9 @@ def test_render_produces_segments_from_settled_outcome() -> None:
     )
 
     assert segments == ("Listed 1 reminder", "Anything else?")
-    assert fake_agent.calls[0]["input"]["settled_outcome"]["outcomes"][0] == {
+    assert json.loads(fake_agent.calls[0]["input"])["settled_outcome"]["outcomes"][
+        0
+    ] == {
         "category": "done",
         "status": "listed",
         "data": {"count": 1},
@@ -142,7 +144,9 @@ def test_render_prompt_and_segments_preserve_partial_failure_facts() -> None:
     assert "partial" in system_message
     assert "duplicate_active" in system_message
     assert "already_cancelled" in system_message
-    input_outcome = fake_agent.calls[0]["input"]["settled_outcome"]["outcomes"][0]
+    input_outcome = json.loads(fake_agent.calls[0]["input"])["settled_outcome"][
+        "outcomes"
+    ][0]
     assert input_outcome["category"] == "done"
     assert input_outcome["status"] == "partial"
     assert input_outcome["data"]["failed"] == [
