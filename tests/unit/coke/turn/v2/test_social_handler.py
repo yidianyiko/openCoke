@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from coke.domains.social_scheduling.availability import (
     AvailabilityWindow,
     FriendAvailability,
@@ -406,4 +408,33 @@ def test_availability_query_resolves_participant_without_staging() -> None:
     assert outcome.data["availability"][0]["friend_account_id"] == "friend-amy"
     assert outcome.data["availability"][0]["windows"][0]["state"] == "free"
     assert outcome.staged_command_id is None
+    assert guard.staged == []
+
+
+@pytest.mark.parametrize("datetime_field", ["local_start", "local_end"])
+def test_availability_query_non_iso_datetime_needs_time_without_service_call(
+    datetime_field: str,
+) -> None:
+    service = StubSocialSchedulingService()
+    guard = RecordingGuard()
+    params = {
+        "account_id": "acct-1",
+        "participant": "Amy",
+        "local_start": "2026-06-11T09:00:00",
+        "local_end": "2026-06-11T10:00:00",
+        "requester_timezone": "Asia/Tokyo",
+    }
+    params[datetime_field] = "今天"
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled("availability_query", params),
+        guard,
+    )
+
+    assert outcome == ActionOutcome(
+        category="needs_input",
+        status="missing_time",
+        data={"field": "time"},
+    )
+    assert [call[0] for call in service.calls] == ["resolve_active_friend_reference"]
     assert guard.staged == []

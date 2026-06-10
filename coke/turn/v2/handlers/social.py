@@ -532,8 +532,11 @@ def _optional_datetime(value: Any) -> datetime | None:
     if value is None or isinstance(value, datetime):
         return value
     if isinstance(value, str):
-        return datetime.fromisoformat(value)
-    raise ValueError("invalid_datetime")
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _optional_int(value: Any) -> int | None:
