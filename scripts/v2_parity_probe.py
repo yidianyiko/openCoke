@@ -6,7 +6,7 @@ import json
 import sys
 import traceback
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass, fields
 from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -714,8 +714,11 @@ def _actions_label(plan: Any) -> str:
 
 
 def _plain_value(value: Any) -> Any:
+    # NOTE: do not use dataclasses.asdict — it deep-copies and chokes on the
+    # frozen dataclasses' MappingProxyType params ("cannot pickle 'mappingproxy'").
+    # Walk fields manually instead.
     if is_dataclass(value) and not isinstance(value, type):
-        return _plain_value(asdict(value))
+        return {f.name: _plain_value(getattr(value, f.name)) for f in fields(value)}
     if isinstance(value, Mapping):
         return {str(key): _plain_value(item) for key, item in value.items()}
     if isinstance(value, tuple | list):
