@@ -38,28 +38,52 @@ class StubReminderService:
     def __init__(self) -> None:
         self.filter_result: list[Reminder] = []
         self.batch_result = ReminderBatchResult(owner_account_id="acct-1", items=[])
-        self.item_result = ReminderItemResult(state="succeeded", reminder_id="r1")
+        self.resolve_result = ReminderItemResult(state="succeeded", reminder_id="r1")
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.mutation_calls: list[str] = []
 
     def filter_reminders(self, **kwargs: Any) -> list[Reminder]:
         self.calls.append(("filter_reminders", kwargs))
         return self.filter_result
 
+    def resolve_user_mutable_keyword(self, **kwargs: Any) -> ReminderItemResult:
+        self.calls.append(("resolve_user_mutable_keyword", kwargs))
+        return self.resolve_result
+
     def execute_batch(self, **kwargs: Any) -> ReminderBatchResult:
         self.calls.append(("execute_batch", kwargs))
+        self.mutation_calls.append("execute_batch")
         return self.batch_result
 
     def update_reminder_by_keyword(self, **kwargs: Any) -> ReminderItemResult:
         self.calls.append(("update_reminder_by_keyword", kwargs))
-        return self.item_result
+        self.mutation_calls.append("update_reminder_by_keyword")
+        return self.resolve_result
 
     def delete_reminder_by_keyword(self, **kwargs: Any) -> ReminderItemResult:
         self.calls.append(("delete_reminder_by_keyword", kwargs))
-        return self.item_result
+        self.mutation_calls.append("delete_reminder_by_keyword")
+        return self.resolve_result
 
     def complete_reminder_by_keyword(self, **kwargs: Any) -> ReminderItemResult:
         self.calls.append(("complete_reminder_by_keyword", kwargs))
-        return self.item_result
+        self.mutation_calls.append("complete_reminder_by_keyword")
+        return self.resolve_result
+
+    def update_reminder(self, **kwargs: Any) -> ReminderItemResult:
+        self.calls.append(("update_reminder", kwargs))
+        self.mutation_calls.append("update_reminder")
+        return self.resolve_result
+
+    def delete_reminder(self, **kwargs: Any) -> ReminderItemResult:
+        self.calls.append(("delete_reminder", kwargs))
+        self.mutation_calls.append("delete_reminder")
+        return self.resolve_result
+
+    def complete_reminder(self, **kwargs: Any) -> ReminderItemResult:
+        self.calls.append(("complete_reminder", kwargs))
+        self.mutation_calls.append("complete_reminder")
+        return self.resolve_result
 
 
 class RecordingGuard:
@@ -178,18 +202,8 @@ def test_optional_datetime_handles_absent_iso_datetime_and_natural_text() -> Non
     assert _optional_datetime(dt) is dt
 
 
-def test_create_extracts_time_then_stages_created_command() -> None:
+def test_create_extracts_time_then_stages_execute_batch_without_mutating() -> None:
     service = StubReminderService()
-    service.batch_result = ReminderBatchResult(
-        owner_account_id="acct-1",
-        items=[
-            ReminderItemResult(
-                state="succeeded",
-                reminder_id="r1",
-                fact={"content": "take meds"},
-            )
-        ],
-    )
     detector = StubDetector(_detected())
     guard = RecordingGuard()
 
@@ -214,25 +228,42 @@ def test_create_extracts_time_then_stages_created_command() -> None:
             "items": [
                 {
                     "state": "succeeded",
-                    "reminder_id": "r1",
+                    "reminder_id": None,
                     "reason": None,
                     "time_state": None,
-                    "fact": {"content": "take meds"},
+                    "fact": {
+                        "content": "take meds",
+                        "trigger_time": "2026-06-11T00:00:00+00:00",
+                        "captured_timezone": "Asia/Tokyo",
+                        "recurrence_rule": {},
+                        "duration_minutes": 20,
+                        "kind": "timed",
+                        "entry_point": "turn_v2",
+                    },
                 }
             ],
         },
         staged_command_id="stage-1",
     )
     assert detector.calls == [("take meds tomorrow 9", "Asia/Tokyo", NOW)]
-    service_call = service.calls[0]
-    assert service_call[0] == "execute_batch"
-    assert service_call[1]["owner_account_id"] == "acct-1"
-    assert service_call[1]["items"][0].operation == "create"
-    assert service_call[1]["items"][0].content == "take meds"
+    assert service.calls == []
+    assert service.mutation_calls == []
     assert guard.staged[0]["domain"] == "reminder"
-    assert guard.staged[0]["operation"] == "create"
-    assert guard.staged[0]["command_payload"]["operation"] == "create"
+    assert guard.staged[0]["operation"] == "execute_batch"
+    assert guard.staged[0]["command_payload"]["operation"] == "execute_batch"
     assert guard.staged[0]["command_payload"]["owner_account_id"] == "acct-1"
+    assert guard.staged[0]["command_payload"]["items"] == [
+        {
+            "operation": "create",
+            "content": "take meds",
+            "trigger_time": "2026-06-11T00:00:00+00:00",
+            "captured_timezone": "Asia/Tokyo",
+            "recurrence_rule": {},
+            "duration_minutes": 20,
+            "kind": "timed",
+            "entry_point": "turn_v2",
+        }
+    ]
 
 
 def test_create_missing_detector_time_needs_input_without_service_or_stage() -> None:
@@ -263,7 +294,7 @@ def test_create_missing_detector_time_needs_input_without_service_or_stage() -> 
     assert guard.staged == []
 
 
-def test_create_duplicate_reminder_maps_to_duplicate_active_without_stage() -> None:
+def test_create_defers_duplicate_detection_to_close_materializer() -> None:
     service = StubReminderService()
     service.batch_result = ReminderBatchResult(
         owner_account_id="acct-1",
@@ -284,27 +315,28 @@ def test_create_duplicate_reminder_maps_to_duplicate_active_without_stage() -> N
     )
 
     assert outcome.category == "done"
-    assert outcome.status == "duplicate_active"
-    assert outcome.staged_command_id is None
-    assert guard.staged == []
+    assert outcome.status == "created"
+    assert outcome.staged_command_id == "stage-1"
+    assert service.calls == []
+    assert service.mutation_calls == []
+    assert guard.staged[0]["operation"] == "execute_batch"
 
 
 @pytest.mark.parametrize(
-    ("operation", "service_method", "status", "staged_operation"),
+    ("operation", "status", "staged_operation"),
     [
-        ("update", "update_reminder_by_keyword", "updated", "update_reminder"),
-        ("delete", "delete_reminder_by_keyword", "cancelled", "delete_reminder"),
-        ("complete", "complete_reminder_by_keyword", "completed", "complete_reminder"),
+        ("update", "updated", "update_reminder"),
+        ("delete", "cancelled", "delete_reminder"),
+        ("complete", "completed", "complete_reminder"),
     ],
 )
-def test_keyword_mutations_stage_concrete_command_after_service_success(
+def test_keyword_mutations_resolve_then_stage_concrete_command_without_mutating(
     operation: str,
-    service_method: str,
     status: str,
     staged_operation: str,
 ) -> None:
     service = StubReminderService()
-    service.item_result = ReminderItemResult(
+    service.resolve_result = ReminderItemResult(
         state="succeeded",
         reminder_id="r1",
         fact={"matched": {"reminder_id": "r1", "content": "gym"}},
@@ -327,14 +359,58 @@ def test_keyword_mutations_stage_concrete_command_after_service_success(
     assert outcome.status == status
     assert outcome.data["reminder_id"] == "r1"
     assert outcome.staged_command_id == "stage-1"
-    assert service.calls[0][0] == service_method
+    assert service.calls == [
+        (
+            "resolve_user_mutable_keyword",
+            {"owner_account_id": "acct-1", "keyword": "gym"},
+        )
+    ]
+    assert service.mutation_calls == []
     assert guard.staged[0]["operation"] == staged_operation
     assert guard.staged[0]["command_payload"]["reminder_id"] == "r1"
 
 
+def test_delete_resolves_once_and_stages_single_delete_for_resolved_id() -> None:
+    service = StubReminderService()
+    service.resolve_result = ReminderItemResult(
+        state="succeeded",
+        reminder_id="resolved-r1",
+        fact={"matched": {"reminder_id": "resolved-r1", "content": "gym"}},
+    )
+    guard = RecordingGuard()
+
+    outcome = _handler(service).resolve_and_stage(
+        _compiled(
+            "delete",
+            {
+                "owner_account_id": "acct-1",
+                "match": "gym",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "cancelled"
+    assert service.calls == [
+        (
+            "resolve_user_mutable_keyword",
+            {"owner_account_id": "acct-1", "keyword": "gym"},
+        )
+    ]
+    assert service.mutation_calls == []
+    assert len(guard.staged) == 1
+    assert guard.staged[0]["operation"] == "delete_reminder"
+    assert guard.staged[0]["command_payload"] == {
+        "operation": "delete_reminder",
+        "owner_account_id": "acct-1",
+        "reminder_id": "resolved-r1",
+    }
+
+
 def test_update_with_time_phrase_extracts_new_trigger_time() -> None:
     service = StubReminderService()
-    service.item_result = ReminderItemResult(
+    service.resolve_result = ReminderItemResult(
         state="succeeded",
         reminder_id="r1",
         fact={"matched": {"reminder_id": "r1", "content": "gym"}},
@@ -357,14 +433,15 @@ def test_update_with_time_phrase_extracts_new_trigger_time() -> None:
 
     assert outcome.category == "done"
     assert detector.calls == [("tomorrow 9", "Asia/Tokyo", NOW)]
-    assert service.calls[0][0] == "update_reminder_by_keyword"
-    assert service.calls[0][1]["trigger_time"] == datetime(
-        2026,
-        6,
-        11,
-        0,
-        0,
-        tzinfo=UTC,
+    assert service.calls == [
+        (
+            "resolve_user_mutable_keyword",
+            {"owner_account_id": "acct-1", "keyword": "gym"},
+        )
+    ]
+    assert service.mutation_calls == []
+    assert guard.staged[0]["command_payload"]["trigger_time"] == (
+        "2026-06-11T00:00:00+00:00"
     )
 
 
@@ -383,7 +460,7 @@ def test_keyword_mutation_blockers_stage_nothing(
     data_key: str,
 ) -> None:
     service = StubReminderService()
-    service.item_result = ReminderItemResult(
+    service.resolve_result = ReminderItemResult(
         state="needs-follow-up",
         reason=reason,
         fact={
@@ -410,20 +487,18 @@ def test_keyword_mutation_blockers_stage_nothing(
     assert outcome.status == status
     assert data_key in outcome.data
     assert outcome.staged_command_id is None
+    assert service.calls == [
+        (
+            "resolve_user_mutable_keyword",
+            {"owner_account_id": "acct-1", "keyword": "gym"},
+        )
+    ]
+    assert service.mutation_calls == []
     assert guard.staged == []
 
 
-def test_batch_create_partial_splits_succeeded_and_failed_and_stages_successes() -> (
-    None
-):
+def test_batch_create_stages_all_items_without_execute_time_mutation() -> None:
     service = StubReminderService()
-    service.batch_result = ReminderBatchResult(
-        owner_account_id="acct-1",
-        items=[
-            ReminderItemResult(state="succeeded", reminder_id="r1"),
-            ReminderItemResult(state="failed", reason="duplicate_reminder"),
-        ],
-    )
     guard = RecordingGuard()
 
     outcome = _handler(service).resolve_and_stage(
@@ -447,9 +522,13 @@ def test_batch_create_partial_splits_succeeded_and_failed_and_stages_successes()
     )
 
     assert outcome.category == "done"
-    assert outcome.status == "partial"
-    assert len(outcome.data["succeeded"]) == 1
-    assert len(outcome.data["failed"]) == 1
+    assert outcome.status == "created"
+    assert [item["state"] for item in outcome.data["items"]] == [
+        "succeeded",
+        "succeeded",
+    ]
     assert outcome.staged_command_id == "stage-1"
+    assert service.calls == []
+    assert service.mutation_calls == []
     assert guard.staged[0]["operation"] == "execute_batch"
-    assert len(guard.staged[0]["command_payload"]["items"]) == 1
+    assert len(guard.staged[0]["command_payload"]["items"]) == 2

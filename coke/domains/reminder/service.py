@@ -365,7 +365,7 @@ class ReminderService:
         keyword: str,
         commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
-        matched = self._single_user_mutable_keyword_match(owner_account_id, keyword)
+        matched = self.resolve_user_mutable_keyword(owner_account_id, keyword)
         if matched.state != "succeeded" or matched.reminder_id is None:
             return matched
         return self.complete_reminder(
@@ -380,7 +380,7 @@ class ReminderService:
         keyword: str,
         commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
-        matched = self._single_user_mutable_keyword_match(owner_account_id, keyword)
+        matched = self.resolve_user_mutable_keyword(owner_account_id, keyword)
         if matched.state != "succeeded" or matched.reminder_id is None:
             return matched
         return self.delete_reminder(
@@ -400,7 +400,7 @@ class ReminderService:
         duration_minutes: Any | None = None,
         commit_guard: CommitGuard = None,
     ) -> ReminderItemResult:
-        matched = self._single_user_mutable_keyword_match(owner_account_id, keyword)
+        matched = self.resolve_user_mutable_keyword(owner_account_id, keyword)
         if matched.state != "succeeded" or matched.reminder_id is None:
             return matched
         return self.update_reminder(
@@ -412,6 +412,13 @@ class ReminderService:
             duration_minutes=duration_minutes,
             commit_guard=commit_guard,
         )
+
+    def resolve_user_mutable_keyword(
+        self,
+        owner_account_id: str,
+        keyword: str,
+    ) -> ReminderItemResult:
+        return self._single_user_mutable_keyword_match(owner_account_id, keyword)
 
     def _single_user_mutable_keyword_match(
         self,
