@@ -411,6 +411,71 @@ def test_availability_query_resolves_participant_without_staging() -> None:
     assert guard.staged == []
 
 
+def test_availability_query_today_token_uses_requester_local_day_without_staging() -> None:
+    service = StubSocialSchedulingService()
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(
+        service,
+        now=lambda: datetime(2026, 6, 10, 15, 0, tzinfo=UTC),
+    ).resolve_and_stage(
+        _compiled(
+            "availability_query",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "local_start": "今天",
+                "requester_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "availability"
+    assert outcome.data["availability"][0]["friend_account_id"] == "friend-amy"
+    assert service.calls[-1] == (
+        "query_availability",
+        {
+            "requester_account_id": "acct-1",
+            "friend_account_ids": ["friend-amy"],
+            "local_start": datetime(2026, 6, 11, 0, 0),
+            "local_end": datetime(2026, 6, 12, 0, 0),
+            "requester_timezone": "Asia/Tokyo",
+        },
+    )
+    assert outcome.staged_command_id is None
+    assert guard.staged == []
+
+
+def test_availability_query_same_today_tokens_use_single_local_day() -> None:
+    service = StubSocialSchedulingService()
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(
+        service,
+        now=lambda: datetime(2026, 6, 10, 1, 0, tzinfo=UTC),
+    ).resolve_and_stage(
+        _compiled(
+            "availability_query",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "local_start": "今天",
+                "local_end": "今天",
+                "requester_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "availability"
+    assert service.calls[-1][1]["local_start"] == datetime(2026, 6, 10, 0, 0)
+    assert service.calls[-1][1]["local_end"] == datetime(2026, 6, 11, 0, 0)
+    assert guard.staged == []
+
+
 @pytest.mark.parametrize("datetime_field", ["local_start", "local_end"])
 def test_availability_query_non_iso_datetime_needs_time_without_service_call(
     datetime_field: str,
@@ -424,7 +489,7 @@ def test_availability_query_non_iso_datetime_needs_time_without_service_call(
         "local_end": "2026-06-11T10:00:00",
         "requester_timezone": "Asia/Tokyo",
     }
-    params[datetime_field] = "今天"
+    params[datetime_field] = "someday"
 
     outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
         _compiled("availability_query", params),

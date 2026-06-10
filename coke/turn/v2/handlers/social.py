@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, is_dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.domains.social_scheduling.models import (
     FriendResolutionResult,
@@ -18,8 +19,13 @@ CommitGuard = Callable[[], None] | None
 
 
 class SocialSchedulingActionHandler:
-    def __init__(self, social_scheduling_service: SocialSchedulingService) -> None:
+    def __init__(
+        self,
+        social_scheduling_service: SocialSchedulingService,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
         self.social_scheduling_service = social_scheduling_service
+        self._now = now or (lambda: datetime.now(UTC))
 
     def resolve_and_stage(
         self,
@@ -203,21 +209,22 @@ class SocialSchedulingActionHandler:
         resolved = self._resolve_participants(account_id, params)
         if isinstance(resolved, ActionOutcome):
             return resolved
-        local_start = _optional_datetime(params.get("local_start"))
-        if local_start is None:
+        requester_timezone = str(params.get("requester_timezone") or _timezone(params))
+        availability_window = _availability_window(
+            params,
+            requester_timezone=requester_timezone,
+            now=self._now,
+        )
+        if availability_window is None:
             return _missing_input("local_start", field="time")
-        local_end = _optional_datetime(params.get("local_end"))
-        if local_end is None:
-            return _missing_input("local_end", field="time")
+        local_start, local_end = availability_window
         try:
             result = self.social_scheduling_service.query_availability(
                 requester_account_id=account_id,
                 friend_account_ids=resolved,
                 local_start=local_start,
                 local_end=local_end,
-                requester_timezone=str(
-                    params.get("requester_timezone") or _timezone(params)
-                ),
+                requester_timezone=requester_timezone,
             )
         except (SocialSchedulingError, ValueError) as error:
             return _social_error_outcome(error)
@@ -537,6 +544,80 @@ def _optional_datetime(value: Any) -> datetime | None:
         except ValueError:
             return None
     return None
+
+
+_RELATIVE_DAY_OFFSETS = {
+    "今天": 0,
+    "今日": 0,
+    "明天": 1,
+    "明日": 1,
+}
+
+
+def _availability_window(
+    params: Mapping[str, Any],
+    *,
+    requester_timezone: str,
+    now: Callable[[], datetime],
+) -> tuple[datetime, datetime] | None:
+    start_raw = params.get("local_start")
+    end_raw = params.get("local_end")
+    local_start = _optional_datetime(start_raw)
+    local_end = _optional_datetime(end_raw)
+    start_offset = _relative_day_offset(start_raw)
+    end_offset = _relative_day_offset(end_raw)
+    if local_start is not None:
+        if local_end is not None:
+            return local_start, local_end
+        if end_offset is not None:
+            _, local_end = _relative_day_window(
+                end_offset,
+                requester_timezone=requester_timezone,
+                now=now,
+            )
+            return local_start, local_end
+        return None
+    if start_offset is None:
+        return None
+    local_start, default_local_end = _relative_day_window(
+        start_offset,
+        requester_timezone=requester_timezone,
+        now=now,
+    )
+    if local_end is not None:
+        return local_start, local_end
+    if end_offset is None or end_offset == start_offset:
+        return local_start, default_local_end
+    _, local_end = _relative_day_window(
+        end_offset,
+        requester_timezone=requester_timezone,
+        now=now,
+    )
+    return local_start, local_end
+
+
+def _relative_day_offset(value: Any) -> int | None:
+    if not isinstance(value, str):
+        return None
+    return _RELATIVE_DAY_OFFSETS.get(value.strip())
+
+
+def _relative_day_window(
+    offset_days: int,
+    *,
+    requester_timezone: str,
+    now: Callable[[], datetime],
+) -> tuple[datetime, datetime]:
+    current = now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=UTC)
+    try:
+        zone = ZoneInfo(requester_timezone)
+    except ZoneInfoNotFoundError:
+        zone = UTC
+    local_date = current.astimezone(zone).date() + timedelta(days=offset_days)
+    local_start = datetime(local_date.year, local_date.month, local_date.day)
+    return local_start, local_start + timedelta(days=1)
 
 
 def _optional_int(value: Any) -> int | None:
