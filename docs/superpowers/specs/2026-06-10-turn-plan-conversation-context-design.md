@@ -1,8 +1,29 @@
 # Turn Plan Conversation Context — Design
 
-Status: design-ready (2026-06-10). Scope: v2 interactive turn path
-(`COKE_TURN_PIPELINE=v2`). Owner-decided sequencing: Pass 1 here; Pass 2
-(structured resumable pending action) deferred behind a follow-up eval.
+Status: SHIPPED (2026-06-10). Scope: v2 interactive turn path
+(`COKE_TURN_PIPELINE=v2`). Pass 1 (conversation history window into the planner)
+is implemented, deployed, and empirically verified. Pass 2 (structured resumable
+pending action) is NOT needed — see "Empirical result" below.
+
+## Empirical result (2026-06-10) — the hint is NOT needed
+
+After wiring the bounded message-store window THROUGH to the planner payload
+(PlanRequest.conversation_history + `_plan_request` + plan.py user dict) and adding
+a neutral follow-up prompt rule, an in-container real-model eval (GLM-5.1,
+thinking-off; fresh entities NOT in the prompt; 6 runs each) was 18/18 correct and
+deterministic:
+- shared reschedule "和小李约火锅明天12点" → "换时间?" → "下午一点": 6/6
+  `social_scheduling.create_shared_reminder{participant:小李, content:火锅, time}`
+  (carries forward BOTH entities, no downgrade to personal reminder).
+- missing-time "提醒我买牛奶" → "何时?" → "明天早上九点": 6/6 `reminder.create`.
+- clarify "提醒我跑步" → "每天还是一次?" → "每天早上七点": 6/6 `reminder.create`.
+End-to-end on the real account (lizihao via webhook): "提醒我喝咖啡" → "你想几点?" →
+"明天下午三点" → "好，已设提醒：明天 15:00 喝咖啡" (created, correct time).
+
+CONCLUSION: the earlier "non-deterministic reconstruction" finding was an artifact
+of the planner receiving NO history at all (and a leaked prompt example). With the
+window actually wired in, pure window + prompt is reliable. The typed continuation
+hint / structured resume is unnecessary for this class and was NOT built.
 
 ## Problem
 
