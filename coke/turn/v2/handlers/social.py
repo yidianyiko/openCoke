@@ -12,6 +12,7 @@ from coke.domains.social_scheduling.models import (
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
 from coke.turn.v2.contracts import ActionOutcome, CompiledAction
+from coke.turn.v2.staging import json_safe
 
 CommitGuard = Callable[[], None] | None
 
@@ -503,8 +504,8 @@ def _stage_command(
     staged = stage_command(
         domain="social_scheduling",
         operation=operation,
-        command_payload=dict(command_payload),
-        preview_facts=dict(preview_facts),
+        command_payload=json_safe(dict(command_payload)),
+        preview_facts=json_safe(dict(preview_facts)),
         item_index=1,
     )
     return getattr(staged, "id", None)
