@@ -654,6 +654,31 @@ def test_shared_reminder_view_cancel_and_completion_are_participant_scoped():
     assert already.notification_facts == []
 
 
+def test_cancel_shared_reminder_deletes_projection_reminders():
+    service, repo, _, _ = make_service({"creator", "friend"})
+    create_active_friendship(service, "creator", "friend")
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="review",
+        local_trigger_at=datetime(2026, 6, 4, 11, 0),
+        captured_timezone="UTC",
+        duration_minutes=15,
+    )
+
+    assert {
+        repo.projection_reminders_by_id[projection.reminder_id].lifecycle
+        for projection in created.projections
+    } == {"active"}
+
+    service.cancel_shared_reminder("friend", created.shared_reminder.id)
+
+    assert {
+        repo.projection_reminders_by_id[projection.reminder_id].lifecycle
+        for projection in created.projections
+    } == {"deleted"}
+
+
 def test_shared_reminder_pre_creation_checks_return_three_way_breakdown_without_mutation():
     service, repo, reachability, reminder_availability = make_service(
         {"creator", "busy_friend", "free_friend", "unreachable_friend"}

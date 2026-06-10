@@ -116,6 +116,42 @@ def test_shared_reminder_persists_projection_reminders_notification_and_outbox(
     assert outbox["payload"]["recipient_account_ids"] == [ACCOUNT_B]
 
 
+def test_cancel_shared_reminder_deletes_projection_reminders(
+    postgres_session,
+) -> None:
+    service = _service(postgres_session)
+    seed_account(postgres_session, ACCOUNT_A)
+    seed_account(postgres_session, ACCOUNT_B)
+
+    link = service.get_or_create_friend_link(ACCOUNT_A)
+    service.establish_friendship_from_code(ACCOUNT_B, link.link_code or "")
+    result = service.create_shared_reminder(
+        creator_account_id=ACCOUNT_A,
+        receiver_account_ids=[ACCOUNT_B],
+        title="Team sync",
+        local_trigger_at=NOW.replace(tzinfo=None) + timedelta(days=1),
+        captured_timezone="UTC",
+        duration_minutes=30,
+    )
+    projection_reminder_ids = [
+        projection.reminder_id for projection in result.projections
+    ]
+
+    service.cancel_shared_reminder(ACCOUNT_B, result.shared_reminder.id)
+
+    reminder_rows = (
+        postgres_session.execute(
+            sa.select(schema.reminder).where(
+                schema.reminder.c.id.in_(projection_reminder_ids)
+            )
+        )
+        .mappings()
+        .all()
+    )
+    assert len(reminder_rows) == len(projection_reminder_ids)
+    assert {row["lifecycle"] for row in reminder_rows} == {"deleted"}
+
+
 def test_notification_fact_fk_failure_is_not_reported_as_duplicate_idempotency(
     postgres_session,
 ) -> None:

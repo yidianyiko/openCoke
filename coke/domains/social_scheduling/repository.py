@@ -21,6 +21,7 @@ from coke.domains._pg import (
     update_row,
     write_with_integrity,
 )
+from coke.domains.reminder.models import Reminder
 from coke.domains.social_scheduling.availability import BusyInterval
 from coke.domains.social_scheduling.models import (
     FriendLink,
@@ -160,6 +161,7 @@ class InMemorySocialSchedulingRepository:
         self.shared_reminders_by_id: dict[str, SharedReminder] = {}
         self.projections_by_id: dict[str, ReminderProjection] = {}
         self.projections_by_shared_and_account: dict[tuple[str, str], str] = {}
+        self.projection_reminders_by_id: dict[str, Reminder] = {}
         self.notification_facts_by_id: dict[str, NotificationFact] = {}
         self.notification_facts_by_idempotency: dict[str, str] = {}
         self.notification_recipients_by_id: dict[str, NotificationRecipient] = {}
@@ -341,8 +343,16 @@ class InMemorySocialSchedulingRepository:
             raise ValueError("duplicate_projection_id")
         if key in self.projections_by_shared_and_account:
             raise ValueError("duplicate_projection_participant")
+        if projection.reminder_id in self.projection_reminders_by_id:
+            raise ValueError("duplicate_projection_reminder_id")
+        shared = self.shared_reminders_by_id.get(projection.shared_reminder_id)
+        if shared is None:
+            raise ValueError("shared_reminder_not_found")
         self.projections_by_id[projection.id] = projection
         self.projections_by_shared_and_account[key] = projection.id
+        self.projection_reminders_by_id[projection.reminder_id] = _projection_reminder(
+            projection, shared
+        )
 
     def save_projection(self, projection: ReminderProjection) -> None:
         if projection.id not in self.projections_by_id:
@@ -351,6 +361,15 @@ class InMemorySocialSchedulingRepository:
         self.projections_by_shared_and_account[
             (projection.shared_reminder_id, projection.account_id)
         ] = projection.id
+        if projection.lifecycle == "cancelled":
+            reminder = self.projection_reminders_by_id.get(projection.reminder_id)
+            if reminder is None:
+                raise ValueError("projection_reminder_missing")
+            self.projection_reminders_by_id[projection.reminder_id] = replace(
+                reminder,
+                lifecycle="deleted",
+                updated_at=projection.updated_at,
+            )
 
     def list_projections(self, shared_reminder_id: str) -> list[ReminderProjection]:
         return [
@@ -791,10 +810,26 @@ class PostgresSocialSchedulingRepository:
             is None
         ):
             raise ValueError("projection_not_found")
-        update_row(
+
+        def _write() -> None:
+            self.session.execute(
+                schema.reminder_projection.update()
+                .where(schema.reminder_projection.c.id == projection.id)
+                .values(**_projection_values(projection))
+            )
+            if projection.lifecycle == "cancelled":
+                self.session.execute(
+                    schema.reminder.update()
+                    .where(schema.reminder.c.id == projection.reminder_id)
+                    .values(
+                        lifecycle="deleted",
+                        updated_at=projection.updated_at,
+                    )
+                )
+
+        write_with_integrity(
             self.session,
-            schema.reminder_projection,
-            _projection_values(projection),
+            _write,
             {"uq_reminder_projection_participant": "duplicate_projection_participant"},
             default_error="duplicate_projection_participant",
         )
@@ -1293,6 +1328,13 @@ def _projection(row: Mapping) -> ReminderProjection:
         row["created_at"],
         row["updated_at"],
     )
+
+
+def _projection_reminder(
+    projection: ReminderProjection,
+    shared: SharedReminder,
+) -> Reminder:
+    return Reminder(**_projection_reminder_values(projection, shared))
 
 
 def _projection_reminder_values(
