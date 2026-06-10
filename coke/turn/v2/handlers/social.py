@@ -130,12 +130,10 @@ class SocialSchedulingActionHandler:
         resolved = self._resolve_participants(account_id, params)
         if isinstance(resolved, ActionOutcome):
             return resolved
-        shared_reminder_id = _optional_str(params.get("shared_reminder_id"))
-        if shared_reminder_id is None:
-            target = self._resolve_shared_reminder(account_id, resolved, params)
-            if isinstance(target, ActionOutcome):
-                return target
-            shared_reminder_id = target.id
+        target = self._resolve_shared_reminder(account_id, resolved, params)
+        if isinstance(target, ActionOutcome):
+            return target
+        shared_reminder_id = target.id
         try:
             result = self.social_scheduling_service.cancel_shared_reminder(
                 account_id=account_id,
@@ -266,35 +264,47 @@ class SocialSchedulingActionHandler:
         params: Mapping[str, Any],
     ) -> SharedReminder | ActionOutcome:
         match = _optional_str(params.get("match"))
-        if match is None:
-            return _missing_input("match")
         participant_set = set(participant_account_ids)
-        match_value = match.casefold()
-        candidates = [
+        active_candidates = [
             reminder
             for reminder in self.social_scheduling_service.list_shared_reminders(
                 account_id
             )
             if reminder.status == "active"
             and participant_set.intersection(reminder.participant_account_ids)
-            and match_value in reminder.title.casefold()
         ]
-        if not candidates:
+        if not active_candidates:
             return ActionOutcome(
                 category="not_possible",
                 status="not_found",
-                data={"match": match},
-            )
-        if len(candidates) > 1:
-            return ActionOutcome(
-                category="needs_choice",
-                status="ambiguous",
                 data={
-                    "field": "shared_reminder",
-                    "match": match,
-                    "candidates": [_shared_reminder_fact(item) for item in candidates],
+                    key: value
+                    for key, value in {
+                        "match": match,
+                        "participant_account_ids": list(participant_account_ids),
+                    }.items()
+                    if value is not None
                 },
             )
+        if match is None:
+            candidates = active_candidates
+        else:
+            match_value = match.casefold()
+            candidates = [
+                reminder
+                for reminder in active_candidates
+                if match_value in reminder.title.casefold()
+            ]
+            if not candidates:
+                if len(active_candidates) > 1:
+                    return _ambiguous_shared_reminder(match, active_candidates)
+                return ActionOutcome(
+                    category="not_possible",
+                    status="not_found",
+                    data={"match": match},
+                )
+        if len(candidates) > 1:
+            return _ambiguous_shared_reminder(match, candidates)
         return candidates[0]
 
 
@@ -469,6 +479,23 @@ def _ambiguous_participant(
             "reference": reference,
             "candidates": list(result.candidates),
         },
+    )
+
+
+def _ambiguous_shared_reminder(
+    match: str | None,
+    candidates: list[SharedReminder],
+) -> ActionOutcome:
+    data: dict[str, Any] = {
+        "field": "shared_reminder",
+        "candidates": [_shared_reminder_fact(item) for item in candidates],
+    }
+    if match is not None:
+        data["match"] = match
+    return ActionOutcome(
+        category="needs_choice",
+        status="ambiguous",
+        data=data,
     )
 
 

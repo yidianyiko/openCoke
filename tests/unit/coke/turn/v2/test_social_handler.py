@@ -368,6 +368,79 @@ def test_cancel_shared_reminder_resolves_keyword_and_stages_cancel() -> None:
     assert guard.staged[0]["operation"] == "cancel_shared_reminder"
 
 
+def test_cancel_shared_reminder_generic_reference_with_two_same_friend_needs_choice_without_stage() -> (
+    None
+):
+    service = StubSocialSchedulingService()
+    service.shared_reminders = [
+        _shared_reminder("sr-open", title="聊一下 openCoke"),
+        _shared_reminder("sr-funding", title="聊融资"),
+    ]
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled(
+            "cancel_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "shared_reminder_id": "sr-open",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "needs_choice"
+    assert outcome.status == "ambiguous"
+    assert outcome.staged_command_id is None
+    assert [
+        candidate["shared_reminder_id"] for candidate in outcome.data["candidates"]
+    ] == [
+        "sr-open",
+        "sr-funding",
+    ]
+    assert [call[0] for call in service.calls] == [
+        "resolve_active_friend_reference",
+        "list_shared_reminders",
+    ]
+    assert guard.staged == []
+
+
+def test_cancel_shared_reminder_exact_title_reference_with_multiple_same_friend_stages_cancel() -> (
+    None
+):
+    service = StubSocialSchedulingService()
+    service.shared_reminders = [
+        _shared_reminder("sr-open", title="聊一下 openCoke"),
+        _shared_reminder("sr-funding", title="聊融资"),
+    ]
+    service.cancel_result = SharedReminderCancellationResult(
+        status="cancelled",
+        shared_reminder=_shared_reminder("sr-open", title="聊一下 openCoke"),
+        projections=[],
+    )
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled(
+            "cancel_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "match": "openCoke",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "cancelled"
+    assert outcome.data["shared_reminder_id"] == "sr-open"
+    assert service.calls[-1][0] == "cancel_shared_reminder"
+    assert service.calls[-1][1]["shared_reminder_id"] == "sr-open"
+    assert guard.staged[0]["operation"] == "cancel_shared_reminder"
+
+
 def test_list_shared_returns_listed_without_staging() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
@@ -446,7 +519,9 @@ def test_availability_query_ambiguous_participant_needs_choice_without_query() -
     assert guard.staged == []
 
 
-def test_availability_query_today_token_uses_requester_local_day_without_staging() -> None:
+def test_availability_query_today_token_uses_requester_local_day_without_staging() -> (
+    None
+):
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 

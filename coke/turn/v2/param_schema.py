@@ -168,12 +168,12 @@ PARAM_KEY_SCHEMA: ParamKeySchema = MappingProxyType(
                     ),
                 ),
                 "cancel_shared_reminder": ParamKeySpec(
-                    required=("participant", "match"),
+                    required=("participant",),
                     optional=(
+                        "match",
                         "account_id",
                         "owner_account_id",
                         "creator_account_id",
-                        "shared_reminder_id",
                     ),
                 ),
                 "create_shared_reminder": ParamKeySpec(

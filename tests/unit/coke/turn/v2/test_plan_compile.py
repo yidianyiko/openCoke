@@ -64,6 +64,26 @@ def test_live_probe_alias_param_names_do_not_satisfy_required_schema() -> None:
     ]
 
 
+def test_shared_cancel_can_omit_match_for_handler_disambiguation() -> None:
+    action = ProposedAction(
+        domain="social_scheduling",
+        operation="cancel_shared_reminder",
+        params={"participant": "张三"},
+    )
+
+    compiled = compile_plan(TurnPlan(actions=(action,)))
+
+    assert compiled.actions == (CompiledAction(action=action),)
+
+
+def test_shared_cancel_schema_uses_natural_refs_not_ids() -> None:
+    shared_cancel = PARAM_KEY_SCHEMA["social_scheduling"]["cancel_shared_reminder"]
+
+    assert shared_cancel.required == ("participant",)
+    assert "match" in shared_cancel.optional
+    assert "shared_reminder_id" not in shared_cancel.optional
+
+
 def test_unknown_domain_yields_not_possible_mark() -> None:
     action = ProposedAction(
         domain="unknown", operation="delete", params={"match": "gym"}

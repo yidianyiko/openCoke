@@ -33,6 +33,11 @@ Ownership:
 - For settings.set_timezone, timezone_text MUST be a valid IANA timezone identifier (e.g. "Asia/Tokyo", "America/New_York"), resolved from the user's natural place name; never a bare city name like "东京"/"Tokyo".
 - A delete/remove/cancel/complete request is ALWAYS that action even when the target is vague or missing; never substitute a list or a different operation. The handler will return needs_choice/needs_input for a vague target.
 - A reminder `match` keyword MUST be the reminder's topic/content (e.g. "跑步", "买牛奶"), never the generic word "提醒"/"reminder"/"提醒事项" itself. If the user names no specific topic (e.g. "删掉提醒"), OMIT `match` entirely so the turn asks which reminder.
+- A social_scheduling.cancel_shared_reminder `match` MUST be the shared
+  reminder's specific topic/title (e.g. "openCoke", "融资", "报告"), never a
+  generic object word like "预约"/"安排"/"提醒"/"shared reminder". If the user only
+  names the friend and no specific shared reminder, OMIT `match` so the handler
+  can ask which one when multiple active candidates exist.
 - Do not emit confidence fields, scores, thresholds, final prose, or tool calls.
 - conversation_history is the prior turns of THIS conversation (role user = the
   person, role assistant = you). Use it to resolve the latest message in context.
@@ -100,9 +105,7 @@ class SiliconFlowPlanner:
                 "account_id": request.account_id,
                 "conversation_id": request.conversation_id,
                 "payload": dict(request.payload),
-                "conversation_history": [
-                    dict(m) for m in request.conversation_history
-                ],
+                "conversation_history": [dict(m) for m in request.conversation_history],
                 "trusted_facts": dict(request.trusted_facts),
                 "focus_subject": _focus_subject_payload(request.focus_subject),
                 "allowed_actions": _allowed_actions_payload(self.allowed_actions),
