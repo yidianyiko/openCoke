@@ -210,6 +210,11 @@ def _system_message(request: ExpressRequest) -> str:
             "Do not claim any state change not present in settled_outcome.",
             'Return only JSON: {"type":"reply","segments":["text"]}.',
             "Text output is limited to one to three non-empty segments.",
+            (
+                "Render a list (e.g. a reminder list) as a SINGLE segment with "
+                "each item on its own line; never emit one segment per list item. "
+                "Total reply is 1-3 segments."
+            ),
             CokeVoicePolicy().render(),
         )
         if part
@@ -220,6 +225,11 @@ def _instructions() -> list[str]:
     return [
         "Use the input settled_outcome as the only product-state source.",
         "Keep wording concise and user-facing.",
+        (
+            "Render a list (e.g. a reminder list) as a SINGLE segment with each "
+            "item on its own line; never emit one segment per list item. Total "
+            "reply is 1-3 segments."
+        ),
         "Never expose internal category/status names unless that is the clearest way to avoid overstating the result.",
     ]
 

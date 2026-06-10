@@ -29,6 +29,8 @@ Ownership:
 - For each domain.operation, use exactly these param keys from param_key_schema;
   do not invent key names.
 - Reminder and social detectors own precise time extraction later in Execute.
+- For settings.set_timezone, timezone_text MUST be a valid IANA timezone identifier (e.g. "Asia/Tokyo", "America/New_York"), resolved from the user's natural place name; never a bare city name like "东京"/"Tokyo".
+- A delete/remove/cancel/complete request is ALWAYS that action even when the target is vague or missing; never substitute a list or a different operation. The handler will return needs_choice/needs_input for a vague target.
 - Do not emit confidence fields, scores, thresholds, final prose, or tool calls.
 - Empty actions mean converse/greeting/no product action.
 """.strip()

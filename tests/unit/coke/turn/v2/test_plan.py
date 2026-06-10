@@ -158,6 +158,39 @@ def test_prompt_and_payload_expose_allowed_shape_without_precise_extraction() ->
     }
 
 
+def test_prompt_requires_iana_timezone_for_settings_timezone_text() -> None:
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+
+    SiliconFlowPlanner(client).plan(_request("把我的时区改成东京"))
+
+    system = client.calls[0]["system"]
+    assert "settings.set_timezone" in system
+    assert "timezone_text MUST be a valid IANA timezone identifier" in system
+    assert 'e.g. "Asia/Tokyo", "America/New_York"' in system
+    assert "never a bare city name" in system
+
+
+def test_prompt_keeps_vague_mutation_requests_as_the_requested_action() -> None:
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+
+    SiliconFlowPlanner(client).plan(_request("删掉提醒"))
+
+    system = client.calls[0]["system"]
+    assert "delete/remove/cancel/complete request is ALWAYS that action" in system
+    assert "never substitute a list" in system
+    assert "needs_choice/needs_input" in system
+
+
 def _request(text: str) -> PlanRequest:
     return PlanRequest(
         account_id="acct-1",

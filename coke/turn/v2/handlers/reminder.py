@@ -561,8 +561,13 @@ def _optional_datetime(value: Any) -> datetime | None:
     if value is None or isinstance(value, datetime):
         return value
     if isinstance(value, str):
-        return datetime.fromisoformat(value)
-    raise ValueError("invalid_datetime")
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            # Resolving natural date-range list filters (e.g. "周五") to real
+            # ranges is a separate quality follow-up; this only avoids a crash.
+            return None
+    return None
 
 
 def _detector_text(params: Mapping[str, Any]) -> str:

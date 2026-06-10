@@ -13,7 +13,7 @@ from coke.domains.reminder.models import (
     ReminderItemResult,
 )
 from coke.turn.v2.contracts import ActionOutcome, CompiledAction, ProposedAction
-from coke.turn.v2.handlers.reminder import ReminderActionHandler
+from coke.turn.v2.handlers.reminder import ReminderActionHandler, _optional_datetime
 
 NOW = datetime(2026, 6, 10, 1, 0, tzinfo=UTC)
 TRIGGER_TIME = datetime(2026, 6, 11, 9, 0)
@@ -167,6 +167,15 @@ def test_list_reminders_returns_listed_without_staging() -> None:
             "trigger_before": None,
         },
     )
+
+
+def test_optional_datetime_handles_absent_iso_datetime_and_natural_text() -> None:
+    dt = datetime(2026, 6, 12, 9, 0, tzinfo=UTC)
+
+    assert _optional_datetime("this Friday") is None
+    assert _optional_datetime(None) is None
+    assert _optional_datetime("2026-06-12T09:00:00+00:00") == dt
+    assert _optional_datetime(dt) is dt
 
 
 def test_create_extracts_time_then_stages_created_command() -> None:

@@ -43,6 +43,29 @@ class PartialEchoRunAgentInstance:
         return type("RunOutput", (), {"content": content})()
 
 
+class ReminderListEchoRunAgentInstance:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def run(self, input, **kwargs):
+        self.calls.append({"method": "run", "input": input, "kwargs": kwargs})
+        reminders = json.loads(input)["settled_outcome"]["outcomes"][0]["data"][
+            "reminders"
+        ]
+        content = json.dumps(
+            {
+                "type": "reply",
+                "segments": [
+                    "\n".join(
+                        f"{index}. {reminder['content']}"
+                        for index, reminder in enumerate(reminders, start=1)
+                    )
+                ],
+            }
+        )
+        return type("RunOutput", (), {"content": content})()
+
+
 class PartialEchoStreamingAgentInstance:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
@@ -128,6 +151,43 @@ def test_render_produces_segments_from_settled_outcome() -> None:
     assert agent_kwargs["tools"] == []
     assert agent_kwargs["add_history_to_context"] is False
     assert agent_kwargs["use_json_mode"] is True
+
+
+def test_render_keeps_reminder_list_in_one_multiline_segment() -> None:
+    fake_agent = ReminderListEchoRunAgentInstance()
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = agent.render(
+        ExpressRequest(
+            turn_id="turn-1",
+            conversation_id="conversation-1",
+            account_id="account-1",
+            settled_outcome=SettledOutcome(
+                outcomes=(
+                    ActionOutcome(
+                        category="done",
+                        status="listed",
+                        data={
+                            "count": 2,
+                            "reminders": [
+                                {"content": "take meds"},
+                                {"content": "call mom"},
+                            ],
+                        },
+                    ),
+                )
+            ),
+        )
+    )
+
+    assert len(segments) == 1
+    assert segments == (
+        "1. take meds\n2. call mom",
+    )
+    assert "list (e.g. a reminder list) as a SINGLE segment" in factory.agent_kwargs[
+        0
+    ]["system_message"]
 
 
 def test_render_prompt_and_segments_preserve_partial_failure_facts() -> None:
