@@ -205,11 +205,7 @@ def _account_id(params: Mapping[str, Any]) -> str | None:
 
 
 def _timezone_value(params: Mapping[str, Any]) -> str | None:
-    for key in ("default_timezone", "timezone", "timezone_text"):
-        value = _optional_str(params.get(key))
-        if value is not None:
-            return value
-    return None
+    return _optional_str(params.get("timezone_text"))
 
 
 def _settings_update_fields(params: Mapping[str, Any]) -> dict[str, Any]:

@@ -4,30 +4,15 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping, Protocol
 
 from coke.turn.v2.contracts import ProposedAction, ReplyNecessity, TurnPlan
+from coke.turn.v2.param_schema import (
+    allowed_actions_from_schema,
+    param_key_schema_payload,
+)
 
 if TYPE_CHECKING:
     from coke.llm.config import ZAILLMConfig
 
-ALLOWED_ACTIONS: Mapping[str, frozenset[str]] = {
-    "calendar_import": frozenset({"import"}),
-    "friendship": frozenset(
-        {"add_via_code", "get_friend_link", "list_friends", "remove_friend"}
-    ),
-    "reminder": frozenset(
-        {"batch_create", "complete", "create", "delete", "list", "update"}
-    ),
-    "settings": frozenset(
-        {"set_timezone", "toggle_memory", "toggle_proactive", "update_settings"}
-    ),
-    "social_scheduling": frozenset(
-        {
-            "availability_query",
-            "cancel_shared_reminder",
-            "create_shared_reminder",
-            "list_shared",
-        }
-    ),
-}
+ALLOWED_ACTIONS: Mapping[str, frozenset[str]] = allowed_actions_from_schema()
 REPLY_NECESSITIES: set[ReplyNecessity] = {
     "intentional_no_reply",
     "reply_needed",
@@ -41,6 +26,8 @@ Ownership:
 - Plan proposes a flat ordered list of requested actions.
 - Each action is {domain, operation, params}.
 - Params must be keyword/natural references, never IDs, never precise extracted times.
+- For each domain.operation, use exactly these param keys from param_key_schema;
+  do not invent key names.
 - Reminder and social detectors own precise time extraction later in Execute.
 - Do not emit confidence fields, scores, thresholds, final prose, or tool calls.
 - Empty actions mean converse/greeting/no product action.
@@ -103,6 +90,7 @@ class SiliconFlowPlanner:
                 "allowed_actions": _allowed_actions_payload(self.allowed_actions),
                 "allowed_domains": sorted(self.allowed_actions),
                 "allowed_reply_necessity": sorted(REPLY_NECESSITIES),
+                "param_key_schema": param_key_schema_payload(),
             },
             schema_name="turn_plan",
         )

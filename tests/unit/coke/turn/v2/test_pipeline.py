@@ -205,7 +205,10 @@ async def test_mutating_turn_buffers_until_after_close_commit() -> None:
                     ProposedAction(
                         domain="reminder",
                         operation="create",
-                        params={"content": "drink water"},
+                        params={
+                            "content": "drink water",
+                            "time_phrase": "tomorrow morning",
+                        },
                     ),
                 ),
             ),
@@ -258,7 +261,10 @@ async def test_supersede_before_mutating_commit_delivers_and_materializes_nothin
                     ProposedAction(
                         domain="reminder",
                         operation="create",
-                        params={"content": "drink water"},
+                        params={
+                            "content": "drink water",
+                            "time_phrase": "tomorrow morning",
+                        },
                     ),
                 ),
             ),

@@ -1,47 +1,17 @@
 from __future__ import annotations
 
-from typing import Mapping
-
 from coke.turn.v2.contracts import (
     CompiledAction,
     CompiledPlan,
     ProposedAction,
     TurnPlan,
 )
+from coke.turn.v2.param_schema import (
+    RequiredParams,
+    required_params_by_operation,
+)
 
-RequiredParams = Mapping[str, Mapping[str, tuple[str, ...]]]
-
-REQUIRED_PARAMS: RequiredParams = {
-    "calendar_import": {
-        "import": ("source",),
-    },
-    "friendship": {
-        "add_via_code": ("code",),
-        "get_friend_link": (),
-        "list_friends": (),
-        "remove_friend": ("friend",),
-    },
-    "reminder": {
-        "batch_create": ("items",),
-        "complete": ("match",),
-        "create": ("content",),
-        "delete": ("match",),
-        "list": (),
-        "update": ("match",),
-    },
-    "settings": {
-        "set_timezone": ("timezone_text",),
-        "toggle_memory": ("enabled",),
-        "toggle_proactive": ("enabled",),
-        "update_settings": ("preference",),
-    },
-    "social_scheduling": {
-        "availability_query": ("participant",),
-        "cancel_shared_reminder": ("participant", "match"),
-        "create_shared_reminder": ("participant", "content"),
-        "list_shared": (),
-    },
-}
+REQUIRED_PARAMS: RequiredParams = required_params_by_operation()
 
 
 def compile_plan(plan: TurnPlan) -> CompiledPlan:

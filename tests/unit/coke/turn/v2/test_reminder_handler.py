@@ -190,7 +190,7 @@ def test_create_extracts_time_then_stages_created_command() -> None:
             {
                 "owner_account_id": "acct-1",
                 "content": "take meds",
-                "time_text": "tomorrow 9",
+                "time_phrase": "tomorrow 9",
                 "captured_timezone": "Asia/Tokyo",
             },
         ),
@@ -237,7 +237,7 @@ def test_create_missing_detector_time_needs_input_without_service_or_stage() -> 
             {
                 "owner_account_id": "acct-1",
                 "content": "take meds",
-                "time_text": "later",
+                "time_phrase": "later",
                 "captured_timezone": "Asia/Tokyo",
             },
         ),
@@ -250,6 +250,7 @@ def test_create_missing_detector_time_needs_input_without_service_or_stage() -> 
         data={"field": "trigger_time"},
     )
     assert [call[0] for call in service.calls] == []
+    assert detector.calls == [("take meds later", "Asia/Tokyo", NOW)]
     assert guard.staged == []
 
 
@@ -267,7 +268,7 @@ def test_create_duplicate_reminder_maps_to_duplicate_active_without_stage() -> N
             {
                 "owner_account_id": "acct-1",
                 "content": "take meds",
-                "time_text": "tomorrow 9",
+                "time_phrase": "tomorrow 9",
             },
         ),
         guard,
@@ -320,6 +321,42 @@ def test_keyword_mutations_stage_concrete_command_after_service_success(
     assert service.calls[0][0] == service_method
     assert guard.staged[0]["operation"] == staged_operation
     assert guard.staged[0]["command_payload"]["reminder_id"] == "r1"
+
+
+def test_update_with_time_phrase_extracts_new_trigger_time() -> None:
+    service = StubReminderService()
+    service.item_result = ReminderItemResult(
+        state="succeeded",
+        reminder_id="r1",
+        fact={"matched": {"reminder_id": "r1", "content": "gym"}},
+    )
+    detector = StubDetector(_detected(content="gym", trigger_time=TRIGGER_TIME))
+    guard = RecordingGuard()
+
+    outcome = _handler(service, detector).resolve_and_stage(
+        _compiled(
+            "update",
+            {
+                "owner_account_id": "acct-1",
+                "match": "gym",
+                "time_phrase": "tomorrow 9",
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert detector.calls == [("tomorrow 9", "Asia/Tokyo", NOW)]
+    assert service.calls[0][0] == "update_reminder_by_keyword"
+    assert service.calls[0][1]["trigger_time"] == datetime(
+        2026,
+        6,
+        11,
+        0,
+        0,
+        tzinfo=UTC,
+    )
 
 
 @pytest.mark.parametrize(

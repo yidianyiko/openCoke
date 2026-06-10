@@ -30,13 +30,13 @@ CASES: tuple[PlanCase, ...] = (
     (
         "zh filtered reminder list",
         "看一下今天的提醒",
-        ({"domain": "reminder", "operation": "list", "params": {"when": "今天"}},),
+        ({"domain": "reminder", "operation": "list", "params": {"keyword": "今天"}},),
         "reply_needed",
     ),
     (
         "en filtered reminder list",
         "show my work reminders",
-        ({"domain": "reminder", "operation": "list", "params": {"match": "work"}},),
+        ({"domain": "reminder", "operation": "list", "params": {"keyword": "work"}},),
         "reply_needed",
     ),
     (
@@ -46,7 +46,7 @@ CASES: tuple[PlanCase, ...] = (
             {
                 "domain": "reminder",
                 "operation": "create",
-                "params": {"content": "跑步", "time_text": "明天九点"},
+                "params": {"content": "跑步", "time_phrase": "明天九点"},
             },
         ),
         "reply_needed",
@@ -58,7 +58,7 @@ CASES: tuple[PlanCase, ...] = (
             {
                 "domain": "reminder",
                 "operation": "create",
-                "params": {"content": "call mom", "time_text": "tomorrow"},
+                "params": {"content": "call mom", "time_phrase": "tomorrow"},
             },
         ),
         "reply_needed",
@@ -104,7 +104,7 @@ CASES: tuple[PlanCase, ...] = (
             {
                 "domain": "reminder",
                 "operation": "update",
-                "params": {"match": "健身", "time_text": "明天晚上"},
+                "params": {"match": "健身", "time_phrase": "明天晚上"},
             },
         ),
         "reply_needed",
@@ -116,7 +116,7 @@ CASES: tuple[PlanCase, ...] = (
             {
                 "domain": "reminder",
                 "operation": "update",
-                "params": {"match": "gym", "time_text": "tomorrow night"},
+                "params": {"match": "gym", "time_phrase": "tomorrow night"},
             },
         ),
         "reply_needed",
@@ -161,7 +161,7 @@ CASES: tuple[PlanCase, ...] = (
                 "params": {
                     "participant": "小王",
                     "content": "交报告",
-                    "time_text": "明天",
+                    "time_phrase": "明天",
                 },
             },
         ),
@@ -177,7 +177,7 @@ CASES: tuple[PlanCase, ...] = (
                 "params": {
                     "participant": "Amy",
                     "content": "send the deck",
-                    "time_text": "tomorrow",
+                    "time_phrase": "tomorrow",
                 },
             },
         ),
@@ -214,7 +214,11 @@ CASES: tuple[PlanCase, ...] = (
             {
                 "domain": "social_scheduling",
                 "operation": "availability_query",
-                "params": {"participant": "小王", "time_text": "明天下午"},
+                "params": {
+                    "participant": "小王",
+                    "local_start": "2026-06-11T13:00:00",
+                    "local_end": "2026-06-11T18:00:00",
+                },
             },
         ),
         "reply_needed",
@@ -344,6 +348,9 @@ def test_planner_case_corpus_uses_expected_action_shape(
 
     assert [(action.domain, action.operation) for action in plan.actions] == [
         (action["domain"], action["operation"]) for action in actions
+    ], label
+    assert [dict(action.params) for action in plan.actions] == [
+        dict(action["params"]) for action in actions
     ], label
     assert plan.reply_necessity == reply_necessity
 

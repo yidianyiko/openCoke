@@ -68,7 +68,7 @@ class ReminderActionHandler:
     def _list(self, params: Mapping[str, Any], owner: str) -> ActionOutcome:
         reminders = self.reminder_service.filter_reminders(
             owner_account_id=owner,
-            keyword=_optional_str(params.get("keyword") or params.get("match")),
+            keyword=_optional_str(params.get("keyword")),
             lifecycle=_lifecycle_filter(params),
             kind=_kind_filter(params),
             trigger_after=_optional_datetime(params.get("trigger_after")),
@@ -203,10 +203,10 @@ class ReminderActionHandler:
         owner: str,
         guard: Any,
     ) -> ActionOutcome:
-        match = _optional_str(params.get("match") or params.get("keyword"))
+        match = _optional_str(params.get("match"))
         if operation == "update":
             trigger_time = None
-            if _has_time_text(params):
+            if _has_time_phrase(params):
                 detected = self._extract_create_fields(params)
                 if detected.trigger_time is None:
                     return ActionOutcome(
@@ -360,7 +360,7 @@ class ReminderActionHandler:
     ) -> tuple[ReminderBatchItem, dict[str, Any]]:
         timezone = _timezone(params)
         trigger_time = _optional_datetime(params.get("trigger_time"))
-        if trigger_time is None and _has_time_text(params):
+        if trigger_time is None and _has_time_phrase(params):
             detected = self._extract_create_fields(params)
             if detected.trigger_time is None:
                 return (
@@ -570,14 +570,14 @@ def _detector_text(params: Mapping[str, Any]) -> str:
         return raw_text
     parts = [
         _optional_str(params.get("content")),
-        _optional_str(params.get("time_text")),
+        _optional_str(params.get("time_phrase")),
     ]
     return " ".join(part for part in parts if part)
 
 
-def _has_time_text(params: Mapping[str, Any]) -> bool:
+def _has_time_phrase(params: Mapping[str, Any]) -> bool:
     return bool(
-        _optional_str(params.get("time_text"))
+        _optional_str(params.get("time_phrase"))
         or _optional_str(params.get("raw_text"))
         or _optional_str(params.get("text"))
     )

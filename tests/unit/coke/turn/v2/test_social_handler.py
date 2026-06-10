@@ -75,6 +75,10 @@ class StubSocialSchedulingService:
         self.calls.append(("create_shared_reminder", kwargs))
         return self.create_result
 
+    def detect_and_create_shared_reminder(self, **kwargs: Any) -> Any:
+        self.calls.append(("detect_and_create_shared_reminder", kwargs))
+        return self.create_result
+
     def list_shared_reminders(self, account_id: str) -> list[SharedReminder]:
         self.calls.append(("list_shared_reminders", {"account_id": account_id}))
         return self.shared_reminders
@@ -178,6 +182,42 @@ def test_create_shared_reminder_resolves_participant_and_stages_created() -> Non
     assert guard.staged[0]["domain"] == "social_scheduling"
     assert guard.staged[0]["operation"] == "create_shared_reminder"
     assert guard.staged[0]["command_payload"]["receiver_account_ids"] == ["friend-amy"]
+
+
+def test_create_shared_reminder_time_phrase_uses_detector_text_and_title() -> None:
+    service = StubSocialSchedulingService()
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled(
+            "create_shared_reminder",
+            {
+                "creator_account_id": "acct-1",
+                "participant": "Amy",
+                "content": "send deck",
+                "time_phrase": "tomorrow 9",
+                "captured_timezone": "Asia/Tokyo",
+                "context": {"source": "planner"},
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert service.calls[1] == (
+        "detect_and_create_shared_reminder",
+        {
+            "creator_account_id": "acct-1",
+            "receiver_account_ids": ["friend-amy"],
+            "raw_text": "send deck tomorrow 9",
+            "title": "send deck",
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": None,
+            "context": {"source": "planner"},
+            "commit_guard": guard.guard_state_change,
+        },
+    )
+    assert guard.staged[0]["command_payload"]["title"] == "send deck"
 
 
 def test_create_shared_reminder_ambiguous_participant_needs_choice_without_stage() -> (
@@ -294,7 +334,7 @@ def test_create_shared_reminder_partial_delivery_returns_partial_with_counts() -
             "create_shared_reminder",
             {
                 "creator_account_id": "acct-1",
-                "participants": ["Amy", "Bob"],
+                "participant": ["Amy", "Bob"],
                 "content": "send deck",
                 "local_trigger_at": LOCAL_TRIGGER,
                 "context": {"source": "planner"},

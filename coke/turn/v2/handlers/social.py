@@ -63,9 +63,7 @@ class SocialSchedulingActionHandler:
                     self.social_scheduling_service.detect_and_create_shared_reminder(
                         creator_account_id=creator,
                         receiver_account_ids=resolved,
-                        raw_text=_required_text(
-                            params, "raw_text", "text", "time_text"
-                        ),
+                        raw_text=_shared_reminder_detector_text(params),
                         title=_optional_str(
                             params.get("title") or params.get("content")
                         ),
@@ -81,9 +79,7 @@ class SocialSchedulingActionHandler:
                     receiver_account_ids=resolved,
                     title=_optional_str(params.get("title") or params.get("content")),
                     local_trigger_at=_optional_datetime(
-                        params.get("local_trigger_at")
-                        or params.get("trigger_time")
-                        or params.get("time")
+                        params.get("local_trigger_at") or params.get("trigger_time")
                     ),
                     captured_timezone=_timezone(params),
                     duration_minutes=int(params.get("duration_minutes") or 15),
@@ -208,12 +204,10 @@ class SocialSchedulingActionHandler:
         resolved = self._resolve_participants(account_id, params)
         if isinstance(resolved, ActionOutcome):
             return resolved
-        local_start = _optional_datetime(
-            params.get("local_start") or params.get("start")
-        )
+        local_start = _optional_datetime(params.get("local_start"))
         if local_start is None:
             return _missing_input("local_start", field="time")
-        local_end = _optional_datetime(params.get("local_end") or params.get("end"))
+        local_end = _optional_datetime(params.get("local_end"))
         if local_end is None:
             return _missing_input("local_end", field="time")
         try:
@@ -239,9 +233,6 @@ class SocialSchedulingActionHandler:
         account_id: str,
         params: Mapping[str, Any],
     ) -> list[str] | ActionOutcome:
-        direct = _direct_participant_ids(params)
-        if direct:
-            return direct
         references = _participant_references(params)
         if not references:
             return _missing_input("participant")
@@ -268,7 +259,7 @@ class SocialSchedulingActionHandler:
         participant_account_ids: list[str],
         params: Mapping[str, Any],
     ) -> SharedReminder | ActionOutcome:
-        match = _optional_str(params.get("match") or params.get("keyword"))
+        match = _optional_str(params.get("match"))
         if match is None:
             return _missing_input("match")
         participant_set = set(participant_account_ids)
@@ -421,9 +412,7 @@ def _create_command_payload(
         "local_trigger_at": (
             getattr(shared_reminder, "local_trigger_at", None)
             or _optional_datetime(
-                params.get("local_trigger_at")
-                or params.get("trigger_time")
-                or params.get("time")
+                params.get("local_trigger_at") or params.get("trigger_time")
             )
         ),
         "captured_timezone": (
@@ -541,14 +530,6 @@ def _optional_str(value: Any) -> str | None:
     return stripped or None
 
 
-def _required_text(params: Mapping[str, Any], *keys: str) -> str:
-    for key in keys:
-        value = _optional_str(params.get(key))
-        if value is not None:
-            return value
-    raise ValueError(f"missing_{keys[0]}")
-
-
 def _optional_datetime(value: Any) -> datetime | None:
     if value is None or isinstance(value, datetime):
         return value
@@ -578,33 +559,18 @@ def _timezone(params: Mapping[str, Any]) -> str:
 
 
 def _has_participant_reference(params: Mapping[str, Any]) -> bool:
-    return bool(_participant_references(params) or _direct_participant_ids(params))
+    return bool(_participant_references(params))
 
 
 def _participant_references(params: Mapping[str, Any]) -> list[str]:
-    for key in ("participant", "participants", "receiver", "receivers"):
-        value = params.get(key)
-        if isinstance(value, str):
-            text = _optional_str(value)
-            return [text] if text else []
-        if isinstance(value, list | tuple):
-            return [
-                item.strip() for item in value if isinstance(item, str) and item.strip()
-            ]
-    return []
-
-
-def _direct_participant_ids(params: Mapping[str, Any]) -> list[str]:
-    for key in ("receiver_account_ids", "participant_account_ids"):
-        value = params.get(key)
-        if isinstance(value, list | tuple):
-            return _dedupe(
-                [
-                    item.strip()
-                    for item in value
-                    if isinstance(item, str) and item.strip()
-                ]
-            )
+    value = params.get("participant")
+    if isinstance(value, str):
+        text = _optional_str(value)
+        return [text] if text else []
+    if isinstance(value, list | tuple):
+        return [
+            item.strip() for item in value if isinstance(item, str) and item.strip()
+        ]
     return []
 
 
@@ -625,10 +591,25 @@ def _should_detect_shared_reminder(params: Mapping[str, Any]) -> bool:
     if (
         params.get("local_trigger_at") is not None
         or params.get("trigger_time") is not None
-        or params.get("time") is not None
     ):
         return False
-    return any(_optional_str(params.get(key)) for key in ("raw_text", "text"))
+    return any(
+        _optional_str(params.get(key)) for key in ("time_phrase", "raw_text", "text")
+    )
+
+
+def _shared_reminder_detector_text(params: Mapping[str, Any]) -> str:
+    raw_text = _optional_str(params.get("raw_text") or params.get("text"))
+    if raw_text is not None:
+        return raw_text
+    parts = [
+        _optional_str(params.get("title") or params.get("content")),
+        _optional_str(params.get("time_phrase")),
+    ]
+    text = " ".join(part for part in parts if part)
+    if text:
+        return text
+    raise ValueError("missing_raw_text")
 
 
 def _asdict(value: Any) -> dict[str, Any]:

@@ -5,6 +5,7 @@ from typing import Any, Mapping
 import pytest
 
 from coke.turn.v2.contracts import TurnPlan
+from coke.turn.v2.param_schema import param_key_schema_payload
 from coke.turn.v2.plan import (
     PlannerOutputError,
     PlanRequest,
@@ -135,10 +136,26 @@ def test_prompt_and_payload_expose_allowed_shape_without_precise_extraction() ->
     assert "keyword/natural" in call["system"]
     assert "never IDs" in call["system"]
     assert "never precise extracted times" in call["system"]
+    assert "use exactly these param keys" in call["system"]
+    assert "do not invent key names" in call["system"]
     assert "confidence" in call["system"]
     assert call["user"]["allowed_domains"] == sorted(call["user"]["allowed_actions"])
     assert "reminder" in call["user"]["allowed_actions"]
     assert "create" in call["user"]["allowed_actions"]["reminder"]
+    assert call["user"]["param_key_schema"] == param_key_schema_payload()
+    assert call["user"]["param_key_schema"]["reminder"]["create"] == {
+        "required": ["content", "time_phrase"],
+        "optional": [
+            "owner_account_id",
+            "account_id",
+            "captured_timezone",
+            "display_timezone",
+            "duration_minutes",
+            "kind",
+            "raw_text",
+            "text",
+        ],
+    }
 
 
 def _request(text: str) -> PlanRequest:

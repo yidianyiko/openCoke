@@ -51,7 +51,7 @@ class FriendshipActionHandler:
         params: Mapping[str, Any],
         guard: Any,
     ) -> ActionOutcome:
-        account_id = _account_id(params, "owner_account_id")
+        account_id = _account_id(params, "owner_account_id", "account_id")
         if account_id is None:
             return _missing_input("account_id")
         try:
@@ -86,10 +86,15 @@ class FriendshipActionHandler:
         params: Mapping[str, Any],
         guard: Any,
     ) -> ActionOutcome:
-        account_id = _account_id(params, "joiner_account_id")
+        account_id = _account_id(
+            params,
+            "joiner_account_id",
+            "account_id",
+            "owner_account_id",
+        )
         if account_id is None:
             return _missing_input("account_id")
-        code = _optional_str(params.get("code") or params.get("link_code"))
+        code = _optional_str(params.get("code"))
         if code is None:
             return _missing_input("code")
         try:
@@ -130,7 +135,7 @@ class FriendshipActionHandler:
         )
 
     def _list_friends(self, params: Mapping[str, Any]) -> ActionOutcome:
-        account_id = _account_id(params)
+        account_id = _account_id(params, "account_id", "owner_account_id")
         if account_id is None:
             return _missing_input("account_id")
         entries = self.social_scheduling_service.list_friends(account_id)
@@ -146,7 +151,7 @@ class FriendshipActionHandler:
         params: Mapping[str, Any],
         guard: Any,
     ) -> ActionOutcome:
-        account_id = _account_id(params)
+        account_id = _account_id(params, "account_id", "owner_account_id")
         if account_id is None:
             return _missing_input("account_id")
         friend_account_id = _optional_str(params.get("friend_account_id"))
@@ -189,7 +194,7 @@ class FriendshipActionHandler:
         account_id: str,
         params: Mapping[str, Any],
     ) -> str | ActionOutcome:
-        reference = _optional_str(params.get("friend") or params.get("participant"))
+        reference = _optional_str(params.get("friend"))
         if reference is None:
             return _missing_input("friend")
         result = self.social_scheduling_service.resolve_active_friend_reference(
@@ -295,8 +300,8 @@ def _commit_guard(guard: Any) -> CommitGuard:
     return value if callable(value) else None
 
 
-def _account_id(params: Mapping[str, Any], preferred: str = "account_id") -> str | None:
-    for key in (preferred, "account_id", "owner_account_id", "joiner_account_id"):
+def _account_id(params: Mapping[str, Any], *keys: str) -> str | None:
+    for key in keys:
         value = _optional_str(params.get(key))
         if value is not None:
             return value
