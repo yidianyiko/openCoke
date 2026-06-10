@@ -521,7 +521,7 @@ class TurnRunner:
                     input_to_seq=start.turn.input_to_seq,
                 )
                 focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
-                if self._use_v2_turn_pipeline():
+                if self._use_v2_turn_pipeline(trigger):
                     return self._run_v2_inbound_turn(
                         trigger=trigger,
                         start=start,
@@ -687,7 +687,7 @@ class TurnRunner:
                         input_to_seq=start.turn.input_to_seq,
                     )
                     focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
-                    if self._use_v2_turn_pipeline():
+                    if self._use_v2_turn_pipeline(trigger):
                         return await self._run_v2_inbound_turn_async(
                             trigger=trigger,
                             start=start,
@@ -802,8 +802,12 @@ class TurnRunner:
                 self._record_interrupted_turn(start.turn.id)
             raise
 
-    def _use_v2_turn_pipeline(self) -> bool:
-        return os.environ.get("COKE_TURN_PIPELINE") == "v2"
+    def _use_v2_turn_pipeline(self, trigger: TurnTrigger) -> bool:
+        if os.environ.get("COKE_TURN_PIPELINE") == "v2":
+            return True
+        allowlist = os.environ.get("COKE_TURN_PIPELINE_ACCOUNTS", "")
+        canary = {a.strip() for a in allowlist.split(",") if a.strip()}
+        return trigger.account_id in canary
 
     def _run_v2_inbound_turn(
         self,
