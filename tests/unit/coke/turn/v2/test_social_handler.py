@@ -411,6 +411,41 @@ def test_availability_query_resolves_participant_without_staging() -> None:
     assert guard.staged == []
 
 
+def test_availability_query_ambiguous_participant_needs_choice_without_query() -> None:
+    service = StubSocialSchedulingService()
+    service.resolutions["Oliver"] = FriendResolutionResult(
+        status="ambiguous",
+        candidates=("friend-oliver-chen", "friend-oliver-wang"),
+    )
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled(
+            "availability_query",
+            {
+                "account_id": "lizihao",
+                "participant": "Oliver",
+                "local_start": "2026-06-11T00:00:00",
+                "local_end": "2026-06-12T00:00:00",
+                "requester_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome == ActionOutcome(
+        category="needs_choice",
+        status="ambiguous",
+        data={
+            "field": "participant",
+            "reference": "Oliver",
+            "candidates": ["friend-oliver-chen", "friend-oliver-wang"],
+        },
+    )
+    assert [call[0] for call in service.calls] == ["resolve_active_friend_reference"]
+    assert guard.staged == []
+
+
 def test_availability_query_today_token_uses_requester_local_day_without_staging() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()

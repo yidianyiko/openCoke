@@ -239,13 +239,18 @@ class SocialSchedulingService:
         normalized_text = _normalize_friend_reference(text)
         if not normalized_text:
             return FriendResolutionResult(status="unmatched")
-        candidates: list[str] = []
+        exact_candidates: list[str] = []
+        partial_candidates: list[str] = []
         for friend in self.list_friends(account_id):
             if normalized_text in {
                 _normalize_friend_reference(friend.account_id),
                 _normalize_friend_reference(friend.display_name),
             }:
-                candidates.append(friend.account_id)
+                exact_candidates.append(friend.account_id)
+                continue
+            if _partial_friend_display_name_match(normalized_text, friend.display_name):
+                partial_candidates.append(friend.account_id)
+        candidates = exact_candidates or partial_candidates
         unique_candidates = tuple(dict.fromkeys(candidates))
         if len(unique_candidates) == 1:
             return FriendResolutionResult(
@@ -1086,6 +1091,38 @@ def _normalize_title(title: str) -> str:
 
 def _normalize_friend_reference(value: str) -> str:
     return "".join(character for character in value.casefold() if character.isalnum())
+
+
+def _friend_reference_tokens(value: str) -> tuple[str, ...]:
+    tokens: list[str] = []
+    current: list[str] = []
+    for character in value.casefold():
+        if character.isalnum():
+            current.append(character)
+            continue
+        if current:
+            tokens.append("".join(current))
+            current = []
+    if current:
+        tokens.append("".join(current))
+    return tuple(tokens)
+
+
+def _partial_friend_display_name_match(
+    normalized_reference: str,
+    display_name: str,
+) -> bool:
+    normalized_display_name = _normalize_friend_reference(display_name)
+    if not normalized_reference or not normalized_display_name:
+        return False
+    tokens = _friend_reference_tokens(display_name)
+    if normalized_reference in tokens:
+        return True
+    if len(normalized_reference) < 3:
+        return False
+    if normalized_display_name.startswith(normalized_reference):
+        return True
+    return any(token.startswith(normalized_reference) for token in tokens)
 
 
 def _dedupe_preserve_order(values: list[str]) -> list[str]:

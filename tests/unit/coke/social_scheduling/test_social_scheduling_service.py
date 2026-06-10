@@ -182,6 +182,54 @@ def test_friend_list_and_reference_resolution_accept_dashed_account_id():
     assert resolved.candidates == (friend,)
 
 
+def test_resolve_active_friend_reference_reports_ambiguous_partial_name_match():
+    service, _repo, _, _ = make_service({"lizihao", "oliver_chen", "oliver_wang"})
+    service.display_name_resolver = lambda account_id: {
+        "lizihao": "Li Zihao",
+        "oliver_chen": "Oliver Chen",
+        "oliver_wang": "Oliver Wang",
+    }[account_id]
+    create_active_friendship(service, "lizihao", "oliver_chen")
+    create_active_friendship(service, "lizihao", "oliver_wang")
+
+    result = service.resolve_active_friend_reference("lizihao", "Oliver")
+
+    assert result.status == "ambiguous"
+    assert result.matched_account_id is None
+    assert result.candidates == ("oliver_chen", "oliver_wang")
+
+
+def test_resolve_active_friend_reference_matches_single_partial_active_friend():
+    service, _repo, _, _ = make_service({"lizihao", "oliver_chen"})
+    service.display_name_resolver = lambda account_id: {
+        "lizihao": "Li Zihao",
+        "oliver_chen": "Oliver Chen",
+    }[account_id]
+    create_active_friendship(service, "lizihao", "oliver_chen")
+
+    result = service.resolve_active_friend_reference("lizihao", "Oliver")
+
+    assert result.status == "matched"
+    assert result.matched_account_id == "oliver_chen"
+    assert result.candidates == ("oliver_chen",)
+
+
+def test_resolve_active_friend_reference_ignores_partial_non_friends():
+    service, _repo, _, _ = make_service({"lizihao", "amy", "oliver_chen"})
+    service.display_name_resolver = lambda account_id: {
+        "lizihao": "Li Zihao",
+        "amy": "Amy Jones",
+        "oliver_chen": "Oliver Chen",
+    }[account_id]
+    create_active_friendship(service, "lizihao", "amy")
+
+    result = service.resolve_active_friend_reference("lizihao", "Oliver")
+
+    assert result.status == "unmatched"
+    assert result.matched_account_id is None
+    assert result.candidates == ()
+
+
 def test_friend_link_join_creates_active_friendship_without_joiner_channel():
     service, repo, _reachability, _availability = make_service({"owner"})
     service.display_name_resolver = lambda account_id: {
