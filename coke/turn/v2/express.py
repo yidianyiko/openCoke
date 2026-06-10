@@ -227,6 +227,11 @@ def _instructions() -> list[str]:
 def _segments_from_content(content: Any) -> tuple[str, ...]:
     payload = _mapping_from_content(content)
     if payload is None:
+        # GLM JSON mode is not always honored for context-light converse turns.
+        # Plain prose is a valid single-segment reply — Express makes no state
+        # claim for converse, so there is nothing to verify or to overstate.
+        if isinstance(content, str) and content.strip():
+            return (content.strip(),)
         raise ExpressOutputError("invalid Express output")
     if payload.get("type") == "no_reply":
         return ()

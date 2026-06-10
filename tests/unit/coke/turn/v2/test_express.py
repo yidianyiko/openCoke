@@ -195,3 +195,11 @@ def _partial_request() -> ExpressRequest:
         conversation_history=({"role": "user", "content": "cancel water and gym"},),
         persona="concise supervisor",
     )
+
+
+def test_plain_text_converse_output_is_a_single_segment() -> None:
+    from coke.turn.v2.express import _segments_from_content
+
+    assert _segments_from_content("在的，最近挺好的，你呢？") == (
+        "在的，最近挺好的，你呢？",
+    )
