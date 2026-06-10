@@ -92,6 +92,20 @@ def test_composition_threads_public_base_url_to_social_scheduling():
     )
 
 
+def test_composition_exposes_dormant_v2_turn_pipeline():
+    runtime = compose_coke_runtime(
+        semantic_interpreter=FakeSemanticInterpreter(),
+        interaction_agent=FakeInteractionAgent(),
+        redis_client=object(),
+        outbound_delivery=FakeOutboundDelivery(),
+        now=lambda: NOW,
+        id_factory=_id_factory(),
+    )
+
+    assert runtime.turn_pipeline is not None
+    assert runtime.turn_runner.turn_pipeline is runtime.turn_pipeline
+
+
 def test_composition_uses_null_email_sender_without_resend_key():
     runtime = compose_coke_runtime(
         semantic_interpreter=FakeSemanticInterpreter(),

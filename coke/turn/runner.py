@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, is_dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -37,6 +37,7 @@ from coke.turn.semantic_interpreter import (
     SemanticInterpreterRequest,
 )
 from coke.turn.streaming import is_streaming_eligible
+from coke.turn.v2.pipeline import SegmentDeliveryPort, TurnPipelineRequest
 
 WAITING_TEXT = "我还在处理，稍等一下。"
 LOGGER = logging.getLogger(__name__)
@@ -354,6 +355,45 @@ class _AsyncState:
     current_input_messages: tuple[Any, ...] = ()
 
 
+class _V2RunnerDelivery(SegmentDeliveryPort):
+    def __init__(self, runner: Any, trigger: TurnTrigger) -> None:
+        self.runner = runner
+        self.trigger = trigger
+        self.outcomes: list[DeliveryOutcome] = []
+        self.delivered_segment_count = 0
+        self.close_boundary_committed = False
+
+    def deliver(self, turn_id: str, segment: str) -> None:
+        self.delivered_segment_count += 1
+        outbound_messages = self._outbound_messages(turn_id)
+        if outbound_messages and not self.close_boundary_committed:
+            self.runner._commit_close_boundary()
+            self.close_boundary_committed = True
+        for request in self.runner._reply_delivery_requests(
+            trigger=self.trigger,
+            turn_id=turn_id,
+            visible_text=segment,
+            segments=(segment,),
+            outbound_messages=outbound_messages,
+            start_index=self.delivered_segment_count,
+        ):
+            outcome = self.runner._deliver(request)
+            self.outcomes.append(outcome)
+            self.runner._record_delivery_lifecycle(self.trigger, request, outcome)
+
+    def _outbound_messages(self, turn_id: str) -> list[Any]:
+        try:
+            return [
+                message
+                for message in self.runner.conversation_runtime.outbound_messages_for_turn(
+                    turn_id
+                )
+                if (getattr(message, "segment_index", None) or 0) > 0
+            ]
+        except ConversationRuntimeError:
+            return []
+
+
 class TurnRunner:
     def __init__(
         self,
@@ -382,6 +422,7 @@ class TurnRunner:
         waiting_retry_jitter: Callable[[int], float] | None = None,
         waiting_retry_sleep: Callable[[float], None] | None = None,
         waiting_circuit_breaker: WaitingDeliveryCircuitBreaker | None = None,
+        turn_pipeline: Any | None = None,
     ) -> None:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
@@ -396,6 +437,7 @@ class TurnRunner:
         self.reminder_fire_facts = reminder_fire_facts
         self.staged_command_materializer = staged_command_materializer
         self.social_scheduling_service = social_scheduling_service
+        self.turn_pipeline = turn_pipeline
         self.tool_ports = tool_ports or AgentToolPorts()
         self.context_assembler = context_assembler or ContextAssembler()
         self.focus_resolver = focus_resolver or FocusResolver()
@@ -479,6 +521,14 @@ class TurnRunner:
                     input_to_seq=start.turn.input_to_seq,
                 )
                 focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
+                if self._use_v2_turn_pipeline():
+                    return self._run_v2_inbound_turn(
+                        trigger=trigger,
+                        start=start,
+                        gate=gate,
+                        freshness_guard=freshness_guard,
+                        focus_subject=focus_subject,
+                    )
                 with turn_latency_span(
                     "turn.semantic_interpreter",
                     turn_id=start.turn.id,
@@ -637,6 +687,14 @@ class TurnRunner:
                         input_to_seq=start.turn.input_to_seq,
                     )
                     focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
+                    if self._use_v2_turn_pipeline():
+                        return await self._run_v2_inbound_turn_async(
+                            trigger=trigger,
+                            start=start,
+                            gate=gate,
+                            freshness_guard=freshness_guard,
+                            focus_subject=focus_subject,
+                        )
                     with turn_latency_span(
                         "turn.semantic_interpreter",
                         turn_id=start.turn.id,
@@ -743,6 +801,162 @@ class TurnRunner:
             if is_newer_inbound_cancellation(error):
                 self._record_interrupted_turn(start.turn.id)
             raise
+
+    def _use_v2_turn_pipeline(self) -> bool:
+        return os.environ.get("COKE_TURN_PIPELINE") == "v2"
+
+    def _run_v2_inbound_turn(
+        self,
+        *,
+        trigger: TurnTrigger,
+        start: Any,
+        gate: GateDecision,
+        freshness_guard: FreshnessGuard,
+        focus_subject: Any | None,
+    ) -> TurnRunResult:
+        return asyncio.run(
+            self._run_v2_inbound_turn_async(
+                trigger=trigger,
+                start=start,
+                gate=gate,
+                freshness_guard=freshness_guard,
+                focus_subject=focus_subject,
+            )
+        )
+
+    async def _run_v2_inbound_turn_async(
+        self,
+        *,
+        trigger: TurnTrigger,
+        start: Any,
+        gate: GateDecision,
+        freshness_guard: FreshnessGuard,
+        focus_subject: Any | None,
+    ) -> TurnRunResult:
+        if self.turn_pipeline is None:
+            disposition = self.conversation_runtime.mark_failed(
+                start.turn.id,
+                "turn_v2_pipeline_unavailable",
+            )
+            return self._result_from_disposition(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+                current_input_messages=start.input_messages,
+            )
+        delivery = _V2RunnerDelivery(self, trigger)
+        request = self._v2_pipeline_request(
+            trigger=trigger,
+            start=start,
+            gate=gate,
+            focus_subject=focus_subject,
+        )
+        pipeline_result = await self.turn_pipeline.run(
+            request,
+            freshness_guard,
+            delivery=delivery,
+        )
+        close_result = pipeline_result.close_result
+        if not close_result.committed:
+            error = close_result.error
+            if isinstance(error, ConversationRuntimeError):
+                return self._conversation_runtime_error_result(
+                    start.turn.id,
+                    trigger,
+                    error,
+                    current_input_messages=start.input_messages,
+                )
+            disposition = self.conversation_runtime.mark_failed(
+                start.turn.id,
+                close_result.reason_code or "turn_v2_close_failed",
+            )
+            return self._result_from_disposition(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+                current_input_messages=start.input_messages,
+            )
+
+        if not delivery.close_boundary_committed:
+            self._commit_close_boundary()
+        disposition = close_result.disposition
+        disposition_value = getattr(disposition, "disposition", None)
+        if not isinstance(disposition_value, str):
+            disposition = self.conversation_runtime.mark_failed(
+                start.turn.id,
+                "turn_v2_close_missing_disposition",
+            )
+            return self._result_from_disposition(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+                current_input_messages=start.input_messages,
+            )
+        visible_text = (
+            "\n".join(pipeline_result.segments) if pipeline_result.segments else None
+        )
+        if disposition_value == "replied":
+            delivered_reply = any(
+                outcome.status in {"sent", "delivered"} for outcome in delivery.outcomes
+            )
+            onboarding_guidance_delivered = (
+                gate.activation_guidance_required
+                and bool(delivery.outcomes)
+                and all(
+                    outcome.status in {"sent", "delivered"}
+                    for outcome in delivery.outcomes
+                )
+            )
+            self._record_inbound_reply_completed_lifecycle(
+                trigger,
+                delivered=delivered_reply,
+                onboarding_guidance_delivered=onboarding_guidance_delivered,
+            )
+        return self._result_from_disposition(
+            turn_id=start.turn.id,
+            trigger=trigger,
+            disposition=disposition_value,
+            reason_code=getattr(disposition, "reason_code", None),
+            visible_text=visible_text,
+            current_input_messages=start.input_messages,
+        )
+
+    def _v2_pipeline_request(
+        self,
+        *,
+        trigger: TurnTrigger,
+        start: Any,
+        gate: GateDecision,
+        focus_subject: Any | None,
+    ) -> TurnPipelineRequest:
+        now = self._now()
+        trusted_facts = _trusted_facts_for_agent(
+            gate.trust_facts,
+            trigger=trigger,
+            semantic_decision=None,
+            now=lambda: now,
+            account_timezone=self._account_timezone,
+            onboarding_guidance_required=gate.activation_guidance_required,
+        )
+        return TurnPipelineRequest(
+            turn_id=start.turn.id,
+            account_id=trigger.account_id,
+            conversation_id=trigger.conversation_id,
+            payload=dict(trigger.payload),
+            trusted_facts=trusted_facts,
+            focus_subject=focus_subject,
+            conversation_history=_v2_conversation_history(start.input_messages),
+            persona=_v2_persona(trusted_facts),
+            assistant_name=str(trusted_facts.get("assistant_name") or "Coke"),
+            user_address_name=str(trusted_facts.get("user_address_name") or ""),
+            source_input_window=_turn_input_window(start.turn),
+            pending_expires_at=now + timedelta(minutes=10),
+            now=now,
+            run_id=_agent_run_id_for_trigger(trigger, fallback=start.turn.id),
+        )
 
     def run_render_turn(self, trigger: TurnTrigger) -> TurnRunResult:
         gate = GateDecision.allowed(trust_facts={"account_id": trigger.account_id})
@@ -2072,6 +2286,44 @@ def _causal_ids_from_input_messages(
     return latest, tuple(
         causal_id for causal_id in causal_ids[:-1] if causal_id != latest
     )
+
+
+def _v2_conversation_history(messages: tuple[Any, ...]) -> tuple[Mapping[str, Any], ...]:
+    history: list[Mapping[str, Any]] = []
+    for message in messages:
+        text = getattr(message, "text", None)
+        if not isinstance(text, str) or not text:
+            continue
+        direction = str(getattr(message, "direction", "inbound"))
+        item: dict[str, Any] = {
+            "role": "assistant" if direction == "outbound" else "user",
+            "content": text,
+        }
+        seq = getattr(message, "seq", None)
+        if isinstance(seq, int):
+            item["seq"] = seq
+        message_id = getattr(message, "id", None) or getattr(message, "message_id", None)
+        if isinstance(message_id, str) and message_id:
+            item["message_id"] = message_id
+        history.append(item)
+    return tuple(history)
+
+
+def _v2_persona(trusted_facts: Mapping[str, Any]) -> str:
+    parts = []
+    for key in ("persona", "speaking_style", "background", "extra_rules"):
+        value = trusted_facts.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    return "\n".join(parts)
+
+
+def _turn_input_window(turn: Any) -> tuple[int, int] | None:
+    input_from_seq = getattr(turn, "input_from_seq", None)
+    input_to_seq = getattr(turn, "input_to_seq", None)
+    if isinstance(input_from_seq, int) and isinstance(input_to_seq, int):
+        return (input_from_seq, input_to_seq)
+    return None
 
 
 def _create_recoverable_intents_from_tool_events(
