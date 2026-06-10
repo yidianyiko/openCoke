@@ -2288,7 +2288,9 @@ def _causal_ids_from_input_messages(
     )
 
 
-def _v2_conversation_history(messages: tuple[Any, ...]) -> tuple[Mapping[str, Any], ...]:
+def _v2_conversation_history(
+    messages: tuple[Any, ...],
+) -> tuple[Mapping[str, Any], ...]:
     history: list[Mapping[str, Any]] = []
     for message in messages:
         text = getattr(message, "text", None)
@@ -2302,7 +2304,9 @@ def _v2_conversation_history(messages: tuple[Any, ...]) -> tuple[Mapping[str, An
         seq = getattr(message, "seq", None)
         if isinstance(seq, int):
             item["seq"] = seq
-        message_id = getattr(message, "id", None) or getattr(message, "message_id", None)
+        message_id = getattr(message, "id", None) or getattr(
+            message, "message_id", None
+        )
         if isinstance(message_id, str) and message_id:
             item["message_id"] = message_id
         history.append(item)

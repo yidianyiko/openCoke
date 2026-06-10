@@ -565,14 +565,18 @@ recoverable_scheduling_intent = Table(
     Column("captured_timezone", String(64), nullable=False),
     Column("duration_minutes", Integer(), nullable=True),
     Column("unresolved_reference_text", Text(), nullable=False),
-    Column("source_turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=False),
+    Column(
+        "source_turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=False
+    ),
     Column("source_input_from_seq", BigInteger(), nullable=False),
     Column("source_input_to_seq", BigInteger(), nullable=False),
     Column("source_message_ids", JSONB(), nullable=False),
     Column("facts", JSONB(), nullable=False),
     Column("facts_hash", String(128), nullable=False),
     Column("expires_at", DateTime(timezone=True), nullable=False),
-    Column("consumed_turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=True),
+    Column(
+        "consumed_turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=True
+    ),
     _created_at(),
     _updated_at(),
     CheckConstraint(

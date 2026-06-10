@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 
 from coke import schema
 from coke.domains._pg import db_id, json_value, many, one_or_none
-
 from coke.turn.v2.contracts import PendingClarification
 
 
@@ -179,7 +178,8 @@ class PostgresPendingClarificationRepository:
         result = self.session.execute(
             schema.pending_clarification.update()
             .where(
-                schema.pending_clarification.c.conversation_id == db_id(conversation_id),
+                schema.pending_clarification.c.conversation_id
+                == db_id(conversation_id),
                 schema.pending_clarification.c.unresolved_action_fingerprint
                 == unresolved_action_fingerprint,
                 schema.pending_clarification.c.status == "open",
