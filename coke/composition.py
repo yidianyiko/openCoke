@@ -923,7 +923,6 @@ class SocialSchedulingToolAdapter:
                     ),
                     captured_timezone=str(command.get("captured_timezone") or "UTC"),
                     duration_minutes=int(command.get("duration_minutes") or 15),
-                    context=_optional_context(command.get("context")),
                     commit_guard=_guard_commit_guard(guard),
                 )
                 facts = _shared_reminder_create_tool_facts(
@@ -962,7 +961,6 @@ class SocialSchedulingToolAdapter:
                             if command.get("duration_minutes") is not None
                             else None
                         ),
-                        context=_optional_context(command.get("context")),
                         commit_guard=_guard_commit_guard(guard),
                     )
                 )
@@ -2046,8 +2044,6 @@ def _validate_social_scheduling_staged_write(
                 return _tool_validation_error("needs_title")
             if _optional_datetime(command.get("local_trigger_at")) is None:
                 return _tool_validation_error("needs_time")
-            if _optional_context(command.get("context")) is None:
-                return _tool_validation_error("needs_context")
             if command.get("duration_minutes") is not None:
                 int(command["duration_minutes"])
         elif operation == "detect_and_create_shared_reminder":
@@ -2063,8 +2059,6 @@ def _validate_social_scheduling_staged_write(
                     operation,
                 )
             _required_str(command, "raw_text")
-            if _optional_context(command.get("context")) is None:
-                return _tool_validation_error("needs_context")
             if command.get("duration_minutes") is not None:
                 int(command["duration_minutes"])
         elif operation == "cancel_shared_reminder":
@@ -2256,7 +2250,6 @@ def _social_scheduling_outcome_status(
     if service_status in {
         "needs_title",
         "needs_time",
-        "needs_context",
         "needs_past_time_confirmation",
         "needs_incomplete_date_clarification",
     }:

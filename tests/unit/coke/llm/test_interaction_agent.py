@@ -1625,7 +1625,7 @@ def test_social_scheduling_tool_doc_describes_shared_reminder_creation():
     assert "receiver_account_ids" in doc
     assert "raw_text" in doc
     assert "Do not compute local_trigger_at yourself" in doc
-    assert "context" in doc
+    assert "and context" not in doc
 
 
 def test_social_scheduling_tool_doc_describes_friend_list_availability_and_cancel():
@@ -1723,10 +1723,6 @@ def test_shared_reminder_detect_tool_defaults_to_current_user_message_and_timezo
                 "creator_account_id": "account_1",
                 "captured_timezone": "Asia/Shanghai",
                 "duration_minutes": 15,
-                "context": {
-                    "source": "conversation",
-                    "text": "帮我和 lizihao 约一个今天晚上10:30的会议",
-                },
             },
             guard,
         )
@@ -1983,7 +1979,6 @@ def test_tool_callable_coerces_json_string_list_fields_once_for_all_tools():
             "local_trigger_at": "2026-05-31T08:49:17",
             "captured_timezone": "UTC",
             "duration_minutes": 15,
-            "context": {"source": "unit"},
         }
     )
 
@@ -2016,7 +2011,6 @@ def test_social_scheduling_tool_normalizes_live_agno_kwargs_string_shape():
             "local_trigger_at": "2026-05-31T08:49:17",
             "captured_timezone": "UTC",
             "duration_minutes": 15,
-            "context": "gcp clean live phase 5 verification",
         }
     )
 
@@ -2048,7 +2042,6 @@ def test_social_scheduling_tool_normalizes_live_agno_kwargs_string_shape():
             "local_trigger_at": datetime.fromisoformat("2026-05-31T08:49:17"),
             "captured_timezone": "UTC",
             "duration_minutes": 15,
-            "context": {"text": "gcp clean live phase 5 verification"},
         }
     ]
 

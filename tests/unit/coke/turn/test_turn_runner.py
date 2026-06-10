@@ -1451,7 +1451,6 @@ def test_shared_reminder_retry_false_duplicate_without_active_row_fails_closed(
                         "local_trigger_at": "2026-06-06T12:30:00",
                         "captured_timezone": "Asia/Shanghai",
                         "duration_minutes": 15,
-                        "context": {"source": "retry_false_success_regression"},
                     },
                     request.freshness_guard,
                 )
@@ -1557,7 +1556,6 @@ def test_staged_social_scheduling_reply_without_claim_materializes_on_clean_clos
                     "local_trigger_at": "2026-06-06T11:00:00",
                     "captured_timezone": "Asia/Shanghai",
                     "duration_minutes": 60,
-                    "context": {"source": "staged_claim_derivation_regression"},
                 },
                 request.freshness_guard,
             )
@@ -1619,7 +1617,6 @@ def test_recovery_from_detect_shared_reminder_uses_raw_text_not_participant_uuid
                     "title": None,
                     "captured_timezone": "Asia/Shanghai",
                     "duration_minutes": 60,
-                    "context": {"source": "recovery_uuid_grounding_regression"},
                 },
                 request.freshness_guard,
             )
@@ -1656,7 +1653,6 @@ def test_duplicate_active_reply_allowed_when_active_shared_reminder_exists(harne
         local_trigger_at=datetime(2026, 6, 6, 12, 30),
         captured_timezone="Asia/Shanghai",
         duration_minutes=15,
-        context={"source": "duplicate_active_regression"},
     )
     outcome = {
         "outcome_id": "duplicate-outcome-1",
@@ -1767,7 +1763,6 @@ def test_friend_alias_correction_materializes_and_consumes_recoverable_intent(ha
                     "local_trigger_at": recovery["local_trigger_at"],
                     "captured_timezone": recovery["captured_timezone"],
                     "duration_minutes": recovery["duration_minutes"],
-                    "context": {"source": "recoverable_intent"},
                     "recoverable_scheduling_intent_id": recovery["id"],
                     "facts_hash": recovery["facts_hash"],
                 },
@@ -1939,7 +1934,6 @@ def test_superseded_consuming_turn_does_not_consume_recoverable_intent(harness):
                     "local_trigger_at": intent.local_trigger_at.isoformat(),
                     "captured_timezone": intent.captured_timezone,
                     "duration_minutes": intent.duration_minutes,
-                    "context": {"source": "recoverable_intent"},
                     "recoverable_scheduling_intent_id": intent.id,
                     "facts_hash": intent.facts_hash,
                 },

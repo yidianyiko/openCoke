@@ -244,7 +244,7 @@ def _segments_from_content(content: Any) -> tuple[str, ...]:
             return (content.strip(),)
         raise ExpressOutputError("invalid Express output")
     if payload.get("type") == "no_reply":
-        return ()
+        raise ExpressOutputError("Express returned no_reply when a reply is required")
     segments = payload.get("segments")
     if not isinstance(segments, list):
         raise ExpressOutputError("Express output missing segments")

@@ -47,7 +47,6 @@ def create_shared_reminder_blueprint(
             local_trigger_at=_body_optional_datetime_field(payload, "local_trigger_at"),
             captured_timezone=_body_str_field(payload, "captured_timezone"),
             duration_minutes=_body_int_field(payload, "duration_minutes"),
-            context=payload.get("context"),
         )
         status_code = 201 if result.status == "created" else 200
         return jsonify(_create_result_body(result)), status_code

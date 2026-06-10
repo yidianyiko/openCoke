@@ -403,13 +403,10 @@ class SocialSchedulingService:
         local_trigger_at: datetime | None,
         captured_timezone: str,
         duration_minutes: int,
-        context: dict | None,
         commit_guard: CommitGuard = None,
     ) -> SharedReminderCreateResult:
         local_trigger_at = _as_local_wall_clock(local_trigger_at)
-        missing = _first_missing_field(
-            receiver_account_ids, title, local_trigger_at, context
-        )
+        missing = _first_missing_field(receiver_account_ids, title, local_trigger_at)
         if missing is not None:
             return SharedReminderCreateResult(
                 status=f"needs_{missing}",
@@ -552,7 +549,6 @@ class SocialSchedulingService:
         title: str | None,
         captured_timezone: str,
         duration_minutes: int | None,
-        context: dict | None,
         commit_guard: CommitGuard = None,
     ) -> SharedReminderCreateResult:
         if self.detector is None:
@@ -577,7 +573,6 @@ class SocialSchedulingService:
             local_trigger_at=detected_trigger_at,
             captured_timezone=captured_timezone,
             duration_minutes=duration_minutes or detected_duration or 15,
-            context=context,
             commit_guard=commit_guard,
         )
 
@@ -1082,7 +1077,6 @@ def _first_missing_field(
     receiver_account_ids: list[str],
     title: str | None,
     local_trigger_at: datetime | None,
-    context: dict | None,
 ) -> str | None:
     if not receiver_account_ids:
         return "participants"
@@ -1090,6 +1084,4 @@ def _first_missing_field(
         return "title"
     if local_trigger_at is None:
         return "time"
-    if context is None:
-        return "context"
     return None

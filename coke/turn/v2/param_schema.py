@@ -185,7 +185,6 @@ PARAM_KEY_SCHEMA: ParamKeySchema = MappingProxyType(
                         "captured_timezone",
                         "requester_timezone",
                         "duration_minutes",
-                        "context",
                         "raw_text",
                         "text",
                         "local_trigger_at",

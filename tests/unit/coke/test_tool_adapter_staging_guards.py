@@ -117,7 +117,6 @@ def test_staging_guard_rejects_unsupported_write_operations(
                 "creator_account_id": "account_1",
                 "receiver_account_ids": ["account_2"],
                 "local_trigger_at": "2026-06-01T12:00:00",
-                "context": {"source": "unit"},
             },
             "needs_title",
         ),
@@ -135,19 +134,8 @@ def test_staging_guard_rejects_unsupported_write_operations(
                 "operation": "detect_and_create_shared_reminder",
                 "creator_account_id": "account_1",
                 "raw_text": "remind us tomorrow",
-                "context": {"source": "unit"},
             },
             "needs_participants",
-        ),
-        (
-            SocialSchedulingToolAdapter(object()),
-            {
-                "operation": "detect_and_create_shared_reminder",
-                "creator_account_id": "account_1",
-                "receiver_account_ids": ["account_2"],
-                "raw_text": "remind us tomorrow",
-            },
-            "needs_context",
         ),
         (
             CalendarImportToolAdapter(object()),

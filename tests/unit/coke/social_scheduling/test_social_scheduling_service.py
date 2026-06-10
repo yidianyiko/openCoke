@@ -252,7 +252,6 @@ def test_remove_friend_lifecycle_does_not_cancel_existing_shared_reminders():
         local_trigger_at=datetime(2026, 6, 1, 9, 0),
         captured_timezone="Asia/Tokyo",
         duration_minutes=30,
-        context={"source": "test"},
     )
 
     service.remove_friend("owner", "friend")
@@ -269,7 +268,6 @@ def test_remove_friend_lifecycle_does_not_cancel_existing_shared_reminders():
         local_trigger_at=datetime(2026, 6, 2, 9, 0),
         captured_timezone="Asia/Tokyo",
         duration_minutes=30,
-        context={"source": "test"},
     )
     assert blocked.status == "needs_participants"
     assert blocked.follow_up_facts["reason"] == "receiver_not_active_friend"
@@ -287,7 +285,6 @@ def test_commit_guard_blocks_shared_reminder_and_notification_fact():
             local_trigger_at=datetime(2026, 6, 1, 9, 0),
             captured_timezone="Asia/Tokyo",
             duration_minutes=30,
-            context={"source": "test"},
             commit_guard=lambda: (_ for _ in ()).throw(RuntimeError("turn_superseded")),
         )
 
@@ -317,7 +314,6 @@ def test_group_shared_reminder_creation_is_one_object_with_participant_projectio
         local_trigger_at=datetime(2026, 6, 3, 10, 30),
         captured_timezone="Asia/Tokyo",
         duration_minutes=45,
-        context={"source": "agent"},
     )
 
     assert created.status == "created"
@@ -358,7 +354,6 @@ def test_group_shared_reminder_creation_is_one_object_with_participant_projectio
         local_trigger_at=datetime(2026, 6, 3, 10, 30),
         captured_timezone="Asia/Tokyo",
         duration_minutes=45,
-        context={"source": "agent"},
     )
 
     assert duplicate.status == "duplicate"
@@ -380,6 +375,24 @@ def test_group_shared_reminder_creation_is_one_object_with_participant_projectio
     )
 
 
+def test_shared_reminder_creation_does_not_require_context():
+    service, repo, _, _ = make_service({"creator", "friend"})
+    create_active_friendship(service, "creator", "friend")
+
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="planning",
+        local_trigger_at=datetime(2026, 6, 3, 10, 30),
+        captured_timezone="Asia/Tokyo",
+        duration_minutes=30,
+    )
+
+    assert created.status == "created"
+    assert created.shared_reminder is not None
+    assert created.shared_reminder.id in repo.shared_reminders_by_id
+
+
 def test_shared_reminder_accepts_aware_agent_datetime_as_local_wall_clock():
     service, repo, _, _ = make_service({"creator", "friend"})
     create_active_friendship(service, "creator", "friend")
@@ -391,7 +404,6 @@ def test_shared_reminder_accepts_aware_agent_datetime_as_local_wall_clock():
         local_trigger_at=datetime(2029, 2, 19, 10, 0, tzinfo=UTC),
         captured_timezone="Asia/Shanghai",
         duration_minutes=15,
-        context={"source": "conversation"},
     )
 
     assert created.status == "created"
@@ -415,7 +427,6 @@ def test_shared_reminder_past_trigger_requires_confirmation_without_mutation():
         local_trigger_at=datetime(2025, 7, 11, 12, 0),
         captured_timezone="Asia/Shanghai",
         duration_minutes=60,
-        context={"source": "conversation"},
     )
 
     assert result.status == "needs_past_time_confirmation"
@@ -475,7 +486,6 @@ def test_detected_shared_reminder_uses_account_local_now_for_relative_time(
         title=None,
         captured_timezone="Asia/Shanghai",
         duration_minutes=None,
-        context={"source": "conversation"},
     )
 
     assert result.status == "created"
@@ -523,7 +533,6 @@ def test_detected_shared_reminder_keeps_past_time_guard():
         title=None,
         captured_timezone="Asia/Shanghai",
         duration_minutes=None,
-        context={"source": "conversation"},
     )
 
     assert result.status == "needs_past_time_confirmation"
@@ -547,7 +556,6 @@ def test_shared_reminder_view_cancel_and_completion_are_participant_scoped():
         local_trigger_at=datetime(2026, 6, 4, 11, 0),
         captured_timezone="UTC",
         duration_minutes=15,
-        context={"source": "test"},
     )
 
     with pytest.raises(SocialSchedulingError) as view_error:
@@ -602,7 +610,6 @@ def test_shared_reminder_pre_creation_checks_return_three_way_breakdown_without_
         local_trigger_at=datetime(2026, 6, 5, 9, 0),
         captured_timezone="Asia/Tokyo",
         duration_minutes=30,
-        context={"source": "test"},
     )
 
     assert result.status == "blocked"
@@ -625,7 +632,6 @@ def test_required_fields_are_validated_before_friend_or_channel_checks():
         local_trigger_at=None,
         captured_timezone="UTC",
         duration_minutes=15,
-        context=None,
     )
 
     assert result.status == "needs_participants"
@@ -766,7 +772,6 @@ def test_shared_reminder_receiver_delivery_creates_creator_visible_receipt():
         local_trigger_at=datetime(2026, 6, 3, 10, 30),
         captured_timezone="Asia/Tokyo",
         duration_minutes=45,
-        context={"source": "agent"},
     )
     created_fact = created.notification_facts[0]
 

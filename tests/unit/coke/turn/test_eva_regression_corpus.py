@@ -241,7 +241,6 @@ class RecoveringEvaAgent(ScriptedAgent):
                 "local_trigger_at": recovery["local_trigger_at"],
                 "captured_timezone": recovery["captured_timezone"],
                 "duration_minutes": recovery["duration_minutes"],
-                "context": {"source": "recoverable_intent"},
                 "recoverable_scheduling_intent_id": recovery["id"],
                 "facts_hash": recovery["facts_hash"],
             },
@@ -298,7 +297,6 @@ class SupersedingSoftSuccessAgent(ScriptedAgent):
                 "local_trigger_at": "2026-06-06T15:00:00",
                 "captured_timezone": "Asia/Shanghai",
                 "duration_minutes": 45,
-                "context": {"source": "eva_superseded_soft_success"},
             },
             request.freshness_guard,
         )

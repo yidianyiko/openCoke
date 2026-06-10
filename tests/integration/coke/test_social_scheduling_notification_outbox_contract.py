@@ -70,7 +70,6 @@ def test_shared_reminder_persists_projection_reminders_notification_and_outbox(
         local_trigger_at=NOW.replace(tzinfo=None) + timedelta(days=1),
         captured_timezone="UTC",
         duration_minutes=30,
-        context={"source": "integration-test"},
     )
 
     assert result.status == "created"

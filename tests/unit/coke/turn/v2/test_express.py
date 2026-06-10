@@ -263,3 +263,13 @@ def test_plain_text_converse_output_is_a_single_segment() -> None:
     assert _segments_from_content("在的，最近挺好的，你呢？") == (
         "在的，最近挺好的，你呢？",
     )
+
+
+def test_no_reply_payload_raises_when_express_reply_is_required() -> None:
+    from coke.turn.v2.express import ExpressOutputError, _segments_from_content
+
+    with pytest.raises(
+        ExpressOutputError,
+        match="Express returned no_reply when a reply is required",
+    ):
+        _segments_from_content({"type": "no_reply"})

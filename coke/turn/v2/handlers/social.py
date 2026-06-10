@@ -70,7 +70,6 @@ class SocialSchedulingActionHandler:
                         ),
                         captured_timezone=_timezone(params),
                         duration_minutes=_optional_int(params.get("duration_minutes")),
-                        context=_optional_context(params.get("context")),
                         commit_guard=_commit_guard(guard),
                     )
                 )
@@ -84,7 +83,6 @@ class SocialSchedulingActionHandler:
                     ),
                     captured_timezone=_timezone(params),
                     duration_minutes=int(params.get("duration_minutes") or 15),
-                    context=_optional_context(params.get("context")),
                     commit_guard=_commit_guard(guard),
                 )
         except (SocialSchedulingError, ValueError) as error:
@@ -314,7 +312,7 @@ def _shared_reminder_create_outcome(result: Any) -> ActionOutcome:
             status="duplicate_active",
             data=data,
         )
-    if status in {"needs_title", "needs_time", "needs_context", "needs_participants"}:
+    if status in {"needs_title", "needs_time", "needs_participants"}:
         field = status.removeprefix("needs_")
         return ActionOutcome(
             category="needs_input",
@@ -423,7 +421,6 @@ def _create_command_payload(
             getattr(shared_reminder, "duration_minutes", None)
             or int(params.get("duration_minutes") or 15)
         ),
-        "context": _optional_context(params.get("context")) or {},
     }
     return {key: value for key, value in payload.items() if value is not None}
 
@@ -543,14 +540,6 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return int(value)
-
-
-def _optional_context(value: Any) -> dict[str, Any] | None:
-    if value is None:
-        return None
-    if isinstance(value, Mapping):
-        return dict(value)
-    return None
 
 
 def _timezone(params: Mapping[str, Any]) -> str:

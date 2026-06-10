@@ -339,7 +339,6 @@ def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
             "raw_text": "帮我和 lizihao 约一个今天晚上10:30的会议",
             "captured_timezone": "Asia/Shanghai",
             "duration_minutes": 15,
-            "context": {"source": "unit"},
         },
         guard,
     )
@@ -370,7 +369,6 @@ def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
                 "title": None,
                 "captured_timezone": "Asia/Shanghai",
                 "duration_minutes": 15,
-                "context": {"source": "unit"},
             },
         )
     ]
@@ -390,7 +388,6 @@ def test_interactive_shared_reminder_tool_stages_before_close():
             "title": "Dinner",
             "local_trigger_at": "2026-06-01T19:00:00",
             "captured_timezone": "UTC",
-            "context": {"source": "unit"},
         },
         guard,
     )
@@ -415,7 +412,6 @@ def test_staged_shared_reminder_tool_result_returns_social_outcome():
             "title": "Dinner",
             "local_trigger_at": "2026-06-01T19:00:00",
             "captured_timezone": "UTC",
-            "context": {"source": "unit"},
         },
         guard,
     )
@@ -531,7 +527,6 @@ def test_recovered_shared_reminder_command_carries_recovery_ids():
             "local_trigger_at": "2026-06-01T19:00:00",
             "captured_timezone": "UTC",
             "duration_minutes": 15,
-            "context": {"source": "recoverable_intent"},
             "recoverable_scheduling_intent_id": "intent_1",
             "facts_hash": "facts_hash_1",
         },
@@ -564,7 +559,6 @@ def test_create_shared_reminder_repository_failure_returns_clear_non_success_res
             "local_trigger_at": "2026-06-01T09:00:00",
             "captured_timezone": "Asia/Tokyo",
             "duration_minutes": 30,
-            "context": {"source": "unit"},
         },
         FakeGuard(),
     )
@@ -582,7 +576,6 @@ def test_create_shared_reminder_repository_failure_returns_clear_non_success_res
                 "local_trigger_at": datetime.fromisoformat("2026-06-01T09:00:00"),
                 "captured_timezone": "Asia/Tokyo",
                 "duration_minutes": 30,
-                "context": {"source": "unit"},
             },
         )
     ]

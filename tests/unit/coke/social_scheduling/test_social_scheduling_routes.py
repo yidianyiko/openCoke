@@ -441,7 +441,6 @@ def test_shared_reminder_routes_are_thin_service_adapters():
             "local_trigger_at": "2026-06-01T09:00:00",
             "captured_timezone": "UTC",
             "duration_minutes": 15,
-            "context": {"source": "route-test"},
         },
     )
     assert create.status_code == 201

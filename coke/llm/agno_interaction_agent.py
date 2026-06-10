@@ -384,7 +384,7 @@ class AgnoInteractionAgent:
             "For friend-list requests, call social_scheduling_tool with operation=list_friends and account_id from trusted_facts.account_id.",
             "For friend-removal requests, call social_scheduling_tool with operation=remove_friend, account_id from trusted_facts.account_id, and friend_account_id from an active friend account ID.",
             "For availability requests, call social_scheduling_tool with operation=query_availability, requester_account_id from trusted_facts.account_id, friend_account_ids as active friend account IDs, local_start, local_end, and requester_timezone from trusted_facts.default_timezone.",
-            "For shared-reminder creation from natural language, call social_scheduling_tool with operation=detect_and_create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, raw_text set to the exact User message, captured_timezone from trusted_facts.default_timezone when unspecified, duration_minutes only when explicit, and context. Do not compute local_trigger_at yourself.",
+            "For shared-reminder creation from natural language, call social_scheduling_tool with operation=detect_and_create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, raw_text set to the exact User message, captured_timezone from trusted_facts.default_timezone when unspecified, and duration_minutes only when explicit. Do not compute local_trigger_at yourself.",
             "When a shared-reminder creation tool result succeeds, state that the shared reminder is created and immediately active. Never say or imply waiting for confirmation, pending confirmation, pending acceptance, approval, invitation approval, or that receivers need to accept/reject it.",
             "For shared-reminder cancellation requests, call social_scheduling_tool with operation=cancel_shared_reminder, account_id from trusted_facts.account_id, and shared_reminder_id from trusted context or prior tool results.",
             "When a user gives a friend name but not an account ID, call operation=list_friends first. If exactly one active friend matches the request context, use that friend's account_id; otherwise ask a clarification instead of inventing an ID.",
@@ -576,7 +576,7 @@ def _tool_doc(name: str) -> str:
             "receiver_account_ids set to active friend account IDs, raw_text "
             "set to the exact User message, captured_timezone set to "
             "trusted_facts.default_timezone, duration_minutes only when "
-            "explicit, and context. Do not compute local_trigger_at yourself. "
+            "explicit. Do not compute local_trigger_at yourself. "
             "To cancel a shared reminder, call "
             "operation='cancel_shared_reminder' with "
             "account_id set to trusted_facts.account_id and "
@@ -707,13 +707,6 @@ def _with_tool_defaults(
                 str(request.trusted_facts.get("default_timezone") or "UTC"),
             )
             payload.setdefault("duration_minutes", 15)
-            payload.setdefault(
-                "context",
-                {
-                    "source": "conversation",
-                    "text": text,
-                },
-            )
         return payload
     if name != "reminder":
         return command

@@ -16,7 +16,6 @@ SOCIAL_SCHEDULING_ALLOWED_CLAIMS: dict[str, set[str]] = {
     "needs_participants": {"needs_participants"},
     "needs_title": {"needs_title"},
     "needs_time": {"needs_time"},
-    "needs_context": {"needs_context"},
     "needs_past_time_confirmation": {"needs_past_time_confirmation"},
     "needs_incomplete_date_clarification": {
         "needs_incomplete_date_clarification"
