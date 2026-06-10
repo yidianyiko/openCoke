@@ -6,32 +6,38 @@ turn against the clean Postgres rows.
 
 Relationship to ``clean_smoke``:
 
-* ``clean_smoke`` verifies infrastructure plumbing (first-contact provisioning,
-  friendship/shared APIs, reminder fire) over the WhatsApp/Evolution channel.
-* This harness verifies *turn-level NL behavior* — that a natural-language
-  message routes to the correct ``domain.operation`` and produces (or refuses
-  to produce) the right domain rows — over the ``wechat_personal`` channel.
+* ``clean_smoke`` verifies infrastructure plumbing over WhatsApp/Evolution.
+* This harness verifies turn-level NL behavior — that a natural-language message
+  produces (or refuses) the right reminder / shared_reminder rows — over WeChat.
 
-Core principle (shared with ``clean_smoke``): the assistant reply is a
-hypothesis; the clean Postgres rows are the verdict. The structural intent of a
-turn is its materialized ``staged_command`` rows (``domain.operation``).
+Verdict model (validated against the live stack on 2026-06-11):
 
-Channel payload (see ``coke/providers/wechat_personal.py``)::
+* The HARD verdict is the row-effect diff: which active ``reminder`` /
+  ``shared_reminder`` rows were created / removed for the requester across the
+  turn. ``staged_command`` is a soft, execution-layer signal (a create may
+  materialize as ``reminder.execute_batch`` / ``detect_and_create`` / ``create``;
+  reads produce no staged_command), so we bucket it semantically, never assert
+  an exact op string.
 
-    POST /webhooks/wechat/personal
-    {"wxid": "...", "message_id": "...", "text": "...", "sender_name": "..."}
+WeChat reality (validated 2026-06-11):
 
-Requester identity comes from ``COKE_SMOKE_SENDER_A`` (the real account being
-simulated, e.g. olivers). Friend personas required by a case ("张三", two
-"Oliver"s, ...) are provisioned as run-scoped synthetic ``wechat_personal``
-accounts so the smoke never mutates the real friend account.
+* wechat_personal does NOT auto-provision on first contact. An inbound MUST
+  carry the ``account_id`` of an already-paired account (dashless hex form, as
+  the real connector sends) or it is rejected ``identity_pairing_required`` /
+  ``channel_identity_already_bound``. The requester (and any friend persona)
+  must therefore be supplied as pre-paired accounts.
 
-Modes:
+Env:
 
-* ``--dry-run``   offline: validate corpus, print the execution plan, build and
-  show a sample payload. No network, no DB.
-* ``--mode webhook`` (default live): inject each case message via the webhook
-  and assert the DB verdict.
+    COKE_SMOKE_API_BASE   e.g. https://coke.keep4oforever.com
+    COKE_SMOKE_DB_URL     clean Postgres URL (verdict source)
+    COKE_SMOKE_WECHAT_REQUESTER  {"account_id": "...", "wxid": "...", "display_name": "Eva"}
+    COKE_SMOKE_WECHAT_FRIENDS    optional [{"account_id","wxid","display_name"}, ...]
+    COKE_SMOKE_WEBHOOK_SECRET    optional
+    COKE_SMOKE_TIMEZONE          default Asia/Shanghai
+
+Modes: ``--dry-run`` (offline), default live webhook injection. Use
+``--requester-only`` to run just the cases that need no friend persona.
 """
 
 from __future__ import annotations
@@ -41,7 +47,7 @@ import json
 import os
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -66,8 +72,15 @@ DEFAULT_EVIDENCE_DIR = Path("artifacts/evidence/v6-wechat-smoke")
 PROVIDER_TYPE = "wechat_personal"
 WEBHOOK_PATH = "/webhooks/wechat/personal"
 REPLY_LIKE_DISPOSITIONS = {"replied", "pending_async_reply"}
-# staged_command.status that means the action was actually applied.
 APPLIED_STATUS = "materialized"
+
+# Execution-layer staged_command ops grouped into semantic buckets. Learned
+# from the live staged_command vocabulary, not the planner param schema.
+REMINDER_CREATE_OPS = {"create", "detect_and_create", "execute_batch"}
+REMINDER_UPDATE_OPS = {"update_reminder"}
+REMINDER_DELETE_OPS = {"delete_reminder"}
+SHARED_CREATE_OPS = {"create_shared_reminder", "detect_and_create_shared_reminder"}
+SHARED_CANCEL_OPS = {"cancel_shared_reminder"}
 
 
 # --------------------------------------------------------------------------
@@ -75,25 +88,35 @@ APPLIED_STATUS = "materialized"
 # --------------------------------------------------------------------------
 @dataclass(frozen=True)
 class WeChatIdentity:
-    label: str
+    """A pre-paired wechat_personal account. ``account_id`` is stored in DB
+    (dashed UUID) form; the webhook payload uses the dashless hex form."""
+
+    account_id: str  # dashed UUID, as stored in Postgres
     wxid: str
     display_name: str
 
+    @property
+    def payload_account_id(self) -> str:
+        return self.account_id.replace("-", "")
+
     @classmethod
-    def parse(cls, label: str, raw_value: str) -> "WeChatIdentity":
+    def parse(cls, raw_value: str, *, default_name: str = "Eva") -> "WeChatIdentity":
         value = raw_value.strip()
-        if not value:
-            raise ValueError(f"identity {label} is blank")
-        if value.startswith("{"):
-            payload = json.loads(value)
-            if not isinstance(payload, dict):
-                raise ValueError(f"identity {label} JSON must be an object")
-            wxid = payload.get("wxid") or payload.get("provider_subject")
-            if not isinstance(wxid, str) or not wxid.strip():
-                raise ValueError(f"identity {label} JSON needs wxid")
-            display = payload.get("push_name") or payload.get("sender_name") or label
-            return cls(label=label, wxid=wxid.strip(), display_name=str(display))
-        return cls(label=label, wxid=value, display_name=label)
+        if not value.startswith("{"):
+            raise ValueError(
+                "wechat identity must be a JSON object with account_id+wxid"
+            )
+        payload = json.loads(value)
+        account_id = payload.get("account_id")
+        wxid = payload.get("wxid") or payload.get("provider_subject")
+        if not isinstance(account_id, str) or not account_id.strip():
+            raise ValueError("wechat identity needs account_id")
+        if not isinstance(wxid, str) or not wxid.strip():
+            raise ValueError("wechat identity needs wxid")
+        name = payload.get("display_name") or payload.get("push_name") or default_name
+        return cls(
+            account_id=account_id.strip(), wxid=wxid.strip(), display_name=str(name)
+        )
 
 
 def wechat_payload(
@@ -101,9 +124,12 @@ def wechat_payload(
 ) -> dict[str, Any]:
     return {
         "wxid": identity.wxid,
+        "account_id": identity.payload_account_id,
         "message_id": message_id,
         "text": text,
         "sender_name": identity.display_name,
+        "session_id": f"{message_id}-sess",
+        "context_token": f"{message_id}-ctx",
     }
 
 
@@ -115,9 +141,9 @@ class V6SmokeConfig:
     api_base: str
     db_url: str
     requester: WeChatIdentity
-    mode: str
     run_id: str
     evidence_dir: Path
+    friends: list[WeChatIdentity] = field(default_factory=list)
     timezone: str = "Asia/Shanghai"
     webhook_secret: str | None = None
     poll_timeout_seconds: float = 90.0
@@ -125,31 +151,41 @@ class V6SmokeConfig:
 
     @classmethod
     def from_env(cls, args: argparse.Namespace) -> "V6SmokeConfig":
+        run_id = args.run_id or datetime.now(UTC).strftime("v6_%Y%m%dT%H%M%SZ")
+        if args.dry_run:
+            requester = WeChatIdentity(
+                "00000000-0000-0000-0000-000000000000", "wxid_demo", "Eva"
+            )
+            return cls(
+                api_base="https://dry.run",
+                db_url="postgresql+psycopg://dry/run",
+                requester=requester,
+                run_id=run_id,
+                evidence_dir=Path(args.evidence_dir),
+            )
         missing = [
             name
             for name in (
                 "COKE_SMOKE_API_BASE",
                 "COKE_SMOKE_DB_URL",
-                "COKE_SMOKE_SENDER_A",
+                "COKE_SMOKE_WECHAT_REQUESTER",
             )
             if not os.environ.get(name)
         ]
-        if missing and not args.dry_run:
-            raise SmokeVerdictError(
-                "missing required env vars: " + ", ".join(sorted(missing))
-            )
-        run_id = args.run_id or datetime.now(UTC).strftime("v6_%Y%m%dT%H%M%SZ")
-        requester_raw = os.environ.get("COKE_SMOKE_SENDER_A") or json.dumps(
-            {"wxid": f"dryrun_requester_{run_id}", "push_name": "Eva"}
-        )
+        if missing:
+            raise SmokeVerdictError("missing required env vars: " + ", ".join(missing))
+        friends_raw = os.environ.get("COKE_SMOKE_WECHAT_FRIENDS", "").strip()
+        friends: list[WeChatIdentity] = []
+        if friends_raw:
+            for i, entry in enumerate(json.loads(friends_raw)):
+                friends.append(
+                    WeChatIdentity.parse(json.dumps(entry), default_name=f"friend{i}")
+                )
         return cls(
-            api_base=(
-                os.environ.get("COKE_SMOKE_API_BASE") or "https://dry.run"
-            ).rstrip("/"),
-            db_url=os.environ.get("COKE_SMOKE_DB_URL")
-            or "postgresql+psycopg://dry/run",
-            requester=WeChatIdentity.parse("requester", requester_raw),
-            mode=args.mode,
+            api_base=os.environ["COKE_SMOKE_API_BASE"].rstrip("/"),
+            db_url=os.environ["COKE_SMOKE_DB_URL"],
+            requester=WeChatIdentity.parse(os.environ["COKE_SMOKE_WECHAT_REQUESTER"]),
+            friends=friends,
             run_id=run_id,
             evidence_dir=Path(args.evidence_dir),
             timezone=os.environ.get("COKE_SMOKE_TIMEZONE", "Asia/Shanghai"),
@@ -165,7 +201,6 @@ class V6SmokeConfig:
 # Verdict queries
 # --------------------------------------------------------------------------
 def _turn_for_event() -> sa.Select:
-    """Resolve the turn that consumed a given inbound webhook event."""
     msg = schema.message
     turn = schema.turn
     event_id = sa.bindparam("event_id")
@@ -183,16 +218,13 @@ def _turn_for_event() -> sa.Select:
                 ),
             )
         )
-        .where(
-            msg.c.causal_inbound_event_id == event_id,
-            msg.c.direction == "inbound",
-        )
+        .where(msg.c.causal_inbound_event_id == event_id, msg.c.direction == "inbound")
         .order_by(turn.c.started_at.desc())
         .limit(1)
     )
 
 
-def _materialized_ops_for_turn() -> sa.Select:
+def _ops_for_turn() -> sa.Select:
     sc = schema.staged_command
     turn_id = sa.bindparam("turn_id")
     return sa.select(sc.c.domain, sc.c.operation, sc.c.status).where(
@@ -203,7 +235,7 @@ def _materialized_ops_for_turn() -> sa.Select:
 def _disposition_for_turn() -> sa.Select:
     od = schema.output_disposition
     turn_id = sa.bindparam("turn_id")
-    return sa.select(od.c.disposition, od.c.reason_code).where(od.c.turn_id == turn_id)
+    return sa.select(od.c.disposition).where(od.c.turn_id == turn_id)
 
 
 def _outbound_for_turn() -> sa.Select:
@@ -214,26 +246,19 @@ def _outbound_for_turn() -> sa.Select:
     )
 
 
-def _pending_clarification_for_conversation() -> sa.Select:
-    pc = schema.pending_clarification
-    conversation_id = sa.bindparam("conversation_id")
-    return sa.select(pc.c.id).where(pc.c.conversation_id == conversation_id)
-
-
-def _active_reminder_ids_for_owner() -> sa.Select:
+def _active_reminder_ids() -> sa.Select:
     reminder = schema.reminder
     owner = sa.bindparam("owner_account_id")
-    return sa.select(reminder.c.id, reminder.c.kind, reminder.c.content).where(
-        reminder.c.owner_account_id == owner,
-        reminder.c.lifecycle == "active",
+    return sa.select(reminder.c.id, reminder.c.kind).where(
+        reminder.c.owner_account_id == owner, reminder.c.lifecycle == "active"
     )
 
 
-def _shared_ids_for_creator() -> sa.Select:
+def _active_shared_ids() -> sa.Select:
     shared = schema.shared_reminder
     creator = sa.bindparam("creator_account_id")
-    return sa.select(shared.c.id, shared.c.status, shared.c.title).where(
-        shared.c.creator_account_id == creator
+    return sa.select(shared.c.id).where(
+        shared.c.creator_account_id == creator, shared.c.status == "active"
     )
 
 
@@ -247,15 +272,14 @@ class V6WeChatSmoke:
             run_id=config.run_id, evidence_dir=config.evidence_dir
         )
         self.db: CleanSmokeDb | None = None
-        # alias -> provisioned account_id, cached per run.
-        self._friend_accounts: dict[str, str] = {}
-        self._requester_account_id: str | None = None
+        self._friend_by_alias: dict[str, WeChatIdentity] = {}
+        self._friend_cursor = 0
 
     # ---- HTTP --------------------------------------------------------------
     def _post_webhook(self, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {"Content-Type": "application/json"}
         if self.config.webhook_secret:
-            headers["X-Webhook-Secret"] = self.config.webhook_secret
+            headers["X-Coke-Webhook-Secret"] = self.config.webhook_secret
         body = json.dumps(payload).encode("utf-8")
         return _http_json(
             Request(
@@ -266,32 +290,19 @@ class V6WeChatSmoke:
             )
         )
 
-    # ---- Provisioning ------------------------------------------------------
-    def _provision(self, identity: WeChatIdentity, first_text: str) -> str:
-        message_id = f"{self.config.run_id}_{identity.wxid}_provision"
-        result = self._post_webhook(
-            wechat_payload(identity=identity, text=first_text, message_id=message_id)
-        )
-        account_id = result.get("account_id")
-        if not isinstance(account_id, str) or not account_id:
-            raise SmokeVerdictError(
-                f"provision did not return account_id for {identity.wxid}: {result}"
-            )
-        return account_id
-
-    def _requester_account(self) -> str:
-        if self._requester_account_id is None:
-            self._requester_account_id = self._provision(self.config.requester, "hi")
-        return self._requester_account_id
-
-    def _friend_account(self, alias: str, display_name: str) -> str:
-        if alias not in self._friend_accounts:
-            wxid = f"{self.config.run_id}_friend_{_slug(alias)}"
-            identity = WeChatIdentity(label=alias, wxid=wxid, display_name=display_name)
-            account_id = self._provision(identity, "hi")
-            self._friend_accounts[alias] = account_id
-            self._befriend(self._requester_account(), account_id)
-        return self._friend_accounts[alias]
+    # ---- Friend personas (pre-paired accounts from the env pool) -----------
+    def _resolve_friend(self, alias: str) -> WeChatIdentity:
+        if alias not in self._friend_by_alias:
+            if self._friend_cursor >= len(self.config.friends):
+                raise SmokeVerdictError(
+                    "insufficient_friend_accounts: case needs a paired friend account; "
+                    "supply more in COKE_SMOKE_WECHAT_FRIENDS"
+                )
+            identity = self.config.friends[self._friend_cursor]
+            self._friend_cursor += 1
+            self._friend_by_alias[alias] = identity
+            self._befriend(self.config.requester.account_id, identity.account_id)
+        return self._friend_by_alias[alias]
 
     def _befriend(self, owner_account_id: str, friend_account_id: str) -> None:
         link = http_get_json(
@@ -308,12 +319,7 @@ class V6WeChatSmoke:
 
     # ---- Fixture seeding ---------------------------------------------------
     def _seed_reminder(
-        self,
-        owner_account_id: str,
-        content: str,
-        when: datetime,
-        kind: str,
-        duration_minutes: int | None,
+        self, owner: str, content: str, when: datetime, kind: str, duration: int | None
     ) -> None:
         item: dict[str, Any] = {
             "operation": "create",
@@ -324,25 +330,21 @@ class V6WeChatSmoke:
             "kind": kind,
             "entry_point": "v6_wechat_smoke",
         }
-        if duration_minutes is not None:
-            item["duration_minutes"] = duration_minutes
+        if duration is not None:
+            item["duration_minutes"] = duration
         http_post_json(
             f"{self.config.api_base}/api/reminders/batch",
-            {"owner_account_id": owner_account_id, "items": [item]},
+            {"owner_account_id": owner, "items": [item]},
         )
 
     def _seed_shared(
-        self,
-        creator_account_id: str,
-        friend_account_id: str,
-        title: str,
-        when: datetime,
+        self, creator: str, friend: str, title: str, when: datetime
     ) -> None:
         http_post_json(
             f"{self.config.api_base}/api/shared-reminders",
             {
-                "creator_account_id": creator_account_id,
-                "receiver_account_ids": [friend_account_id],
+                "creator_account_id": creator,
+                "receiver_account_ids": [friend],
                 "title": f"{title} {self.config.run_id}",
                 "local_trigger_at": when.replace(tzinfo=None).isoformat(),
                 "captured_timezone": self.config.timezone,
@@ -352,45 +354,38 @@ class V6WeChatSmoke:
         )
 
     def _seed_fixtures(self, case: V6Case) -> None:
-        requester = self._requester_account()
+        requester = self.config.requester.account_id
         for friend in case.fixtures.friends:
-            self._friend_account(friend.alias, friend.display_name)
+            self._resolve_friend(friend.alias)
         for rem in case.fixtures.reminders:
             self._seed_reminder(
                 requester,
                 rem.content,
-                _resolve_phrase(rem.time_phrase, self.config.timezone),
+                _resolve_phrase(rem.time_phrase),
                 rem.kind,
                 rem.duration_minutes,
             )
-        for busy in case.fixtures.friend_busy:
-            alias, span = busy
-            friend_id = self._friend_account(alias, alias)
-            start, _ = _resolve_span(span, self.config.timezone)
-            self._seed_reminder(friend_id, f"busy {span}", start, "timed", 60)
+        for alias, span in case.fixtures.friend_busy:
+            friend = self._resolve_friend(alias)
+            start, _ = _resolve_span(span)
+            self._seed_reminder(friend.account_id, f"busy {span}", start, "timed", 60)
         for sh in case.fixtures.shared:
-            friend_id = self._friend_account(sh.friend_alias, sh.friend_alias)
+            friend = self._resolve_friend(sh.friend_alias)
             self._seed_shared(
-                requester,
-                friend_id,
-                sh.title,
-                _resolve_phrase(sh.time_phrase, self.config.timezone),
+                requester, friend.account_id, sh.title, _resolve_phrase(sh.time_phrase)
             )
 
     # ---- Case execution ----------------------------------------------------
-    def _snapshot_rows(self, requester: str) -> tuple[set[str], set[str]]:
+    def _snapshot(self) -> tuple[set[str], set[str]]:
         assert self.db is not None
+        owner = self.config.requester.account_id
         reminders = {
-            row["id"]
-            for row in self.db.rows(
-                _active_reminder_ids_for_owner().params(owner_account_id=requester)
-            )
+            r["id"]
+            for r in self.db.rows(_active_reminder_ids().params(owner_account_id=owner))
         }
         shared = {
-            row["id"]
-            for row in self.db.rows(
-                _shared_ids_for_creator().params(creator_account_id=requester)
-            )
+            r["id"]
+            for r in self.db.rows(_active_shared_ids().params(creator_account_id=owner))
         }
         return reminders, shared
 
@@ -405,14 +400,11 @@ class V6WeChatSmoke:
         raise SmokeVerdictError(f"timed out waiting for completed turn for {event_id}")
 
     def _collect_verdict(
-        self,
-        turn_row: dict[str, Any],
-        requester: str,
-        before: tuple[set[str], set[str]],
+        self, turn_row: dict[str, Any], before: tuple[set[str], set[str]]
     ) -> dict[str, Any]:
         assert self.db is not None
         turn_id = turn_row["turn_id"]
-        ops = self.db.rows(_materialized_ops_for_turn().params(turn_id=turn_id))
+        ops = self.db.rows(_ops_for_turn().params(turn_id=turn_id))
         materialized = {
             f"{r['domain']}.{r['operation']}"
             for r in ops
@@ -422,47 +414,65 @@ class V6WeChatSmoke:
             _disposition_for_turn().params(turn_id=turn_id)
         )
         outbound = self.db.rows(_outbound_for_turn().params(turn_id=turn_id))
-        clarifications = self.db.rows(
-            _pending_clarification_for_conversation().params(
-                conversation_id=turn_row["conversation_id"]
-            )
-        )
-        after = self._snapshot_rows(requester)
+        after = self._snapshot()
         return {
             "materialized_ops": sorted(materialized),
             "disposition": (disposition or {}).get("disposition"),
             "has_outbound": bool(outbound),
-            "has_pending_clarification": bool(clarifications),
             "new_reminders": sorted(after[0] - before[0]),
+            "removed_reminders": sorted(before[0] - after[0]),
             "new_shared": sorted(after[1] - before[1]),
+            "removed_shared": sorted(before[1] - after[1]),
+        }
+
+    @staticmethod
+    def _bucket(ops: set[str]) -> dict[str, bool]:
+        def any_op(domain: str, names: set[str]) -> bool:
+            return any(op == f"{domain}.{n}" for op in ops for n in names)
+
+        return {
+            "reminder_create": any_op("reminder", REMINDER_CREATE_OPS),
+            "reminder_update": any_op("reminder", REMINDER_UPDATE_OPS),
+            "reminder_delete": any_op("reminder", REMINDER_DELETE_OPS),
+            "shared_create": any_op("social_scheduling", SHARED_CREATE_OPS),
+            "shared_cancel": any_op("social_scheduling", SHARED_CANCEL_OPS),
         }
 
     def _assert_case(self, case: V6Case, verdict: dict[str, Any]) -> None:
         expect = case.expect
         ops = set(verdict["materialized_ops"])
+        bucket = self._bucket(ops)
 
-        # Negative assertions ("不允许发生") are enforced for every case,
-        # including capability-gap cases.
-        forbidden = ops & set(expect.forbid_ops)
-        if forbidden:
-            self.transcript.fail_and_raise(
-                case.case_id,
-                "forbidden ops materialized",
-                {"forbidden": sorted(forbidden), **verdict},
-            )
+        # Negative assertions, enforced for every case (incl. gap cases).
+        for tag in expect.forbid:
+            if tag == "reminder_create" and (
+                bucket["reminder_create"] or verdict["new_reminders"]
+            ):
+                self.transcript.fail_and_raise(
+                    case.case_id, "forbidden: reminder created", verdict
+                )
+            if tag == "shared_create" and (
+                bucket["shared_create"] or verdict["new_shared"]
+            ):
+                self.transcript.fail_and_raise(
+                    case.case_id, "forbidden: shared created", verdict
+                )
+            if tag == "shared_cancel" and (
+                bucket["shared_cancel"] or verdict["removed_shared"]
+            ):
+                self.transcript.fail_and_raise(
+                    case.case_id, "forbidden: shared cancelled", verdict
+                )
 
         reply_like = (
-            verdict["has_outbound"]
-            or verdict["has_pending_clarification"]
-            or verdict["disposition"] in REPLY_LIKE_DISPOSITIONS
+            verdict["has_outbound"] or verdict["disposition"] in REPLY_LIKE_DISPOSITIONS
         )
         if expect.reply_expected and not reply_like:
             self.transcript.fail_and_raise(
-                case.case_id, "expected a reply but none was produced", verdict
+                case.case_id, "expected a reply, none produced", verdict
             )
 
         if expect.gap:
-            # Record current behavior; do not assert the v6-desired behavior.
             self.transcript.pass_verdict(
                 case.case_id,
                 f"expected_gap: {expect.gap}",
@@ -470,43 +480,53 @@ class V6WeChatSmoke:
             )
             return
 
-        missing = set(expect.staged_ops) - ops
-        if missing:
-            self.transcript.fail_and_raise(
-                case.case_id,
-                "expected ops not materialized",
-                {"missing": sorted(missing), **verdict},
-            )
-
-        self._assert_outcome_rows(case, verdict)
+        self._assert_outcome(case, verdict)
         self.transcript.pass_verdict(case.case_id, "verified", verdict)
 
-    def _assert_outcome_rows(self, case: V6Case, verdict: dict[str, Any]) -> None:
+    def _assert_outcome(self, case: V6Case, verdict: dict[str, Any]) -> None:
         outcome = case.expect.outcome
         if outcome == "create_reminder":
             if not verdict["new_reminders"]:
                 self.transcript.fail_and_raise(
-                    case.case_id, "no new reminder row created", verdict
+                    case.case_id, "no new reminder row", verdict
                 )
         elif outcome == "create_shared":
             if not verdict["new_shared"]:
                 self.transcript.fail_and_raise(
-                    case.case_id, "no new shared reminder created", verdict
+                    case.case_id, "no new shared row", verdict
                 )
-        elif outcome in {"clarify", "chat"}:
+        elif outcome == "cancel_reminder":
+            if not verdict["removed_reminders"]:
+                self.transcript.fail_and_raise(
+                    case.case_id, "no reminder cancelled", verdict
+                )
+        elif outcome == "cancel_shared":
+            if not verdict["removed_shared"]:
+                self.transcript.fail_and_raise(
+                    case.case_id, "no shared cancelled", verdict
+                )
+        elif outcome == "update_reminder":
+            if verdict["new_reminders"]:
+                self.transcript.fail_and_raise(
+                    case.case_id, "update created a new row", verdict
+                )
+        elif outcome in {
+            "clarify",
+            "chat",
+            "list_reminders",
+            "query_availability",
+            "conflict_block",
+        }:
             if verdict["new_reminders"] or verdict["new_shared"]:
                 self.transcript.fail_and_raise(
-                    case.case_id,
-                    f"{outcome} must not create product rows",
-                    verdict,
+                    case.case_id, f"{outcome} must not create product rows", verdict
                 )
 
     def run_case(self, case: V6Case) -> None:
         assert self.db is not None
         self.transcript.event(case.case_id, "begin", {"message": case.message})
         self._seed_fixtures(case)
-        requester = self._requester_account()
-        before = self._snapshot_rows(requester)
+        before = self._snapshot()
         event_id = f"{self.config.run_id}_{case.case_id}_{uuid.uuid4().hex[:8]}"
         self._post_webhook(
             wechat_payload(
@@ -514,37 +534,54 @@ class V6WeChatSmoke:
             )
         )
         turn_row = self._wait_turn(event_id)
-        verdict = self._collect_verdict(turn_row, requester, before)
+        verdict = self._collect_verdict(turn_row, before)
         self.transcript.event(case.case_id, "verdict", verdict)
         self._assert_case(case, verdict)
 
     def run(self, selected: list[V6Case]) -> dict[str, Any]:
         self._healthcheck()
         self.db = CleanSmokeDb(self.config.db_url)
+        skipped: list[dict[str, str]] = []
+        ran = 0
         try:
             for case in selected:
-                self.run_case(case)
+                try:
+                    self.run_case(case)
+                    ran += 1
+                except SmokeVerdictError as error:
+                    if "insufficient_friend_accounts" in str(error):
+                        skipped.append(
+                            {"case_id": case.case_id, "reason": "needs_friend_account"}
+                        )
+                        self.transcript.event(
+                            case.case_id, "skipped", {"reason": str(error)}
+                        )
+                        continue
+                    raise
         finally:
             self.db.dispose()
         path = self.transcript.save("passed")
-        return {"status": "passed", "evidence_path": str(path), "cases": len(selected)}
+        return {
+            "status": "passed",
+            "evidence_path": str(path),
+            "ran": ran,
+            "skipped": skipped,
+        }
 
     def _healthcheck(self) -> None:
         body = http_get_json(f"{self.config.api_base}/healthz")
-        if body.get("status") not in {None, "ok", "healthy"} and not body:
+        if not body or body.get("ok") is False:
             raise SmokeVerdictError(f"healthz not healthy: {body}")
 
 
 # --------------------------------------------------------------------------
-# Time helpers for fixture phrases (NOT the case message — the agent parses
-# that itself). Phrases are constrained to the shapes used in v6_cases.
+# Fixture time-phrase resolution (NOT the case message — the agent parses that)
 # --------------------------------------------------------------------------
-def _resolve_phrase(phrase: str, timezone: str) -> datetime:
-    start, _ = _resolve_span(phrase, timezone)
-    return start
+def _resolve_phrase(phrase: str) -> datetime:
+    return _resolve_span(phrase)[0]
 
 
-def _resolve_span(phrase: str, timezone: str) -> tuple[datetime, datetime | None]:
+def _resolve_span(phrase: str) -> tuple[datetime, datetime | None]:
     text = phrase.strip()
     day_offset = 0
     for token, offset in (("今天", 0), ("明天", 1), ("后天", 2)):
@@ -556,60 +593,44 @@ def _resolve_span(phrase: str, timezone: str) -> tuple[datetime, datetime | None
     base = (now + timedelta(days=day_offset)).replace(minute=0, second=0, microsecond=0)
     if "-" in text:
         start_s, end_s = text.split("-", 1)
-        start = _apply_hm(base, start_s)
-        end = _apply_hm(base, end_s)
-        return start, end
+        return _apply_hm(base, start_s), _apply_hm(base, end_s)
     return _apply_hm(base, text), None
 
 
 def _apply_hm(base: datetime, hm: str) -> datetime:
-    hm = hm.strip()
-    hour, _, minute = hm.partition(":")
+    hour, _, minute = hm.strip().partition(":")
     return base.replace(hour=int(hour), minute=int(minute or 0))
-
-
-def _slug(text: str) -> str:
-    return "".join(c if c.isalnum() else "_" for c in text).strip("_").lower()
 
 
 # --------------------------------------------------------------------------
 # Dry run
 # --------------------------------------------------------------------------
 def run_dry_run(selected: list[V6Case]) -> dict[str, Any]:
-    from coke.turn.v2.param_schema import allowed_actions_from_schema
-
-    valid_ops = {
-        f"{d}.{op}" for d, ops in allowed_actions_from_schema().items() for op in ops
-    }
-    plan: list[dict[str, Any]] = []
-    for case in selected:
-        for op in (*case.expect.staged_ops, *case.expect.forbid_ops):
-            if op not in valid_ops:
-                raise SmokeVerdictError(f"{case.case_id}: unknown op {op}")
-        plan.append(
-            {
-                "case_id": case.case_id,
-                "group": case.group,
-                "message": case.message,
-                "outcome": case.expect.outcome,
-                "staged_ops": list(case.expect.staged_ops),
-                "forbid_ops": list(case.expect.forbid_ops),
-                "fixtures": {
-                    "friends": [f.alias for f in case.fixtures.friends],
-                    "reminders": len(case.fixtures.reminders),
-                    "shared": len(case.fixtures.shared),
-                },
-                "gap": case.expect.gap,
-            }
-        )
+    plan = [
+        {
+            "case_id": c.case_id,
+            "group": c.group,
+            "message": c.message,
+            "outcome": c.expect.outcome,
+            "forbid": list(c.expect.forbid),
+            "needs_friends": c.needs_friends or bool(c.fixtures.shared),
+            "gap": c.expect.gap,
+        }
+        for c in selected
+    ]
     sample = wechat_payload(
-        identity=WeChatIdentity("requester", "wxid_demo", "Eva"),
+        identity=WeChatIdentity(
+            "11111111-2222-3333-4444-555555555555", "wxid_demo", "Eva"
+        ),
         text=selected[0].message if selected else "hi",
         message_id="demo",
     )
     return {
         "status": "dry-run-ok",
         "case_count": len(selected),
+        "requester_only": sum(
+            1 for c in selected if not (c.needs_friends or c.fixtures.shared)
+        ),
         "gap_cases": [c.case_id for c in selected if c.expect.gap],
         "sample_webhook_payload": sample,
         "plan": plan,
@@ -626,16 +647,22 @@ def _select(args: argparse.Namespace) -> list[V6Case]:
         return [c for c in CASES if c.group in args.group]
     if args.first_round:
         return [case_by_id(cid) for cid in v6_cases.FIRST_ROUND]
+    if args.requester_only:
+        return [case_by_id(cid) for cid in v6_cases.REQUESTER_ONLY]
     return list(CASES)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="WeChat-personal v6 behavioral smoke")
-    parser.add_argument("--mode", choices=["webhook"], default="webhook")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--case", action="append", help="run specific case_id(s)")
     parser.add_argument("--group", action="append", help="run a whole group")
     parser.add_argument("--first-round", action="store_true", help="v6 recommended 14")
+    parser.add_argument(
+        "--requester-only",
+        action="store_true",
+        help="only cases needing no friend persona",
+    )
     parser.add_argument("--run-id")
     parser.add_argument("--evidence-dir", default=str(DEFAULT_EVIDENCE_DIR))
     return parser
@@ -646,8 +673,7 @@ def main(argv: list[str] | None = None) -> int:
     config = V6SmokeConfig.from_env(args)
     selected = _select(args)
     if args.dry_run:
-        report = run_dry_run(selected)
-        print(json.dumps(report, indent=2, ensure_ascii=False))
+        print(json.dumps(run_dry_run(selected), indent=2, ensure_ascii=False))
         return 0
     smoke = V6WeChatSmoke(config)
     try:

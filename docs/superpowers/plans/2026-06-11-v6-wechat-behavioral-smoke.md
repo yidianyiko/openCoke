@@ -94,11 +94,100 @@ We never assert reply wording (eval concern).
 - `pytest tests/unit/coke/smoke/test_v6_wechat_smoke.py` — 12 passing.
 - `python -m scripts.smoke.v6_wechat_smoke --dry-run` — corpus + plan validate.
 
-## Not Yet Done
+## Live Execution Status (2026-06-11)
 
-- **Live run against production is not yet executed** (no smoke creds in the
-  build environment). The live path is correct-by-construction and dry-run
-  clean, but a real `wechat_personal` run must confirm the connector payload
-  field names and the end-to-end verdict before any green claim.
-- A live webhook smoke cannot pin each case's `当前时间`; strongly time-anchored
-  cases are routing-verified, not exact-time-verified.
+PROVEN end-to-end on the real **olivers** WeChat account (manual, one case):
+olivers sent "过10分钟提醒我喝水" → `reminder.execute_batch` materialized →
+reminder `喝水` (timed, next_fire_at +10m, tz Asia/Shanghai) → reply
+"已建好「喝水」提醒，10分钟后提醒你💧" → `delivery_attempt.status='sent'`
+(wechat_personal). The channel + turn pipeline + verdict model all work live.
+
+The remaining 25 cases still need to be run and verified. Hand this to a Codex
+session. **Read `.claude/skills/v6-wechat-smoke/SKILL.md` first** — it is the
+playbook (hard-won facts, account map, recipe, SQL, fixtures). Key facts repeated
+here so the handoff is self-contained.
+
+### CRITICAL execution rule: send ONE message at a time, isolated
+
+The turn pipeline **batches rapid sends from the same account into one turn**
+(observed: 11 quick posts collapsed into turns with input windows like
+`168→178`). That destroys both per-case attribution and per-case behavior (every
+case got the last message's reply). Therefore:
+
+- Send one message, **wait for its turn to complete** before sending the next.
+  Poll the DB until the inbound message's turn has `completed_at IS NOT NULL`
+  and its window is `[seq, seq]` (single message), or just sleep ~18s between
+  sends. Then each case maps cleanly to one turn.
+- Do NOT batch. Do NOT fire-and-forget a loop with <15s spacing.
+
+### Other hard facts (also in the skill)
+
+- Webhook: `POST https://coke.keep4oforever.com/webhooks/wechat/personal`,
+  no secret needed. Body: `{wxid, account_id(DASHLESS hex), message_id, text,
+  sender_name, session_id, context_token}`. `account_id` MUST be dashless
+  (`ae02ff016fcd...`), else `channel_identity_already_bound`.
+- **Use `curl`, not Python urllib** — Cloudflare returns 403 / `error code 1010`
+  for the urllib User-Agent. (If scripting in Python, set a curl/browser UA.)
+- requester = olivers: account `ae02ff01-6fcd-4d39-a189-e51c8c8a31e6`, wxid
+  `o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat`. DB queries use the DASHED account_id.
+- DB is not public; query via
+  `ssh gcp-coke 'sudo docker exec -i coke-clean-postgres-1 psql -U coke -d coke'`.
+
+### Per-case verdict (row-effect is the truth; staged_command is a soft signal)
+
+For each EVID, resolve the turn (`message.causal_inbound_event_id` → the turn
+whose `[input_from_seq,input_to_seq]` covers that inbound seq) and assert per
+`scripts/smoke/v6_cases.py` `expect.outcome`:
+
+- create_reminder → a new active `reminder` row (check `kind`: A=timed,
+  B=recurring; D1 too).
+- create_shared → new active `shared_reminder` row.
+- cancel_reminder / cancel_shared → an active row removed.
+- update_reminder → existing reminder changed, no new row.
+- list / availability / clarify / chat / conflict_block → reply, no new rows.
+- `forbid` tags enforced for every case incl. gaps.
+
+### Execution order
+
+1. **No-fixture, requester-only (11):** A1–A5, B1–B3, D1, F1, F2. Send each as
+   olivers, isolated; verify row effect + kind. (chat_001/chat_002 must create
+   NO reminder.)
+2. **Requester reminders fixtures (D2–D5):** first seed olivers reminders via
+   `POST /api/reminders/batch {owner_account_id:<dashed>, items:[...]}` (运动
+   08:00 60m, etc.), then send the case message isolated and verify
+   list/update/cancel effect.
+3. **Friend cases (C, E):** friend persona = a second paired account
+   (**lizihao** = `635d3bdc-1b02-4a08-acf4-9940b91a9de5`,
+   `o9cq802Y5W-kzfSNDAL4gUrWK_OQ@im.wechat`). Befriend olivers↔lizihao via
+   `GET /api/friends/link?owner_account_id=<olivers dashed>` then
+   `POST /api/friends/join {joiner_account_id:<lizihao dashed>, link_code}`.
+   Remap case aliases ("张三", "Oliver", the two Olivers) onto lizihao — the
+   requester is olivers so a friend cannot also be named olivers; for the
+   C3 two-Oliver ambiguity you need two friend accounts (use lizihao + a
+   synthetic paired account). Seed friend_busy via reminders on the friend, and
+   pre-existing shared via `POST /api/shared-reminders`. Then send isolated.
+   - C2 (王五 non-friend) and E3 (王五) need NO fixture — just send, expect
+     clarify, no shared row.
+
+### Capability gaps — record current behavior, do NOT build features
+
+`reminder_005` (A5 vague time), `calendar_self_create_002` (D3 self-conflict),
+`scheduling_conflict_001` (E4 alt-time suggestion), `scheduling_reschedule_001`
+/`scheduling_reschedule_002` (E5/E6 reschedule). For these, only enforce the
+`forbid` tags and record what actually happened; do not assert the v6-desired
+behavior.
+
+### Cleanup owed (test pollution to undo)
+
+Today's manual/batch attempts created junk on **olivers** (ae02ff01) and the
+synthetic account **6bfe382d** (锅里的汤): the `喝水` reminder and a failed
+rapid-batch run (`RID v6run_20260610T163009Z`) that created batched reminders.
+After verification, cancel future test reminders created on these accounts so
+they do not keep firing real WeChat pushes. Do not delete unmarked user data.
+
+### Caveat
+
+A live webhook smoke runs at real wall-clock time; it cannot pin each case's
+`当前时间`. Assert intent routing + row effect, not exact temporal resolution.
+Strongly time-anchored cases (e.g. D1 "今天8-9" after 09:00) may legitimately
+clarify; treat those as routing-verified.
