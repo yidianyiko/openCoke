@@ -14,7 +14,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       AGNO_TELEMETRY: "false"
       COKE_AGNO_CREATE_SCHEMA: "1"
-      COKE_TURN_PIPELINE: "v1"
+      COKE_TURN_PIPELINE: "v2"
       COKE_PUBLIC_BASE_URL: ${COKE_PUBLIC_BASE_URL:-https://coke.keep4oforever.com}
 
   coke-api:
