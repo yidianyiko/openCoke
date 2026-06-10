@@ -10,12 +10,14 @@ if TYPE_CHECKING:
 
 ALLOWED_ACTIONS: Mapping[str, frozenset[str]] = {
     "calendar_import": frozenset({"import"}),
-    "friendship": frozenset({"add", "get_link", "list", "remove"}),
+    "friendship": frozenset(
+        {"add_via_code", "get_friend_link", "list_friends", "remove_friend"}
+    ),
     "reminder": frozenset(
         {"batch_create", "complete", "create", "delete", "list", "update"}
     ),
     "settings": frozenset(
-        {"set_timezone", "toggle_memory", "toggle_proactive", "update"}
+        {"set_timezone", "toggle_memory", "toggle_proactive", "update_settings"}
     ),
     "social_scheduling": frozenset(
         {
