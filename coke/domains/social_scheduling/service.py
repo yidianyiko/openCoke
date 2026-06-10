@@ -9,6 +9,7 @@ from typing import Any, Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from coke.domains._pg import db_id
 from coke.domains.social_scheduling.availability import (
     FriendAvailability,
     ParticipantReachabilityPort,
@@ -82,6 +83,7 @@ class SocialSchedulingService:
         owner_account_id: str,
         commit_guard: CommitGuard = None,
     ) -> FriendLinkView:
+        owner_account_id = _canon(owner_account_id)
         self._require_usable_channel(owner_account_id, "owner_channel_required")
         existing = self.repository.get_friend_link_by_owner(owner_account_id)
         if existing is not None:
@@ -112,6 +114,7 @@ class SocialSchedulingService:
         owner_account_id: str,
         commit_guard: CommitGuard = None,
     ) -> FriendLinkView:
+        owner_account_id = _canon(owner_account_id)
         self._require_usable_channel(owner_account_id, "owner_channel_required")
         existing = self.repository.get_friend_link_by_owner(owner_account_id)
         if existing is None:
@@ -136,6 +139,7 @@ class SocialSchedulingService:
         owner_account_id: str,
         commit_guard: CommitGuard = None,
     ) -> FriendLinkView:
+        owner_account_id = _canon(owner_account_id)
         existing = self.repository.get_friend_link_by_owner(owner_account_id)
         if existing is None:
             raise SocialSchedulingError("friend_link_not_found")
@@ -156,6 +160,7 @@ class SocialSchedulingService:
         *,
         commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
+        joiner_account_id = _canon(joiner_account_id)
         link = self.repository.get_friend_link_by_token_hash(_hash_token(public_token))
         if link is None:
             raise SocialSchedulingError("friend_link_not_found")
@@ -170,6 +175,7 @@ class SocialSchedulingService:
         *,
         commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
+        joiner_account_id = _canon(joiner_account_id)
         link = self.repository.get_friend_link_by_code_hash(_hash_token(link_code))
         if link is None:
             raise SocialSchedulingError("friend_link_not_found")
@@ -199,6 +205,7 @@ class SocialSchedulingService:
         friend_link_id: str,
         commit_guard: CommitGuard = None,
     ) -> FriendshipResult:
+        joiner_account_id = _canon(joiner_account_id)
         link = self.repository.get_friend_link(friend_link_id)
         if link is None:
             raise SocialSchedulingError("friend_link_not_found")
@@ -210,22 +217,25 @@ class SocialSchedulingService:
         )
 
     def list_friends(self, account_id: str) -> list[FriendListEntry]:
-        return [
-            FriendListEntry(
-                account_id=friendship.other_account_id(account_id),
-                friendship_id=friendship.id,
-                display_name=self.display_name_resolver(
-                    friendship.other_account_id(account_id)
-                ),
+        account_id = _canon(account_id)
+        friends: list[FriendListEntry] = []
+        for friendship in self.repository.list_active_friendships(account_id):
+            friend_account_id = friendship.other_account_id(account_id)
+            friends.append(
+                FriendListEntry(
+                    account_id=friend_account_id,
+                    friendship_id=friendship.id,
+                    display_name=self.display_name_resolver(friend_account_id),
+                )
             )
-            for friendship in self.repository.list_active_friendships(account_id)
-        ]
+        return friends
 
     def resolve_active_friend_reference(
         self,
         account_id: str,
         text: str,
     ) -> FriendResolutionResult:
+        account_id = _canon(account_id)
         normalized_text = _normalize_friend_reference(text)
         if not normalized_text:
             return FriendResolutionResult(status="unmatched")
@@ -262,6 +272,7 @@ class SocialSchedulingService:
         source_input_to_seq: int,
         source_message_ids: tuple[str, ...],
     ) -> RecoverableSchedulingIntent | None:
+        creator_account_id = _canon(creator_account_id)
         blocker_by_status = {
             "blocked_unmatched_friend": "unmatched_friend",
             "blocked_ambiguous_friend": "ambiguous_friend",
@@ -358,6 +369,7 @@ class SocialSchedulingService:
         shared_reminder_id: str,
         viewer_account_id: str,
     ) -> list[str]:
+        viewer_account_id = _canon(viewer_account_id)
         reminder = self.repository.get_shared_reminder(shared_reminder_id)
         if (
             reminder is None
@@ -376,6 +388,8 @@ class SocialSchedulingService:
         friend_account_id: str,
         commit_guard: CommitGuard = None,
     ) -> Friendship:
+        account_id = _canon(account_id)
+        friend_account_id = _canon(friend_account_id)
         friendship = self.repository.get_active_friendship(
             account_id, friend_account_id
         )
@@ -405,6 +419,10 @@ class SocialSchedulingService:
         duration_minutes: int,
         commit_guard: CommitGuard = None,
     ) -> SharedReminderCreateResult:
+        creator_account_id = _canon(creator_account_id)
+        receiver_account_ids = [
+            _canon(account_id) for account_id in receiver_account_ids
+        ]
         local_trigger_at = _as_local_wall_clock(local_trigger_at)
         missing = _first_missing_field(receiver_account_ids, title, local_trigger_at)
         if missing is not None:
@@ -551,6 +569,10 @@ class SocialSchedulingService:
         duration_minutes: int | None,
         commit_guard: CommitGuard = None,
     ) -> SharedReminderCreateResult:
+        creator_account_id = _canon(creator_account_id)
+        receiver_account_ids = [
+            _canon(account_id) for account_id in receiver_account_ids
+        ]
         if self.detector is None:
             raise SocialSchedulingError("detector_unavailable")
         try:
@@ -577,11 +599,13 @@ class SocialSchedulingService:
         )
 
     def list_shared_reminders(self, account_id: str) -> list[SharedReminder]:
+        account_id = _canon(account_id)
         return self.repository.list_shared_reminders_for_participant(account_id)
 
     def view_shared_reminder(
         self, account_id: str, shared_reminder_id: str
     ) -> SharedReminder:
+        account_id = _canon(account_id)
         reminder = self.repository.get_shared_reminder(shared_reminder_id)
         if reminder is None or account_id not in reminder.participant_account_ids:
             raise SocialSchedulingError("shared_reminder_not_found")
@@ -593,6 +617,7 @@ class SocialSchedulingService:
         shared_reminder_id: str,
         commit_guard: CommitGuard = None,
     ) -> SharedReminderCancellationResult:
+        account_id = _canon(account_id)
         reminder = self.view_shared_reminder(account_id, shared_reminder_id)
         projections = self.repository.list_projections(shared_reminder_id)
         if reminder.status == "cancelled":
@@ -643,6 +668,7 @@ class SocialSchedulingService:
         shared_reminder_id: str,
         commit_guard: CommitGuard = None,
     ) -> ReminderProjection:
+        account_id = _canon(account_id)
         self.view_shared_reminder(account_id, shared_reminder_id)
         projection = self.repository.get_projection(shared_reminder_id, account_id)
         if projection is None:
@@ -665,6 +691,8 @@ class SocialSchedulingService:
         local_end: datetime,
         requester_timezone: str,
     ) -> FriendAvailability | list[FriendAvailability]:
+        requester_account_id = _canon(requester_account_id)
+        friend_account_ids = [_canon(account_id) for account_id in friend_account_ids]
         local_start = _as_local_wall_clock(local_start)
         local_end = _as_local_wall_clock(local_end)
         if not friend_account_ids:
@@ -707,6 +735,7 @@ class SocialSchedulingService:
         error_facts: dict,
         turn_id: str | None = None,
     ) -> NotificationRecipient:
+        recipient_account_id = _canon(recipient_account_id)
         recipient = self._notifications.record_delivery(
             notification_fact_id=notification_fact_id,
             recipient_account_id=recipient_account_id,
@@ -720,6 +749,7 @@ class SocialSchedulingService:
     def undelivered_notification_resend_turn(
         self, recipient_account_id: str
     ) -> UndeliveredNotificationResendTurn:
+        recipient_account_id = _canon(recipient_account_id)
         notification_fact_ids: list[str] = []
         for fact in self.repository.list_notification_facts():
             recipient = self.repository.get_notification_recipient(
@@ -1038,6 +1068,10 @@ def _hash_token(value: str) -> str:
 
 def _hash_value(value: str) -> str:
     return canonical_hash(value)
+
+
+def _canon(account_id: str) -> str:
+    return db_id(account_id)
 
 
 def _as_local_wall_clock(value: datetime | None) -> datetime | None:

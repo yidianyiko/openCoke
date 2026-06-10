@@ -99,9 +99,10 @@ class Friendship:
     updated_at: datetime
 
     def other_account_id(self, account_id: str) -> str:
-        if account_id == self.account_low_id:
+        target = account_id.replace("-", "")
+        if target == self.account_low_id.replace("-", ""):
             return self.account_high_id
-        if account_id == self.account_high_id:
+        if target == self.account_high_id.replace("-", ""):
             return self.account_low_id
         raise SocialSchedulingError("friendship_not_found")
 

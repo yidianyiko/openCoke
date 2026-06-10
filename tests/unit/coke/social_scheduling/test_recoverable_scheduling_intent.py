@@ -221,37 +221,37 @@ def test_create_recoverable_intent_from_blocked_unmatched_outcome():
 
 def test_resolve_corrected_friend_text_returns_exact_single_match():
     repo = InMemorySocialSchedulingRepository()
-    _add_friend(repo, "account-1", "friend-oliver")
-    _add_friend(repo, "account-1", "friend-inactive", lifecycle="removed")
+    _add_friend(repo, "account1", "friendoliver")
+    _add_friend(repo, "account1", "friendinactive", lifecycle="removed")
     service = _service(
         repo,
         display_names={
-            "friend-oliver": "Olivers",
-            "friend-inactive": "Olivers",
+            "friendoliver": "Olivers",
+            "friendinactive": "Olivers",
         },
     )
 
-    result = service.resolve_active_friend_reference("account-1", "olivers")
+    result = service.resolve_active_friend_reference("account1", "olivers")
 
     assert result.status == "matched"
-    assert result.matched_account_id == "friend-oliver"
-    assert result.candidates == ("friend-oliver",)
+    assert result.matched_account_id == "friendoliver"
+    assert result.candidates == ("friendoliver",)
 
 
 def test_resolve_corrected_friend_text_reports_ambiguous_matches():
     repo = InMemorySocialSchedulingRepository()
-    _add_friend(repo, "account-1", "friend-oliver-a")
-    _add_friend(repo, "account-1", "friend-oliver-b")
+    _add_friend(repo, "account1", "friendolivera")
+    _add_friend(repo, "account1", "friendoliverb")
     service = _service(
         repo,
         display_names={
-            "friend-oliver-a": "Oliver S",
-            "friend-oliver-b": "Olivers",
+            "friendolivera": "Oliver S",
+            "friendoliverb": "Olivers",
         },
     )
 
-    result = service.resolve_active_friend_reference("account-1", "olivers")
+    result = service.resolve_active_friend_reference("account1", "olivers")
 
     assert result.status == "ambiguous"
     assert result.matched_account_id is None
-    assert result.candidates == ("friend-oliver-a", "friend-oliver-b")
+    assert result.candidates == ("friendolivera", "friendoliverb")

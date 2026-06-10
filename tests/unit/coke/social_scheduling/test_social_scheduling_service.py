@@ -162,6 +162,26 @@ def test_friend_list_entries_include_profile_display_names():
     assert friends[0].display_name == "Alice Push"
 
 
+def test_friend_list_and_reference_resolution_accept_dashed_account_id():
+    creator = "635d3bdc1b024a08acf49940b91a9de5"
+    dashed_creator = "635d3bdc-1b02-4a08-acf4-9940b91a9de5"
+    friend = "ae02ff016fcd4d39a189e51c8c8a31e6"
+    service, _repo, _, _ = make_service({creator, friend})
+    service.display_name_resolver = lambda account_id: {
+        creator: "Creator Name",
+        friend: "Li Zihao",
+    }[account_id]
+    create_active_friendship(service, creator, friend)
+
+    friends = service.list_friends(dashed_creator)
+    resolved = service.resolve_active_friend_reference(dashed_creator, "Li Zihao")
+
+    assert [entry.account_id for entry in friends] == [friend]
+    assert resolved.status == "matched"
+    assert resolved.matched_account_id == friend
+    assert resolved.candidates == (friend,)
+
+
 def test_friend_link_join_creates_active_friendship_without_joiner_channel():
     service, repo, _reachability, _availability = make_service({"owner"})
     service.display_name_resolver = lambda account_id: {
@@ -676,9 +696,7 @@ def test_availability_query_is_authorized_bounded_and_privacy_safe():
 def test_availability_result_includes_public_friend_display_name():
     service, _, _, reminder_availability = make_service({"requester", "friend"})
     create_active_friendship(service, "requester", "friend")
-    service.display_name_resolver = lambda account_id: {"friend": "Oliver"}[
-        account_id
-    ]
+    service.display_name_resolver = lambda account_id: {"friend": "Oliver"}[account_id]
     reminder_availability.intervals["friend"] = []
 
     result = service.query_availability(
