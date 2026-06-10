@@ -348,6 +348,35 @@ output_disposition = Table(
     UniqueConstraint("turn_id", name="uq_output_disposition_turn"),
 )
 
+pending_clarification = Table(
+    "pending_clarification",
+    metadata,
+    _id_column(),
+    Column(
+        "conversation_id",
+        UUID(as_uuid=False),
+        ForeignKey("conversation.id"),
+        nullable=False,
+    ),
+    Column("unresolved_action_fingerprint", String(255), nullable=False),
+    Column("candidates", JSONB(), nullable=False),
+    Column("source_input_from_seq", BigInteger(), nullable=False),
+    Column("source_input_to_seq", BigInteger(), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("consumed_at", DateTime(timezone=True), nullable=True),
+    _created_at(),
+    _updated_at(),
+    CheckConstraint(
+        "status in ('open', 'consumed', 'expired', 'superseded')",
+        name="pending_clarification_status",
+    ),
+    CheckConstraint(
+        "source_input_from_seq <= source_input_to_seq",
+        name="pending_clarification_input_window_order",
+    ),
+)
+
 outbox = Table(
     "outbox",
     metadata,
@@ -736,4 +765,10 @@ Index(
     recoverable_scheduling_intent.c.conversation_id,
     unique=True,
     postgresql_where=recoverable_scheduling_intent.c.status == "open",
+)
+Index(
+    "uq_pending_clarification_one_open_per_conversation",
+    pending_clarification.c.conversation_id,
+    unique=True,
+    postgresql_where=pending_clarification.c.status == "open",
 )
