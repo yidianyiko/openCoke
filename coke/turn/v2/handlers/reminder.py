@@ -9,15 +9,12 @@ from coke.domains.reminder.models import (
     DetectedReminderFields,
     Reminder,
     ReminderBatchItem,
-    ReminderBatchResult,
     ReminderDetectorPort,
     ReminderItemResult,
 )
 from coke.domains.reminder.service import ReminderService
 from coke.turn.v2.contracts import ActionOutcome, CompiledAction
 from coke.turn.v2.staging import json_safe
-
-CommitGuard = Callable[[], None] | None
 
 
 class ReminderActionHandler:
@@ -95,46 +92,19 @@ class ReminderActionHandler:
                 status="missing_trigger_time",
                 data={"field": "trigger_time"},
             )
-        item, payload = self._create_item_from_detected(
+        _item, payload = self._create_item_from_detected(
             params,
             detected,
             item_index=1,
             guard=guard,
         )
-        result = self.reminder_service.execute_batch(
-            owner_account_id=owner,
-            items=[item],
-            commit_guard=_commit_guard(guard),
+        staged_id = _stage_execute_batch(guard, owner, [_staged_create_item(payload)])
+        return ActionOutcome(
+            category="done",
+            status="created",
+            data=_optimistic_batch_data(owner, [payload]),
+            staged_command_id=staged_id,
         )
-        if result.items and result.items[0].reason == "duplicate_reminder":
-            return ActionOutcome(
-                category="done",
-                status="duplicate_active",
-                data=_batch_data(result),
-            )
-        outcome = _created_batch_outcome(result)
-        if outcome.category == "done" and outcome.status == "created":
-            staged_id = _stage_command(
-                guard,
-                operation="create",
-                command_payload={
-                    "operation": "create",
-                    "owner_account_id": owner,
-                    **payload,
-                },
-                preview_facts={
-                    "status": "staged",
-                    "operation": "create",
-                    "owner_account_id": owner,
-                },
-            )
-            return ActionOutcome(
-                category=outcome.category,
-                status=outcome.status,
-                data=outcome.data,
-                staged_command_id=staged_id,
-            )
-        return outcome
 
     def _batch_create(
         self,
@@ -160,42 +130,29 @@ class ReminderActionHandler:
                     data={"item_index": index},
                 )
             item, payload = self._batch_item_from_params(raw_item, index, guard)
+            if item.trigger_time is None or item.time_state == "invalid":
+                return ActionOutcome(
+                    category="needs_input",
+                    status="missing_trigger_time",
+                    data={"field": "trigger_time", "item_index": index},
+                )
             items.append(item)
             payloads.append(payload)
 
-        result = self.reminder_service.execute_batch(
-            owner_account_id=owner,
-            items=items,
-            commit_guard=_commit_guard(guard),
-        )
-        outcome = _batch_create_outcome(result)
-        successful_payloads = [
-            payload
-            for payload, item in zip(payloads, result.items, strict=False)
-            if item.state == "succeeded"
-        ]
-        if successful_payloads:
-            staged_id = _stage_command(
-                guard,
-                operation="execute_batch",
-                command_payload={
-                    "operation": "execute_batch",
-                    "owner_account_id": owner,
-                    "items": successful_payloads,
-                },
-                preview_facts={
-                    "status": "staged",
-                    "operation": "execute_batch",
-                    "owner_account_id": owner,
-                },
-            )
+        if not items:
             return ActionOutcome(
-                category=outcome.category,
-                status=outcome.status,
-                data=outcome.data,
-                staged_command_id=staged_id,
+                category="not_possible",
+                status="empty_batch",
+                data={"owner_account_id": owner, "items": []},
             )
-        return outcome
+
+        staged_id = _stage_execute_batch(guard, owner, payloads)
+        return ActionOutcome(
+            category="done",
+            status="created",
+            data=_optimistic_batch_data(owner, payloads),
+            staged_command_id=staged_id,
+        )
 
     def _keyword_mutation(
         self,
@@ -219,14 +176,9 @@ class ReminderActionHandler:
                     detected.trigger_time,
                     _timezone(params),
                 )
-            result = self.reminder_service.update_reminder_by_keyword(
+            result = self.reminder_service.resolve_user_mutable_keyword(
                 owner_account_id=owner,
                 keyword=match,
-                content=params.get("content"),
-                trigger_time=trigger_time,
-                captured_timezone=params.get("captured_timezone"),
-                duration_minutes=params.get("duration_minutes"),
-                commit_guard=_commit_guard(guard),
             )
             return self._keyword_mutation_outcome(
                 result,
@@ -244,10 +196,9 @@ class ReminderActionHandler:
             )
 
         if operation == "delete":
-            result = self.reminder_service.delete_reminder_by_keyword(
+            result = self.reminder_service.resolve_user_mutable_keyword(
                 owner_account_id=owner,
                 keyword=match,
-                commit_guard=_commit_guard(guard),
             )
             return self._keyword_mutation_outcome(
                 result,
@@ -260,10 +211,9 @@ class ReminderActionHandler:
                 },
             )
 
-        result = self.reminder_service.complete_reminder_by_keyword(
+        result = self.reminder_service.resolve_user_mutable_keyword(
             owner_account_id=owner,
             keyword=match,
-            commit_guard=_commit_guard(guard),
         )
         return self._keyword_mutation_outcome(
             result,
@@ -399,62 +349,6 @@ class ReminderActionHandler:
         return item, {key: value for key, value in payload.items() if value is not None}
 
 
-def _created_batch_outcome(result: ReminderBatchResult) -> ActionOutcome:
-    if not result.items:
-        return ActionOutcome(
-            category="not_possible",
-            status="empty_batch",
-            data=_batch_data(result),
-        )
-    item = result.items[0]
-    if item.state == "succeeded":
-        return ActionOutcome(
-            category="done",
-            status="created",
-            data=_batch_data(result),
-        )
-    return _blocked_create_outcome(item, result)
-
-
-def _batch_create_outcome(result: ReminderBatchResult) -> ActionOutcome:
-    if result.items and all(item.state == "succeeded" for item in result.items):
-        return ActionOutcome(
-            category="done",
-            status="created",
-            data=_batch_data(result),
-        )
-    succeeded = [_item_data(item) for item in result.items if item.state == "succeeded"]
-    failed = [_item_data(item) for item in result.items if item.state != "succeeded"]
-    return ActionOutcome(
-        category="done",
-        status="partial",
-        data={"succeeded": succeeded, "failed": failed},
-    )
-
-
-def _blocked_create_outcome(
-    item: ReminderItemResult,
-    result: ReminderBatchResult,
-) -> ActionOutcome:
-    if item.reason == "duplicate_reminder":
-        return ActionOutcome(
-            category="done",
-            status="duplicate_active",
-            data=_batch_data(result),
-        )
-    if item.state == "needs-follow-up":
-        return ActionOutcome(
-            category="needs_input",
-            status=item.reason or "needs_follow_up",
-            data=_item_data(item),
-        )
-    return ActionOutcome(
-        category="not_possible",
-        status=item.reason or "reminder_create_failed",
-        data=_item_data(item),
-    )
-
-
 def _blocked_keyword_outcome(result: ReminderItemResult) -> ActionOutcome:
     if result.reason == "ambiguous_reminder_reference":
         return ActionOutcome(
@@ -490,13 +384,6 @@ def _blocked_keyword_outcome(result: ReminderItemResult) -> ActionOutcome:
     )
 
 
-def _batch_data(result: ReminderBatchResult) -> dict[str, Any]:
-    return {
-        "owner_account_id": result.owner_account_id,
-        "items": [_item_data(item) for item in result.items],
-    }
-
-
 def _item_data(item: ReminderItemResult) -> dict[str, Any]:
     return {
         "state": item.state,
@@ -522,6 +409,54 @@ def _reminder_fact(reminder: Reminder) -> dict[str, Any]:
         "lifecycle": reminder.lifecycle,
         "hidden_from_calendar": reminder.hidden_from_calendar,
         "shared_reminder_id": reminder.shared_reminder_id,
+    }
+
+
+def _stage_execute_batch(
+    guard: Any,
+    owner: str,
+    items: list[dict[str, Any]],
+) -> str | None:
+    # Duplicate detection is intentionally deferred to the close materializer;
+    # execute-time handlers only build and stage the command.
+    return _stage_command(
+        guard,
+        operation="execute_batch",
+        command_payload={
+            "operation": "execute_batch",
+            "owner_account_id": owner,
+            "items": items,
+        },
+        preview_facts={
+            "status": "staged",
+            "operation": "execute_batch",
+            "owner_account_id": owner,
+        },
+    )
+
+
+def _staged_create_item(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {"operation": "create", **dict(payload)}
+
+
+def _optimistic_batch_data(
+    owner: str,
+    payloads: list[Mapping[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "owner_account_id": owner,
+        "items": [
+            {
+                "state": "succeeded",
+                "reminder_id": None,
+                "reason": None,
+                "time_state": None,
+                "fact": json_safe(
+                    {key: value for key, value in payload.items() if key != "operation"}
+                ),
+            }
+            for payload in payloads
+        ],
     }
 
 
@@ -618,11 +553,6 @@ def _kind_filter(params: Mapping[str, Any]) -> str | None:
     if value is None or value == "all":
         return None
     return str(value)
-
-
-def _commit_guard(guard: Any) -> CommitGuard:
-    value = getattr(guard, "guard_state_change", None)
-    return value if callable(value) else None
 
 
 def _turn_id(guard: Any) -> str | None:

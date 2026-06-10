@@ -59,6 +59,19 @@ def service(repository) -> ReminderService:
     )
 
 
+def _active_reminder_snapshot(service):
+    return [
+        (
+            reminder.id,
+            reminder.content,
+            reminder.kind,
+            reminder.next_fire_at,
+            reminder.lifecycle,
+        )
+        for reminder in service.repository.list_active_reminders("acct_1")
+    ]
+
+
 def test_timed_and_no_trigger_create_use_owner_timezone_and_default_duration(service):
     timed_at = NOW + timedelta(hours=1)
 
@@ -255,6 +268,129 @@ def test_filter_reminders_keyword_matches_bidirectionally(service):
     assert [r.content for r in by_core] == ["跑步"]
     # delete-by-keyword resolves the same single match either way
     assert service.delete_reminder_by_keyword("acct_1", "跑步提醒").state == "succeeded"
+
+
+def test_resolve_user_mutable_keyword_returns_single_match_without_mutating(service):
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="buy milk",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+    snapshot = _active_reminder_snapshot(service)
+    outbox_count = len(service.repository.outbox_records)
+
+    result = service.resolve_user_mutable_keyword(
+        owner_account_id="acct_1",
+        keyword="rent",
+    )
+
+    assert result.state == "succeeded"
+    assert result.reminder_id == created.items[0].reminder_id
+    assert result.fact["match_count"] == 1
+    assert _active_reminder_snapshot(service) == snapshot
+    assert len(service.repository.outbox_records) == outbox_count
+
+
+def test_resolve_user_mutable_keyword_reports_ambiguous_without_mutating(service):
+    service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="call mom",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="call dentist",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+    snapshot = _active_reminder_snapshot(service)
+    outbox_count = len(service.repository.outbox_records)
+
+    result = service.resolve_user_mutable_keyword(
+        owner_account_id="acct_1",
+        keyword="call",
+    )
+
+    assert result.state == "needs-follow-up"
+    assert result.reason == "ambiguous_reminder_reference"
+    assert result.fact["match_count"] == 2
+    assert [candidate["content"] for candidate in result.fact["candidates"]] == [
+        "call mom",
+        "call dentist",
+    ]
+    assert _active_reminder_snapshot(service) == snapshot
+    assert len(service.repository.outbox_records) == outbox_count
+
+
+def test_resolve_user_mutable_keyword_reports_missing_match_without_mutating(service):
+    service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            )
+        ],
+    )
+    snapshot = _active_reminder_snapshot(service)
+    outbox_count = len(service.repository.outbox_records)
+
+    result = service.resolve_user_mutable_keyword(
+        owner_account_id="acct_1",
+        keyword="dentist",
+    )
+
+    assert result.state == "needs-follow-up"
+    assert result.reason == "no_matching_reminder"
+    assert result.fact == {"match_count": 0}
+    assert _active_reminder_snapshot(service) == snapshot
+    assert len(service.repository.outbox_records) == outbox_count
+
+
+def test_resolve_user_mutable_keyword_requires_keyword_without_mutating(service):
+    service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            )
+        ],
+    )
+    snapshot = _active_reminder_snapshot(service)
+    outbox_count = len(service.repository.outbox_records)
+
+    result = service.resolve_user_mutable_keyword(
+        owner_account_id="acct_1",
+        keyword=" ",
+    )
+
+    assert result.state == "needs-follow-up"
+    assert result.reason == "keyword_required"
+    assert _active_reminder_snapshot(service) == snapshot
+    assert len(service.repository.outbox_records) == outbox_count
 
 
 def test_complete_reminder_by_keyword_mutates_single_unambiguous_match(service):
