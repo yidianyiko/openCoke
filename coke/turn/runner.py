@@ -955,8 +955,7 @@ class TurnRunner:
             conversation_history=self._v2_conversation_window(
                 trigger.conversation_id,
                 current_turn_id=start.turn.id,
-            )
-            or _v2_conversation_history(start.input_messages),
+            ),
             persona=_v2_persona(trusted_facts),
             assistant_name=str(trusted_facts.get("assistant_name") or "Coke"),
             user_address_name=str(trusted_facts.get("user_address_name") or ""),
@@ -2328,31 +2327,6 @@ def _causal_ids_from_input_messages(
     return latest, tuple(
         causal_id for causal_id in causal_ids[:-1] if causal_id != latest
     )
-
-
-def _v2_conversation_history(
-    messages: tuple[Any, ...],
-) -> tuple[Mapping[str, Any], ...]:
-    history: list[Mapping[str, Any]] = []
-    for message in messages:
-        text = getattr(message, "text", None)
-        if not isinstance(text, str) or not text:
-            continue
-        direction = str(getattr(message, "direction", "inbound"))
-        item: dict[str, Any] = {
-            "role": "assistant" if direction == "outbound" else "user",
-            "content": text,
-        }
-        seq = getattr(message, "seq", None)
-        if isinstance(seq, int):
-            item["seq"] = seq
-        message_id = getattr(message, "id", None) or getattr(
-            message, "message_id", None
-        )
-        if isinstance(message_id, str) and message_id:
-            item["message_id"] = message_id
-        history.append(item)
-    return tuple(history)
 
 
 def _v2_persona(trusted_facts: Mapping[str, Any]) -> str:

@@ -72,6 +72,37 @@ turns, and instruct it to resolve follow-ups against that window.
 - Pass 1 does NOT add deterministic resume; blocked/partial-resume reliability is
   measured by a follow-up eval and, if still flaky, addressed in Pass 2.
 
+## Design review (2026-06-10): two-consultant synthesis + a key correction
+
+Two independent Codex design passes (reliability lens + minimalism lens) plus code
+inspection converged and corrected the original framing:
+
+- **Unanimous:** history source = our own bounded window from the message store
+  (`recent_turns_with_messages`), NOT Agno session history. Agno is the wrong
+  boundary for a raw-JSON planner and its storage is noisy (prompts, tool events,
+  raw `{"type":"reply",...}` segments).
+- **Critical correction:** the planner currently receives NO conversation history at
+  all. `_plan_request()` builds `PlanRequest` without `conversation_history`, and
+  `SiliconFlowPlanner.plan()` omits it from the `complete_json` user payload — only
+  Express gets it. The first true fix is wiring the window THROUGH to the planner
+  payload (PlanRequest field + pipeline `_plan_request` + plan.py user dict).
+- **Evidence caveat:** the earlier "reconstruction is non-deterministic" finding was
+  CONFOUNDED — the planner never had the history; the apparent "eva reconstruction"
+  was the model parroting an eva example baked into the test prompt. So whether
+  window+prompt alone suffices is UNPROVEN and must be measured AFTER the wire is in.
+- **Both consultants expect** a typed continuation hint (structured carry-forward of
+  the immediately-prior request + the assistant's obligation, with a runtime merge
+  that rejects domain/operation drift) may be needed for reliability. Reliability lens
+  (A) persists it at close (`close.py`/`commit_reply`/message payload); minimalism
+  lens (B) derives it non-persistently at request build. This hint is "Pass 2-lite".
+
+**Decision (sequenced, evidence-gated):** First land the FOUNDATION — wire the bounded
+window into the planner + the follow-up prompt rule (neutral, no leaking examples) —
+then EMPIRICALLY re-test the eva reschedule (and simpler follow-ups) with the history
+actually reaching the planner. If reconstruction is reliable, that is the complete
+Pass 1. If it still flaps, add the typed continuation hint (preferring A's
+persisted-at-close form) and note it crosses into the deferred structured-resume work.
+
 ## Pass 2 (deferred): structured resumable pending action
 
 Generalize `PendingClarification` to persist the full proposed action (domain,

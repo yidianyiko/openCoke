@@ -20,8 +20,9 @@ from coke.turn.v2.pipeline import (
     SegmentDeliveryPort,
     TurnPipeline,
     TurnPipelineRequest,
+    _plan_request,
 )
-from coke.turn.v2.plan import PlanRequest
+from coke.turn.v2.plan import PlanRequest, SiliconFlowPlanner
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +46,27 @@ class StaticPlanner:
         self.events.append("plan")
         self.requests.append(request)
         return self.plan_to_return
+
+
+class RecordingJSONClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_json(
+        self,
+        *,
+        system: str,
+        user: dict,
+        schema_name: str,
+    ) -> Mapping[str, Any]:
+        self.calls.append(
+            {
+                "system": system,
+                "user": user,
+                "schema_name": schema_name,
+            }
+        )
+        return {"actions": [], "reply_necessity": "reply_needed"}
 
 
 class StaticHandler:
@@ -143,6 +165,35 @@ class RecordingClosePort:
             if materialize_staged_command is not None:
                 materialize_staged_command(command)
         return FakeDisposition(disposition="no_reply", reason_code=reason_code)
+
+
+def test_plan_request_and_planner_payload_preserve_conversation_history() -> None:
+    history = (
+        {
+            "role": "user",
+            "content": "和朋友约明晚八点吃饭",
+            "seq": 1,
+        },
+        {"role": "assistant", "content": "她那边有冲突，要不换个时间？"},
+    )
+    request = _pipeline_request(conversation_history=history)
+
+    plan_request = _plan_request(request, None)
+
+    assert plan_request.conversation_history == history
+
+    client = RecordingJSONClient()
+    SiliconFlowPlanner(client).plan(plan_request)
+
+    assert client.calls[0]["schema_name"] == "turn_plan"
+    assert client.calls[0]["user"]["conversation_history"] == [
+        {
+            "role": "user",
+            "content": "和朋友约明晚八点吃饭",
+            "seq": 1,
+        },
+        {"role": "assistant", "content": "她那边有冲突，要不换个时间？"},
+    ]
 
 
 @pytest.mark.asyncio
@@ -462,6 +513,9 @@ def _pipeline_request(
     now: datetime | None = None,
     source_input_window: tuple[int, int] = (1, 1),
     pending_expires_at: datetime | None = None,
+    conversation_history: Sequence[Mapping[str, Any]] = (
+        {"role": "user", "content": "hello"},
+    ),
 ) -> TurnPipelineRequest:
     if now is None:
         now = datetime(2026, 6, 10, 12, 0, tzinfo=UTC)
@@ -473,7 +527,7 @@ def _pipeline_request(
         conversation_id="conversation-1",
         payload={"text": "hello"},
         trusted_facts={"timezone": "Asia/Tokyo"},
-        conversation_history=({"role": "user", "content": "hello"},),
+        conversation_history=conversation_history,
         persona="concise",
         source_input_window=source_input_window,
         pending_expires_at=pending_expires_at,

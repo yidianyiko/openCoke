@@ -522,6 +522,7 @@ def test_inbound_turn_with_v2_flag_invokes_pipeline(harness, monkeypatch):
     assert request.account_id == "account_1"
     assert request.conversation_id == harness["trigger"].conversation_id
     assert request.payload == {"text": "hello"}
+    assert request.conversation_history == ()
     assert request.source_input_window == (1, 1)
     assert guard is not None
     assert delivery is not None

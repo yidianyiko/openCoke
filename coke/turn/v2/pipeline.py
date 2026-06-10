@@ -189,6 +189,7 @@ def _plan_request(
         conversation_id=request.conversation_id,
         payload=request.payload,
         trusted_facts=trusted_facts,
+        conversation_history=request.conversation_history,
         focus_subject=request.focus_subject,
     )
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Mapping, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from coke.turn.v2.contracts import ProposedAction, ReplyNecessity, TurnPlan
 from coke.turn.v2.param_schema import (
@@ -53,6 +54,7 @@ class PlanRequest:
     conversation_id: str
     payload: Mapping[str, Any]
     trusted_facts: Mapping[str, Any]
+    conversation_history: Sequence[Mapping[str, Any]] = ()
     focus_subject: Any | None = None
 
 
@@ -98,6 +100,9 @@ class SiliconFlowPlanner:
                 "account_id": request.account_id,
                 "conversation_id": request.conversation_id,
                 "payload": dict(request.payload),
+                "conversation_history": [
+                    dict(m) for m in request.conversation_history
+                ],
                 "trusted_facts": dict(request.trusted_facts),
                 "focus_subject": _focus_subject_payload(request.focus_subject),
                 "allowed_actions": _allowed_actions_payload(self.allowed_actions),
