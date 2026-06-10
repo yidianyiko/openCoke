@@ -2,11 +2,13 @@
 
 ## Status
 
-design-ready, re-review pending (2026-06-10). Revised after two independent design
-reviews (correctness-regression lens and architecture-purity lens) that both
-returned "not ready for an implementation plan", then refined through a full
-decision pass with the user. All previously open questions are now decided (see
-"Resolved Design Decisions"). Pending a second dual review before implementation.
+design-ready (2026-06-10). Through **two** dual-review rounds (correctness-
+regression + architecture-purity lenses) and a decision pass with the user. The
+Plan→Execute→Express spine is endorsed; the second round's concrete findings —
+typed outcomes too coarse, partial-overstate false-success, history-only recovery
+not durable, partial-close transaction, streaming classification, inbound/render
+split, concrete data contracts — are all incorporated (see "Resolved Design
+Decisions"). Ready for an implementation plan.
 
 Supersedes the fast-path direction in
 `docs/superpowers/specs/2026-06-09-agent-flow-time-optimization-design.md`. Clean
@@ -18,7 +20,13 @@ wholesale.
 
 This design replaces the **inbound interactive turn** path only. Notification and
 render turns (non-inbound, with their own segment-merge behavior) are out of
-scope here and are not changed by this work.
+scope and unchanged. Concretely: the **render-mode agent code and the
+notification/render output path stay**. Where this spec deletes Interaction-Agent
+or output-protocol pieces, the deletion is scoped to the inbound interactive
+path; any piece shared with render/notification turns is split (a narrowed inbound
+Express vs the retained render-mode agent), never removed out from under the
+non-inbound surfaces. The implementation plan must carry an explicit inbound-only
+boundary so notification/render turns are provably untouched.
 
 ## Problem
 
@@ -99,19 +107,27 @@ This design adopts that contract uniformly:
 
 - Plan emits actions with **keyword / natural-reference params**, never invented
   IDs. ("delete my gym reminder" → `reminder.delete {match: "gym"}`.)
-- The **domain service owns resolution** and returns a **typed outcome** from one
-  small universal vocabulary (the data payload is domain-specific):
+- The **domain service owns resolution** and returns a **typed outcome**. Each
+  outcome has a universal `category` AND a **mandatory domain `status`** (the
+  fine-grained truth Express must not lose), plus a domain data payload:
 
-  | typed outcome | meaning | payload |
+  | category | meaning | required domain `status` examples |
   | --- | --- | --- |
-  | `done` | the action succeeded | `facts` — what happened (created X, the list, counts) |
-  | `needs_choice` | ambiguous; the user must pick | `candidates` |
-  | `needs_input` | a required field is missing | `missing` (e.g. trigger time) |
-  | `not_possible` | cannot be done | `reason` (not a friend, unreachable, duplicate, unsupported) |
+  | `done` | the action settled with effect | `created`, `updated`, `cancelled`, `listed`, `partial{succeeded, failed}`, `already_done`/`duplicate_active`, `imported{imported, skipped, downgraded, failed}` |
+  | `needs_choice` | ambiguous; the user must pick | candidates + which field is ambiguous |
+  | `needs_input` | a required field is missing | which field (`trigger_time`, `content`, …) |
+  | `needs_confirmation` | resolvable but risky (past/incomplete date, etc.) | what to confirm |
+  | `not_possible` | cannot be done | `not_a_friend`, `unreachable`, `unsupported`, `already_cancelled`, … |
   | `nothing` | no-op | — |
 
-- When the outcome is `needs_choice` / `needs_input`, **interact with the user** —
-  asking is a first-class, expected outcome.
+  The universal `category` keeps Express's rendering uniform; the mandatory
+  `status` carries the domain truth (partial counts, duplicate-vs-created,
+  already-cancelled) so Express **cannot lose it to a coarse "done"**. The
+  per-domain `ActionHandler` produces the correct `status` — this is the
+  deterministic, exhaustively-tested surface.
+
+- When the category is `needs_choice` / `needs_input` / `needs_confirmation`,
+  **interact with the user** — asking is a first-class, expected outcome.
 
 There is **no separate `response_obligation` concept and no `ObligationResolver`
 unit.** The typed outcome IS the deterministic, testable contract, and it is
@@ -126,24 +142,33 @@ Within-turn reference resolution that is DB-backed (resolving a friend name or a
 focus/reference to a concrete row) stays **runtime-owned inside the domain
 services / Execute**, not folded into Plan's prompt.
 
-### No Persisted Recovery State
+### Lightweight Pending-Clarification Record (not command recovery)
 
-Cross-turn correction ("I meant 老王张", or answering "which gym reminder?") needs
-**no persisted recoverable-intent record, no facts hash, and no `follow_up_action`
-signal.** A blocked or ambiguous action never mutates, so there is no half-done
-state to recover — only an unresolved conversational thread, which is already in
-Plan's windowed history. Plan reconstructs the deferred or remaining action from
-that history and re-proposes it as a normal action; Execute runs it normally.
+We delete the **recoverable-*command* subsystem** — there is no half-done mutation
+to recover, because a blocked/ambiguous action never mutates. The
+`RecoverableSchedulingIntent` model with its open/consumed/expired/superseded
+command lifecycle, the `follow_up_action` interpreter field, and the
+mutation-recovery semantics all go.
 
-This deletes a whole subsystem that existed only to compensate for the narrow
-classifier: the `RecoverableSchedulingIntent` model and its open/consumed/
-expired/superseded lifecycle, its 15-minute expiry, the repository/service
-methods, and the interpreter `follow_up_action` field. The guarantees they
-provided are covered elsewhere: double-completion by inbound idempotency + domain
-duplicate-active guards + Plan reading "already done" from history; staleness by
-history windowing + turn supersede; and "no durable alias learning" is automatic
-because nothing is persisted. The only requirement is that the unresolved turn is
-within Plan's history window, which always holds for an immediate clarification.
+But review showed that relying on conversation history alone to recover "which
+one?" is **not** safe: the next inbound carries only the new message, and the
+prior assistant clarification + its candidates live in Agno/window-dependent
+history, which is not a durable product invariant. So we **keep one narrow,
+non-mutating record**: a `PendingClarification` capturing the unresolved action,
+its **structured candidates**, the source input window, an action fingerprint,
+an expiry, and consume-on-resolve. It is **not** a staged command and mutates
+nothing.
+
+Next turn: Execute reads any open `PendingClarification` for the conversation;
+Plan proposes the resolving action (e.g. picks a candidate or supplies the
+correction); Execute matches it to the record by fingerprint, completes the
+deferred action, and consumes the record. Lapses on expiry or supersede;
+double-completion is additionally guarded by inbound idempotency + domain
+duplicate-active checks; no durable alias is learned (the record is one-shot).
+
+This is far smaller than the old subsystem (no command state, no materialization
+recovery) but keeps the **structured candidates** that "which one?" genuinely
+needs — the part that cannot be reconstructed from prose.
 
 ## Multi-Action Turns: Flat List, No Conditional Plan
 
@@ -174,11 +199,10 @@ aggregates**:
 - Ambiguous/blocked actions do **not** mutate; each contributes its outcome to a
   combined reply (e.g. "moved the meeting to 10:00; you have two reminders
   matching 'gym' — which one?").
-- An unresolved action is simply asked about. The user's next-turn answer is
-  reconstructed by **Plan from windowed conversation history** — there is no
-  persisted "recoverable intent". Because a blocked action never mutated, there
-  is no state to recover; only the conversational thread, which Plan already
-  reads. (See "No Persisted Recovery State".)
+- An unresolved action records a non-mutating `PendingClarification` with its
+  **structured candidates** (see "Lightweight Pending-Clarification Record"); the
+  next turn resolves it deterministically. No staged command, no mutation
+  recovery.
 - Disposition is `replied` (the turn did reply); the resolved actions' staged
   commands materialize, the unresolved one's do not. Close materialization stays
   atomic **per resolved action set**; nothing about an ambiguous action is
@@ -244,40 +268,81 @@ formatting.
   and converse; lists are rendered by the same model from the prompt ("list every
   item with its time"), **not** a deterministic template — the template was a
   crutch for the overloaded agent and the focused Express does not need it.
+- **Must render the domain `status`, including partials.** Express is told to
+  state the mandatory `status` faithfully: a `done.partial{succeeded, failed}`
+  must be reported as partial (state the failures), a `duplicate_active` must not
+  be reported as a fresh create, an `already_cancelled` must not be reported as a
+  cancel. The explicit `status` (not coarse `done`) is what makes this possible.
 - **No downstream claim/coverage verifier.** The no-false-success guarantee is
   **structural, not a second-layer check**: Express only ever describes a
   `settled_outcome` produced by Execute, so it cannot claim a state change Execute
   did not perform short of hallucinating its own input. Legacy lied because its
   agent claimed success *as it decided to act*; the Plan/Execute/Express split
   removes that root cause. If smoke ever shows Express asserting an outcome not in
-  `settled_outcome`, the fix is **upstream** (Execute outcome fidelity, Express
-  prompt), not a downstream verifier.
+  `settled_outcome` (e.g. overstating a `partial` as full), the fix is **upstream**
+  (sharper `status`, Express prompt), not a downstream verifier.
 
 > Deliberate override (2026-06-10): both design reviews recommended a
-> settled-outcome-bound Express verifier. That recommendation was rooted in the
-> overloaded-agent behavior this rebuild deletes. We consciously rely on the
-> structural guarantee instead and fix upstream if violated; revisit only if
-> production smoke shows hallucinated success.
+> settled-outcome-bound Express verifier, and the re-review specifically warned
+> that the structural argument does not cover **partial** overstatement. We
+> consciously rely on the mandatory explicit `status` + Express prompt + smoke
+> instead of a verifier, and fix upstream if violated. Residual risk (Express
+> softening a partial) is watched in smoke; revisit a minimal partial-claim guard
+> only if production shows it.
+
+## Data Contracts
+
+The implementation plan defines exact fields; the spine is these typed units (so
+no boundary is "guessed"):
+
+- `TurnPlan` — `{ actions: list[ProposedAction], reply_necessity }`. Plan output.
+- `ProposedAction` — `{ domain, operation, params (keyword/natural refs) }`.
+- `CompiledAction` — PlanCompile output: a validated `ProposedAction` or a
+  `needs_input` mark. No resolution yet (resolution is the service's job).
+- `ActionOutcome` — per action: `{ category, status (mandatory domain status),
+  data, staged_command_id? }`. Produced by the per-domain `ActionHandler`.
+- `SettledOutcome` — `{ outcomes: list[ActionOutcome] }` for the turn. Express
+  input.
+- `PendingClarification` — `{ unresolved_action_fingerprint, candidates,
+  source_input_window, expires_at, status }`. Non-mutating; not a staged command.
+- `MaterializationPlan` — the selected staged-command ids `CloseCoordinator.commit`
+  materializes atomically.
+
+Each per-domain `ActionHandler` owns its domain operation/param schema, its
+resolution (keyword/selector → row), its detector use for extraction, and
+producing the normalized `ActionOutcome` (`category` + mandatory `status`).
+PlanCompile stays generic (enum/required-param validation only).
 
 ## Close Boundary And Streaming (made explicit)
 
-The earlier claim "streaming is structurally safe because Execute settles first"
-was over-stated; the close/materialization order must be exact. The contract:
+The close/materialization order must be exact, and the streaming rule must be
+mechanical (no "classify the prose as descriptive vs success"). The contract:
 
-1. Actions run; domain services resolve and produce typed outcomes; staged
-   commands are staged under `Freshness/StagingGuard`.
+1. **Resolve then stage.** Each `ActionHandler` resolves its action against the
+   domain service (keyword/selector → concrete target) and stages **only the
+   concrete, materializable command** with stable facts (`resolve_and_stage`, not
+   the current stage-then-resolve order). Ambiguous/blocked actions produce a
+   typed outcome and stage nothing.
 2. `ExecutionOutcomeBuilder` assembles `settled_outcome`; Express generates
-   segments from it (no downstream verifier).
-3. **Only after** segments exist and a final freshness/supersede check passes does
-   `CloseCoordinator` **materialize** staged commands, set the disposition, and
-   advance `last_closed_inbound_seq` — atomically, as today.
-4. **Streaming rule:** Express may stream **descriptive** segments derived from a
-   settled-or-staged outcome, but a **success claim for a state change** must use
-   wording valid at staging time and is only delivered as final after
-   materialization in step 3. A newer inbound or freshness failure before step 3
-   supersedes the turn: nothing materializes and no success is delivered. This
-   preserves the clean invariant (no materialization before close) while still
-   cutting time-to-first-token for the descriptive/conversational portion.
+   segments from it.
+3. **CloseCoordinator.commit** takes the plan, the rendered segments, and the
+   **selected staged-command ids** (only the resolved actions), rechecks freshness
+   / supersede, **materializes those commands atomically**, sets the disposition,
+   advances `last_closed_inbound_seq`, and records the non-mutating
+   `PendingClarification` for any unresolved action. Materialization failure of
+   one command fails that command's outcome (reported as `not_possible`/error),
+   without falsely reporting it as done. Nothing about an ambiguous action is
+   committed.
+4. **Streaming rule (mechanical, not prose classification):**
+   - A **no-action / read-only / converse** turn (no staged command) may stream
+     segments before close — these cannot assert a state change.
+   - A **mutating** turn (any staged command) **buffers all segments until after
+     step 3 commit**, then delivers. No state-change segment is ever delivered
+     before its materialization. This trades the streaming latency win on
+     mutating turns for a guarantee that needs no prose inspection; the latency
+     win remains on chat and list/read turns (the high-frequency cases).
+   - A newer inbound or freshness failure before step 3 supersedes the turn:
+     nothing materializes and nothing buffered is delivered.
 
 `pending_async_reply` remains visibility-only: it does not materialize, set
 `completed_at`, or advance the close sequence.
@@ -314,10 +379,10 @@ eval does not pass, the detector simply stays.
 - the Interaction Agent's tool profile, tool-calling loop, and orchestration;
 - the standalone `SemanticInterpreter` classify step (promoted into Plan);
 - the bolted-on streaming consumption / eligibility wiring in `runner.py`;
-- the **persisted recoverable-scheduling-intent subsystem** (model + lifecycle +
-  expiry + repository/service methods) and the interpreter `follow_up_action`
-  field — cross-turn correction is reconstructed by Plan from history (see "No
-  Persisted Recovery State").
+- the recoverable-*command* part of the `RecoverableSchedulingIntent` subsystem
+  (the staged-command/materialization-recovery lifecycle) and the interpreter
+  `follow_up_action` field — replaced by a much smaller non-mutating
+  `PendingClarification` record (see "Lightweight Pending-Clarification Record").
 
 The detector is **not** deleted — it is relocated into Execute as an extraction
 step (see Detector).
@@ -348,14 +413,19 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 
 - **Plan extraction parity** if/when the detector is folded in — gated on eval,
   not assumed.
-- **Typed-outcome coverage** — every domain action must return one of the
-  universal typed outcomes; an unexpected/edge case must return `not_possible`
-  (fail closed, explain), never a `done` it did not achieve. The typed-outcome
-  contract is the deterministic, exhaustively-tested surface (at the service
-  boundary).
+- **Typed-outcome coverage** — every domain action must return a `category` +
+  mandatory `status`; an edge case must return `not_possible` (fail closed),
+  never a `done` it did not achieve, and a partial must be `done.partial`, never
+  bare `done`. This contract is the deterministic, exhaustively-tested surface.
+- **Partial overstatement** — the residual false-success class (Express softening
+  a `partial`). Mitigated by the explicit `status` + prompt; watched in smoke;
+  fixed upstream. No downstream verifier by decision (recorded override).
 - **settled_outcome fidelity** — must preserve model-visible-vs-internal pruning
   (shared reminders) and full counts (calendar import) or Express will
   under-report.
+- **PendingClarification correctness** — the structured record must resolve the
+  right deferred action (fingerprint), expire/lapse cleanly, and never
+  double-complete.
 - **Plan must propose correct multi-action sets**; a set it cannot form becomes a
   clarification (`needs_input`), the same shape — never a second path.
 
@@ -369,16 +439,20 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
   no-trigger, missing-time follow-up, new-topic, and shared-reminder extraction;
   false concrete time and missed clarification are zero-tolerance.
 - **Typed-outcome tests** (at the service boundary): each domain action returns
-  the right typed outcome for done/needs_choice/needs_input/not_possible/nothing,
-  including ambiguous/not_found/duplicate/unreachable; edge cases → `not_possible`,
-  never a false `done`.
-- **Close-boundary tests**: stage → verify → materialize → disposition →
-  close-advance ordering; supersede before materialize delivers nothing and
-  mutates nothing; `pending_async_reply` non-closing.
-- **Express tests**: renders from `settled_outcome` only;
-  streaming delivers complete segments. Smoke watches for any hallucinated
-  success not in `settled_outcome` — if seen, fix upstream (no downstream
-  verifier by decision).
+  the right `category` + `status`, including ambiguous/not_found/duplicate_active/
+  already_cancelled/unreachable/partial/needs_confirmation; edge → `not_possible`,
+  partial → `done.partial`, never a false bare `done`.
+- **Close-boundary tests**: resolve_and_stage → render → selective materialize →
+  disposition → close-advance; multi-action partial close materializes only the
+  resolved commands; supersede before materialize delivers/mutates nothing;
+  `pending_async_reply` non-closing.
+- **Streaming tests**: mutating turns buffer until after commit; non-mutating
+  (chat/list/read) turns stream; no state-change segment delivered before its
+  materialization.
+- **PendingClarification tests**: structured candidates persist; next-turn
+  resolution by fingerprint; expiry/lapse; no double-complete.
+- **Express tests**: renders `category` + `status` from `settled_outcome` only,
+  including partial-as-partial; streaming delivers complete segments.
 - **Real-account smoke** on the deployed rebuild for greeting, list, create,
   update, cancel, ambiguous-delete, shared-reminder, calendar-import,
   multi-action, clarification — reading new telemetry phases (`turn.plan`,
@@ -388,25 +462,38 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 
 ## Resolved Design Decisions (2026-06-10)
 
-All open questions are decided; the spec is ready for re-review.
+Decided across two dual-review rounds and a decision pass with the user.
 
 - **Flat action list, no `depends_on`** — dependencies collapse into
   service-resolved selectors or clarification; multi-action turns use
   **run-all + aggregate** with per-action staging (see "Multi-Action Turns").
-- **No persisted cross-turn recovery state** — the recoverable-scheduling-intent
-  subsystem, facts hash, and `follow_up_action` are deleted; Plan reconstructs a
-  deferred/remaining action from windowed history (see "No Persisted Recovery
-  State").
-- **One Express model, no downstream verifier** — one capable model renders list
-  and converse from the prompt; no list template; no-false-success is structural
-  (see Express role).
-- **Universal typed-outcome vocabulary, no `response_obligation`/ObligationResolver**
-  — domain services return `done`/`needs_choice`/`needs_input`/`not_possible`/
-  `nothing` (domain data attached); `settled_outcome` is the per-action list;
-  Express renders it (see Service-Side Resolution).
-- **Detector stays long-term as an Execute extraction step** — not a brain, not
-  duplication; folding it into Plan is an optional measured latency optimization
-  gated on a parity eval, not a goal (see Detector).
+- **Lightweight `PendingClarification`, not command recovery** — the
+  recoverable-*command* subsystem and `follow_up_action` are deleted, but a small
+  non-mutating record keeps the **structured candidates** "which one?" needs
+  (history is not a durable invariant). See "Lightweight Pending-Clarification
+  Record".
+- **One Express model, no downstream verifier — but explicit `status`** — one
+  capable model renders list and converse from the prompt; no list template;
+  no-false-success is structural, and the **mandatory domain `status`** (incl.
+  `partial`) lets Express report partials faithfully. Residual partial-overstate
+  risk is watched in smoke, fixed upstream (see Express role; deliberate override
+  recorded).
+- **Universal `category` + mandatory domain `status`, no `response_obligation`/
+  ObligationResolver** — services return a `category`
+  (done/needs_choice/needs_input/needs_confirmation/not_possible/nothing) plus a
+  fine-grained `status`; `settled_outcome` is the per-action list; Express renders
+  it (see Service-Side Resolution).
+- **Streaming only on non-mutating turns** — mutating turns buffer until close
+  commit; chat/list/read turns stream. Mechanical, no prose classification (see
+  Close Boundary).
+- **resolve_and_stage + selective partial close** — resolve before staging;
+  `CloseCoordinator.commit` materializes only the selected resolved commands
+  atomically (see Close Boundary, Data Contracts).
+- **Inbound-only scope, render-mode agent retained** — shared pieces are split,
+  not removed from under notification/render turns (see Scope).
+- **Detector stays long-term as an Execute extraction step** — folding into Plan
+  is an optional measured latency optimization gated on a parity eval, not a goal
+  (see Detector).
 
 ## Summary
 
