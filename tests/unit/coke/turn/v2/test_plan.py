@@ -199,3 +199,10 @@ def _request(text: str) -> PlanRequest:
         trusted_facts={"timezone": "Asia/Tokyo"},
         focus_subject=None,
     )
+
+
+def test_planner_prompt_forbids_generic_reminder_match_keyword():
+    from coke.turn.v2.plan import TURN_PLANNER_SYSTEM_PROMPT
+
+    assert "never the generic word" in TURN_PLANNER_SYSTEM_PROMPT
+    assert "OMIT `match`" in TURN_PLANNER_SYSTEM_PROMPT
