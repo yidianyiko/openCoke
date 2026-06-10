@@ -98,8 +98,8 @@ class RecordingGuard:
         self.events = events
         self.fail = fail
 
-    def guard_state_change(self, turn_id: str) -> None:
-        self.events.append(f"guard:{turn_id}")
+    def guard_state_change(self) -> None:
+        self.events.append("guard:turn-1")
         if self.fail is not None:
             raise self.fail
 

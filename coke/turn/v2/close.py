@@ -31,7 +31,7 @@ class TurnClosePort(Protocol):
 
 
 class CloseFreshnessGuard(Protocol):
-    def guard_state_change(self, turn_id: str) -> None: ...
+    def guard_state_change(self) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +82,7 @@ class CloseCoordinator:
         guard: CloseFreshnessGuard,
     ) -> CloseResult:
         try:
-            guard.guard_state_change(request.turn_id)
+            guard.guard_state_change()
             disposition = self._commit_fresh(request)
         except Exception as exc:
             return CloseResult(

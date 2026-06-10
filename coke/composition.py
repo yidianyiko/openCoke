@@ -87,6 +87,7 @@ from coke.turn.agent import (
     ToolExecutionResult,
 )
 from coke.turn.focus import FocusResolver, MessageSubject
+from coke.turn.freshness import FreshnessGuard
 from coke.turn.locks import ConversationLockManager, RedisLockPort
 from coke.turn.memory import MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator
@@ -94,6 +95,20 @@ from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import DeliveryRequest, OutboundDeliveryPort, TurnRunner
 from coke.turn.semantic_interpreter import SemanticDecision, SemanticInterpreter
 from coke.turn.staged_commands import StagedCommandMaterializer
+from coke.turn.v2.close import CloseCoordinator
+from coke.turn.v2.contracts import TurnPlan
+from coke.turn.v2.express import ExpressAgent
+from coke.turn.v2.handlers.calendar import CalendarImportActionHandler
+from coke.turn.v2.handlers.friend import FriendshipActionHandler
+from coke.turn.v2.handlers.reminder import ReminderActionHandler
+from coke.turn.v2.handlers.settings import SettingsActionHandler
+from coke.turn.v2.handlers.social import SocialSchedulingActionHandler
+from coke.turn.v2.pending import (
+    InMemoryPendingClarificationStore,
+    PostgresPendingClarificationRepository,
+)
+from coke.turn.v2.pipeline import TurnPipeline
+from coke.turn.v2.plan import SiliconFlowPlanner
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +120,7 @@ class CokeRepositories:
     social_scheduling: Any
     calendar_import: Any
     settings: Any | None = None
+    pending_clarification: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +147,7 @@ class CokeRuntime:
     pre_llm_gate: PreLLMGateService
     lock_manager: ConversationLockManager
     turn_runner: TurnRunner
+    turn_pipeline: TurnPipeline | None = None
     provider_adapters: Mapping[str, Any] | None = None
     engine: Any | None = None
     session_factory: Any | None = None
@@ -186,6 +203,19 @@ class FakeInteractionAgent:
                 "segments": ["COKE_LLM_FAKE synthetic async reply"],
             }
         )
+
+
+class FakeTurnPlanner:
+    def plan(self, request) -> TurnPlan:
+        return TurnPlan(actions=(), reply_necessity="reply_needed")
+
+
+class FakeTurnExpress:
+    def render(self, request) -> tuple[str, ...]:
+        return ("COKE_LLM_FAKE synthetic v2 reply",)
+
+    async def render_streaming(self, request):
+        yield "COKE_LLM_FAKE synthetic v2 reply"
 
 
 class FakeReminderDetector:
@@ -1267,12 +1297,76 @@ class SettingsToolAdapter:
         )
 
 
+class _FreshStagedCommandMaterializer:
+    def __init__(
+        self,
+        *,
+        conversation_runtime: ConversationRuntimeService,
+        materializer: StagedCommandMaterializer | None,
+    ) -> None:
+        self.conversation_runtime = conversation_runtime
+        self.materializer = materializer
+
+    def __call__(self, command) -> None:
+        if self.materializer is None:
+            raise ConversationRuntimeError("staged_command_materializer_missing")
+        guard = FreshnessGuard(
+            conversation_runtime=self.conversation_runtime,
+            turn_id=command.turn_id,
+        )
+        self.materializer.materialize(command, guard)
+
+
+def _compose_turn_pipeline(
+    *,
+    planner: Any,
+    express: Any,
+    reminder_service: ReminderService,
+    social_scheduling_service: SocialSchedulingService,
+    calendar_import_service: CalendarImportService,
+    settings_service: SettingsService,
+    conversation_runtime_service: ConversationRuntimeService,
+    pending_store: Any,
+    staged_command_materializer: StagedCommandMaterializer | None,
+    reminder_detector: Any,
+    now: Callable[[], datetime],
+) -> TurnPipeline:
+    return TurnPipeline(
+        planner=planner,
+        handlers={
+            "reminder": ReminderActionHandler(
+                reminder_service,
+                reminder_detector,
+                now=now,
+            ),
+            "social_scheduling": SocialSchedulingActionHandler(
+                social_scheduling_service
+            ),
+            "friendship": FriendshipActionHandler(social_scheduling_service),
+            "settings": SettingsActionHandler(settings_service),
+            "calendar_import": CalendarImportActionHandler(calendar_import_service),
+        },
+        express=express,
+        close_coordinator=CloseCoordinator(
+            conversation_runtime_service,
+            pending_store=pending_store,
+            materialize_staged_command=_FreshStagedCommandMaterializer(
+                conversation_runtime=conversation_runtime_service,
+                materializer=staged_command_materializer,
+            ),
+        ),
+        pending_store=pending_store,
+    )
+
+
 def compose_coke_runtime(
     *,
     semantic_interpreter: SemanticInterpreter,
     interaction_agent: Any,
     redis_client: RedisLockPort,
     outbound_delivery: OutboundDeliveryPort,
+    turn_planner: Any | None = None,
+    turn_express: Any | None = None,
     reminder_detector: Any | None = None,
     reminder_delivery: Any | None = None,
     memory_port: MemoryPort | None = None,
@@ -1308,8 +1402,9 @@ def compose_coke_runtime(
             settings=InMemorySettingsRepository(
                 accounts=identity_repository.accounts,
             ),
+            pending_clarification=InMemoryPendingClarificationStore(),
         )
-    elif repositories.settings is None:
+    elif repositories.settings is None or repositories.pending_clarification is None:
         repositories = CokeRepositories(
             identity_access=repositories.identity_access,
             channel_reachability=repositories.channel_reachability,
@@ -1317,8 +1412,15 @@ def compose_coke_runtime(
             reminder=repositories.reminder,
             social_scheduling=repositories.social_scheduling,
             calendar_import=repositories.calendar_import,
-            settings=InMemorySettingsRepository(
-                accounts=getattr(repositories.identity_access, "accounts", None),
+            settings=(
+                repositories.settings
+                or InMemorySettingsRepository(
+                    accounts=getattr(repositories.identity_access, "accounts", None),
+                )
+            ),
+            pending_clarification=(
+                repositories.pending_clarification
+                or InMemoryPendingClarificationStore()
             ),
         )
 
@@ -1421,6 +1523,21 @@ def compose_coke_runtime(
         ttl_ms=lock_ttl_ms,
         token_factory=lock_token_factory,
     )
+    turn_planner = turn_planner or FakeTurnPlanner()
+    turn_express = turn_express or FakeTurnExpress()
+    turn_pipeline = _compose_turn_pipeline(
+        planner=turn_planner,
+        express=turn_express,
+        reminder_service=reminder_service,
+        social_scheduling_service=social_scheduling_service,
+        calendar_import_service=calendar_import_service,
+        settings_service=settings_service,
+        conversation_runtime_service=conversation_runtime_service,
+        pending_store=repositories.pending_clarification,
+        staged_command_materializer=staged_command_materializer,
+        reminder_detector=reminder_detector or FakeReminderDetector(),
+        now=now,
+    )
     turn_runner = TurnRunner(
         conversation_runtime=conversation_runtime_service,
         lock_manager=lock_manager,
@@ -1451,6 +1568,7 @@ def compose_coke_runtime(
         ),
         claim_boundary_committer=claim_boundary_committer,
         close_boundary_committer=close_boundary_committer,
+        turn_pipeline=turn_pipeline,
     )
     return CokeRuntime(
         repositories=repositories,
@@ -1466,6 +1584,7 @@ def compose_coke_runtime(
         pre_llm_gate=pre_llm_gate,
         lock_manager=lock_manager,
         turn_runner=turn_runner,
+        turn_pipeline=turn_pipeline,
         provider_adapters=provider_adapters or {},
     )
 
@@ -1498,6 +1617,8 @@ def build_runtime_from_settings(
         semantic_interpreter,
         interaction_agent,
         reminder_detector,
+        turn_planner,
+        turn_express,
         media_text_resolver,
     ) = _llm_from_settings(settings)
     google_calendar_client = GoogleCalendarClientAdapter(
@@ -1513,6 +1634,8 @@ def build_runtime_from_settings(
             interaction_agent=interaction_agent,
             redis_client=redis_lock,
             outbound_delivery=_DeferredOutboundDelivery(),
+            turn_planner=turn_planner,
+            turn_express=turn_express,
             reminder_detector=reminder_detector,
             memory_port=None,
             google_calendar_client=google_calendar_client,
@@ -1550,6 +1673,7 @@ def build_runtime_from_settings(
             pre_llm_gate=child_runtime.pre_llm_gate,
             lock_manager=child_runtime.lock_manager,
             turn_runner=child_runtime.turn_runner,
+            turn_pipeline=child_runtime.turn_pipeline,
             provider_adapters=provider_adapters,
             engine=engine,
             session_factory=session_factory,
@@ -1564,6 +1688,8 @@ def build_runtime_from_settings(
         interaction_agent=interaction_agent,
         redis_client=redis_lock,
         outbound_delivery=_DeferredOutboundDelivery(),
+        turn_planner=turn_planner,
+        turn_express=turn_express,
         reminder_detector=reminder_detector,
         memory_port=None,
         google_calendar_client=google_calendar_client,
@@ -1601,6 +1727,7 @@ def build_runtime_from_settings(
         pre_llm_gate=runtime.pre_llm_gate,
         lock_manager=runtime.lock_manager,
         turn_runner=runtime.turn_runner,
+        turn_pipeline=runtime.turn_pipeline,
         provider_adapters=provider_adapters,
         engine=engine,
         session_factory=session_factory,
@@ -1622,6 +1749,7 @@ def _postgres_repositories(session: Any) -> CokeRepositories:
         social_scheduling=PostgresSocialSchedulingRepository(session),
         calendar_import=PostgresCalendarImportRepository(session),
         settings=PostgresSettingsRepository(session),
+        pending_clarification=PostgresPendingClarificationRepository(session),
     )
 
 
@@ -1670,6 +1798,8 @@ def _llm_from_settings(settings: Settings):
             FakeSemanticInterpreter(),
             FakeInteractionAgent(),
             FakeReminderDetector(),
+            FakeTurnPlanner(),
+            FakeTurnExpress(),
             None,
         )
     if not settings.zai_api_key:
@@ -1725,6 +1855,8 @@ def _llm_from_settings(settings: Settings):
         ),
         AgnoInteractionAgent.from_config(llm_config),
         SiliconFlowReminderDetector.from_model(llm_config.create_detector_model()),
+        SiliconFlowPlanner.from_config(llm_config),
+        ExpressAgent.from_config(llm_config),
         media_text_resolver,
     )
 

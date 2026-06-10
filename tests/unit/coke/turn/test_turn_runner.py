@@ -355,6 +355,32 @@ class FakeDeliveryLifecycle:
         self.events.append(("record_render_failure", reason_code))
 
 
+class RecordingV2Pipeline:
+    def __init__(self, *, segments: tuple[str, ...] = ("v2 hello",)) -> None:
+        self.segments = segments
+        self.calls = []
+
+    async def run(self, request, guard, delivery=None):
+        self.calls.append((request, guard, delivery))
+        return SimpleNamespace(
+            segments=self.segments,
+            close_result=SimpleNamespace(
+                committed=True,
+                disposition=SimpleNamespace(
+                    disposition="replied",
+                    reason_code="reply_ready",
+                ),
+                error=None,
+            ),
+            streamed=False,
+        )
+
+
+class ExplodingV2Pipeline:
+    async def run(self, request, guard, delivery=None):
+        raise AssertionError("v2 pipeline should not be invoked")
+
+
 class StaticFocusRepository:
     def __init__(self, subject: MessageSubject | None) -> None:
         self.subject = subject
@@ -452,6 +478,76 @@ def test_inbound_turn_emits_latency_phase_events(harness, caplog):
         assert record.trigger_type in {"InboundTurn", None}
         assert not hasattr(record, "content")
         assert not hasattr(record, "prompt")
+
+
+def test_inbound_turn_with_flag_unset_uses_existing_path(harness, monkeypatch):
+    monkeypatch.delenv("COKE_TURN_PIPELINE", raising=False)
+    harness["runner"].turn_pipeline = ExplodingV2Pipeline()
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "hello"
+    assert harness["semantic"].calls == 1
+    assert harness["agent"].invocations == 1
+
+
+def test_inbound_turn_with_v2_flag_invokes_pipeline(harness, monkeypatch):
+    monkeypatch.setenv("COKE_TURN_PIPELINE", "v2")
+    pipeline = RecordingV2Pipeline()
+    harness["runner"].turn_pipeline = pipeline
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "v2 hello"
+    assert harness["semantic"].calls == 0
+    assert harness["agent"].invocations == 0
+    assert len(pipeline.calls) == 1
+    request, guard, delivery = pipeline.calls[0]
+    assert request.turn_id == result.turn_id
+    assert request.account_id == "account_1"
+    assert request.conversation_id == harness["trigger"].conversation_id
+    assert request.payload == {"text": "hello"}
+    assert request.source_input_window == (1, 1)
+    assert guard is not None
+    assert delivery is not None
+
+
+@pytest.mark.asyncio
+async def test_async_inbound_turn_with_v2_flag_invokes_pipeline(
+    harness, monkeypatch
+):
+    monkeypatch.setenv("COKE_TURN_PIPELINE", "v2")
+    pipeline = RecordingV2Pipeline(segments=("async v2",))
+    harness["runner"].turn_pipeline = pipeline
+
+    result = await harness["runner"].run_inbound_turn_async(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "async v2"
+    assert harness["semantic"].calls == 0
+    assert harness["agent"].invocations == 0
+    assert len(pipeline.calls) == 1
+
+
+def test_render_turn_with_v2_flag_stays_on_existing_path(harness, monkeypatch):
+    monkeypatch.setenv("COKE_TURN_PIPELINE", "v2")
+    harness["runner"].turn_pipeline = ExplodingV2Pipeline()
+    trigger = TurnTrigger(
+        trigger_id="notification:flag-gate",
+        trigger_type="NotificationTurn",
+        mode=TurnMode.RENDER,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        payload={"notification": {"kind": "shared_reminder_created"}},
+    )
+
+    result = harness["runner"].run_render_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "hello"
+    assert harness["agent"].invocations == 1
 
 
 def test_protocol_retry_emits_retry_latency_phase(harness, caplog):

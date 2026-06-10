@@ -96,7 +96,9 @@ class TurnPipeline:
         self,
         request: TurnPipelineRequest,
         guard: Any,
+        delivery: SegmentDeliveryPort | None = None,
     ) -> TurnPipelineResult:
+        delivery_port = delivery or self._delivery
         pending = self._pending_store.open_for_conversation(
             request.conversation_id,
             now=request.now,
@@ -119,7 +121,7 @@ class TurnPipeline:
                 _express_request(request, settled_outcome)
             ):
                 streamed_segments.append(segment)
-                self._delivery.deliver(request.turn_id, segment)
+                delivery_port.deliver(request.turn_id, segment)
             segments = tuple(streamed_segments)
             streamed = True
 
@@ -145,7 +147,7 @@ class TurnPipeline:
                 )
             if staged_command_ids:
                 for segment in segments:
-                    self._delivery.deliver(request.turn_id, segment)
+                    delivery_port.deliver(request.turn_id, segment)
 
         return TurnPipelineResult(
             plan=plan,
