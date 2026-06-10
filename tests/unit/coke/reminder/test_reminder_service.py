@@ -232,6 +232,31 @@ def test_filter_reminders_by_keyword_lifecycle_kind_and_time_range(service):
     assert [reminder.content for reminder in matches] == ["call mom"]
 
 
+def test_filter_reminders_keyword_matches_bidirectionally(service):
+    # A natural reference that includes the reminder plus a generic word (e.g.
+    # "跑步提醒" for a reminder named "跑步") must still match — bidirectional
+    # containment, not one-directional substring.
+    service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="跑步",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+            ),
+        ],
+    )
+
+    by_phrase = service.filter_reminders(owner_account_id="acct_1", keyword="跑步提醒")
+    by_core = service.filter_reminders(owner_account_id="acct_1", keyword="跑步")
+
+    assert [r.content for r in by_phrase] == ["跑步"]
+    assert [r.content for r in by_core] == ["跑步"]
+    # delete-by-keyword resolves the same single match either way
+    assert service.delete_reminder_by_keyword("acct_1", "跑步提醒").state == "succeeded"
+
+
 def test_complete_reminder_by_keyword_mutates_single_unambiguous_match(service):
     created = service.execute_batch(
         owner_account_id="acct_1",

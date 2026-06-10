@@ -344,7 +344,9 @@ class ReminderService:
                 continue
             if kind is not None and reminder.kind != kind:
                 continue
-            if keyword_value and keyword_value not in reminder.content.casefold():
+            if keyword_value and not _keyword_matches_content(
+                keyword_value, reminder.content
+            ):
                 continue
             if trigger_after is not None and (
                 reminder.next_fire_at is None or reminder.next_fire_at < trigger_after
@@ -974,6 +976,17 @@ def _normalized_keyword(keyword: str | None) -> str:
     if keyword is None:
         return ""
     return keyword.strip().casefold()
+
+
+def _keyword_matches_content(keyword_value: str, content: str) -> bool:
+    # Bidirectional containment: a natural-language reference matches a reminder
+    # when one string contains the other. This handles both "user names part of
+    # the reminder" (keyword in content, e.g. "跑步" -> "跑步去公园") and "user names
+    # the reminder plus a generic word" (content in keyword, e.g. "跑步提醒" -> "跑步").
+    # The single-match-for-mutation guard keeps over-matching safe (ambiguous ->
+    # clarification, never a wrong mutation).
+    content_value = content.casefold()
+    return keyword_value in content_value or content_value in keyword_value
 
 
 def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo]:
