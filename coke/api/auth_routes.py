@@ -50,8 +50,16 @@ def create_auth_blueprint(identity_service) -> Blueprint:
     @blueprint.post("/email-verification/verify")
     def verify_email():
         payload = _json_payload()
-        credential = identity_service.verify_email(token=_body_field(payload, "token"))
-        return jsonify({"account_id": credential.account_id, "email": credential.email})
+        result = identity_service.verify_email_and_create_session(
+            token=_body_field(payload, "token")
+        )
+        return jsonify(
+            {
+                "account_id": result.account_id,
+                "email": result.email,
+                "session_token": result.session.token,
+            }
+        )
 
     @blueprint.post("/email-verification/resend")
     def resend_email_verification():

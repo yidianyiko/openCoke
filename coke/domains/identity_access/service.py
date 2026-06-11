@@ -22,6 +22,7 @@ from coke.domains.identity_access.models import (
     ChannelIdentityResolution,
     ClaimCodeStatus,
     Credential,
+    EmailVerificationResult,
     IdentityAccessError,
     LoginResult,
     RegistrationResult,
@@ -512,6 +513,15 @@ class IdentityAccessService:
             suspension_state=self._require_access(artifact.account_id).suspension_state,
         )
         return updated
+
+    def verify_email_and_create_session(self, token: str) -> EmailVerificationResult:
+        credential = self.verify_email(token=token)
+        session = self._create_session(credential.account_id)
+        return EmailVerificationResult(
+            account_id=credential.account_id,
+            email=credential.email,
+            session=session,
+        )
 
     def resend_artifact(self, code: str) -> AuthArtifact:
         artifact = self.repository.get_artifact_by_code(code)

@@ -52,6 +52,14 @@ class FakeService:
         self.calls.append(("verify_email", {"token": token}))
         return FakeObject(id="credential_1", account_id="acct_1", email="a@example.com")
 
+    def verify_email_and_create_session(self, token):
+        self.calls.append(("verify_email_and_create_session", {"token": token}))
+        return FakeObject(
+            account_id="acct_1",
+            email="a@example.com",
+            session=self.session,
+        )
+
     def issue_password_reset(self, email):
         self.calls.append(("issue_password_reset", {"email": email}))
         return FakeObject(code="reset_token", artifact=FakeObject(id="artifact_2"))
@@ -446,10 +454,15 @@ def test_verification_and_password_reset_routes_call_service():
     )
 
     assert verify_response.status_code == 200
+    assert verify_response.get_json() == {
+        "account_id": "acct_1",
+        "email": "a@example.com",
+        "session_token": "session_token",
+    }
     assert request_response.status_code == 202
     assert complete_response.status_code == 200
     assert service.calls[-3:] == [
-        ("verify_email", {"token": "verify_token"}),
+        ("verify_email_and_create_session", {"token": "verify_token"}),
         ("issue_password_reset", {"email": "a@example.com"}),
         ("reset_password", {"token": "reset_token", "password": "hash_2"}),
     ]

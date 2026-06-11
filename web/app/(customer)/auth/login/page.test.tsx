@@ -220,7 +220,7 @@ describe('CustomerLoginPage', () => {
       email: 'alice@example.com',
     });
     expect(container.textContent).toContain('Verification email sent.');
-    expect(container.textContent).toContain('valid for 15 minutes');
+    expect(container.textContent).toContain('valid for 24 hours');
     expect(container.textContent).toContain('spam folder');
   });
 

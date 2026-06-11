@@ -145,6 +145,13 @@ class RegistrationResult:
 
 
 @dataclass(frozen=True, slots=True)
+class EmailVerificationResult:
+    account_id: str
+    email: str
+    session: Session
+
+
+@dataclass(frozen=True, slots=True)
 class LoginResult:
     account: Account
     session: Session

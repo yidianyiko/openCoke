@@ -7,6 +7,7 @@ import {
   loginCustomer,
   registerCustomer,
   resendCustomerVerification,
+  verifyCustomerEmail,
   getStoredCustomerProfile,
   getStoredCustomerSession,
   storeCustomerAuth,
@@ -194,6 +195,36 @@ describe('customer auth storage', () => {
         email: 'alice@example.com',
       },
     );
+  });
+
+  it('uses the verification response session when the email link opens in another browser', async () => {
+    vi.mocked(customerApi.post).mockResolvedValueOnce({
+      account_id: 'acct_1',
+      email: 'alice@example.com',
+      session_token: 'session_from_email',
+    });
+
+    await expect(
+      verifyCustomerEmail({
+        email: 'alice@example.com',
+        token: 'verify-token',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      data: {
+        token: 'session_from_email',
+        customerId: 'acct_1',
+        identityId: 'acct_1',
+        claimStatus: 'active',
+        email: 'alice@example.com',
+        membershipRole: 'owner',
+      },
+    });
+    expect(vi.mocked(customerApi.post)).toHaveBeenCalledWith(
+      '/api/auth/email-verification/verify',
+      { token: 'verify-token' },
+    );
+    expect(getStoredCustomerSession()).toBeNull();
   });
 
   it('returns the clean auth error code when verification resend fails', async () => {

@@ -1152,6 +1152,29 @@ def test_verify_email_updates_credential_and_access_state(identity_service):
     assert access.denial_reason is None
 
 
+def test_verify_email_and_create_session_returns_fresh_login(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password="hash_1",
+    )
+
+    result = identity_service.verify_email_and_create_session(
+        token=registered.email_verification.code
+    )
+    access = identity_service.get_access_status(account_id=registered.account.id)
+
+    assert result.account_id == registered.account.id
+    assert result.email == "a@example.com"
+    assert result.session.account_id == registered.account.id
+    assert result.session.token != registered.session.token
+    assert (
+        identity_service.repository.get_session_by_token(result.session.token)
+        == result.session
+    )
+    assert access.email_verification_state == "verified"
+    assert access.access_allowed is True
+
+
 def test_verify_email_is_single_use(identity_service):
     registered = identity_service.register_web_account(
         email="a@example.com",

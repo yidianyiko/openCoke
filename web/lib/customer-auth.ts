@@ -70,6 +70,12 @@ type CleanAuthResult = {
   session_token: string;
 };
 
+type CleanEmailVerificationResult = {
+  account_id: string;
+  email: string;
+  session_token?: string;
+};
+
 type CleanCurrentUser = {
   account_id: string;
   origin: string;
@@ -234,13 +240,25 @@ export function verifyCustomerEmail(
 ): Promise<ApiResponse<CustomerAuthResult>> {
   const session = getStoredCustomerSession();
   return customerApi
-    .post<{ account_id: string; email: string } | CleanAuthError>(
+    .post<CleanEmailVerificationResult | CleanAuthError>(
       '/api/auth/email-verification/verify',
       { token: input.token },
     )
     .then((result) => {
       if (isCleanAuthError(result)) {
         return errorResponse<CustomerAuthResult>(result.error.code);
+      }
+      if (result.session_token) {
+        return {
+          ok: true,
+          data: sessionFromCleanAuth(
+            {
+              account_id: result.account_id,
+              session_token: result.session_token,
+            },
+            result.email,
+          ),
+        };
       }
       if (!session || session.email.toLowerCase() !== input.email.toLowerCase()) {
         return errorResponse<CustomerAuthResult>('verified_login_required');
