@@ -713,6 +713,20 @@ class SocialSchedulingService:
             if duration_minutes is not None
             else reminder.duration_minutes
         )
+        if (
+            proposed_time == reminder.local_trigger_at
+            and proposed_timezone == reminder.captured_timezone
+            and proposed_duration == reminder.duration_minutes
+        ):
+            return SharedReminderUpdateResult(
+                status="needs_update_fields",
+                shared_reminder=reminder,
+                projections=projections,
+                follow_up_facts={
+                    "missing": "time_or_duration",
+                    "reason": "no_change",
+                },
+            )
         time_state = self._validate_shared_trigger_time(
             proposed_time,
             proposed_timezone,
