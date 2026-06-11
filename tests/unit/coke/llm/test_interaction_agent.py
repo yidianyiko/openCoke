@@ -773,6 +773,25 @@ def test_agent_instructions_gate_success_claims_on_tool_ok_true():
     assert "must not claim the action succeeded" in instructions
 
 
+def test_agent_instructions_forbid_personal_reminder_time_conflict_override():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(_request(memory_enabled=True, reminder_tool=FakeReminderTool()))
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "reason_code=time_conflict" in instructions
+    assert "cannot create or move the reminder to that time" in instructions
+    assert "conflicts with an existing reminder" in instructions
+    assert "ask the user to choose another time" in instructions
+    assert "Do not ask whether to still use that time" in instructions
+    assert "override" in instructions
+    assert "do not suggest a concrete alternate time unless a tool result checked it" in (
+        instructions
+    )
+
+
 def test_agent_instructions_route_conversational_settings_to_settings_tool():
     fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
     factory = FakeAgentFactory(fake_agent)
@@ -957,6 +976,38 @@ def test_agent_instructions_name_real_social_scheduling_operations():
     assert "establish_friendship_from_token" in instructions
     assert "accept_friend_request" not in instructions
     assert "create_friend_request" not in instructions
+
+
+def test_shared_reminder_time_only_reschedule_prompt_preserves_existing_duration():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+
+    agent.invoke(
+        _request(
+            memory_enabled=True,
+            social_scheduling_tool=FakeSocialSchedulingTool(),
+        )
+    )
+
+    instructions = "\n".join(factory.agent_kwargs[0]["instructions"])
+    assert "When the user only changes an existing shared reminder time" in (
+        instructions
+    )
+    assert "call social_scheduling_tool with operation=update_shared_reminder" in (
+        instructions
+    )
+    assert "set local_trigger_at" in instructions
+    assert "omit duration_minutes so the service preserves the existing duration" in (
+        instructions
+    )
+    assert "Do not treat a reschedule as a new shared-reminder creation" in (
+        instructions
+    )
+    assert (
+        "Do not ask for an end time or duration unless the user explicitly changes duration or the target has no duration"
+        in instructions
+    )
 
 
 def test_shared_reminder_success_prompt_forbids_confirmation_flow_language():
