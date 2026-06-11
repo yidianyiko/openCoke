@@ -1,6 +1,6 @@
 # Reminder Overlap And Shared Reschedule — Design
 
-Status: DRAFT. Scope: clean v2 turn path, personal reminders used as self
+Status: ACCEPTED. Scope: clean v2 turn path, personal reminders used as self
 schedule entries, and social shared reminders.
 
 ## Problem
@@ -25,9 +25,9 @@ The v6 WeChat real-account smoke exposed two product gaps:
   its participant projections. It must not be implemented as a cancel plus a new
   shared reminder because that changes identity, notification semantics, and
   user-visible history.
-- Shared reminder update starts with time and duration. Title/content update can
-  use the same operation shape, but time reschedule is the required behavior for
-  the v6 E5/E6 cases.
+- Shared reminder update starts with time and duration. Title/content update is
+  deliberately deferred; time reschedule is the required behavior for the v6
+  E5/E6 cases.
 - Conflict checks must be truthful. The system may ask the user to choose another
   time, but it must not suggest a concrete alternate time unless that slot has
   been checked.
@@ -85,13 +85,13 @@ Inputs:
   cancel;
 - optional `local_trigger_at` / `time_phrase`;
 - optional `duration_minutes`;
-- optional `title` / `content`.
+Title/content editing is out of scope for the first implementation.
 
 Service behavior:
 
 1. Load the shared reminder and require that `account_id` is a participant.
 2. Require the shared reminder to be active.
-3. Resolve the new time/duration/title from inputs. If no update field is
+3. Resolve the new time/duration from inputs. If no update field is
    present, return `needs_update_fields`.
 4. Validate the new time as future when time changes.
 5. Re-run duplicate detection for the proposed updated identity, excluding the
@@ -102,8 +102,7 @@ Service behavior:
 7. If checks fail, return a blocked result and leave the existing shared reminder
    and projections unchanged.
 8. If checks pass, atomically update:
-   - `shared_reminder.local_trigger_at`, `duration_minutes`, `title`, hashes,
-     and `updated_at`;
+   - `shared_reminder.local_trigger_at`, `duration_minutes`, and `updated_at`;
    - all active projection reminder rows' `next_fire_at`, `duration_minutes`,
      `content`, and `updated_at`.
 9. Emit a `shared_reminder_updated` or `shared_reminder_rescheduled`
@@ -121,8 +120,8 @@ Turn-v2 behavior:
 Agno/tool behavior:
 
 - Expose `update_shared_reminder` in the social scheduling tool docs.
-- Instruct the model to call it for shared reminder time/content/duration changes,
-  and to keep using `cancel_shared_reminder` only for explicit cancellation.
+- Instruct the model to call it for shared reminder time/duration changes, and to
+  keep using `cancel_shared_reminder` only for explicit cancellation.
 - Replies must be grounded in the tool result: success means the shared reminder
   was updated and remains active; blocked conflict means the old time remains.
 

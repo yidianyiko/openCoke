@@ -94,6 +94,12 @@ class SocialSchedulingRepository(Protocol):
 
     def save_projection(self, projection: ReminderProjection) -> None: ...
 
+    def sync_projection_reminders(
+        self,
+        shared_reminder: SharedReminder,
+        projections: list[ReminderProjection],
+    ) -> None: ...
+
     def list_projections(self, shared_reminder_id: str) -> list[ReminderProjection]: ...
 
     def get_projection(
@@ -369,6 +375,20 @@ class InMemorySocialSchedulingRepository:
                 reminder,
                 lifecycle="deleted",
                 updated_at=projection.updated_at,
+            )
+
+    def sync_projection_reminders(
+        self,
+        shared_reminder: SharedReminder,
+        projections: list[ReminderProjection],
+    ) -> None:
+        for projection in projections:
+            if projection.lifecycle != "active":
+                continue
+            if projection.reminder_id not in self.projection_reminders_by_id:
+                raise ValueError("projection_reminder_missing")
+            self.projection_reminders_by_id[projection.reminder_id] = (
+                _projection_reminder(projection, shared_reminder)
             )
 
     def list_projections(self, shared_reminder_id: str) -> list[ReminderProjection]:
@@ -833,6 +853,20 @@ class PostgresSocialSchedulingRepository:
             {"uq_reminder_projection_participant": "duplicate_projection_participant"},
             default_error="duplicate_projection_participant",
         )
+
+    def sync_projection_reminders(
+        self,
+        shared_reminder: SharedReminder,
+        projections: list[ReminderProjection],
+    ) -> None:
+        for projection in projections:
+            if projection.lifecycle != "active":
+                continue
+            self.session.execute(
+                schema.reminder.update()
+                .where(schema.reminder.c.id == projection.reminder_id)
+                .values(**_projection_reminder_values(projection, shared_reminder))
+            )
 
     def list_projections(self, shared_reminder_id: str) -> list[ReminderProjection]:
         if not _is_db_uuid(shared_reminder_id):

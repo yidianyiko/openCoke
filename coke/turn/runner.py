@@ -1736,7 +1736,11 @@ class TurnRunner:
                 getattr(command, "status", None) == "staged"
                 and getattr(command, "domain", None) == "social_scheduling"
                 and getattr(command, "operation", None)
-                in {"create_shared_reminder", "detect_and_create_shared_reminder"}
+                in {
+                    "create_shared_reminder",
+                    "detect_and_create_shared_reminder",
+                    "update_shared_reminder",
+                }
             ):
                 return True
         return False
@@ -3264,10 +3268,9 @@ def _requires_social_scheduling_claim(request: AgentRequest) -> bool:
     semantic = request.trusted_facts.get("semantic_decision")
     if not isinstance(semantic, Mapping):
         return "recoverable_scheduling_intent" in request.trusted_facts
-    return (
-        semantic.get("intent_family") == "scheduling"
-        and semantic.get("intent_action") == "create_shared_reminder"
-    )
+    return semantic.get("intent_family") == "scheduling" and semantic.get(
+        "intent_action"
+    ) in {"create_shared_reminder", "update_shared_reminder"}
 
 
 def _require_agent_visibility_for_inbound_no_reply(

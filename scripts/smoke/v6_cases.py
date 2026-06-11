@@ -47,6 +47,7 @@ Outcome = Literal[
     "update_reminder",  # an existing reminder changes; no new row
     "cancel_reminder",  # a reminder goes active -> cancelled
     "cancel_shared",  # a shared_reminder goes active -> cancelled
+    "update_shared",  # an existing shared_reminder changes; no new row/cancel
     "clarify",  # no write; a clarifying reply
     "chat",  # no write; a conversational reply
     "conflict_block",  # write refused (e.g. receiver conflict); no row
@@ -269,11 +270,10 @@ CASES: tuple[V6Case, ...] = (
             reminders=(ReminderFixture("团队会议", "今天 08:30", duration_minutes=60),),
         ),
         expect=Expect(
-            outcome="create_reminder",
-            reminder_kind="timed",
-            gap="self-reminder conflict warning not implemented",
+            outcome="conflict_block",
+            forbid=("reminder_create", "shared_create"),
         ),
-        note="D3 overlaps existing 08:30-09:30; v6 wants a conflict prompt",
+        note="D3 overlaps existing 08:30-09:30; refuse and ask for another time",
     ),
     V6Case(
         case_id="calendar_self_reschedule_001",
@@ -350,10 +350,10 @@ CASES: tuple[V6Case, ...] = (
             shared=(SharedFixture("张三", "聊 openCoke", "明天 15:00"),),
         ),
         expect=Expect(
-            outcome="cancel_shared",
-            gap="no reschedule op; reschedule == cancel+create composite",
+            outcome="update_shared",
+            forbid=("shared_create", "shared_cancel"),
         ),
-        note="E5 reschedule to 16:00 (no conflict); product has no reschedule",
+        note="E5 reschedule existing shared reminder to 16:00; preserve identity",
     ),
     V6Case(
         case_id="scheduling_reschedule_002",
@@ -368,9 +368,8 @@ CASES: tuple[V6Case, ...] = (
         expect=Expect(
             outcome="conflict_block",
             forbid=("shared_cancel",),
-            gap="no reschedule op; new-time conflict path not modeled",
         ),
-        note="E6 reschedule into a conflict; keep old, suggest other time",
+        note="E6 reschedule into a conflict; keep old and ask for another time",
     ),
     V6Case(
         case_id="scheduling_cancel_001",

@@ -102,6 +102,126 @@ def test_timed_and_no_trigger_create_use_owner_timezone_and_default_duration(ser
     assert reminders[1].hidden_from_calendar is False
 
 
+def test_personal_reminder_create_blocks_overlapping_active_interval(service):
+    existing_start = NOW + timedelta(hours=1)
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="team meeting",
+                trigger_time=existing_start,
+                captured_timezone="UTC",
+                duration_minutes=60,
+            )
+        ],
+    )
+
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="workout",
+                trigger_time=existing_start + timedelta(minutes=30),
+                captured_timezone="UTC",
+                duration_minutes=30,
+            )
+        ],
+    )
+
+    assert created.items[0].state == "succeeded"
+    assert result.items[0].state == "needs-follow-up"
+    assert result.items[0].reason == "time_conflict"
+    assert (
+        result.items[0].fact["conflict"]["reminder_id"] == created.items[0].reminder_id
+    )
+    reminders = service.repository.list_active_reminders("acct_1")
+    assert [
+        (reminder.content, reminder.duration_minutes) for reminder in reminders
+    ] == [("team meeting", 60)]
+
+
+def test_update_reminder_duration_blocks_overlap_with_other_reminder(service):
+    first = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="focus",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+                duration_minutes=15,
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="review",
+                trigger_time=NOW + timedelta(hours=2),
+                captured_timezone="UTC",
+                duration_minutes=60,
+            ),
+        ],
+    )
+
+    result = service.update_reminder(
+        owner_account_id="acct_1",
+        reminder_id=first.items[0].reminder_id,
+        duration_minutes=90,
+    )
+
+    assert result.state == "needs-follow-up"
+    assert result.reason == "time_conflict"
+    reminders = {
+        reminder.content: reminder
+        for reminder in service.repository.list_active_reminders("acct_1")
+    }
+    assert reminders["focus"].duration_minutes == 15
+    assert reminders["review"].duration_minutes == 60
+
+
+def test_reschedule_reminder_excludes_target_but_blocks_other_overlap(service):
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="focus",
+                trigger_time=NOW + timedelta(hours=1),
+                captured_timezone="UTC",
+                duration_minutes=60,
+            ),
+            ReminderBatchItem(
+                operation="create",
+                content="review",
+                trigger_time=NOW + timedelta(hours=3),
+                captured_timezone="UTC",
+                duration_minutes=30,
+            ),
+        ],
+    )
+    focus_id = created.items[0].reminder_id
+
+    same_slot = service.reschedule_reminder(
+        owner_account_id="acct_1",
+        reminder_id=focus_id,
+        trigger_time=NOW + timedelta(hours=1),
+        captured_timezone="UTC",
+    )
+    conflict = service.reschedule_reminder(
+        owner_account_id="acct_1",
+        reminder_id=focus_id,
+        trigger_time=NOW + timedelta(hours=2, minutes=30),
+        captured_timezone="UTC",
+    )
+
+    assert same_slot.state == "succeeded"
+    assert conflict.state == "needs-follow-up"
+    assert conflict.reason == "time_conflict"
+    assert service.repository.get_reminder(focus_id).next_fire_at == NOW + timedelta(
+        hours=1
+    )
+
+
 def test_personal_reminder_create_writes_outbox_event(service):
     result = service.execute_batch(
         owner_account_id="acct_1",
@@ -520,7 +640,8 @@ def test_duplicate_prevention_uses_schema_key_not_duration_or_entry_point(servic
     assert created.items[0].state == "succeeded"
     assert duplicate.items[0].state == "failed"
     assert duplicate.items[0].reason == "duplicate_reminder"
-    assert duplicate.items[1].state == "succeeded"
+    assert duplicate.items[1].state == "needs-follow-up"
+    assert duplicate.items[1].reason == "time_conflict"
 
     service.execute_batch(
         owner_account_id="acct_1",

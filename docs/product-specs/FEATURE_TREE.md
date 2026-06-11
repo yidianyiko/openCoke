@@ -17,7 +17,8 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
   nightly summaries, undelivered reminders, and reminder calendar read models.
 - SocialScheduling: friend links, public active/reachable friend-link
   resolution, authenticated friendship creation, availability queries, shared
-  reminders, projections, and product notifications.
+  reminders, shared reminder rescheduling, projections, and product
+  notifications.
 - CalendarImport: Google authorization, import runs, per-occurrence import
   items, and imported Coke reminders.
 

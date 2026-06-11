@@ -45,10 +45,7 @@ def test_first_round_and_requester_only_resolve():
 def test_gap_cases_are_known():
     assert {c.case_id for c in CASES if c.expect.gap} == {
         "reminder_005",
-        "calendar_self_create_002",
         "scheduling_conflict_001",
-        "scheduling_reschedule_001",
-        "scheduling_reschedule_002",
     }
 
 
@@ -114,6 +111,7 @@ _BASE = {
     "removed_reminders": [],
     "new_shared": [],
     "removed_shared": [],
+    "updated_shared": [],
 }
 
 
@@ -126,7 +124,7 @@ def test_forbidden_create_fails_even_for_gap(tmp_path):
 
 def test_gap_case_records_behavior(tmp_path):
     smoke = _smoke(tmp_path)
-    smoke._assert_case(case_by_id("scheduling_reschedule_001"), {**_BASE})
+    smoke._assert_case(case_by_id("scheduling_conflict_001"), {**_BASE})
     assert "expected_gap" in smoke.transcript.verdicts[-1]["message"]
 
 
@@ -145,4 +143,20 @@ def test_chat_must_not_create(tmp_path):
     with pytest.raises(SmokeVerdictError):
         smoke._assert_case(case, {**_BASE, "new_reminders": ["r1"]})
     smoke._assert_case(case, {**_BASE})
+    assert smoke.transcript.verdicts[-1]["status"] == "passed"
+
+
+def test_update_shared_requires_existing_row_update_without_create_or_cancel(tmp_path):
+    smoke = _smoke(tmp_path)
+    case = case_by_id("scheduling_reschedule_001")
+    with pytest.raises(SmokeVerdictError):
+        smoke._assert_case(case, {**_BASE})
+    smoke._assert_case(
+        case,
+        {
+            **_BASE,
+            "materialized_ops": ["social_scheduling.update_shared_reminder"],
+            "updated_shared": ["sr1"],
+        },
+    )
     assert smoke.transcript.verdicts[-1]["status"] == "passed"

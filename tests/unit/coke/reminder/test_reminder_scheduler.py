@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from itertools import count
 
-from coke.domains.reminder.models import ReminderBatchItem
+from coke.domains.reminder.models import Reminder, ReminderBatchItem, ReminderKind
 from coke.domains.reminder.recurrence import next_occurrence_after
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.scheduler import ReminderScheduler
@@ -25,6 +25,36 @@ def make_service() -> ReminderService:
     )
 
 
+def add_existing_reminder(
+    repository: InMemoryReminderRepository,
+    *,
+    reminder_id: str,
+    owner_account_id: str,
+    content: str,
+    due_at: datetime,
+    kind: ReminderKind = "timed",
+    hidden_from_calendar: bool = False,
+) -> None:
+    repository.add_reminder(
+        Reminder(
+            id=reminder_id,
+            owner_account_id=owner_account_id,
+            content=content,
+            content_hash=f"hash:{reminder_id}",
+            kind=kind,
+            next_fire_at=due_at,
+            recurrence_rule={},
+            captured_timezone="UTC",
+            duration_minutes=15,
+            lifecycle="active",
+            hidden_from_calendar=hidden_from_calendar,
+            shared_reminder_id="shared_1" if kind == "shared_projection" else None,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+
+
 def test_recurrence_expands_using_captured_timezone_not_current_display_timezone():
     start = datetime(2026, 5, 30, 0, 30, tzinfo=UTC)
     rule = {"frequency": "daily", "interval": 1}
@@ -41,22 +71,19 @@ def test_recurrence_expands_using_captured_timezone_not_current_display_timezone
 def test_same_owner_same_due_time_is_one_grouped_fire_turn_with_ordered_fire_ids():
     service = make_service()
     due_at = NOW + timedelta(minutes=30)
-    created = service.execute_batch(
+    add_existing_reminder(
+        service.repository,
+        reminder_id="existing_first",
         owner_account_id="acct_1",
-        items=[
-            ReminderBatchItem(
-                operation="create",
-                content="first",
-                trigger_time=due_at,
-                captured_timezone="UTC",
-            ),
-            ReminderBatchItem(
-                operation="create",
-                content="second",
-                trigger_time=due_at,
-                captured_timezone="UTC",
-            ),
-        ],
+        content="first",
+        due_at=due_at,
+    )
+    add_existing_reminder(
+        service.repository,
+        reminder_id="existing_second",
+        owner_account_id="acct_1",
+        content="second",
+        due_at=due_at,
     )
     scheduler = ReminderScheduler(service=service, jobstore="memory")
 
@@ -68,10 +95,10 @@ def test_same_owner_same_due_time_is_one_grouped_fire_turn_with_ordered_fire_ids
     assert groups[0].trigger_id == f"reminder_fire:acct_1:{due_at.isoformat()}"
     assert groups[0].fire_ids == [
         service.repository.get_fire_by_occurrence(
-            created.items[0].reminder_id, due_at.isoformat()
+            "existing_first", due_at.isoformat()
         ).id,
         service.repository.get_fire_by_occurrence(
-            created.items[1].reminder_id, due_at.isoformat()
+            "existing_second", due_at.isoformat()
         ).id,
     ]
 
@@ -79,33 +106,29 @@ def test_same_owner_same_due_time_is_one_grouped_fire_turn_with_ordered_fire_ids
 def test_restart_catch_up_keeps_personal_and_shared_but_discards_missed_proactive():
     service = make_service()
     missed = NOW - timedelta(hours=1)
-    created = service.execute_batch(
+    add_existing_reminder(
+        service.repository,
+        reminder_id="missed_personal",
         owner_account_id="acct_1",
-        items=[
-            ReminderBatchItem(
-                operation="create",
-                content="personal",
-                trigger_time=missed,
-                captured_timezone="UTC",
-                time_state="valid_future",
-            ),
-            ReminderBatchItem(
-                operation="create",
-                content="shared projection",
-                trigger_time=missed,
-                captured_timezone="UTC",
-                kind="shared_projection",
-                time_state="valid_future",
-            ),
-            ReminderBatchItem(
-                operation="create",
-                content="proactive",
-                trigger_time=missed,
-                captured_timezone="UTC",
-                kind="proactive",
-                time_state="valid_future",
-            ),
-        ],
+        content="personal",
+        due_at=missed,
+    )
+    add_existing_reminder(
+        service.repository,
+        reminder_id="missed_shared_projection",
+        owner_account_id="acct_1",
+        content="shared projection",
+        due_at=missed,
+        kind="shared_projection",
+    )
+    add_existing_reminder(
+        service.repository,
+        reminder_id="missed_proactive",
+        owner_account_id="acct_1",
+        content="proactive",
+        due_at=missed,
+        kind="proactive",
+        hidden_from_calendar=True,
     )
     scheduler = ReminderScheduler(service=service, jobstore="memory")
 
@@ -116,7 +139,7 @@ def test_restart_catch_up_keeps_personal_and_shared_but_discards_missed_proactiv
     ]
     assert len(catch_up[0].fire_ids) == 2
     proactive_fire = service.repository.get_fire_by_occurrence(
-        created.items[2].reminder_id,
+        "missed_proactive",
         missed.isoformat(),
     )
     assert proactive_fire.fire_state == "discarded"

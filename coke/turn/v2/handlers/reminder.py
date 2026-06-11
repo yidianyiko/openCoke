@@ -98,6 +98,9 @@ class ReminderActionHandler:
             item_index=1,
             guard=guard,
         )
+        conflict = self._check_time_conflict(owner, _item, exclude_reminder_id=None)
+        if conflict is not None:
+            return _blocked_keyword_outcome(conflict)
         staged_id = _stage_execute_batch(guard, owner, [_staged_create_item(payload)])
         return ActionOutcome(
             category="done",
@@ -136,6 +139,9 @@ class ReminderActionHandler:
                     status="missing_trigger_time",
                     data={"field": "trigger_time", "item_index": index},
                 )
+            conflict = self._check_time_conflict(owner, item, exclude_reminder_id=None)
+            if conflict is not None:
+                return _blocked_keyword_outcome(conflict)
             items.append(item)
             payloads.append(payload)
 
@@ -180,6 +186,34 @@ class ReminderActionHandler:
                 owner_account_id=owner,
                 keyword=match,
             )
+            if (
+                result.state == "succeeded"
+                and result.reminder_id is not None
+                and (
+                    trigger_time is not None
+                    or params.get("duration_minutes") is not None
+                )
+            ):
+                conflict = self._check_time_conflict(
+                    owner,
+                    ReminderBatchItem(
+                        operation="create",
+                        trigger_time=trigger_time,
+                        captured_timezone=_timezone(params),
+                        duration_minutes=params.get("duration_minutes"),
+                    ),
+                    exclude_reminder_id=result.reminder_id,
+                )
+                if conflict is not None:
+                    return _blocked_keyword_outcome(
+                        ReminderItemResult(
+                            state=conflict.state,
+                            reminder_id=result.reminder_id,
+                            reason=conflict.reason,
+                            time_state=conflict.time_state,
+                            fact=conflict.fact,
+                        )
+                    )
             return self._keyword_mutation_outcome(
                 result,
                 guard,
@@ -224,6 +258,27 @@ class ReminderActionHandler:
                 "operation": "complete_reminder",
                 "owner_account_id": owner,
             },
+        )
+
+    def _check_time_conflict(
+        self,
+        owner: str,
+        item: ReminderBatchItem,
+        *,
+        exclude_reminder_id: str | None,
+    ) -> ReminderItemResult | None:
+        check = getattr(self.reminder_service, "check_time_conflict", None)
+        if not callable(check):
+            return None
+        duration_minutes = (
+            item.duration_minutes if item.duration_minutes is not None else 15
+        )
+        return check(
+            owner_account_id=owner,
+            trigger_time=item.trigger_time,
+            captured_timezone=item.captured_timezone,
+            duration_minutes=duration_minutes,
+            exclude_reminder_id=exclude_reminder_id,
         )
 
     def _keyword_mutation_outcome(

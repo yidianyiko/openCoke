@@ -351,7 +351,9 @@ conversation `context_token`.
   downtime. Proactive follow-ups are discarded on delivery failure.
 - Friendships are direct active relationships, not owner-approval requests.
 - Shared reminders are active immediately after validation. Any participant may
-  cancel the whole group; completion affects only that participant's projection.
+  reschedule time/duration for the whole group after participant conflict and
+  channel checks, or cancel the whole group; completion affects only that
+  participant's projection.
 - Product notifications are structured facts rendered by The Turn. Notifications
   are informational and never approval or action-execution workflows.
 - Every terminal `NotificationTurn` path settles each target notification

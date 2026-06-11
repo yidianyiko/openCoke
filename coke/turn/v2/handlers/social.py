@@ -41,6 +41,8 @@ class SocialSchedulingActionHandler:
         params = dict(action.params)
         if action.operation == "create_shared_reminder":
             return self._create_shared_reminder(params, guard)
+        if action.operation == "update_shared_reminder":
+            return self._update_shared_reminder(params, guard)
         if action.operation == "cancel_shared_reminder":
             return self._cancel_shared_reminder(params, guard)
         if action.operation == "list_shared":
@@ -172,6 +174,70 @@ class SocialSchedulingActionHandler:
             category="done",
             status="cancelled",
             data=data,
+            staged_command_id=staged_id,
+        )
+
+    def _update_shared_reminder(
+        self,
+        params: Mapping[str, Any],
+        guard: Any,
+    ) -> ActionOutcome:
+        account_id = _account_id(params)
+        if account_id is None:
+            return _missing_input("account_id")
+        shared_reminder_id = _optional_str(params.get("shared_reminder_id"))
+        if shared_reminder_id is None:
+            resolved = self._resolve_participants(account_id, params)
+            if isinstance(resolved, ActionOutcome):
+                return resolved
+            target = self._resolve_shared_reminder(account_id, resolved, params)
+            if isinstance(target, ActionOutcome):
+                return target
+            shared_reminder_id = target.id
+
+        local_trigger_at = _optional_datetime(
+            params.get("local_trigger_at") or params.get("trigger_time")
+        )
+        try:
+            result = self.social_scheduling_service.update_shared_reminder(
+                account_id=account_id,
+                shared_reminder_id=shared_reminder_id,
+                local_trigger_at=local_trigger_at,
+                captured_timezone=_timezone(params),
+                duration_minutes=_optional_int(params.get("duration_minutes")),
+                commit_guard=_commit_guard(guard),
+            )
+        except (SocialSchedulingError, ValueError) as error:
+            return _social_error_outcome(error)
+
+        outcome = _shared_reminder_update_outcome(result)
+        if outcome.category != "done" or outcome.status != "rescheduled":
+            return outcome
+        staged_id = _stage_command(
+            guard,
+            operation="update_shared_reminder",
+            command_payload={
+                key: value
+                for key, value in {
+                    "operation": "update_shared_reminder",
+                    "account_id": account_id,
+                    "shared_reminder_id": shared_reminder_id,
+                    "local_trigger_at": local_trigger_at,
+                    "captured_timezone": _timezone(params),
+                    "duration_minutes": _optional_int(params.get("duration_minutes")),
+                }.items()
+                if value is not None
+            },
+            preview_facts={
+                "status": "staged",
+                "operation": "update_shared_reminder",
+                "account_id": account_id,
+            },
+        )
+        return ActionOutcome(
+            category="done",
+            status="rescheduled",
+            data=outcome.data,
             staged_command_id=staged_id,
         )
 
@@ -372,6 +438,53 @@ def _shared_reminder_create_outcome(result: Any) -> ActionOutcome:
         status=status,
         data=data,
     )
+
+
+def _shared_reminder_update_outcome(result: Any) -> ActionOutcome:
+    status = str(getattr(result, "status", "invalid"))
+    data = _create_result_data(result)
+    if status == "rescheduled":
+        return ActionOutcome(category="done", status="rescheduled", data=data)
+    if status == "duplicate":
+        return ActionOutcome(
+            category="not_possible",
+            status="duplicate_active",
+            data=data,
+        )
+    if status == "needs_time":
+        return ActionOutcome(
+            category="needs_input",
+            status="missing_time",
+            data={"field": "time", **_follow_up_data(result)},
+        )
+    if status == "needs_update_fields":
+        return ActionOutcome(
+            category="needs_input",
+            status=status,
+            data={"field": "time_or_duration", **_follow_up_data(result)},
+        )
+    if status == "needs_past_time_confirmation":
+        return ActionOutcome(
+            category="needs_confirmation",
+            status=status,
+            data=_follow_up_data(result),
+        )
+    if status == "blocked":
+        breakdown = getattr(result, "breakdown", {}) or {}
+        if breakdown.get("conflicting_participants"):
+            return ActionOutcome(
+                category="not_possible",
+                status="receiver_conflict",
+                data=data,
+            )
+        if breakdown.get("unreachable_participants"):
+            return ActionOutcome(
+                category="not_possible",
+                status="unreachable",
+                data=data,
+            )
+        return ActionOutcome(category="not_possible", status="blocked", data=data)
+    return ActionOutcome(category="not_possible", status=status, data=data)
 
 
 def _create_result_data(result: Any) -> dict[str, Any]:

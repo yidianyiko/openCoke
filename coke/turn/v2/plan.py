@@ -38,6 +38,10 @@ Ownership:
   generic object word like "预约"/"安排"/"提醒"/"shared reminder". If the user only
   names the friend and no specific shared reminder, OMIT `match` so the handler
   can ask which one when multiple active candidates exist.
+- A request to move/change/reschedule an existing shared appointment/reminder
+  with another person is social_scheduling.update_shared_reminder. Preserve the
+  friend reference and specific topic/title in params; never express it as
+  cancel_shared_reminder or a personal reminder update.
 - Do not emit confidence fields, scores, thresholds, final prose, or tool calls.
 - conversation_history is the prior turns of THIS conversation (role user = the
   person, role assistant = you). Use it to resolve the latest message in context.

@@ -8,6 +8,7 @@ OutputKind = Literal["reply", "no_reply"]
 
 SOCIAL_SCHEDULING_ALLOWED_CLAIMS: dict[str, set[str]] = {
     "created_active": {"active_created"},
+    "rescheduled_active": {"active_rescheduled"},
     "duplicate_active": {"active_duplicate"},
     "blocked_unmatched_friend": {"blocked_unmatched_friend"},
     "blocked_ambiguous_friend": {"blocked_ambiguous_friend"},
@@ -17,14 +18,16 @@ SOCIAL_SCHEDULING_ALLOWED_CLAIMS: dict[str, set[str]] = {
     "needs_title": {"needs_title"},
     "needs_time": {"needs_time"},
     "needs_past_time_confirmation": {"needs_past_time_confirmation"},
-    "needs_incomplete_date_clarification": {
-        "needs_incomplete_date_clarification"
-    },
+    "needs_incomplete_date_clarification": {"needs_incomplete_date_clarification"},
     "invalid": {"failed"},
     "staged_pending_close": {"no_success_claim"},
 }
 
-SOCIAL_SCHEDULING_ACTIVE_STATUSES = {"created_active", "duplicate_active"}
+SOCIAL_SCHEDULING_ACTIVE_STATUSES = {
+    "created_active",
+    "rescheduled_active",
+    "duplicate_active",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,7 +137,9 @@ class OutputProtocolValidator:
         if claim.get("status") != outcome_status:
             return self._invalid("social_scheduling_claim_status_mismatch")
 
-        allowed_claims = SOCIAL_SCHEDULING_ALLOWED_CLAIMS.get(str(outcome_status), set())
+        allowed_claims = SOCIAL_SCHEDULING_ALLOWED_CLAIMS.get(
+            str(outcome_status), set()
+        )
         if claim.get("claim") not in allowed_claims:
             return self._invalid("social_scheduling_claim_not_allowed")
 
@@ -145,16 +150,12 @@ class OutputProtocolValidator:
         if outcome_status in SOCIAL_SCHEDULING_ACTIVE_STATUSES:
             shared_reminder_id = outcome.get("shared_reminder_id")
             if not isinstance(shared_reminder_id, str) or not shared_reminder_id:
-                return self._invalid(
-                    "social_scheduling_active_shared_reminder_missing"
-                )
+                return self._invalid("social_scheduling_active_shared_reminder_missing")
             if (
                 active_shared_reminder_exists is not None
                 and not active_shared_reminder_exists(shared_reminder_id)
             ):
-                return self._invalid(
-                    "social_scheduling_active_shared_reminder_missing"
-                )
+                return self._invalid("social_scheduling_active_shared_reminder_missing")
 
         return validated
 

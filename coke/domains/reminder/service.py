@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Any
 from uuid import uuid4
@@ -104,6 +104,15 @@ class ReminderService:
                 reason=time_state,
                 time_state=time_state,
             )
+        conflict = self.check_time_conflict(
+            owner_account_id=owner_account_id,
+            trigger_time=trigger_time,
+            captured_timezone=captured_timezone,
+            duration_minutes=reminder.duration_minutes,
+            exclude_reminder_id=reminder.id,
+        )
+        if conflict is not None:
+            return conflict
         updated = replace(
             reminder,
             kind="timed",
@@ -154,6 +163,15 @@ class ReminderService:
                 reason=time_state,
                 time_state=time_state,
             )
+        conflict = self.check_time_conflict(
+            owner_account_id=owner_account_id,
+            trigger_time=trigger_time,
+            captured_timezone=captured_timezone,
+            duration_minutes=reminder.duration_minutes,
+            exclude_reminder_id=reminder.id,
+        )
+        if conflict is not None:
+            return conflict
         updated = replace(
             reminder,
             next_fire_at=trigger_time,
@@ -231,6 +249,15 @@ class ReminderService:
             )
 
         updated = replace(reminder, **updates)
+        conflict = self.check_time_conflict(
+            owner_account_id=owner_account_id,
+            trigger_time=updated.next_fire_at,
+            captured_timezone=updated.captured_timezone,
+            duration_minutes=updated.duration_minutes,
+            exclude_reminder_id=updated.id,
+        )
+        if conflict is not None:
+            return replace(conflict, reminder_id=updated.id)
         self._save_reminder_with_outbox(
             updated,
             "update",
@@ -721,6 +748,67 @@ class ReminderService:
             return "needs_past_time_confirmation"
         return "valid_future"
 
+    def check_time_conflict(
+        self,
+        *,
+        owner_account_id: str,
+        trigger_time: datetime | None,
+        captured_timezone: str,
+        duration_minutes: Any | None,
+        exclude_reminder_id: str | None = None,
+        content_hash: str | None = None,
+    ) -> ReminderItemResult | None:
+        if trigger_time is None:
+            return None
+        if trigger_time.tzinfo is None:
+            return None
+        try:
+            duration = _duration_minutes(duration_minutes)
+        except ReminderError:
+            return None
+        proposed_start = trigger_time.astimezone(UTC)
+        proposed_end = proposed_start + timedelta(minutes=duration)
+        for reminder in self.repository.list_active_reminders(owner_account_id):
+            if reminder.id == exclude_reminder_id:
+                continue
+            if not _calendar_visible_busy_reminder(reminder):
+                continue
+            existing_start = reminder.next_fire_at.astimezone(UTC)
+            if (
+                content_hash is not None
+                and reminder.content_hash == content_hash
+                and existing_start == proposed_start
+            ):
+                continue
+            existing_end = existing_start + timedelta(minutes=reminder.duration_minutes)
+            if _intervals_overlap(
+                proposed_start, proposed_end, existing_start, existing_end
+            ):
+                return ReminderItemResult(
+                    state="needs-follow-up",
+                    reminder_id=exclude_reminder_id,
+                    reason="time_conflict",
+                    time_state="valid_future",
+                    fact={
+                        "type": "time_conflict",
+                        "requested_interval": {
+                            "start": proposed_start.isoformat(),
+                            "end": proposed_end.isoformat(),
+                            "captured_timezone": captured_timezone,
+                            "duration_minutes": duration,
+                        },
+                        "conflict": {
+                            "reminder_id": reminder.id,
+                            "content": reminder.content,
+                            "start": existing_start.isoformat(),
+                            "end": existing_end.isoformat(),
+                            "captured_timezone": reminder.captured_timezone,
+                            "shared_reminder_id": reminder.shared_reminder_id,
+                        },
+                    },
+                )
+        return None
+
     def _execute_item(
         self,
         owner_account_id: str,
@@ -795,6 +883,21 @@ class ReminderService:
                 time_state=time_state,
             )
         kind = self._derive_kind(item)
+        duration_minutes = (
+            _duration_minutes(item.duration_minutes)
+            if item.duration_minutes is not None
+            else 15
+        )
+        if _candidate_calendar_visible(kind, item.trigger_time):
+            conflict = self.check_time_conflict(
+                owner_account_id=owner_account_id,
+                trigger_time=item.trigger_time,
+                captured_timezone=item.captured_timezone,
+                duration_minutes=duration_minutes,
+                content_hash=_content_hash(item.content),
+            )
+            if conflict is not None:
+                return conflict
         now = self._now()
         reminder = Reminder(
             id=self._id_factory("reminder"),
@@ -805,11 +908,7 @@ class ReminderService:
             next_fire_at=item.trigger_time,
             recurrence_rule=dict(item.recurrence_rule),
             captured_timezone=item.captured_timezone,
-            duration_minutes=(
-                _duration_minutes(item.duration_minutes)
-                if item.duration_minutes is not None
-                else 15
-            ),
+            duration_minutes=duration_minutes,
             lifecycle="active",
             hidden_from_calendar=kind == "proactive",
             shared_reminder_id=item.shared_reminder_id,
@@ -1024,6 +1123,31 @@ def _safe_write_error_reason(error: ValueError) -> str:
     }:
         return reason
     return "reminder_write_failed"
+
+
+def _calendar_visible_busy_reminder(reminder: Reminder) -> bool:
+    return (
+        reminder.lifecycle == "active"
+        and not reminder.hidden_from_calendar
+        and reminder.kind != "no_trigger_time"
+        and reminder.next_fire_at is not None
+    )
+
+
+def _candidate_calendar_visible(
+    kind: ReminderKind,
+    trigger_time: datetime | None,
+) -> bool:
+    return kind not in {"no_trigger_time", "proactive"} and trigger_time is not None
+
+
+def _intervals_overlap(
+    left_start: datetime,
+    left_end: datetime,
+    right_start: datetime,
+    right_end: datetime,
+) -> bool:
+    return left_start < right_end and right_start < left_end
 
 
 def _duration_minutes(value: Any) -> int:

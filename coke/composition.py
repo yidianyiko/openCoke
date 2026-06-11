@@ -824,6 +824,7 @@ class SocialSchedulingToolAdapter:
                 if operation in {
                     "create_shared_reminder",
                     "detect_and_create_shared_reminder",
+                    "update_shared_reminder",
                 }:
                     preview_facts["social_scheduling_outcome"] = (
                         _social_scheduling_outcome_from_command(
@@ -991,6 +992,34 @@ class SocialSchedulingToolAdapter:
                         "status": result.status,
                         "shared_reminder_id": result.shared_reminder.id,
                     },
+                )
+
+            if operation == "update_shared_reminder":
+                result = self.social_scheduling_service.update_shared_reminder(
+                    account_id=_required_str(command, "account_id"),
+                    shared_reminder_id=_required_str(command, "shared_reminder_id"),
+                    local_trigger_at=_optional_datetime(
+                        command.get("local_trigger_at") or command.get("trigger_time")
+                    ),
+                    captured_timezone=str(command.get("captured_timezone") or "UTC"),
+                    duration_minutes=(
+                        int(command["duration_minutes"])
+                        if command.get("duration_minutes") is not None
+                        else None
+                    ),
+                    commit_guard=_guard_commit_guard(guard),
+                )
+                facts = _shared_reminder_create_tool_facts(
+                    operation,
+                    command,
+                    result,
+                )
+                return ToolExecutionResult(
+                    ok=result.status == "rescheduled",
+                    facts=facts,
+                    reason_code=(
+                        None if result.status == "rescheduled" else result.status
+                    ),
                 )
 
             if operation == "establish_friendship_from_token":
@@ -1908,6 +1937,7 @@ _SOCIAL_SCHEDULING_WRITE_OPERATIONS = frozenset(
         "disable_friend_link",
         "create_shared_reminder",
         "detect_and_create_shared_reminder",
+        "update_shared_reminder",
         "cancel_shared_reminder",
         "establish_friendship_from_token",
         "remove_friend",
@@ -2064,6 +2094,20 @@ def _validate_social_scheduling_staged_write(
         elif operation == "cancel_shared_reminder":
             _required_str(command, "account_id")
             _required_str(command, "shared_reminder_id")
+        elif operation == "update_shared_reminder":
+            _required_str(command, "account_id")
+            _required_str(command, "shared_reminder_id")
+            if (
+                command.get("local_trigger_at") is None
+                and command.get("trigger_time") is None
+                and command.get("duration_minutes") is None
+            ):
+                return _tool_validation_error("needs_update_fields")
+            _optional_datetime(
+                command.get("local_trigger_at") or command.get("trigger_time")
+            )
+            if command.get("duration_minutes") is not None:
+                int(command["duration_minutes"])
         elif operation == "establish_friendship_from_token":
             _required_str(command, "joiner_account_id", default_key="account_id")
             if command.get("link_code"):
@@ -2229,6 +2273,8 @@ def _social_scheduling_outcome_status(
 ) -> str:
     if service_status == "created":
         return "created_active"
+    if service_status == "rescheduled":
+        return "rescheduled_active"
     if service_status == "duplicate":
         return "duplicate_active"
     if service_status == "blocked":
@@ -2304,6 +2350,10 @@ def _social_scheduling_outcome_from_command(
         "receiver_account_ids",
         aliases=("participant_account_ids", "participants"),
     )
+    if not receiver_account_ids and shared_reminder is not None:
+        receiver_account_ids = list(
+            getattr(shared_reminder, "participant_account_ids", ()) or ()
+        )
     shared_reminder_id = (
         getattr(shared_reminder, "id", None) if shared_reminder else None
     )

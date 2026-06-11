@@ -39,6 +39,7 @@ class StubReminderService:
         self.filter_result: list[Reminder] = []
         self.batch_result = ReminderBatchResult(owner_account_id="acct-1", items=[])
         self.resolve_result = ReminderItemResult(state="succeeded", reminder_id="r1")
+        self.conflict_result: ReminderItemResult | None = None
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.mutation_calls: list[str] = []
 
@@ -49,6 +50,10 @@ class StubReminderService:
     def resolve_user_mutable_keyword(self, **kwargs: Any) -> ReminderItemResult:
         self.calls.append(("resolve_user_mutable_keyword", kwargs))
         return self.resolve_result
+
+    def check_time_conflict(self, **kwargs: Any) -> ReminderItemResult | None:
+        self.calls.append(("check_time_conflict", kwargs))
+        return self.conflict_result
 
     def execute_batch(self, **kwargs: Any) -> ReminderBatchResult:
         self.calls.append(("execute_batch", kwargs))
@@ -246,7 +251,7 @@ def test_create_extracts_time_then_stages_execute_batch_without_mutating() -> No
         staged_command_id="stage-1",
     )
     assert detector.calls == [("take meds tomorrow 9", "Asia/Tokyo", NOW)]
-    assert service.calls == []
+    assert [call[0] for call in service.calls] == ["check_time_conflict"]
     assert service.mutation_calls == []
     assert guard.staged[0]["domain"] == "reminder"
     assert guard.staged[0]["operation"] == "execute_batch"
@@ -317,9 +322,50 @@ def test_create_defers_duplicate_detection_to_close_materializer() -> None:
     assert outcome.category == "done"
     assert outcome.status == "created"
     assert outcome.staged_command_id == "stage-1"
-    assert service.calls == []
+    assert [call[0] for call in service.calls] == ["check_time_conflict"]
     assert service.mutation_calls == []
     assert guard.staged[0]["operation"] == "execute_batch"
+
+
+def test_create_blocks_time_conflict_before_staging() -> None:
+    service = StubReminderService()
+    service.conflict_result = ReminderItemResult(
+        state="needs-follow-up",
+        reason="time_conflict",
+        fact={"conflict": {"reminder_id": "busy-r1", "content": "meeting"}},
+    )
+    guard = RecordingGuard()
+
+    outcome = _handler(service).resolve_and_stage(
+        _compiled(
+            "create",
+            {
+                "owner_account_id": "acct-1",
+                "content": "take meds",
+                "time_phrase": "tomorrow 9",
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "needs_input"
+    assert outcome.status == "time_conflict"
+    assert outcome.data["fact"]["conflict"]["reminder_id"] == "busy-r1"
+    assert outcome.staged_command_id is None
+    assert service.calls == [
+        (
+            "check_time_conflict",
+            {
+                "owner_account_id": "acct-1",
+                "trigger_time": datetime(2026, 6, 11, 0, 0, tzinfo=UTC),
+                "captured_timezone": "Asia/Tokyo",
+                "duration_minutes": 20,
+                "exclude_reminder_id": None,
+            },
+        )
+    ]
+    assert guard.staged == []
 
 
 @pytest.mark.parametrize(
@@ -437,12 +483,73 @@ def test_update_with_time_phrase_extracts_new_trigger_time() -> None:
         (
             "resolve_user_mutable_keyword",
             {"owner_account_id": "acct-1", "keyword": "gym"},
-        )
+        ),
+        (
+            "check_time_conflict",
+            {
+                "owner_account_id": "acct-1",
+                "trigger_time": datetime(2026, 6, 11, 0, 0, tzinfo=UTC),
+                "captured_timezone": "Asia/Tokyo",
+                "duration_minutes": 15,
+                "exclude_reminder_id": "r1",
+            },
+        ),
     ]
     assert service.mutation_calls == []
     assert guard.staged[0]["command_payload"]["trigger_time"] == (
         "2026-06-11T00:00:00+00:00"
     )
+
+
+def test_update_with_time_phrase_blocks_time_conflict_before_staging() -> None:
+    service = StubReminderService()
+    service.resolve_result = ReminderItemResult(
+        state="succeeded",
+        reminder_id="r1",
+        fact={"matched": {"reminder_id": "r1", "content": "gym"}},
+    )
+    service.conflict_result = ReminderItemResult(
+        state="needs-follow-up",
+        reminder_id="r1",
+        reason="time_conflict",
+        fact={"conflict": {"reminder_id": "busy-r2", "content": "meeting"}},
+    )
+    detector = StubDetector(_detected(content="gym", trigger_time=TRIGGER_TIME))
+    guard = RecordingGuard()
+
+    outcome = _handler(service, detector).resolve_and_stage(
+        _compiled(
+            "update",
+            {
+                "owner_account_id": "acct-1",
+                "match": "gym",
+                "time_phrase": "tomorrow 9",
+                "captured_timezone": "Asia/Tokyo",
+                "duration_minutes": 45,
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "needs_input"
+    assert outcome.status == "time_conflict"
+    assert service.calls == [
+        (
+            "resolve_user_mutable_keyword",
+            {"owner_account_id": "acct-1", "keyword": "gym"},
+        ),
+        (
+            "check_time_conflict",
+            {
+                "owner_account_id": "acct-1",
+                "trigger_time": datetime(2026, 6, 11, 0, 0, tzinfo=UTC),
+                "captured_timezone": "Asia/Tokyo",
+                "duration_minutes": 45,
+                "exclude_reminder_id": "r1",
+            },
+        ),
+    ]
+    assert guard.staged == []
 
 
 @pytest.mark.parametrize(
@@ -528,7 +635,10 @@ def test_batch_create_stages_all_items_without_execute_time_mutation() -> None:
         "succeeded",
     ]
     assert outcome.staged_command_id == "stage-1"
-    assert service.calls == []
+    assert [call[0] for call in service.calls] == [
+        "check_time_conflict",
+        "check_time_conflict",
+    ]
     assert service.mutation_calls == []
     assert guard.staged[0]["operation"] == "execute_batch"
     assert len(guard.staged[0]["command_payload"]["items"]) == 2

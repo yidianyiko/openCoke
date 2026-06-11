@@ -32,6 +32,7 @@ from coke.domains.social_scheduling.models import (
     SharedReminder,
     SharedReminderCancellationResult,
     SharedReminderCreateResult,
+    SharedReminderUpdateResult,
     SocialSchedulingOutcome,
     SocialSchedulingError,
     UndeliveredNotificationResendTurn,
@@ -667,6 +668,165 @@ class SocialSchedulingService:
             notification_facts=[notification],
         )
 
+    def update_shared_reminder(
+        self,
+        *,
+        account_id: str,
+        shared_reminder_id: str,
+        local_trigger_at: datetime | None,
+        captured_timezone: str | None = None,
+        duration_minutes: int | None = None,
+        commit_guard: CommitGuard = None,
+    ) -> SharedReminderUpdateResult:
+        account_id = _canon(account_id)
+        reminder = self.view_shared_reminder(account_id, shared_reminder_id)
+        projections = self.repository.list_projections(shared_reminder_id)
+        if reminder.status == "cancelled":
+            return SharedReminderUpdateResult(
+                status="already_cancelled",
+                shared_reminder=reminder,
+                projections=projections,
+            )
+        if local_trigger_at is None and duration_minutes is None:
+            return SharedReminderUpdateResult(
+                status="needs_update_fields",
+                shared_reminder=reminder,
+                projections=projections,
+                follow_up_facts={"missing": "time_or_duration"},
+            )
+
+        proposed_time = (
+            _as_local_wall_clock(local_trigger_at)
+            if local_trigger_at is not None
+            else reminder.local_trigger_at
+        )
+        if proposed_time is None:
+            return SharedReminderUpdateResult(
+                status="needs_time",
+                shared_reminder=reminder,
+                projections=projections,
+                follow_up_facts={"missing": "time"},
+            )
+        proposed_timezone = captured_timezone or reminder.captured_timezone
+        proposed_duration = (
+            _positive_duration_minutes(duration_minutes)
+            if duration_minutes is not None
+            else reminder.duration_minutes
+        )
+        time_state = self._validate_shared_trigger_time(
+            proposed_time,
+            proposed_timezone,
+        )
+        if time_state != "valid_future":
+            return SharedReminderUpdateResult(
+                status=time_state,
+                shared_reminder=reminder,
+                projections=projections,
+                follow_up_facts={
+                    "time_state": time_state,
+                    "local_trigger_at": proposed_time.isoformat(),
+                    "captured_timezone": proposed_timezone,
+                },
+            )
+
+        duplicate = self.repository.get_duplicate_active_shared_reminder(
+            reminder.creator_account_id,
+            reminder.participant_set_hash,
+            reminder.title_hash,
+            proposed_time,
+            proposed_timezone,
+            proposed_duration,
+        )
+        if duplicate is not None and duplicate.id != reminder.id:
+            return SharedReminderUpdateResult(
+                status="duplicate",
+                shared_reminder=duplicate,
+                projections=self.repository.list_projections(duplicate.id),
+            )
+
+        start = proposed_time
+        end = start + timedelta(minutes=proposed_duration)
+        exclude_detail_ids = {
+            reminder.id,
+            *[projection.reminder_id for projection in projections],
+        }
+        participants = list(reminder.participant_account_ids)
+        conflicting = [
+            participant
+            for participant in participants
+            if self._busy_intervals_for(
+                account_id=participant,
+                start=start,
+                end=end,
+                requester_timezone=proposed_timezone,
+                exclude_detail_ids=exclude_detail_ids,
+            )
+        ]
+        unreachable = [
+            participant
+            for participant in participants
+            if not self.reachability.has_usable_channel(participant)
+        ]
+        available = [
+            participant
+            for participant in participants
+            if participant not in set(conflicting)
+            and participant not in set(unreachable)
+        ]
+        if conflicting or unreachable:
+            return SharedReminderUpdateResult(
+                status="blocked",
+                shared_reminder=None,
+                projections=[],
+                breakdown={
+                    "conflicting_participants": sorted(conflicting),
+                    "unreachable_participants": sorted(unreachable),
+                    "available_participants": sorted(available),
+                },
+            )
+
+        now = self._now()
+        updated_reminder = replace(
+            reminder,
+            local_trigger_at=proposed_time,
+            captured_timezone=proposed_timezone,
+            duration_minutes=proposed_duration,
+            updated_at=now,
+        )
+        updated_projections = [
+            (
+                replace(projection, updated_at=now)
+                if projection.lifecycle == "active"
+                else projection
+            )
+            for projection in projections
+        ]
+        with self.repository.atomic():
+            _run_commit_guard(commit_guard)
+            self.repository.save_shared_reminder(updated_reminder)
+            for projection in updated_projections:
+                self.repository.save_projection(projection)
+            self.repository.sync_projection_reminders(
+                updated_reminder,
+                updated_projections,
+            )
+            notification = self._create_shared_reminder_notification(
+                updated_reminder,
+                "rescheduled",
+                actor_account_id=account_id,
+                recipients=[
+                    participant
+                    for participant in updated_reminder.participant_account_ids
+                    if participant != account_id
+                ],
+            )
+        return SharedReminderUpdateResult(
+            status="rescheduled",
+            shared_reminder=updated_reminder,
+            projections=updated_projections,
+            notification_facts=[notification],
+        )
+
     def complete_own_projection(
         self,
         account_id: str,
@@ -930,7 +1090,7 @@ class SocialSchedulingService:
                 if recipients is not None
                 else list(reminder.participant_account_ids)
             ),
-            idempotency_key=f"shared_reminder:{reminder.id}:{status}",
+            idempotency_key=_shared_notification_idempotency_key(reminder, status),
         )
 
     def _maybe_create_shared_reminder_delivery_receipt(
@@ -996,12 +1156,20 @@ class SocialSchedulingService:
         start: datetime,
         end: datetime,
         requester_timezone: str,
+        exclude_detail_ids: set[str] | None = None,
     ):
-        return [
+        intervals = [
             *self.reminder_availability.personal_busy_intervals(
                 account_id, start, end, requester_timezone
             ),
             *self.repository.shared_busy_intervals(account_id, start, end),
+        ]
+        if not exclude_detail_ids:
+            return intervals
+        return [
+            interval
+            for interval in intervals
+            if interval.detail_id not in exclude_detail_ids
         ]
 
     def _link_view(self, link: FriendLink, include_public: bool) -> FriendLinkView:
@@ -1083,6 +1251,23 @@ def _as_local_wall_clock(value: datetime | None) -> datetime | None:
     if value is None or value.tzinfo is None:
         return value
     return value.replace(tzinfo=None)
+
+
+def _positive_duration_minutes(value: int) -> int:
+    if isinstance(value, bool) or int(value) <= 0:
+        raise SocialSchedulingError("invalid_duration_minutes")
+    return int(value)
+
+
+def _shared_notification_idempotency_key(
+    reminder: SharedReminder,
+    status: str,
+) -> str:
+    if status == "rescheduled":
+        return (
+            f"shared_reminder:{reminder.id}:{status}:{reminder.updated_at.isoformat()}"
+        )
+    return f"shared_reminder:{reminder.id}:{status}"
 
 
 def _normalize_title(title: str) -> str:

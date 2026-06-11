@@ -43,6 +43,7 @@ INTENT_ACTIONS: set[IntentAction] = {
     "schedule_unscheduled",
     "clear_trigger_time",
     "create_shared_reminder",
+    "update_shared_reminder",
     "cancel_shared_reminder",
     "list_shared",
     "availability_query",
@@ -126,6 +127,8 @@ Examples:
   reminder_op/update_reminder unless another required field is missing.
 - Friend list: friend_op/list_friends. Availability: scheduling/availability_query.
 - Shared reminder creation with friend names: scheduling/create_shared_reminder.
+- Shared reminder time or duration changes: scheduling/update_shared_reminder,
+  not cancellation and not personal reminder update.
 - A friend reference correction for the immediately preceding unresolved shared-reminder
   intent is a semantic follow_up_action, not runner keyword routes. Emit
   resolve_friend_reference_correction with prior_reference_text, corrected_friend_text,

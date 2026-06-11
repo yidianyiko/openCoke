@@ -24,6 +24,7 @@ IntentAction = Literal[
     "schedule_unscheduled",
     "clear_trigger_time",
     "create_shared_reminder",
+    "update_shared_reminder",
     "cancel_shared_reminder",
     "list_shared",
     "availability_query",

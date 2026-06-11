@@ -192,6 +192,24 @@ PARAM_KEY_SCHEMA: ParamKeySchema = MappingProxyType(
                         "title",
                     ),
                 ),
+                "update_shared_reminder": ParamKeySpec(
+                    optional=(
+                        "account_id",
+                        "owner_account_id",
+                        "creator_account_id",
+                        "participant",
+                        "match",
+                        "shared_reminder_id",
+                        "captured_timezone",
+                        "requester_timezone",
+                        "duration_minutes",
+                        "local_trigger_at",
+                        "trigger_time",
+                        "time_phrase",
+                        "raw_text",
+                        "text",
+                    ),
+                ),
                 "list_shared": ParamKeySpec(
                     optional=(
                         "account_id",

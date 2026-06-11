@@ -386,6 +386,8 @@ class AgnoInteractionAgent:
             "For availability requests, call social_scheduling_tool with operation=query_availability, requester_account_id from trusted_facts.account_id, friend_account_ids as active friend account IDs, local_start, local_end, and requester_timezone from trusted_facts.default_timezone.",
             "For shared-reminder creation from natural language, call social_scheduling_tool with operation=detect_and_create_shared_reminder, creator_account_id from trusted_facts.account_id, receiver_account_ids as account IDs of active friends, raw_text set to the exact User message, captured_timezone from trusted_facts.default_timezone when unspecified, and duration_minutes only when explicit. Do not compute local_trigger_at yourself.",
             "When a shared-reminder creation tool result succeeds, state that the shared reminder is created and immediately active. Never say or imply waiting for confirmation, pending confirmation, pending acceptance, approval, invitation approval, or that receivers need to accept/reject it.",
+            "For shared-reminder time or duration changes, call social_scheduling_tool with operation=update_shared_reminder, account_id from trusted_facts.account_id, shared_reminder_id from trusted context or prior tool results, local_trigger_at when changing time, captured_timezone from trusted_facts.default_timezone, and duration_minutes only when explicit. Do not use cancellation to represent a reschedule.",
+            "When shared-reminder update is blocked by conflict, say the old shared reminder remains unchanged and ask for another time; do not suggest a concrete alternate time unless a tool result checked it.",
             "For shared-reminder cancellation requests, call social_scheduling_tool with operation=cancel_shared_reminder, account_id from trusted_facts.account_id, and shared_reminder_id from trusted context or prior tool results.",
             "When a user gives a friend name but not an account ID, call operation=list_friends first. If exactly one active friend matches the request context, use that friend's account_id; otherwise ask a clarification instead of inventing an ID.",
             "For global timezone switches, call settings_tool with operation=set_timezone, account_id from trusted_facts.account_id, and default_timezone as the requested IANA timezone; do not rewrite existing reminders.",
@@ -577,6 +579,11 @@ def _tool_doc(name: str) -> str:
             "set to the exact User message, captured_timezone set to "
             "trusted_facts.default_timezone, duration_minutes only when "
             "explicit. Do not compute local_trigger_at yourself. "
+            "To update or reschedule an existing shared reminder, call "
+            "operation='update_shared_reminder' with account_id set to "
+            "trusted_facts.account_id, shared_reminder_id, local_trigger_at "
+            "when changing time, captured_timezone, and duration_minutes only "
+            "when explicit. Do not use cancellation for rescheduling. "
             "To cancel a shared reminder, call "
             "operation='cancel_shared_reminder' with "
             "account_id set to trusted_facts.account_id and "
@@ -707,6 +714,12 @@ def _with_tool_defaults(
                 str(request.trusted_facts.get("default_timezone") or "UTC"),
             )
             payload.setdefault("duration_minutes", 15)
+        if payload.get("operation") == "update_shared_reminder":
+            payload.setdefault("account_id", request.account_id)
+            payload.setdefault(
+                "captured_timezone",
+                str(request.trusted_facts.get("default_timezone") or "UTC"),
+            )
         return payload
     if name != "reminder":
         return command
@@ -1403,7 +1416,7 @@ def _social_scheduling_outcomes_block(outcomes: list[Mapping[str, Any]]) -> str:
             "trusted social_scheduling close-time outcomes:",
             _json_block({"outcomes": outcomes}),
             "When replying about these outcomes, include domain_claim with domain=social_scheduling, outcome_id, status, and the allowed claim that matches the trusted outcome.",
-            "created_active requires claim active_created; duplicate_active requires active_duplicate; blocked_* requires the matching blocked_* claim and blocker; staged_pending_close allows only no_success_claim and must not be user-visible success.",
+            "created_active requires claim active_created; rescheduled_active requires active_rescheduled; duplicate_active requires active_duplicate; blocked_* requires the matching blocked_* claim and blocker; staged_pending_close allows only no_success_claim and must not be user-visible success.",
         ]
     )
 

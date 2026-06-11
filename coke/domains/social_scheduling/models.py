@@ -14,6 +14,7 @@ RecoverableSchedulingIntentStatus = Literal["open", "consumed", "expired", "supe
 RecoverableSchedulingIntentBlocker = Literal["unmatched_friend", "ambiguous_friend"]
 SocialSchedulingOutcomeStatus = Literal[
     "created_active",
+    "rescheduled_active",
     "duplicate_active",
     "blocked_unmatched_friend",
     "blocked_ambiguous_friend",
@@ -29,6 +30,7 @@ SocialSchedulingOutcomeStatus = Literal[
 ]
 SocialSchedulingClaim = Literal[
     "active_created",
+    "active_rescheduled",
     "active_duplicate",
     "blocked_unmatched_friend",
     "blocked_ambiguous_friend",
@@ -260,4 +262,23 @@ class SharedReminderCancellationResult:
     status: Literal["cancelled", "already_cancelled"]
     shared_reminder: SharedReminder
     projections: list[ReminderProjection]
+    notification_facts: list[NotificationFact] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class SharedReminderUpdateResult:
+    status: Literal[
+        "rescheduled",
+        "blocked",
+        "duplicate",
+        "already_cancelled",
+        "needs_time",
+        "needs_update_fields",
+        "needs_past_time_confirmation",
+        "invalid",
+    ]
+    shared_reminder: SharedReminder | None
+    projections: list[ReminderProjection] = field(default_factory=list)
+    breakdown: dict[str, list[str]] = field(default_factory=dict)
+    follow_up_facts: dict[str, Any] = field(default_factory=dict)
     notification_facts: list[NotificationFact] = field(default_factory=list)

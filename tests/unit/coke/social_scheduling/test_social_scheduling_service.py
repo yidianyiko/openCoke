@@ -679,6 +679,146 @@ def test_cancel_shared_reminder_deletes_projection_reminders():
     } == {"deleted"}
 
 
+def test_update_shared_reminder_reschedules_existing_object_and_projection_reminders():
+    service, repo, _, _ = make_service({"creator", "friend"})
+    service.display_name_resolver = lambda account_id: {
+        "creator": "Creator Name",
+        "friend": "Friend Name",
+    }[account_id]
+    create_active_friendship(service, "creator", "friend")
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="review",
+        local_trigger_at=datetime(2026, 6, 4, 11, 0),
+        captured_timezone="UTC",
+        duration_minutes=15,
+    )
+    shared_id = created.shared_reminder.id
+
+    result = service.update_shared_reminder(
+        account_id="creator",
+        shared_reminder_id=shared_id,
+        local_trigger_at=datetime(2026, 6, 4, 12, 0),
+        captured_timezone="UTC",
+        duration_minutes=45,
+    )
+
+    assert result.status == "rescheduled"
+    assert result.shared_reminder.id == shared_id
+    assert len(repo.shared_reminders_by_id) == 1
+    assert repo.shared_reminders_by_id[shared_id].local_trigger_at == datetime(
+        2026, 6, 4, 12, 0
+    )
+    assert repo.shared_reminders_by_id[shared_id].duration_minutes == 45
+    assert {
+        (
+            reminder.content,
+            reminder.next_fire_at,
+            reminder.duration_minutes,
+            reminder.lifecycle,
+        )
+        for reminder in repo.projection_reminders_by_id.values()
+    } == {
+        ("review", datetime(2026, 6, 4, 12, 0, tzinfo=UTC), 45, "active"),
+    }
+    assert result.notification_facts[0].type == "shared_reminder_rescheduled"
+    assert result.notification_facts[0].facts["delivery_recipients"] == ["friend"]
+
+
+def test_update_shared_reminder_conflict_leaves_existing_rows_unchanged():
+    service, repo, _, reminder_availability = make_service({"creator", "friend"})
+    create_active_friendship(service, "creator", "friend")
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="review",
+        local_trigger_at=datetime(2026, 6, 4, 11, 0),
+        captured_timezone="UTC",
+        duration_minutes=15,
+    )
+    shared_id = created.shared_reminder.id
+    original_projection_times = {
+        projection.reminder_id: repo.projection_reminders_by_id[
+            projection.reminder_id
+        ].next_fire_at
+        for projection in created.projections
+    }
+    reminder_availability.intervals["friend"] = [
+        BusyInterval(
+            account_id="friend",
+            start=datetime(2026, 6, 4, 12, 10),
+            end=datetime(2026, 6, 4, 12, 20),
+            source="personal",
+            detail_id="friend-busy",
+        )
+    ]
+
+    result = service.update_shared_reminder(
+        account_id="creator",
+        shared_reminder_id=shared_id,
+        local_trigger_at=datetime(2026, 6, 4, 12, 0),
+        captured_timezone="UTC",
+        duration_minutes=45,
+    )
+
+    assert result.status == "blocked"
+    assert result.breakdown == {
+        "conflicting_participants": ["friend"],
+        "unreachable_participants": [],
+        "available_participants": ["creator"],
+    }
+    assert repo.shared_reminders_by_id[shared_id].local_trigger_at == datetime(
+        2026, 6, 4, 11, 0
+    )
+    assert {
+        projection.reminder_id: repo.projection_reminders_by_id[
+            projection.reminder_id
+        ].next_fire_at
+        for projection in created.projections
+    } == original_projection_times
+
+
+def test_update_shared_reminder_excludes_current_projection_from_conflict_check():
+    service, repo, _, reminder_availability = make_service({"creator", "friend"})
+    create_active_friendship(service, "creator", "friend")
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="review",
+        local_trigger_at=datetime(2026, 6, 4, 11, 0),
+        captured_timezone="UTC",
+        duration_minutes=15,
+    )
+    friend_projection = next(
+        projection
+        for projection in created.projections
+        if projection.account_id == "friend"
+    )
+    reminder_availability.intervals["friend"] = [
+        BusyInterval(
+            account_id="friend",
+            start=datetime(2026, 6, 4, 11, 0),
+            end=datetime(2026, 6, 4, 11, 15),
+            source="personal",
+            detail_id=friend_projection.reminder_id,
+        )
+    ]
+
+    result = service.update_shared_reminder(
+        account_id="friend",
+        shared_reminder_id=created.shared_reminder.id,
+        local_trigger_at=datetime(2026, 6, 4, 11, 0),
+        captured_timezone="UTC",
+        duration_minutes=30,
+    )
+
+    assert result.status == "rescheduled"
+    assert (
+        repo.shared_reminders_by_id[created.shared_reminder.id].duration_minutes == 30
+    )
+
+
 def test_shared_reminder_pre_creation_checks_return_three_way_breakdown_without_mutation():
     service, repo, reachability, reminder_availability = make_service(
         {"creator", "busy_friend", "free_friend", "unreachable_friend"}

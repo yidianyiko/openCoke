@@ -80,6 +80,7 @@ REMINDER_CREATE_OPS = {"create", "detect_and_create", "execute_batch"}
 REMINDER_UPDATE_OPS = {"update_reminder"}
 REMINDER_DELETE_OPS = {"delete_reminder"}
 SHARED_CREATE_OPS = {"create_shared_reminder", "detect_and_create_shared_reminder"}
+SHARED_UPDATE_OPS = {"update_shared_reminder"}
 SHARED_CANCEL_OPS = {"cancel_shared_reminder"}
 
 
@@ -257,9 +258,11 @@ def _active_reminder_ids() -> sa.Select:
 def _active_shared_ids() -> sa.Select:
     shared = schema.shared_reminder
     creator = sa.bindparam("creator_account_id")
-    return sa.select(shared.c.id).where(
-        shared.c.creator_account_id == creator, shared.c.status == "active"
-    )
+    return sa.select(
+        shared.c.id,
+        shared.c.local_trigger_at,
+        shared.c.duration_minutes,
+    ).where(shared.c.creator_account_id == creator, shared.c.status == "active")
 
 
 # --------------------------------------------------------------------------
@@ -376,7 +379,7 @@ class V6WeChatSmoke:
             )
 
     # ---- Case execution ----------------------------------------------------
-    def _snapshot(self) -> tuple[set[str], set[str]]:
+    def _snapshot(self) -> tuple[set[str], dict[str, tuple[str, int]]]:
         assert self.db is not None
         owner = self.config.requester.account_id
         reminders = {
@@ -384,7 +387,10 @@ class V6WeChatSmoke:
             for r in self.db.rows(_active_reminder_ids().params(owner_account_id=owner))
         }
         shared = {
-            r["id"]
+            r["id"]: (
+                r["local_trigger_at"].isoformat(),
+                int(r["duration_minutes"]),
+            )
             for r in self.db.rows(_active_shared_ids().params(creator_account_id=owner))
         }
         return reminders, shared
@@ -400,7 +406,9 @@ class V6WeChatSmoke:
         raise SmokeVerdictError(f"timed out waiting for completed turn for {event_id}")
 
     def _collect_verdict(
-        self, turn_row: dict[str, Any], before: tuple[set[str], set[str]]
+        self,
+        turn_row: dict[str, Any],
+        before: tuple[set[str], dict[str, tuple[str, int]]],
     ) -> dict[str, Any]:
         assert self.db is not None
         turn_id = turn_row["turn_id"]
@@ -415,14 +423,21 @@ class V6WeChatSmoke:
         )
         outbound = self.db.rows(_outbound_for_turn().params(turn_id=turn_id))
         after = self._snapshot()
+        before_shared_ids = set(before[1])
+        after_shared_ids = set(after[1])
         return {
             "materialized_ops": sorted(materialized),
             "disposition": (disposition or {}).get("disposition"),
             "has_outbound": bool(outbound),
             "new_reminders": sorted(after[0] - before[0]),
             "removed_reminders": sorted(before[0] - after[0]),
-            "new_shared": sorted(after[1] - before[1]),
-            "removed_shared": sorted(before[1] - after[1]),
+            "new_shared": sorted(after_shared_ids - before_shared_ids),
+            "removed_shared": sorted(before_shared_ids - after_shared_ids),
+            "updated_shared": sorted(
+                shared_id
+                for shared_id in before_shared_ids & after_shared_ids
+                if before[1][shared_id] != after[1][shared_id]
+            ),
         }
 
     @staticmethod
@@ -435,6 +450,7 @@ class V6WeChatSmoke:
             "reminder_update": any_op("reminder", REMINDER_UPDATE_OPS),
             "reminder_delete": any_op("reminder", REMINDER_DELETE_OPS),
             "shared_create": any_op("social_scheduling", SHARED_CREATE_OPS),
+            "shared_update": any_op("social_scheduling", SHARED_UPDATE_OPS),
             "shared_cancel": any_op("social_scheduling", SHARED_CANCEL_OPS),
         }
 
@@ -485,6 +501,7 @@ class V6WeChatSmoke:
 
     def _assert_outcome(self, case: V6Case, verdict: dict[str, Any]) -> None:
         outcome = case.expect.outcome
+        bucket = self._bucket(set(verdict["materialized_ops"]))
         if outcome == "create_reminder":
             if not verdict["new_reminders"]:
                 self.transcript.fail_and_raise(
@@ -505,6 +522,15 @@ class V6WeChatSmoke:
                 self.transcript.fail_and_raise(
                     case.case_id, "no shared cancelled", verdict
                 )
+        elif outcome == "update_shared":
+            if verdict["new_shared"] or verdict["removed_shared"]:
+                self.transcript.fail_and_raise(
+                    case.case_id, "shared update created or removed a row", verdict
+                )
+            if not (bucket["shared_update"] or verdict.get("updated_shared")):
+                self.transcript.fail_and_raise(
+                    case.case_id, "no shared reminder updated", verdict
+                )
         elif outcome == "update_reminder":
             if verdict["new_reminders"]:
                 self.transcript.fail_and_raise(
@@ -517,7 +543,12 @@ class V6WeChatSmoke:
             "query_availability",
             "conflict_block",
         }:
-            if verdict["new_reminders"] or verdict["new_shared"]:
+            if (
+                verdict["new_reminders"]
+                or verdict["new_shared"]
+                or verdict.get("updated_shared")
+                or verdict["removed_shared"]
+            ):
                 self.transcript.fail_and_raise(
                     case.case_id, f"{outcome} must not create product rows", verdict
                 )

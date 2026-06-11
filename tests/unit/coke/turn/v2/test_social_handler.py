@@ -46,6 +46,13 @@ class StubSocialSchedulingService:
             shared_reminder=_shared_reminder("sr-1"),
             projections=[],
         )
+        self.update_result: Any = SimpleNamespace(
+            status="rescheduled",
+            shared_reminder=_shared_reminder("sr-1"),
+            projections=[],
+            breakdown={},
+            follow_up_facts={},
+        )
         self.shared_reminders = [_shared_reminder("sr-1")]
         self.availability_result: Any = FriendAvailability(
             friend_account_id="friend-amy",
@@ -88,6 +95,10 @@ class StubSocialSchedulingService:
     def cancel_shared_reminder(self, **kwargs: Any) -> SharedReminderCancellationResult:
         self.calls.append(("cancel_shared_reminder", kwargs))
         return self.cancel_result
+
+    def update_shared_reminder(self, **kwargs: Any) -> Any:
+        self.calls.append(("update_shared_reminder", kwargs))
+        return self.update_result
 
     def query_availability(self, **kwargs: Any) -> Any:
         self.calls.append(("query_availability", kwargs))
@@ -439,6 +450,86 @@ def test_cancel_shared_reminder_exact_title_reference_with_multiple_same_friend_
     assert service.calls[-1][0] == "cancel_shared_reminder"
     assert service.calls[-1][1]["shared_reminder_id"] == "sr-open"
     assert guard.staged[0]["operation"] == "cancel_shared_reminder"
+
+
+def test_update_shared_reminder_resolves_keyword_and_stages_reschedule() -> None:
+    service = StubSocialSchedulingService()
+    service.update_result = SimpleNamespace(
+        status="rescheduled",
+        shared_reminder=_shared_reminder("sr-1"),
+        projections=[],
+        breakdown={},
+        follow_up_facts={},
+    )
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled(
+            "update_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "match": "deck",
+                "local_trigger_at": "2026-06-11T10:00:00",
+                "captured_timezone": "Asia/Tokyo",
+                "duration_minutes": 30,
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "rescheduled"
+    assert outcome.data["shared_reminder"]["shared_reminder_id"] == "sr-1"
+    assert outcome.staged_command_id == "stage-1"
+    assert service.calls[-1] == (
+        "update_shared_reminder",
+        {
+            "account_id": "acct-1",
+            "shared_reminder_id": "sr-1",
+            "local_trigger_at": datetime(2026, 6, 11, 10, 0),
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": 30,
+            "commit_guard": guard.guard_state_change,
+        },
+    )
+    assert guard.staged[0]["operation"] == "update_shared_reminder"
+    assert guard.staged[0]["command_payload"]["shared_reminder_id"] == "sr-1"
+
+
+def test_update_shared_reminder_conflict_stages_nothing() -> None:
+    service = StubSocialSchedulingService()
+    service.update_result = SimpleNamespace(
+        status="blocked",
+        shared_reminder=None,
+        projections=[],
+        breakdown={
+            "conflicting_participants": ["friend-amy"],
+            "unreachable_participants": [],
+            "available_participants": ["acct-1"],
+        },
+        follow_up_facts={},
+    )
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled(
+            "update_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "match": "deck",
+                "local_trigger_at": "2026-06-11T10:00:00",
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "not_possible"
+    assert outcome.status == "receiver_conflict"
+    assert outcome.staged_command_id is None
+    assert guard.staged == []
 
 
 def test_list_shared_returns_listed_without_staging() -> None:

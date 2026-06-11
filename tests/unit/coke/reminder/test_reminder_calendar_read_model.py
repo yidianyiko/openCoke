@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from itertools import count
 
 from coke.domains.reminder.calendar_read_model import ReminderCalendarReadModel
-from coke.domains.reminder.models import ReminderBatchItem
+from coke.domains.reminder.models import Reminder, ReminderBatchItem, ReminderKind
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
 
@@ -21,6 +21,36 @@ def make_service() -> ReminderService:
         repository=InMemoryReminderRepository(),
         now=lambda: NOW,
         id_factory=sequence_factory("calendar"),
+    )
+
+
+def add_existing_reminder(
+    repository: InMemoryReminderRepository,
+    *,
+    reminder_id: str,
+    owner_account_id: str,
+    content: str,
+    due_at: datetime,
+    kind: ReminderKind = "timed",
+    duration_minutes: int = 15,
+) -> None:
+    repository.add_reminder(
+        Reminder(
+            id=reminder_id,
+            owner_account_id=owner_account_id,
+            content=content,
+            content_hash=f"hash:{reminder_id}",
+            kind=kind,
+            next_fire_at=due_at,
+            recurrence_rule={},
+            captured_timezone="UTC",
+            duration_minutes=duration_minutes,
+            lifecycle="active",
+            hidden_from_calendar=False,
+            shared_reminder_id=None,
+            created_at=NOW,
+            updated_at=NOW,
+        )
     )
 
 
@@ -90,24 +120,21 @@ def test_calendar_returns_typed_entries_and_type_specific_action_handles():
 def test_calendar_includes_undelivered_and_merged_same_time_groups():
     service = make_service()
     due = NOW + timedelta(hours=1)
-    result = service.execute_batch(
+    add_existing_reminder(
+        service.repository,
+        reminder_id="existing_first",
         owner_account_id="acct_1",
-        items=[
-            ReminderBatchItem(
-                operation="create",
-                content="first",
-                trigger_time=due,
-                captured_timezone="UTC",
-            ),
-            ReminderBatchItem(
-                operation="create",
-                content="second",
-                trigger_time=due,
-                captured_timezone="UTC",
-            ),
-        ],
+        content="first",
+        due_at=due,
     )
-    fire = service.claim_due_fire(result.items[0].reminder_id, due)
+    add_existing_reminder(
+        service.repository,
+        reminder_id="existing_second",
+        owner_account_id="acct_1",
+        content="second",
+        due_at=due,
+    )
+    fire = service.claim_due_fire("existing_first", due)
     service.mark_fire_undelivered(fire.id)
     read_model = ReminderCalendarReadModel(repository=service.repository)
 
@@ -120,8 +147,8 @@ def test_calendar_includes_undelivered_and_merged_same_time_groups():
     by_type = {entry.entry_type: entry for entry in entries.entries}
 
     assert by_type["merged_group"].member_reminder_ids == [
-        result.items[0].reminder_id,
-        result.items[1].reminder_id,
+        "existing_first",
+        "existing_second",
     ]
     assert by_type["merged_group"].action_handles == ["expand"]
     assert by_type["undelivered"].fire_id == fire.id
