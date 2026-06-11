@@ -235,6 +235,7 @@ class SocialSchedulingActionHandler:
                     "local_trigger_at": local_trigger_at,
                     "captured_timezone": captured_timezone,
                     "duration_minutes": _optional_int(params.get("duration_minutes")),
+                    "idempotent_replay": True,
                 }.items()
                 if value is not None
             },

@@ -149,6 +149,27 @@ class FakeSocialSchedulingService:
             follow_up_facts={},
         )
 
+    def update_shared_reminder(self, **kwargs):
+        kwargs.pop("commit_guard", None)
+        self.calls.append(("update_shared_reminder", kwargs))
+        if self.shared_reminder_error is not None:
+            raise self.shared_reminder_error
+        if self.shared_reminder_result is not None:
+            return self.shared_reminder_result
+        return SimpleNamespace(
+            status="rescheduled",
+            shared_reminder=SimpleNamespace(
+                id=kwargs["shared_reminder_id"],
+                title="Dinner",
+                local_trigger_at=kwargs["local_trigger_at"],
+                captured_timezone=kwargs["captured_timezone"],
+                duration_minutes=kwargs["duration_minutes"],
+                participant_account_ids=("creator_1", "friend_1"),
+            ),
+            breakdown={},
+            follow_up_facts={},
+        )
+
 
 def test_social_scheduling_tool_routes_friend_link_operations_to_service():
     service = FakeSocialSchedulingService()
@@ -373,6 +394,40 @@ def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
         )
     ]
     assert guard.calls == 1
+
+
+def test_update_shared_reminder_materialize_passes_idempotent_replay_flag():
+    service = FakeSocialSchedulingService()
+    adapter = SocialSchedulingToolAdapter(service)
+
+    result = adapter.execute_without_staging(
+        {
+            "operation": "update_shared_reminder",
+            "account_id": "creator_1",
+            "shared_reminder_id": "shared_1",
+            "local_trigger_at": "2026-06-01T19:00:00",
+            "captured_timezone": "UTC",
+            "duration_minutes": 30,
+            "idempotent_replay": True,
+        },
+        FakeGuard(),
+    )
+
+    assert result.ok is True
+    assert result.reason_code is None
+    assert service.calls == [
+        (
+            "update_shared_reminder",
+            {
+                "account_id": "creator_1",
+                "shared_reminder_id": "shared_1",
+                "local_trigger_at": datetime(2026, 6, 1, 19, 0),
+                "captured_timezone": "UTC",
+                "duration_minutes": 30,
+                "idempotent_replay": True,
+            },
+        )
+    ]
 
 
 def test_interactive_shared_reminder_tool_stages_before_close():

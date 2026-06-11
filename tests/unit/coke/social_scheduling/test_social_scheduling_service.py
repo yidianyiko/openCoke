@@ -761,6 +761,54 @@ def test_update_shared_reminder_rejects_noop_update_without_mutation():
     assert repo.shared_reminders_by_id[shared_id].updated_at == original_updated_at
 
 
+def test_update_shared_reminder_idempotent_replay_accepts_already_reached_target():
+    clock = {"now": datetime(2026, 5, 30, 12, 0, tzinfo=UTC)}
+    service, repo, _, _ = make_service(
+        {"creator", "friend"},
+        now=lambda: clock["now"],
+    )
+    create_active_friendship(service, "creator", "friend")
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="review",
+        local_trigger_at=datetime(2026, 6, 4, 11, 0),
+        captured_timezone="UTC",
+        duration_minutes=15,
+    )
+    shared_id = created.shared_reminder.id
+
+    clock["now"] = datetime(2026, 5, 30, 12, 5, tzinfo=UTC)
+    first = service.update_shared_reminder(
+        account_id="creator",
+        shared_reminder_id=shared_id,
+        local_trigger_at=datetime(2026, 6, 4, 12, 0),
+        captured_timezone="UTC",
+        duration_minutes=45,
+    )
+    first_updated_at = repo.shared_reminders_by_id[shared_id].updated_at
+
+    clock["now"] = datetime(2026, 5, 30, 12, 10, tzinfo=UTC)
+    replay = service.update_shared_reminder(
+        account_id="creator",
+        shared_reminder_id=shared_id,
+        local_trigger_at=datetime(2026, 6, 4, 12, 0),
+        captured_timezone="UTC",
+        duration_minutes=45,
+        idempotent_replay=True,
+    )
+
+    assert first.status == "rescheduled"
+    assert replay.status == "rescheduled"
+    assert replay.shared_reminder.id == shared_id
+    assert replay.notification_facts == []
+    assert repo.shared_reminders_by_id[shared_id].local_trigger_at == datetime(
+        2026, 6, 4, 12, 0
+    )
+    assert repo.shared_reminders_by_id[shared_id].duration_minutes == 45
+    assert repo.shared_reminders_by_id[shared_id].updated_at == first_updated_at
+
+
 def test_update_shared_reminder_conflict_leaves_existing_rows_unchanged():
     service, repo, _, reminder_availability = make_service({"creator", "friend"})
     create_active_friendship(service, "creator", "friend")

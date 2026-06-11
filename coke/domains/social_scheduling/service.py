@@ -676,6 +676,7 @@ class SocialSchedulingService:
         local_trigger_at: datetime | None,
         captured_timezone: str | None = None,
         duration_minutes: int | None = None,
+        idempotent_replay: bool = False,
         commit_guard: CommitGuard = None,
     ) -> SharedReminderUpdateResult:
         account_id = _canon(account_id)
@@ -718,6 +719,14 @@ class SocialSchedulingService:
             and proposed_timezone == reminder.captured_timezone
             and proposed_duration == reminder.duration_minutes
         ):
+            if idempotent_replay and (
+                local_trigger_at is not None or duration_minutes is not None
+            ):
+                return SharedReminderUpdateResult(
+                    status="rescheduled",
+                    shared_reminder=reminder,
+                    projections=projections,
+                )
             return SharedReminderUpdateResult(
                 status="needs_update_fields",
                 shared_reminder=reminder,

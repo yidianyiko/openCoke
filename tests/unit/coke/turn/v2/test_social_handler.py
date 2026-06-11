@@ -545,6 +545,7 @@ def test_update_shared_reminder_time_phrase_uses_detector_and_preserves_duration
     assert guard.staged[0]["command_payload"]["local_trigger_at"] == (
         "2026-06-11T16:00:00"
     )
+    assert guard.staged[0]["command_payload"]["idempotent_replay"] is True
     assert "duration_minutes" not in guard.staged[0]["command_payload"]
 
 

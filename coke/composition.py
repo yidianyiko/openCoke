@@ -995,19 +995,28 @@ class SocialSchedulingToolAdapter:
                 )
 
             if operation == "update_shared_reminder":
-                result = self.social_scheduling_service.update_shared_reminder(
-                    account_id=_required_str(command, "account_id"),
-                    shared_reminder_id=_required_str(command, "shared_reminder_id"),
-                    local_trigger_at=_optional_datetime(
+                update_kwargs = {
+                    "account_id": _required_str(command, "account_id"),
+                    "shared_reminder_id": _required_str(
+                        command, "shared_reminder_id"
+                    ),
+                    "local_trigger_at": _optional_datetime(
                         command.get("local_trigger_at") or command.get("trigger_time")
                     ),
-                    captured_timezone=str(command.get("captured_timezone") or "UTC"),
-                    duration_minutes=(
+                    "captured_timezone": str(command.get("captured_timezone") or "UTC"),
+                    "duration_minutes": (
                         int(command["duration_minutes"])
                         if command.get("duration_minutes") is not None
                         else None
                     ),
-                    commit_guard=_guard_commit_guard(guard),
+                    "commit_guard": _guard_commit_guard(guard),
+                }
+                if "idempotent_replay" in command:
+                    update_kwargs["idempotent_replay"] = bool(
+                        command.get("idempotent_replay")
+                    )
+                result = self.social_scheduling_service.update_shared_reminder(
+                    **update_kwargs
                 )
                 facts = _shared_reminder_create_tool_facts(
                     operation,
