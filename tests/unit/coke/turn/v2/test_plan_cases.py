@@ -196,6 +196,22 @@ CASES: tuple[PlanCase, ...] = (
         "reply_needed",
     ),
     (
+        "zh shared reminder time-only reschedule",
+        "把我和 lizihao 的 openCoke 共享提醒改到明天下午4点",
+        (
+            {
+                "domain": "social_scheduling",
+                "operation": "update_shared_reminder",
+                "params": {
+                    "participant": "lizihao",
+                    "match": "openCoke",
+                    "time_phrase": "明天下午4点",
+                },
+            },
+        ),
+        "reply_needed",
+    ),
+    (
         "en list shared reminders",
         "show shared reminders with Amy",
         (

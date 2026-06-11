@@ -66,6 +66,7 @@ class StubSocialSchedulingService:
             ],
         )
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.detector: Any | None = None
 
     def resolve_active_friend_reference(
         self,
@@ -495,6 +496,56 @@ def test_update_shared_reminder_resolves_keyword_and_stages_reschedule() -> None
     )
     assert guard.staged[0]["operation"] == "update_shared_reminder"
     assert guard.staged[0]["command_payload"]["shared_reminder_id"] == "sr-1"
+
+
+def test_update_shared_reminder_time_phrase_uses_detector_and_preserves_duration() -> None:
+    service = StubSocialSchedulingService()
+    service.detector = SimpleNamespace(
+        extract=lambda text, captured_timezone, now: SimpleNamespace(
+            trigger_time=datetime(2026, 6, 11, 16, 0)
+        )
+    )
+    service.update_result = SimpleNamespace(
+        status="rescheduled",
+        shared_reminder=_shared_reminder("sr-1"),
+        projections=[],
+        breakdown={},
+        follow_up_facts={},
+    )
+    guard = RecordingGuard()
+
+    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+        _compiled(
+            "update_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "match": "deck",
+                "time_phrase": "明天下午4点",
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "rescheduled"
+    assert service.calls[-1] == (
+        "update_shared_reminder",
+        {
+            "account_id": "acct-1",
+            "shared_reminder_id": "sr-1",
+            "local_trigger_at": datetime(2026, 6, 11, 16, 0),
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": None,
+            "commit_guard": guard.guard_state_change,
+        },
+    )
+    assert guard.staged[0]["operation"] == "update_shared_reminder"
+    assert guard.staged[0]["command_payload"]["local_trigger_at"] == (
+        "2026-06-11T16:00:00"
+    )
+    assert "duration_minutes" not in guard.staged[0]["command_payload"]
 
 
 def test_update_shared_reminder_conflict_stages_nothing() -> None:

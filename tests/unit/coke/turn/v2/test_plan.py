@@ -191,6 +191,23 @@ def test_prompt_keeps_vague_mutation_requests_as_the_requested_action() -> None:
     assert "needs_choice/needs_input" in system
 
 
+def test_prompt_treats_shared_time_only_reschedule_as_update_without_duration() -> None:
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+
+    SiliconFlowPlanner(client).plan(_request("把我和 lizihao 的 openCoke 改到明天下午4点"))
+
+    system = client.calls[0]["system"]
+    assert "When the user only changes an existing shared reminder time" in system
+    assert "use social_scheduling.update_shared_reminder" in system
+    assert "include the new time as time_phrase" in system
+    assert "do not ask for duration" in system
+
+
 def _request(text: str) -> PlanRequest:
     return PlanRequest(
         account_id="acct-1",

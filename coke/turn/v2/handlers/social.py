@@ -195,15 +195,25 @@ class SocialSchedulingActionHandler:
                 return target
             shared_reminder_id = target.id
 
+        captured_timezone = _timezone(params)
         local_trigger_at = _optional_datetime(
             params.get("local_trigger_at") or params.get("trigger_time")
         )
+        if local_trigger_at is None and _optional_str(params.get("time_phrase")):
+            local_trigger_at = _detect_update_trigger_time(
+                self.social_scheduling_service,
+                params,
+                captured_timezone=captured_timezone,
+                now=self._now,
+            )
+            if local_trigger_at is None:
+                return _missing_input("time")
         try:
             result = self.social_scheduling_service.update_shared_reminder(
                 account_id=account_id,
                 shared_reminder_id=shared_reminder_id,
                 local_trigger_at=local_trigger_at,
-                captured_timezone=_timezone(params),
+                captured_timezone=captured_timezone,
                 duration_minutes=_optional_int(params.get("duration_minutes")),
                 commit_guard=_commit_guard(guard),
             )
@@ -223,7 +233,7 @@ class SocialSchedulingActionHandler:
                     "account_id": account_id,
                     "shared_reminder_id": shared_reminder_id,
                     "local_trigger_at": local_trigger_at,
-                    "captured_timezone": _timezone(params),
+                    "captured_timezone": captured_timezone,
                     "duration_minutes": _optional_int(params.get("duration_minutes")),
                 }.items()
                 if value is not None
@@ -684,6 +694,37 @@ def _optional_datetime(value: Any) -> datetime | None:
         except ValueError:
             return None
     return None
+
+
+def _detect_update_trigger_time(
+    service: SocialSchedulingService,
+    params: Mapping[str, Any],
+    *,
+    captured_timezone: str,
+    now: Callable[[], datetime],
+) -> datetime | None:
+    detector = getattr(service, "detector", None)
+    extract = getattr(detector, "extract", None)
+    if not callable(extract):
+        return None
+    try:
+        detector_text = _shared_reminder_detector_text(params)
+    except ValueError:
+        return None
+    current = now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=UTC)
+    try:
+        zone = ZoneInfo(captured_timezone)
+    except ZoneInfoNotFoundError:
+        zone = UTC
+    fields = extract(detector_text, captured_timezone, current.astimezone(zone))
+    trigger_time = getattr(fields, "trigger_time", None)
+    if not isinstance(trigger_time, datetime):
+        return None
+    if trigger_time.tzinfo is not None:
+        return trigger_time.astimezone(zone).replace(tzinfo=None)
+    return trigger_time
 
 
 _RELATIVE_DAY_OFFSETS = {
