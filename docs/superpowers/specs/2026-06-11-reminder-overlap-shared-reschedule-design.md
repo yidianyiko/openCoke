@@ -1,6 +1,6 @@
 # Reminder Overlap And Shared Reschedule — Design
 
-Status: ACCEPTED. Scope: clean v2 turn path, personal reminders used as self
+Status: ACCEPTED. Scope: clean inbound turn path, personal reminders used as self
 schedule entries, and social shared reminders.
 
 ## Problem
@@ -44,7 +44,7 @@ The v6 WeChat real-account smoke exposed two product gaps:
 - `SocialSchedulingRepository.shared_busy_intervals` returns active shared
   intervals for a participant, but does not yet support excluding the reminder
   currently being updated.
-- `SocialSchedulingActionHandler`, `PARAM_KEY_SCHEMA`, the v2 planner action set,
+- `SocialSchedulingActionHandler`, `PARAM_KEY_SCHEMA`, the planner action set,
   and the Agno tool instructions currently do not expose shared reminder update.
 
 ## Personal Overlap Design
@@ -108,7 +108,7 @@ Service behavior:
 9. Emit a `shared_reminder_updated` or `shared_reminder_rescheduled`
    notification fact to the other participants.
 
-Turn-v2 behavior:
+Inbound turn behavior:
 
 - Add `social_scheduling.update_shared_reminder` to `PARAM_KEY_SCHEMA`, planner
   allowed actions, and handler dispatch.
@@ -160,7 +160,7 @@ v6 smoke changes:
 
 ## Verification
 
-- Targeted unit tests for reminder and social scheduling services and v2 social
+- Targeted unit tests for reminder and social scheduling services and inbound social
   handler.
 - Planner/semantic tests showing shared reschedule maps to
   `update_shared_reminder`.

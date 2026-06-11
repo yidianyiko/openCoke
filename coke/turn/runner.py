@@ -24,12 +24,12 @@ from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, Interacti
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
 from coke.turn.focus import FocusResolver
 from coke.turn.freshness import FreshnessGuard
+from coke.turn.inbound.pipeline import SegmentDeliveryPort, TurnPipelineRequest
 from coke.turn.locks import ConversationLockManager
 from coke.turn.memory import MemoryManager, MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator, ValidatedOutput
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.reference_resolver import ReferenceResolver
-from coke.turn.v2.pipeline import SegmentDeliveryPort, TurnPipelineRequest
 
 WAITING_TEXT = "我还在处理，稍等一下。"
 LOGGER = logging.getLogger(__name__)
@@ -347,7 +347,7 @@ class _AsyncState:
     current_input_messages: tuple[Any, ...] = ()
 
 
-class _V2RunnerDelivery(SegmentDeliveryPort):
+class _TurnPipelineRunnerDelivery(SegmentDeliveryPort):
     def __init__(self, runner: Any, trigger: TurnTrigger) -> None:
         self.runner = runner
         self.trigger = trigger
@@ -510,7 +510,7 @@ class TurnRunner:
                     input_to_seq=start.turn.input_to_seq,
                 )
                 focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
-                return self._run_v2_inbound_turn(
+                return self._run_inbound_pipeline(
                     trigger=trigger,
                     start=start,
                     gate=gate,
@@ -586,7 +586,7 @@ class TurnRunner:
                         input_to_seq=start.turn.input_to_seq,
                     )
                     focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
-                    return await self._run_v2_inbound_turn_async(
+                    return await self._run_inbound_pipeline_async(
                         trigger=trigger,
                         start=start,
                         gate=gate,
@@ -607,7 +607,7 @@ class TurnRunner:
                 self._record_interrupted_turn(start.turn.id)
             raise
 
-    def _run_v2_inbound_turn(
+    def _run_inbound_pipeline(
         self,
         *,
         trigger: TurnTrigger,
@@ -617,7 +617,7 @@ class TurnRunner:
         focus_subject: Any | None,
     ) -> TurnRunResult:
         return asyncio.run(
-            self._run_v2_inbound_turn_async(
+            self._run_inbound_pipeline_async(
                 trigger=trigger,
                 start=start,
                 gate=gate,
@@ -626,7 +626,7 @@ class TurnRunner:
             )
         )
 
-    async def _run_v2_inbound_turn_async(
+    async def _run_inbound_pipeline_async(
         self,
         *,
         trigger: TurnTrigger,
@@ -638,7 +638,7 @@ class TurnRunner:
         if self.turn_pipeline is None:
             disposition = self.conversation_runtime.mark_failed(
                 start.turn.id,
-                "turn_v2_pipeline_unavailable",
+                "inbound_pipeline_unavailable",
             )
             return self._result_from_disposition(
                 turn_id=start.turn.id,
@@ -647,8 +647,8 @@ class TurnRunner:
                 reason_code=disposition.reason_code,
                 current_input_messages=start.input_messages,
             )
-        delivery = _V2RunnerDelivery(self, trigger)
-        request = self._v2_pipeline_request(
+        delivery = _TurnPipelineRunnerDelivery(self, trigger)
+        request = self._inbound_pipeline_request(
             trigger=trigger,
             start=start,
             gate=gate,
@@ -671,7 +671,7 @@ class TurnRunner:
                 )
             disposition = self.conversation_runtime.mark_failed(
                 start.turn.id,
-                close_result.reason_code or "turn_v2_close_failed",
+                close_result.reason_code or "turn_pipeline_close_failed",
             )
             return self._result_from_disposition(
                 turn_id=start.turn.id,
@@ -688,7 +688,7 @@ class TurnRunner:
         if not isinstance(disposition_value, str):
             disposition = self.conversation_runtime.mark_failed(
                 start.turn.id,
-                "turn_v2_close_missing_disposition",
+                "turn_pipeline_close_missing_disposition",
             )
             return self._result_from_disposition(
                 turn_id=start.turn.id,
@@ -726,7 +726,7 @@ class TurnRunner:
             current_input_messages=start.input_messages,
         )
 
-    def _v2_pipeline_request(
+    def _inbound_pipeline_request(
         self,
         *,
         trigger: TurnTrigger,
@@ -749,14 +749,14 @@ class TurnRunner:
             payload=dict(trigger.payload),
             trusted_facts=trusted_facts,
             focus_subject=focus_subject,
-            current_input_messages=self._v2_current_input_messages(
+            current_input_messages=self._inbound_current_input_messages(
                 start.input_messages
             ),
-            conversation_history=self._v2_conversation_window(
+            conversation_history=self._inbound_conversation_window(
                 trigger.conversation_id,
                 current_turn_id=start.turn.id,
             ),
-            persona=_v2_persona(trusted_facts),
+            persona=_inbound_persona(trusted_facts),
             assistant_name=str(trusted_facts.get("assistant_name") or "Coke"),
             user_address_name=str(trusted_facts.get("user_address_name") or ""),
             source_input_window=_turn_input_window(start.turn),
@@ -765,7 +765,7 @@ class TurnRunner:
             run_id=_agent_run_id_for_trigger(trigger, fallback=start.turn.id),
         )
 
-    def _v2_conversation_window(
+    def _inbound_conversation_window(
         self,
         conversation_id: str,
         *,
@@ -799,7 +799,7 @@ class TurnRunner:
             history = history[-max_messages:]
         return tuple(history)
 
-    def _v2_current_input_messages(
+    def _inbound_current_input_messages(
         self, input_messages: tuple[Any, ...]
     ) -> tuple[Mapping[str, Any], ...]:
         current: list[Mapping[str, Any]] = []
@@ -1916,7 +1916,7 @@ def _causal_ids_from_input_messages(
     )
 
 
-def _v2_persona(trusted_facts: Mapping[str, Any]) -> str:
+def _inbound_persona(trusted_facts: Mapping[str, Any]) -> str:
     parts = []
     for key in ("persona", "speaking_style", "background", "extra_rules"):
         value = trusted_facts.get(key)

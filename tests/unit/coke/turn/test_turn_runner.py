@@ -123,8 +123,8 @@ class FakeDelivery:
         return None
 
 
-class RecordingV2Pipeline:
-    def __init__(self, *, segments: tuple[str, ...] = ("v2 hello",)) -> None:
+class RecordingTurnPipeline:
+    def __init__(self, *, segments: tuple[str, ...] = ("pipeline hello",)) -> None:
         self.segments = segments
         self.calls = []
 
@@ -144,9 +144,9 @@ class RecordingV2Pipeline:
         )
 
 
-class ExplodingV2Pipeline:
+class ExplodingTurnPipeline:
     async def run(self, request, guard, delivery=None):
-        raise AssertionError("v2 pipeline should not be invoked")
+        raise AssertionError("turn pipeline should not be invoked")
 
 
 @pytest.fixture
@@ -169,7 +169,7 @@ def harness():
     gate_port = FakeGatePort()
     agent = FakeAgent()
     delivery = FakeDelivery()
-    pipeline = RecordingV2Pipeline()
+    pipeline = RecordingTurnPipeline()
     runner = TurnRunner(
         conversation_runtime=runtime,
         lock_manager=ConversationLockManager(
@@ -208,11 +208,11 @@ def harness():
     }
 
 
-def test_inbound_turn_uses_v2_pipeline(harness):
+def test_inbound_turn_uses_turn_pipeline(harness):
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 
     assert result.disposition == "replied"
-    assert result.visible_text == "v2 hello"
+    assert result.visible_text == "pipeline hello"
     assert harness["agent"].requests == []
     assert len(harness["pipeline"].calls) == 1
     request, guard, delivery = harness["pipeline"].calls[0]
@@ -226,28 +226,30 @@ def test_inbound_turn_uses_v2_pipeline(harness):
 
 
 @pytest.mark.asyncio
-async def test_async_inbound_turn_uses_v2_pipeline(harness):
-    harness["runner"].turn_pipeline = RecordingV2Pipeline(segments=("async v2",))
+async def test_async_inbound_turn_uses_turn_pipeline(harness):
+    harness["runner"].turn_pipeline = RecordingTurnPipeline(
+        segments=("async pipeline",)
+    )
 
     result = await harness["runner"].run_inbound_turn_async(harness["trigger"])
 
     assert result.disposition == "replied"
-    assert result.visible_text == "async v2"
+    assert result.visible_text == "async pipeline"
     assert harness["agent"].requests == []
 
 
-def test_inbound_without_v2_pipeline_fails_closed(harness):
+def test_inbound_without_turn_pipeline_fails_closed(harness):
     harness["runner"].turn_pipeline = None
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 
     assert result.disposition == "failed"
-    assert result.reason_code == "turn_v2_pipeline_unavailable"
+    assert result.reason_code == "inbound_pipeline_unavailable"
     assert harness["agent"].requests == []
 
 
 def test_render_turn_stays_on_render_agent_path(harness):
-    harness["runner"].turn_pipeline = ExplodingV2Pipeline()
+    harness["runner"].turn_pipeline = ExplodingTurnPipeline()
     trigger = TurnTrigger(
         trigger_id="notification:render",
         trigger_type="NotificationTurn",
@@ -265,9 +267,9 @@ def test_render_turn_stays_on_render_agent_path(harness):
     assert harness["agent"].requests[0].trigger_type == "NotificationTurn"
 
 
-def test_access_denied_inbound_uses_render_agent_not_v2(harness):
+def test_access_denied_inbound_uses_render_agent_not_turn_pipeline(harness):
     harness["gate_port"].allowed = False
-    harness["runner"].turn_pipeline = ExplodingV2Pipeline()
+    harness["runner"].turn_pipeline = ExplodingTurnPipeline()
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
 

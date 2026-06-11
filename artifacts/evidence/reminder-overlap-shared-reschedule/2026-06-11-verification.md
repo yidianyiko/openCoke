@@ -8,7 +8,7 @@ Branch: `feature/reminder-overlap-shared-reschedule`
 Targeted unit tests passed:
 
 ```text
-/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/reminder/test_reminder_service.py tests/unit/coke/turn/v2/test_reminder_handler.py tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/turn/v2/test_social_handler.py -q
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/reminder/test_reminder_service.py tests/unit/coke/turn/inbound/test_reminder_handler.py tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/turn/inbound/test_social_handler.py -q
 101 passed in 2.15s
 
 /data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/smoke/test_v6_wechat_smoke.py tests/unit/coke/llm/test_semantic_interpreter.py tests/unit/coke/llm/test_interaction_agent.py::test_social_scheduling_tool_doc_describes_shared_reminder_creation tests/unit/coke/llm/test_interaction_agent.py::test_social_scheduling_tool_doc_describes_friend_list_availability_and_cancel tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/turn/test_output_protocol.py -q
@@ -81,15 +81,15 @@ coke-outbox-relay   Up
 2. Shared reminder conflict initially returned a false success when the planner
    omitted `local_trigger_at` and only repeated the existing duration. Fixed in
    `2418ef7c` by rejecting no-op shared updates without mutation.
-3. Shared reminder time-only reschedule initially asked for duration because v2
+3. Shared reminder time-only reschedule initially asked for duration because the
    plan/handler did not preserve duration through `time_phrase`. Fixed in
    `fa71e487`.
 4. After the no-op guard, close materialization re-ran a staged shared update
    and failed as `needs_update_fields` even though the handler had already
-   applied the row change. Fixed in `69f07596` by marking v2 staged update
+   applied the row change. Fixed in `69f07596` by marking staged update
    payloads as internal idempotent replays and allowing already-reached target
    state only for that replay path.
-5. After materialization was fixed, v2 pipeline still allowed planner
+5. After materialization was fixed, the turn pipeline still allowed planner
    `intentional_no_reply` on executed staged actions, so the DB changed but no
    WeChat reply was sent. Fixed in `3fbf838d` by allowing no-reply only when no
    action outcome exists.
@@ -97,7 +97,7 @@ coke-outbox-relay   Up
 Focused regression after the final two fixes:
 
 ```text
-/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/turn/v2/test_social_handler.py tests/unit/coke/turn/v2/test_pipeline.py tests/unit/coke/turn/v2/test_plan.py tests/unit/coke/turn/v2/test_plan_cases.py tests/unit/coke/llm/test_interaction_agent.py -q
+/data/projects/coke/.venv/bin/python -m pytest tests/unit/coke/social_scheduling/test_social_scheduling_service.py tests/unit/coke/test_social_scheduling_tool_adapter.py tests/unit/coke/turn/inbound/test_social_handler.py tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/inbound/test_plan.py tests/unit/coke/turn/inbound/test_plan_cases.py tests/unit/coke/llm/test_interaction_agent.py -q
 196 passed in 2.50s
 ```
 

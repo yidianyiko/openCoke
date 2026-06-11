@@ -1,6 +1,6 @@
 # Turn Plan Conversation Context — Design
 
-Status: SHIPPED (2026-06-10). Scope: the v2 interactive inbound turn path, now
+Status: SHIPPED (2026-06-10). Scope: the interactive inbound turn path, now
 the default and only inbound path. Pass 1 (conversation history window into the
 planner) is implemented, deployed, and empirically verified. Pass 2 (structured
 resumable pending action) is NOT needed — see "Empirical result" below.
@@ -27,8 +27,8 @@ hint / structured resume is unnecessary for this class and was NOT built.
 
 ## Problem
 
-The v2 planner (`SiliconFlowPlanner`) is context-blind. The runner builds the
-planner's `conversation_history` from `_v2_conversation_history(start.input_messages)`
+The planner (`SiliconFlowPlanner`) is context-blind. The runner builds the
+planner's `conversation_history` from current-turn input messages only
 — i.e. ONLY the current turn's inbound messages. It never sees prior turns.
 
 Observed production failure (olivers, 2026-06-10): "和eva约一个明天晚上八点的晚饭"
@@ -36,11 +36,9 @@ Observed production failure (olivers, 2026-06-10): "和eva约一个明天晚上�
 assistant "晚上七点半，有什么安排吗?" (the follow-up was treated as a contextless
 fragment; the eva-dinner reschedule intent was lost). The user had to fully restate.
 
-Legacy (v1) avoided this with TWO mechanisms: (a) Agno `add_history_to_context=True`
-injects the conversation's prior turns (keyed by `session_id=conversation_id`);
-(b) `RecoverableSchedulingIntent` persists a blocked scheduling request's full
-proposed action so a follow-up deterministically resumes it. v2 dropped both;
-`PendingClarification` only covers ambiguous-candidate disambiguation.
+The current pipeline needs two distinct mechanisms: the runner-owned bounded
+conversation window for ordinary follow-ups, and `PendingClarification` for
+ambiguous-candidate disambiguation that must survive across turns.
 
 ## Evidence guiding the design
 
@@ -59,7 +57,7 @@ turns, and instruct it to resolve follow-ups against that window.
 ### Components
 
 1. Runner builds a real window.
-   - New `CokeTurnRunner._v2_conversation_window(conversation_id, current_turn_id,
+   - New `CokeTurnRunner._inbound_conversation_window(conversation_id, current_turn_id,
      limit=8)`:
      - `self.conversation_runtime.recent_turns_with_messages(conversation_id, limit)`
        returns newest-first `(Turn, input_messages, outbound_messages)` tuples.
@@ -69,10 +67,9 @@ turns, and instruct it to resolve follow-ups against that window.
        `{"role":"user","content":text,"seq":seq}` (skip blank text), then each
        outbound message as `{"role":"assistant","content":text}` (skip blank).
      - Cap to the most recent 20 messages.
-     - On `ConversationRuntimeError`, fall back to
-       `_v2_conversation_history(start.input_messages)`.
-   - `_v2_pipeline_request` uses the window builder instead of
-     `_v2_conversation_history(start.input_messages)`.
+     - On `ConversationRuntimeError`, fall back to an empty history window.
+   - `_inbound_pipeline_request` uses the window builder instead of
+     current-turn-only history.
 
 2. Planner prompt (`TURN_PLANNER_SYSTEM_PROMPT`) gains a follow-up rule:
    conversation_history is the prior turns of THIS conversation; the latest message
@@ -134,7 +131,7 @@ Pass 1's eval showing residual unreliability.
 
 ## Verification
 
-- Unit: `_v2_conversation_window` builds chronological user/assistant history,
+- Unit: `_inbound_conversation_window` builds chronological user/assistant history,
   excludes the current turn, caps length, falls back on error.
 - Real-model in-container: reproduce the eva reschedule end-to-end (olivers) and a
   simpler follow-up ("提醒我跑步" then "明天早上七点") several times; confirm the

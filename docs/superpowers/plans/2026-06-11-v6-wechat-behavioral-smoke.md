@@ -29,7 +29,7 @@ the `wechat_personal` channel, and remove the dead pre-rebuild smoke skills.
 
 ## Capability Survey (v6 vs current backend)
 
-The v2 turn pipeline action vocab (`coke/turn/v2/param_schema.py`):
+The turn pipeline action vocab (`coke/turn/inbound/param_schema.py`):
 
 - `reminder`: create / update / delete / complete / list / batch_create (`kind`
   supports `recurring`).

@@ -22,7 +22,7 @@ Implement the smallest product change needed for the v6 gaps:
 In scope:
 
 - personal create/update/reschedule conflict checks for timed intervals;
-- turn-v2 preflight so conflict replies are normal `time_conflict` outcomes, not
+- inbound preflight so conflict replies are normal `time_conflict` outcomes, not
   close-time materialization failures;
 - `update_shared_reminder` for time and duration only;
 - shared reschedule conflict checks that exclude the current shared reminder and
@@ -43,13 +43,13 @@ Out of scope:
 
 1. Add failing tests for personal overlap:
    - domain service create blocks overlap and writes no reminder;
-   - v2 reminder handler returns a conflict outcome before staging;
+   - inbound reminder handler returns a conflict outcome before staging;
    - update/reschedule excludes the target reminder but blocks other overlaps.
 2. Add failing tests for shared reschedule:
    - service updates one shared reminder id and all projection reminder rows;
    - reschedule into a participant conflict leaves old rows unchanged;
    - self-exclusion prevents the current shared interval from blocking itself;
-   - v2 social handler resolves and stages only successful updates.
+   - inbound social handler resolves and stages only successful updates.
 3. Implement the minimal domain changes:
    - reusable interval overlap helpers;
    - repository support for syncing projection reminder rows;

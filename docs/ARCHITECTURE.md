@@ -20,7 +20,7 @@ Services in the target deployment:
   exposes the public and customer APIs, enforces identity/access gates, persists
   durable facts and outbox rows, and calls provider adapters for outbound sends.
 - `coke-worker`: Python Redis Stream turn workers. It owns The Turn execution,
-  context assembly, inbound v2 planning/execution/expression, render-mode
+  context assembly, inbound turn pipeline planning/execution/expression, render-mode
   Interaction Agent invocation, output disposition, and domain command staging.
 - `coke-scheduler`: singleton Python reminder scheduler. It creates durable
   reminder-fire facts and outbox wake-ups.
@@ -41,7 +41,7 @@ providers
   -> Postgres durable facts + outbox
   -> coke-outbox-relay
   -> Redis Stream wake-up
-  -> coke-worker (The Turn, domain services, inbound v2, render-mode agent)
+  -> coke-worker (The Turn, domain services, inbound turn pipeline, render-mode agent)
   -> coke-api provider egress
 
 coke-web -> coke-api -> Postgres-backed domains
@@ -52,7 +52,7 @@ coke-web -> coke-api -> Postgres-backed domains
 All chat/channel-visible product prose flows through The Turn. Turn triggers are
 InboundTurn, ReminderFireTurn, ProactiveFireTurn, NightlySummaryTurn,
 NotificationTurn, AccessDeniedTurn, and UndeliveredResendTurn. Interactive
-InboundTurn uses the v2 Plan -> PlanCompile -> Execute -> Express -> Close
+InboundTurn uses the Plan -> PlanCompile -> Execute -> Express -> Close
 pipeline. Structured render turns keep the render-mode Interaction Agent: it
 receives already-trusted facts and has no business mutation tools. Runtime-owned
 prose is limited to typed signal exceptions such as waiting text while a model
@@ -67,7 +67,7 @@ Turn execution has one spine:
 3. Take a per-conversation Redis lock with an ownership token.
 4. Assemble trusted context: TrustFraming, Focus, ReferenceResolver, Freshness,
    Memory, pending clarification, and trigger facts.
-5. For interactive inbound user turns, run v2 Plan -> PlanCompile -> Execute ->
+5. For interactive inbound user turns, run Plan -> PlanCompile -> Execute ->
    Express -> Close. Plan emits requested actions, PlanCompile validates shape,
    Execute resolves through domain services and stages concrete effects, Express
    renders only the settled outcomes, and Close atomically commits the fresh
@@ -84,10 +84,10 @@ Turn execution has one spine:
    record delivery attempts.
 11. Update output-class-specific lifecycle state from delivery callbacks.
 
-Inbound v2 does not expose business mutation tools to a prose agent. Mutations
-are staged by Execute through domain services and materialized only by the close
-transaction. Render mode receives already-trusted structured facts and has no
-business mutation tools.
+The inbound turn pipeline does not expose business mutation tools to a prose
+agent. Mutations are staged by Execute through domain services and materialized
+only by the close transaction. Render mode receives already-trusted structured
+facts and has no business mutation tools.
 
 Render-mode Interaction Agent construction disables Agno chat history as a fact
 source. Render turns use trusted trigger facts, domain results, and dynamic
@@ -105,7 +105,7 @@ provider delivery evidence. Aggregated newline-joined text is only an internal
 turn summary and must not be used as the provider-visible payload for segmented
 replies.
 
-For inbound user turns, no-reply is a v2 plan/output decision after the full
+For inbound user turns, no-reply is a plan/output decision after the full
 trusted context is assembled. It must not close an inbound user turn before
 product-notification, reminder, focus, memory, and pending clarification context
 have been considered. This keeps intentional no-reply observable without making
@@ -124,7 +124,7 @@ input_from_seq = conversation.last_closed_inbound_seq + 1
 input_to_seq   = conversation.latest_inbound_seq
 ```
 
-The current input presented to the inbound v2 planner and expresser is the
+The current input presented to the inbound turn pipeline planner and expresser is the
 ordered set of inbound messages in `[input_from_seq, input_to_seq]`. Agno session
 history may remain enabled for retained render surfaces, but it is not the source
 of truth for the current user input.
@@ -189,7 +189,7 @@ pipeline. `coke-outbox-relay` scans active inbound turns and, after
 `COKE_WAITING_REPLY_AFTER_SECONDS` (default 20 seconds), persists
 `pending_async_reply`, records a segment `0` waiting message, and delivers that
 waiting text through the same channel route. The original worker turn remains
-active and interruptible. When the active v2 pipeline eventually returns, the
+active and interruptible. When the active turn pipeline eventually returns, the
 same turn may still transition from `pending_async_reply` to `replied` or
 `failed` if no newer inbound has arrived. If a newer inbound arrives first, the
 pending turn is superseded and any later state-changing command from that stale
@@ -211,14 +211,14 @@ staged commands. This avoids leaving wrong durable side effects when a user send
 a correction before receiving the first agent-visible reply.
 
 Shared-reminder execution produces structured social-scheduling outcomes through
-the v2 Execute step. Express may describe only the settled outcome status and
+the Execute step. Express may describe only the settled outcome status and
 blocker it receives. A staged command is never a user-visible success claim;
 visible success must match a close-time materialized or duplicate-active
 outcome. This is a structural reply contract, not a phrase denylist or
 deterministic renderer.
 
 Friend-reference corrections for blocked shared-reminder creates are handled by
-v2 pending clarification. Execute records the unresolved action fingerprint,
+pending clarification. Execute records the unresolved action fingerprint,
 candidates, and source input window; a later inbound turn can resolve that
 pending clarification through the same Plan/Compile/Execute/Close path. Ambiguous
 corrections produce a constrained clarification outcome. Corrected friend text is
@@ -249,15 +249,15 @@ SocialScheduling owns friend links, friendships, shared reminders, projections,
 product notifications, and social-scheduling outcomes. CalendarImport owns
 Google authorization, import runs, and per-occurrence import items.
 
-`pending_clarification` is the durable v2 artifact for unresolved inbound
+`pending_clarification` is the durable artifact for unresolved inbound
 actions, including shared-reminder requests blocked by unmatched or ambiguous
 friend references. It stores the unresolved action fingerprint, candidates,
 source input window, expiry, and status. It does not materialize effects
-directly; it is consumed only by a later fresh v2 close that resolves the same
+directly; it is consumed only by a later fresh close that resolves the same
 action.
 
 When IdentityAccess marks `onboarding_guidance_required`, The Turn injects an
-`onboarding_guidance` trusted fact block into the inbound v2 context or retained
+`onboarding_guidance` trusted fact block into the inbound turn pipeline context or retained
 render-mode model call. The block may include the configured onboarding
 prompt/settings and trusted `user_address_name`; it must describe only current
 product capabilities.
@@ -276,7 +276,7 @@ Rules that apply to every bounded context:
   access gating, single-channel reachability, reminder firing, recurrence
   determinism, friendship uniqueness, shared-reminder projection consistency,
   outbound idempotency, or user-visible turn auditability.
-- Legacy compatibility paths, alias routes, and fallback parsers are not kept
+- Retired compatibility paths, alias routes, and fallback parsers are not kept
   unless a current canonical spec names them as active requirements.
 
 ## Storage Topology
@@ -347,7 +347,7 @@ conversation `context_token`.
 - A messaging-first anchor channel identity is not removable while it is the only
   identity anchoring the account.
 - Each account has at most one reachable personal channel.
-- Chat/channel-visible product prose is produced by inbound v2 Express or the
+- Chat/channel-visible product prose is produced by inbound turn pipeline Express or the
   retained render-mode Interaction Agent, except for runtime-owned waiting text.
 - Turn disposition and delivery state are separate. Reminder undelivered state,
   proactive discard, shared-reminder projection delivery, and notification
@@ -372,7 +372,7 @@ conversation `context_token`.
 - Calendar import is one-time import into Coke-owned reminders with
   occurrence-grain dedupe.
 
-## Deleted Legacy Surfaces
+## Retired Superseded Surfaces
 
 The clean rebuild deletes or supersedes these surfaces:
 

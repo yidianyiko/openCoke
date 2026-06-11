@@ -3,19 +3,18 @@
 ## Status
 
 implemented-cutover (2026-06-11). Originally design-ready on 2026-06-10 through
-**two** dual-review rounds (correctness-
-regression + architecture-purity lenses) and a decision pass with the user. The
-Plan→Execute→Express spine is endorsed; the second round's concrete findings —
-typed outcomes too coarse, partial-overstate false-success, history-only recovery
-not durable, partial-close transaction, streaming classification, inbound/render
-split, concrete data contracts — are all incorporated (see "Resolved Design
-Decisions"). The temporary dual-path flag has been removed; v2 is the only
-interactive inbound path.
+**two** dual-review rounds (correctness-regression + architecture-purity lenses)
+and a decision pass with the user. The Plan→Execute→Express spine is endorsed;
+the second round's concrete findings — typed outcomes too coarse,
+partial-overstate false-success, history-only recovery not durable, partial-close
+transaction, streaming classification, inbound/render split, concrete data
+contracts — are all incorporated (see "Resolved Design Decisions"). The inbound
+pipeline is the only interactive inbound path.
 
 Supersedes the fast-path direction in
 `docs/superpowers/specs/2026-06-09-agent-flow-time-optimization-design.md`. Clean
-slate, no compatibility shims. The old inbound v1 implementation is retired;
-render-mode Interaction Agent remains for non-inbound structured turns.
+slate, no compatibility shims. Render-mode Interaction Agent remains for
+non-inbound structured turns.
 
 ## Scope
 
@@ -33,9 +32,9 @@ boundary so notification/render turns are provably untouched.
 
 The current clean turn path feels contorted and the feeling points at real debt:
 
-1. **Three LLM brains that duplicate each other** — `SemanticInterpreter`
-   classifies intent, the `Interaction Agent` re-decides which tools to call, and
-   `reminder_detector` extracts fields; understanding happens more than once.
+1. **Duplicate LLM reasoning** — a classifier-only pass, a tool-calling
+   Interaction Agent, and the reminder detector all reason over the same turn;
+   understanding happens more than once.
 2. **The Interaction Agent is both orchestrator and expresser** — it carries tool
    schemas, runs a tool loop, accumulates results, then generates prose in one
    growing context. This is the real context-growth source.
@@ -48,7 +47,7 @@ The current clean turn path feels contorted and the feeling points at real debt:
 
 The constraint that justifies a dedicated expression agent is real: **expression
 must run on a bounded context to avoid context explosion.** So "collapse back to
-one legacy agent" is rejected. The goal: keep bounded expression while removing
+one overloaded agent" is rejected. The goal: keep bounded expression while removing
 the duplication, the parallel path, and the bolted-on streaming.
 
 ## Decision
@@ -95,13 +94,13 @@ outcome a domain service deterministically returns** — not an LLM re-reasoning
 loop and not a second code path. Expressing that outcome is rendering, not a
 decision.
 
-## Service-Side Resolution (the legacy lesson)
+## Service-Side Resolution
 
-Legacy pushed resolution down into the tool/service side: it operated on
-**keywords and natural references, not pre-resolved IDs**. The service resolved
-the reference and returned a typed result; ambiguity was a service outcome, not
-an agent guess. The clean domain services already work this way — e.g.
-reminder `update_by_keyword`/delete/complete resolve a match and return
+Resolution belongs in the tool/service side: actions operate on **keywords and
+natural references, not pre-resolved IDs**. The service resolves the reference
+and returns a typed result; ambiguity is a service outcome, not an agent guess.
+The clean domain services already work this way — e.g. reminder
+`update_by_keyword`/delete/complete resolve a match and return
 `no_matching_reminder` or `ambiguous_reminder_reference` with candidates.
 
 This design adopts that contract uniformly:
@@ -225,7 +224,7 @@ too harsh for the reminder product).
   `reply_necessity`. It does **not** emit a final response decision.
 - **Discipline:** no `confidence`, no thresholds, no keyword/regex routing in
   runtime. Fix errors via prompt/schema/examples/eval.
-- Plan replaces `SemanticInterpreter`. Plan does **not** yet own precise field
+- Plan owns language-level action proposal. It does **not** own precise field
   extraction (trigger time, durations, IDs) — that stays with the detector as an
   Execute step (see "Detector").
 
@@ -240,8 +239,8 @@ too harsh for the reminder product).
 
 ### Execute (runtime, no LLM, internally structured)
 
-Execute is **not** a monolith. It is composed of small units so it does not
-become "TurnRunner v2":
+Execute is **not** a monolith. It is composed of small units so the runner stays
+as the orchestration boundary:
 
 - `ActionExecutor` drives the ordered actions;
 - per-domain `ActionHandler`s call the domain service (which owns resolution and
@@ -277,8 +276,8 @@ formatting.
 - **No downstream claim/coverage verifier.** The no-false-success guarantee is
   **structural, not a second-layer check**: Express only ever describes a
   `settled_outcome` produced by Execute, so it cannot claim a state change Execute
-  did not perform short of hallucinating its own input. Legacy lied because its
-  agent claimed success *as it decided to act*; the Plan/Execute/Express split
+  did not perform short of hallucinating its own input. The overloaded agent
+  claimed success *as it decided to act*; the Plan/Execute/Express split
   removes that root cause. If smoke ever shows Express asserting an outcome not in
   `settled_outcome` (e.g. overstating a `partial` as full), the fix is **upstream**
   (sharper `status`, Express prompt), not a downstream verifier.
@@ -378,7 +377,7 @@ eval does not pass, the detector simply stays.
   post-hoc claim checks) — no-false-success is now structural (Express only
   describes `settled_outcome`), not a downstream verifier;
 - the Interaction Agent's tool profile, tool-calling loop, and orchestration;
-- the standalone `SemanticInterpreter` classify step (promoted into Plan);
+- the standalone classifier-only step (promoted into Plan);
 - the bolted-on streaming consumption / eligibility wiring in `runner.py`;
 - the recoverable-*command* part of the `RecoverableSchedulingIntent` subsystem
   (the staged-command/materialization-recovery lifecycle) and the interpreter
@@ -498,9 +497,9 @@ Decided across two dual-review rounds and a decision pass with the user.
 
 ## Summary
 
-Keep legacy's clean linear reality — one path that absorbs difficulty, with
-resolution pushed into the services — and keep clean Coke's bounded-context
-protection, by splitting the old single agent into **Plan (propose) → PlanCompile
+Keep one clean linear reality — one path that absorbs difficulty, with
+resolution pushed into the services — and keep bounded-context protection, by
+splitting the old single agent into **Plan (propose) → PlanCompile
 (validate) → Execute (resolve via services, assemble settled_outcome, guarded, no
 LLM) →
 Express (bounded streaming render, one model, no downstream verifier)**. The

@@ -61,7 +61,7 @@ class CancellableAgent:
         self.output = {"type": "reply", "segments": ["I set it for 10."]}
 
     async def ainvoke(self, request):
-        raise AssertionError("inbound v2 must not invoke the render agent")
+        raise AssertionError("inbound turn pipeline must not invoke the render agent")
 
     async def cancel(self, run_id: str) -> bool:
         self.cancelled_run_ids.append(run_id)
@@ -69,7 +69,7 @@ class CancellableAgent:
         return True
 
     def invoke(self, request):
-        raise AssertionError("inbound v2 must not invoke the render agent")
+        raise AssertionError("inbound turn pipeline must not invoke the render agent")
 
     def complete_async(self, task_id: str):
         return AgentResult.completed(self.output)
@@ -82,7 +82,7 @@ class SlowTurnExpress:
         self.requests = []
 
     def render(self, request):
-        raise AssertionError("read-only v2 turn should stream")
+        raise AssertionError("read-only inbound turn should stream")
 
     async def render_streaming(self, request):
         self.requests.append(request)
@@ -149,7 +149,7 @@ def _trigger(inbound, identity, event_id: str, text: str) -> TurnTrigger:
 
 
 @pytest.mark.asyncio
-async def test_two_inbounds_during_slow_v2_express_produce_one_coalesced_reply(
+async def test_two_inbounds_during_slow_express_produce_one_coalesced_reply(
     composed,
 ):
     runtime, agent, express, _outbound, identity = composed

@@ -87,26 +87,26 @@ from coke.turn.agent import (
 )
 from coke.turn.focus import FocusResolver, MessageSubject
 from coke.turn.freshness import FreshnessGuard
+from coke.turn.inbound.close import CloseCoordinator
+from coke.turn.inbound.contracts import TurnPlan
+from coke.turn.inbound.express import ExpressAgent
+from coke.turn.inbound.handlers.calendar import CalendarImportActionHandler
+from coke.turn.inbound.handlers.friend import FriendshipActionHandler
+from coke.turn.inbound.handlers.reminder import ReminderActionHandler
+from coke.turn.inbound.handlers.settings import SettingsActionHandler
+from coke.turn.inbound.handlers.social import SocialSchedulingActionHandler
+from coke.turn.inbound.pending import (
+    InMemoryPendingClarificationStore,
+    PostgresPendingClarificationRepository,
+)
+from coke.turn.inbound.pipeline import TurnPipeline
+from coke.turn.inbound.plan import SiliconFlowPlanner
 from coke.turn.locks import ConversationLockManager, RedisLockPort
 from coke.turn.memory import MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import DeliveryRequest, OutboundDeliveryPort, TurnRunner
 from coke.turn.staged_commands import StagedCommandMaterializer
-from coke.turn.v2.close import CloseCoordinator
-from coke.turn.v2.contracts import TurnPlan
-from coke.turn.v2.express import ExpressAgent
-from coke.turn.v2.handlers.calendar import CalendarImportActionHandler
-from coke.turn.v2.handlers.friend import FriendshipActionHandler
-from coke.turn.v2.handlers.reminder import ReminderActionHandler
-from coke.turn.v2.handlers.settings import SettingsActionHandler
-from coke.turn.v2.handlers.social import SocialSchedulingActionHandler
-from coke.turn.v2.pending import (
-    InMemoryPendingClarificationStore,
-    PostgresPendingClarificationRepository,
-)
-from coke.turn.v2.pipeline import TurnPipeline
-from coke.turn.v2.plan import SiliconFlowPlanner
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,10 +201,10 @@ class FakeTurnPlanner:
 
 class FakeTurnExpress:
     def render(self, request) -> tuple[str, ...]:
-        return ("COKE_LLM_FAKE synthetic v2 reply",)
+        return ("COKE_LLM_FAKE synthetic turn pipeline reply",)
 
     async def render_streaming(self, request):
-        yield "COKE_LLM_FAKE synthetic v2 reply"
+        yield "COKE_LLM_FAKE synthetic turn pipeline reply"
 
 
 class FakeReminderDetector:

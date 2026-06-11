@@ -85,7 +85,7 @@ def test_composition_threads_public_base_url_to_social_scheduling():
     )
 
 
-def test_composition_exposes_active_v2_turn_pipeline():
+def test_composition_exposes_active_turn_pipeline():
     runtime = compose_coke_runtime(
         interaction_agent=FakeInteractionAgent(),
         redis_client=object(),

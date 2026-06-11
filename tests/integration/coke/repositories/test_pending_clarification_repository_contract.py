@@ -6,8 +6,8 @@ from itertools import count
 
 import pytest
 
-from coke.turn.v2.contracts import PendingClarification
-from coke.turn.v2.pending import (
+from coke.turn.inbound.contracts import PendingClarification
+from coke.turn.inbound.pending import (
     InMemoryPendingClarificationStore,
     PostgresPendingClarificationRepository,
 )
