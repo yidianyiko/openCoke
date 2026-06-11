@@ -1070,27 +1070,6 @@ def build_prompt_blocks(request: AgentRequest) -> tuple[PromptBlock, ...]:
     if onboarding_guidance:
         blocks.append(PromptBlock("onboarding_guidance", onboarding_guidance))
 
-    semantic_decision = _semantic_decision_payload(request)
-    if semantic_decision:
-        semantic_block_payload: dict[str, Any] = {
-            "trusted_semantic_decision": semantic_decision,
-            "instruction": (
-                "Use this for routing and clarification. It is not "
-                "a source for executable fields."
-            ),
-        }
-        required_clarification = request.trusted_facts.get("required_clarification")
-        if isinstance(required_clarification, Mapping):
-            semantic_block_payload["required_clarification_instruction"] = dict(
-                required_clarification
-            )
-        blocks.append(
-            PromptBlock(
-                "semantic_decision",
-                _json_block(semantic_block_payload),
-            )
-        )
-
     focus = _context_value(request.context, "focus_subject")
     if focus:
         blocks.append(PromptBlock("focus", _json_block(focus)))
@@ -1336,16 +1315,6 @@ def _onboarding_guidance_block(request: AgentRequest) -> str | None:
     if isinstance(user_address_name, str) and user_address_name.strip():
         lines.append(f"Trusted user address name: {user_address_name.strip()}")
     return "\n".join(lines)
-
-
-def _semantic_decision_payload(request: AgentRequest) -> Mapping[str, Any] | None:
-    semantic = request.trusted_facts.get("semantic_decision")
-    if isinstance(semantic, Mapping):
-        return dict(semantic)
-    semantic = _context_value(request.context, "semantic_decision")
-    if semantic is None:
-        return None
-    return _jsonable(semantic)
 
 
 def _domain_result_payload(request: AgentRequest) -> Mapping[str, Any] | None:

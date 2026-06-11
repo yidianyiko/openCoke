@@ -47,6 +47,9 @@ Ownership:
   topic/title, and do not ask for duration.
   Do not emit duration_minutes unless the user explicitly changes duration.
 - Do not emit confidence fields, scores, thresholds, final prose, or tool calls.
+- current_input_messages is the current open input window for THIS turn. Treat it
+  as the authoritative current user input, ordered by seq.
+- payload is the latest trigger payload and may be only the newest message.
 - conversation_history is the prior turns of THIS conversation (role user = the
   person, role assistant = you). Use it to resolve the latest message in context.
 - The latest message may be a FOLLOW-UP that continues, answers, or corrects the
@@ -67,6 +70,7 @@ class PlanRequest:
     conversation_id: str
     payload: Mapping[str, Any]
     trusted_facts: Mapping[str, Any]
+    current_input_messages: Sequence[Mapping[str, Any]] = ()
     conversation_history: Sequence[Mapping[str, Any]] = ()
     focus_subject: Any | None = None
 
@@ -113,6 +117,9 @@ class SiliconFlowPlanner:
                 "account_id": request.account_id,
                 "conversation_id": request.conversation_id,
                 "payload": dict(request.payload),
+                "current_input_messages": [
+                    dict(m) for m in request.current_input_messages
+                ],
                 "conversation_history": [dict(m) for m in request.conversation_history],
                 "trusted_facts": dict(request.trusted_facts),
                 "focus_subject": _focus_subject_payload(request.focus_subject),

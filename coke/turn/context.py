@@ -87,7 +87,6 @@ class TurnContext:
     trigger: TurnTrigger
     mode: TurnMode
     trusted_facts: dict[str, Any]
-    semantic_decision: Any | None
     focus_subject: Any | None
     reference_resolution: Any | None
     memory_context: Any | None
@@ -106,7 +105,6 @@ class ContextAssembler:
         *,
         trigger: TurnTrigger,
         trusted_facts: dict[str, Any],
-        semantic_decision: Any | None,
         focus_subject: Any | None,
         reference_resolution: Any | None,
         memory_context: Any | None,
@@ -121,7 +119,6 @@ class ContextAssembler:
             trigger=trigger,
             mode=trigger.mode,
             trusted_facts=dict(trusted_facts),
-            semantic_decision=semantic_decision,
             focus_subject=focus_subject,
             reference_resolution=reference_resolution,
             memory_context=memory_context,

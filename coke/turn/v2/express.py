@@ -28,6 +28,7 @@ class ExpressRequest:
     conversation_id: str
     account_id: str
     settled_outcome: SettledOutcome
+    current_input_messages: Sequence[Mapping[str, Any]] = ()
     conversation_history: Sequence[Mapping[str, Any]] = ()
     persona: str = ""
     assistant_name: str = "Coke"
@@ -142,6 +143,9 @@ def _agent_input(request: ExpressRequest) -> str:
     payload = {
         "mode": "converse" if not request.settled_outcome.outcomes else "render",
         "settled_outcome": _settled_outcome_payload(request.settled_outcome),
+        "current_input_messages": [
+            _plain_value(message) for message in request.current_input_messages
+        ],
         "conversation_history": [
             _plain_value(message) for message in request.conversation_history
         ],

@@ -196,6 +196,26 @@ def test_plan_request_and_planner_payload_preserve_conversation_history() -> Non
     ]
 
 
+def test_plan_request_and_planner_payload_preserve_current_input_window() -> None:
+    current_input = (
+        {"role": "user", "content": "remind me at 9", "seq": 1},
+        {"role": "user", "content": "actually 10", "seq": 2},
+    )
+    request = _pipeline_request(current_input_messages=current_input)
+
+    plan_request = _plan_request(request, None)
+
+    assert plan_request.current_input_messages == current_input
+
+    client = RecordingJSONClient()
+    SiliconFlowPlanner(client).plan(plan_request)
+
+    assert client.calls[0]["user"]["current_input_messages"] == [
+        {"role": "user", "content": "remind me at 9", "seq": 1},
+        {"role": "user", "content": "actually 10", "seq": 2},
+    ]
+
+
 @pytest.mark.asyncio
 async def test_read_only_turn_streams_segments_and_then_closes() -> None:
     events: list[str] = []
@@ -556,9 +576,7 @@ async def test_staged_action_overrides_planner_no_reply_and_delivers_reply() -> 
     assert result.segments == ("Updated it.",)
     assert materialized == ["stage-1"]
     assert delivery.segments == ["Updated it."]
-    assert close_port.calls == [
-        ("reply", "turn-1", ("Updated it.",), "reply_ready")
-    ]
+    assert close_port.calls == [("reply", "turn-1", ("Updated it.",), "reply_ready")]
     assert "commit_no_reply" not in events
 
 
@@ -569,6 +587,9 @@ def _pipeline_request(
     pending_expires_at: datetime | None = None,
     conversation_history: Sequence[Mapping[str, Any]] = (
         {"role": "user", "content": "hello"},
+    ),
+    current_input_messages: Sequence[Mapping[str, Any]] = (
+        {"role": "user", "content": "hello", "seq": 1},
     ),
 ) -> TurnPipelineRequest:
     if now is None:
@@ -582,6 +603,7 @@ def _pipeline_request(
         payload={"text": "hello"},
         trusted_facts={"timezone": "Asia/Tokyo"},
         conversation_history=conversation_history,
+        current_input_messages=current_input_messages,
         persona="concise",
         source_input_window=source_input_window,
         pending_expires_at=pending_expires_at,

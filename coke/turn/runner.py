@@ -749,6 +749,9 @@ class TurnRunner:
             payload=dict(trigger.payload),
             trusted_facts=trusted_facts,
             focus_subject=focus_subject,
+            current_input_messages=self._v2_current_input_messages(
+                start.input_messages
+            ),
             conversation_history=self._v2_conversation_window(
                 trigger.conversation_id,
                 current_turn_id=start.turn.id,
@@ -795,6 +798,24 @@ class TurnRunner:
         if len(history) > max_messages:
             history = history[-max_messages:]
         return tuple(history)
+
+    def _v2_current_input_messages(
+        self, input_messages: tuple[Any, ...]
+    ) -> tuple[Mapping[str, Any], ...]:
+        current: list[Mapping[str, Any]] = []
+        for message in input_messages:
+            text = getattr(message, "text", None)
+            if not isinstance(text, str) or not text:
+                continue
+            item: dict[str, Any] = {"role": "user", "content": text}
+            seq = getattr(message, "seq", None)
+            if isinstance(seq, int):
+                item["seq"] = seq
+            message_id = getattr(message, "id", None)
+            if isinstance(message_id, str) and message_id:
+                item["message_id"] = message_id
+            current.append(item)
+        return tuple(current)
 
     def run_render_turn(self, trigger: TurnTrigger) -> TurnRunResult:
         gate = GateDecision.allowed(trust_facts={"account_id": trigger.account_id})
@@ -904,7 +925,6 @@ class TurnRunner:
             context = self.context_assembler.build(
                 trigger=render_trigger,
                 trusted_facts=trusted_facts,
-                semantic_decision=None,
                 focus_subject=None,
                 reference_resolution=None,
                 memory_context=None,
@@ -916,7 +936,6 @@ class TurnRunner:
             return self._invoke_agent_and_record(
                 render_trigger,
                 context,
-                semantic_decision=None,
             )
         except ConversationRuntimeError as error:
             return self._conversation_runtime_error_result(
@@ -976,7 +995,6 @@ class TurnRunner:
             context = self.context_assembler.build(
                 trigger=render_trigger,
                 trusted_facts=trusted_facts,
-                semantic_decision=None,
                 focus_subject=None,
                 reference_resolution=None,
                 memory_context=None,
@@ -988,7 +1006,6 @@ class TurnRunner:
             return await self._invoke_agent_and_record_async(
                 render_trigger,
                 context,
-                semantic_decision=None,
             )
         except ConversationRuntimeError as error:
             return self._conversation_runtime_error_result(
@@ -1090,7 +1107,6 @@ class TurnRunner:
                     context = self.context_assembler.build(
                         trigger=trigger,
                         trusted_facts=trusted_facts,
-                        semantic_decision=None,
                         focus_subject=None,
                         reference_resolution=None,
                         memory_context=None,
@@ -1099,9 +1115,7 @@ class TurnRunner:
                         turn_source=trusted_facts["turn_source"],
                         domain_result=domain_result,
                     )
-                return self._invoke_agent_and_record(
-                    trigger, context, semantic_decision=None
-                )
+                return self._invoke_agent_and_record(trigger, context)
             except ConversationRuntimeError as error:
                 return self._conversation_runtime_error_result(
                     start.turn.id, trigger, error
@@ -1113,7 +1127,6 @@ class TurnRunner:
         self,
         trigger: TurnTrigger,
         context: Any,
-        semantic_decision: Any | None,
         *,
         current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
@@ -1218,7 +1231,6 @@ class TurnRunner:
         self,
         trigger: TurnTrigger,
         context: Any,
-        semantic_decision: Any | None,
         *,
         current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:

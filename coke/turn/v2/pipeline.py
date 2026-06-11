@@ -42,6 +42,7 @@ class TurnPipelineRequest:
     conversation_id: str
     payload: Mapping[str, Any] = field(default_factory=dict)
     trusted_facts: Mapping[str, Any] = field(default_factory=dict)
+    current_input_messages: Sequence[Mapping[str, Any]] = ()
     focus_subject: Any | None = None
     conversation_history: Sequence[Mapping[str, Any]] = ()
     persona: str = ""
@@ -55,6 +56,11 @@ class TurnPipelineRequest:
     def __post_init__(self) -> None:
         object.__setattr__(self, "payload", dict(self.payload))
         object.__setattr__(self, "trusted_facts", dict(self.trusted_facts))
+        object.__setattr__(
+            self,
+            "current_input_messages",
+            tuple(dict(item) for item in self.current_input_messages),
+        )
         object.__setattr__(
             self,
             "conversation_history",
@@ -192,6 +198,7 @@ def _plan_request(
         conversation_id=request.conversation_id,
         payload=request.payload,
         trusted_facts=trusted_facts,
+        current_input_messages=request.current_input_messages,
         conversation_history=request.conversation_history,
         focus_subject=request.focus_subject,
     )
@@ -206,6 +213,7 @@ def _express_request(
         conversation_id=request.conversation_id,
         account_id=request.account_id,
         settled_outcome=settled_outcome,
+        current_input_messages=request.current_input_messages,
         conversation_history=request.conversation_history,
         persona=request.persona,
         assistant_name=request.assistant_name,

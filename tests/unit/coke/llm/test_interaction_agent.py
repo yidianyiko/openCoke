@@ -408,14 +408,6 @@ def test_prompt_builder_uses_ordered_conditional_blocks_and_output_contract_last
             "assistant_name": "可乐",
             "user_address_name": "小鱼",
             "speaking_style": "直接一点",
-            "semantic_decision": {
-                "reply_necessity": "reply_needed",
-                "intent_family": "reminder_op",
-                "intent_action": "create_reminder",
-                "ambiguity": "clear",
-                "required_clarification": "none",
-                "language_hint": "zh",
-            },
             "domain_result": {
                 "domain": "reminder",
                 "intent": "create reminder",
@@ -447,7 +439,6 @@ def test_prompt_builder_uses_ordered_conditional_blocks_and_output_contract_last
         "identity",
         "persona",
         "environment",
-        "semantic_decision",
         "focus",
         "domain_result",
         "memory",
@@ -526,37 +517,6 @@ def test_onboarding_guidance_block_is_omitted_when_runtime_flag_absent():
     )
 
     assert '<trusted_block name="onboarding_guidance">' not in rendered
-
-
-def test_prompt_builder_renders_required_clarification_instruction():
-    request = _request(
-        memory_enabled=True,
-        trusted_facts={
-            "semantic_decision": {
-                "reply_necessity": "reply_needed",
-                "intent_family": "reminder_op",
-                "intent_action": "create_reminder",
-                "ambiguity": "missing_time",
-                "required_clarification": "ask_trigger_time",
-                "language_hint": "zh",
-            },
-            "required_clarification": {
-                "signal": "ask_trigger_time",
-                "ambiguity": "missing_time",
-                "instruction": (
-                    "Ask exactly this clarification before any domain action."
-                ),
-            },
-        },
-    )
-
-    rendered = agno_agent_module.render_prompt_blocks(
-        agno_agent_module.build_prompt_blocks(request)
-    )
-
-    semantic_block = _block_text(rendered, "semantic_decision")
-    assert "ask_trigger_time" in semantic_block
-    assert "Ask exactly this clarification before any domain action." in semantic_block
 
 
 @pytest.mark.parametrize(
@@ -647,16 +607,6 @@ def test_requested_action_without_domain_result_must_not_be_claimed_successful()
     request = _request(
         memory_enabled=True,
         text="提醒我明天9点跑步",
-        trusted_facts={
-            "semantic_decision": {
-                "reply_necessity": "reply_needed",
-                "intent_family": "reminder_op",
-                "intent_action": "create_reminder",
-                "ambiguity": "clear",
-                "required_clarification": "none",
-                "language_hint": "zh",
-            }
-        },
     )
 
     rendered = agno_agent_module.render_prompt_blocks(
