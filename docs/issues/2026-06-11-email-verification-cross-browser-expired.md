@@ -67,7 +67,7 @@ protection and looked expired.
 
 ## Resolution
 
-- Fix commit: `a7144aba`.
+- Fix commit: `94417f55`.
 - Verification:
   - `.venv/bin/python -m pytest tests/unit/coke/identity_access -q`
   - `cd web && pnpm test lib/customer-auth.test.ts lib/i18n.test.ts app/'(customer)'/auth/login/page.test.tsx app/'(customer)'/auth/verify-email/page.test.tsx`
