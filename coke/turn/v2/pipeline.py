@@ -111,7 +111,10 @@ class TurnPipeline:
         staged_command_ids = _staged_command_ids(settled_outcome)
         resolves_pending_fingerprint = _resolved_pending_fingerprint(plan, pending)
 
-        if plan.reply_necessity == "intentional_no_reply":
+        if (
+            plan.reply_necessity == "intentional_no_reply"
+            and not settled_outcome.outcomes
+        ):
             segments: tuple[str, ...] = ()
             streamed = False
         elif staged_command_ids:

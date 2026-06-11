@@ -508,6 +508,60 @@ async def test_intentional_no_reply_uses_close_without_streaming_or_segments() -
     assert close_port.calls == [("no_reply", "turn-1", (), "intentional_no_reply")]
 
 
+@pytest.mark.asyncio
+async def test_staged_action_overrides_planner_no_reply_and_delivers_reply() -> None:
+    events: list[str] = []
+    materialized: list[str] = []
+    close_port = RecordingClosePort(
+        events,
+        staged_commands=(FakeStagedCommand(id="stage-1"),),
+    )
+    delivery = RecordingDelivery(events)
+    pipeline = TurnPipeline(
+        planner=StaticPlanner(
+            TurnPlan(
+                actions=(
+                    ProposedAction(
+                        domain="social_scheduling",
+                        operation="update_shared_reminder",
+                        params={"match": "review", "time_phrase": "tomorrow 4pm"},
+                    ),
+                ),
+                reply_necessity="intentional_no_reply",
+            ),
+            events,
+        ),
+        handlers={
+            "social_scheduling": StaticHandler(
+                ActionOutcome(
+                    category="done",
+                    status="rescheduled",
+                    staged_command_id="stage-1",
+                ),
+                events,
+            )
+        },
+        express=RecordingExpress(("Updated it.",), events),
+        close_coordinator=CloseCoordinator(
+            close_port,
+            materialize_staged_command=lambda command: materialized.append(command.id),
+        ),
+        pending_store=InMemoryPendingClarificationStore(),
+        delivery=delivery,
+    )
+
+    result = await pipeline.run(_pipeline_request(), RecordingGuard(events))
+
+    assert result.streamed is False
+    assert result.segments == ("Updated it.",)
+    assert materialized == ["stage-1"]
+    assert delivery.segments == ["Updated it."]
+    assert close_port.calls == [
+        ("reply", "turn-1", ("Updated it.",), "reply_ready")
+    ]
+    assert "commit_no_reply" not in events
+
+
 def _pipeline_request(
     *,
     now: datetime | None = None,
