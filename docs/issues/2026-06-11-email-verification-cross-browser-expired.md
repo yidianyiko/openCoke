@@ -68,6 +68,15 @@ protection and looked expired.
 ## Resolution
 
 - Fix commit: `94417f55`.
+- Deployed SHA: `6df5d8be1746071cf8afcb84bb0f500c577332d4`.
+- Production evidence:
+  `artifacts/evidence/email-verification-cross-browser/2026-06-11-production-smoke.md`.
+- Production smoke created a temporary account, verified the deployed API
+  returned `session_token`, used that token against
+  `GET /api/auth/current-user` with status `200`, and cleaned up all temporary
+  rows.
+- Production web bundle check confirmed the old `15 minutes` / `15 分钟` copy is
+  absent and the `24 hours` / `24 小时` copy is present.
 - Verification:
   - `.venv/bin/python -m pytest tests/unit/coke/identity_access -q`
   - `cd web && pnpm test lib/customer-auth.test.ts lib/i18n.test.ts app/'(customer)'/auth/login/page.test.tsx app/'(customer)'/auth/verify-email/page.test.tsx`
