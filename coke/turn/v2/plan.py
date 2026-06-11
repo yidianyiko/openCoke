@@ -98,13 +98,13 @@ class SiliconFlowPlanner:
 
     @classmethod
     def from_model(cls, model: Any) -> SiliconFlowPlanner:
-        from coke.llm.semantic_interpreter import AgnoJSONCompletionClient
+        from coke.llm.json_completion import AgnoJSONCompletionClient
 
         return cls(AgnoJSONCompletionClient(model))
 
     @classmethod
     def from_config(cls, config: ZAILLMConfig) -> SiliconFlowPlanner:
-        return cls.from_model(config.create_interpreter_model())
+        return cls.from_model(config.create_planner_model())
 
     def plan(self, request: PlanRequest) -> TurnPlan:
         payload = self.client.complete_json(

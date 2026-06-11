@@ -2,19 +2,20 @@
 
 ## Status
 
-design-ready (2026-06-10). Through **two** dual-review rounds (correctness-
+implemented-cutover (2026-06-11). Originally design-ready on 2026-06-10 through
+**two** dual-review rounds (correctness-
 regression + architecture-purity lenses) and a decision pass with the user. The
 Plan→Execute→Express spine is endorsed; the second round's concrete findings —
 typed outcomes too coarse, partial-overstate false-success, history-only recovery
 not durable, partial-close transaction, streaming classification, inbound/render
 split, concrete data contracts — are all incorporated (see "Resolved Design
-Decisions"). Ready for an implementation plan.
+Decisions"). The temporary dual-path flag has been removed; v2 is the only
+interactive inbound path.
 
 Supersedes the fast-path direction in
 `docs/superpowers/specs/2026-06-09-agent-flow-time-optimization-design.md`. Clean
-slate, no compatibility shims. Production keeps running the existing path until
-this rebuild reaches correctness-boundary and latency parity, then is replaced
-wholesale.
+slate, no compatibility shims. The old inbound v1 implementation is retired;
+render-mode Interaction Agent remains for non-inbound structured turns.
 
 ## Scope
 

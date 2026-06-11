@@ -20,8 +20,8 @@ Services in the target deployment:
   exposes the public and customer APIs, enforces identity/access gates, persists
   durable facts and outbox rows, and calls provider adapters for outbound sends.
 - `coke-worker`: Python Redis Stream turn workers. It owns The Turn execution,
-  context assembly, Interaction Agent invocation, output disposition, and domain
-  tool calls.
+  context assembly, inbound v2 planning/execution/expression, render-mode
+  Interaction Agent invocation, output disposition, and domain command staging.
 - `coke-scheduler`: singleton Python reminder scheduler. It creates durable
   reminder-fire facts and outbox wake-ups.
 - `coke-outbox-relay`: Postgres outbox to Redis Stream relay. Postgres remains
@@ -41,7 +41,7 @@ providers
   -> Postgres durable facts + outbox
   -> coke-outbox-relay
   -> Redis Stream wake-up
-  -> coke-worker (The Turn, domain services, Interaction Agent)
+  -> coke-worker (The Turn, domain services, inbound v2, render-mode agent)
   -> coke-api provider egress
 
 coke-web -> coke-api -> Postgres-backed domains
@@ -51,11 +51,13 @@ coke-web -> coke-api -> Postgres-backed domains
 
 All chat/channel-visible product prose flows through The Turn. Turn triggers are
 InboundTurn, ReminderFireTurn, ProactiveFireTurn, NightlySummaryTurn,
-NotificationTurn, AccessDeniedTurn, and UndeliveredResendTurn. The only normal
-prose producer is the Interaction Agent. Runtime-owned prose has two typed
-signal exceptions: waiting text while an Interaction Agent call is still active,
-and grounded failure-recovery text when an interactive inbound turn remains
-invalid after its same-turn protocol retry.
+NotificationTurn, AccessDeniedTurn, and UndeliveredResendTurn. Interactive
+InboundTurn uses the v2 Plan -> PlanCompile -> Execute -> Express -> Close
+pipeline. Structured render turns keep the render-mode Interaction Agent: it
+receives already-trusted facts and has no business mutation tools. Runtime-owned
+prose is limited to typed signal exceptions such as waiting text while a model
+call is still active and grounded failure-recovery text when an interactive
+inbound turn cannot be closed correctly.
 
 Turn execution has one spine:
 
@@ -63,22 +65,28 @@ Turn execution has one spine:
 2. Apply the pre-LLM gate: identity, account access, channel reachability, and
    claim/handoff validity.
 3. Take a per-conversation Redis lock with an ownership token.
-4. Assemble trusted context: TrustFraming, SemanticInterpreter, Focus,
-   ReferenceResolver, Freshness, and Memory.
-5. Invoke the Interaction Agent in interactive mode for inbound user turns or
-   render mode for structured reminder, notification, access, and recovery facts.
-6. Validate the first returned structured output. Malformed, empty, blocked, or
+4. Assemble trusted context: TrustFraming, Focus, ReferenceResolver, Freshness,
+   Memory, pending clarification, and trigger facts.
+5. For interactive inbound user turns, run v2 Plan -> PlanCompile -> Execute ->
+   Express -> Close. Plan emits requested actions, PlanCompile validates shape,
+   Execute resolves through domain services and stages concrete effects, Express
+   renders only the settled outcomes, and Close atomically commits the fresh
+   turn.
+6. For structured reminder, notification, access, and recovery turns, invoke the
+   render-mode Interaction Agent over already-trusted facts.
+7. Validate the first returned structured output. Malformed, empty, blocked, or
    timed-out-after-budget output is a failed or recovered turn, not an invented
    success reply.
-7. Record exactly one turn disposition:
+8. Record exactly one turn disposition:
    `replied | no_reply | pending_async_reply | failed | recovered | superseded`.
-8. Persist outbound messages with deterministic segment ids.
-9. Deliver through the current channel route with provider idempotency keys and
+9. Persist outbound messages with deterministic segment ids.
+10. Deliver through the current channel route with provider idempotency keys and
    record delivery attempts.
-10. Update output-class-specific lifecycle state from delivery callbacks.
+11. Update output-class-specific lifecycle state from delivery callbacks.
 
-Interactive mode exposes domain tools and may mutate product state through
-domain services. Render mode receives already-trusted structured facts and has no
+Inbound v2 does not expose business mutation tools to a prose agent. Mutations
+are staged by Execute through domain services and materialized only by the close
+transaction. Render mode receives already-trusted structured facts and has no
 business mutation tools.
 
 Render-mode Interaction Agent construction disables Agno chat history as a fact
@@ -97,12 +105,11 @@ provider delivery evidence. Aggregated newline-joined text is only an internal
 turn summary and must not be used as the provider-visible payload for segmented
 replies.
 
-For inbound user turns, no-reply is an Interaction Agent output decision after
-the full trusted context is assembled. Semantic interpretation may carry a
-reply-necessity signal, but it must not close an inbound user turn before the
-Interaction Agent has seen product-notification, reminder, focus, and memory
-context. This keeps intentional no-reply observable without making the
-pre-agent classifier stricter than the chat workflow.
+For inbound user turns, no-reply is a v2 plan/output decision after the full
+trusted context is assembled. It must not close an inbound user turn before
+product-notification, reminder, focus, memory, and pending clarification context
+have been considered. This keeps intentional no-reply observable without making
+the planner stricter than the chat workflow.
 
 ### Interactive Input Windows And Pre-Reply Interruption
 
@@ -117,9 +124,10 @@ input_from_seq = conversation.last_closed_inbound_seq + 1
 input_to_seq   = conversation.latest_inbound_seq
 ```
 
-The current input presented to the Interaction Agent is the ordered set of
-inbound messages in `[input_from_seq, input_to_seq]`. Agno session history may
-remain enabled, but it is not the source of truth for the current user input.
+The current input presented to the inbound v2 planner and expresser is the
+ordered set of inbound messages in `[input_from_seq, input_to_seq]`. Agno session
+history may remain enabled for retained render surfaces, but it is not the source
+of truth for the current user input.
 Inbound sequence assignment is a database-owned ordering invariant: the
 conversation row is locked while assigning the next sequence, and inbound
 messages are protected by a unique `(conversation_id, direction, seq)` key.
@@ -176,12 +184,12 @@ delivery rows. Channels that do expose delivery/read status (e.g. WhatsApp via
 Evolution `messages.update`) may legitimately populate `delivered`/`delivered_at`;
 that capability is per-provider and is not synthesizable for channels that lack it.
 
-Runtime-owned waiting text is emitted independently of the blocked Interaction
-Agent call. `coke-outbox-relay` scans active inbound turns and, after
+Runtime-owned waiting text is emitted independently of the active model
+pipeline. `coke-outbox-relay` scans active inbound turns and, after
 `COKE_WAITING_REPLY_AFTER_SECONDS` (default 20 seconds), persists
 `pending_async_reply`, records a segment `0` waiting message, and delivers that
 waiting text through the same channel route. The original worker turn remains
-active and interruptible. When the Interaction Agent eventually returns, the
+active and interruptible. When the active v2 pipeline eventually returns, the
 same turn may still transition from `pending_async_reply` to `replied` or
 `failed` if no newer inbound has arrived. If a newer inbound arrives first, the
 pending turn is superseded and any later state-changing command from that stale
@@ -202,20 +210,19 @@ external adapter effects until the fresh close transaction materializes the
 staged commands. This avoids leaving wrong durable side effects when a user sends
 a correction before receiving the first agent-visible reply.
 
-Shared-reminder tool results carry a structured `SocialSchedulingOutcome`.
-The Turn injects those outcomes as trusted dynamic facts and validates any
-Interaction Agent `domain_claim` against the outcome status and blocker. A
-`staged_pending_close` outcome is never a user-visible success claim; visible
-success must match a close-time materialized or duplicate-active outcome. This
-is a structural reply contract, not a phrase denylist or deterministic renderer.
+Shared-reminder execution produces structured social-scheduling outcomes through
+the v2 Execute step. Express may describe only the settled outcome status and
+blocker it receives. A staged command is never a user-visible success claim;
+visible success must match a close-time materialized or duplicate-active
+outcome. This is a structural reply contract, not a phrase denylist or
+deterministic renderer.
 
 Friend-reference corrections for blocked shared-reminder creates are handled by
-the SemanticInterpreter as typed follow-up actions. When the action matches an
-open recoverable shared-reminder intent, The Turn injects the artifact and the
-resolved active friend as trusted facts, then the Interaction Agent calls the
-normal social-scheduling tool. Ambiguous corrections inject a constrained
-confirmation fact for one concise question. Corrected friend text is turn-local
-only and must not become global alias memory.
+v2 pending clarification. Execute records the unresolved action fingerprint,
+candidates, and source input window; a later inbound turn can resolve that
+pending clarification through the same Plan/Compile/Execute/Close path. Ambiguous
+corrections produce a constrained clarification outcome. Corrected friend text is
+turn-local only and must not become global alias memory.
 
 The worker tier must observe new inbound while an interactive Agno run is still
 active. Interactive execution is therefore supervised per conversation. In
@@ -236,25 +243,24 @@ credentials, channel identity, auth artifacts, and onboarding gate state.
 ChannelReachability owns the single reachable channel, delivery route, and
 delivery attempts.
 ConversationRuntime owns conversation order, messages, media references, turns,
-and output disposition. Reminder owns reminders, fires, recurrence, scheduler,
-and calendar read models. SocialScheduling owns friend links, friendships,
-shared reminders, projections, product notifications, social-scheduling
-outcomes, and `recoverable_scheduling_intent`. CalendarImport owns Google
-authorization, import runs, and per-occurrence import items.
+output disposition, pending clarification, and the shared outbox. Reminder owns
+reminders, fires, recurrence, scheduler, and calendar read models.
+SocialScheduling owns friend links, friendships, shared reminders, projections,
+product notifications, and social-scheduling outcomes. CalendarImport owns
+Google authorization, import runs, and per-occurrence import items.
 
-`recoverable_scheduling_intent` is a narrow durable artifact for
-`shared_reminder_create` requests blocked by `unmatched_friend` or
-`ambiguous_friend`. It is created only after a fresh close that told the user the
-request was blocked, stores already-understood request facts and a short
-`expires_at`, has at most one open artifact per conversation, and is never
-materialized directly. It is consumed only after a later fresh close materializes
-a recovered social-scheduling command carrying the artifact id and `facts_hash`.
-Superseded consuming turns leave the artifact open.
+`pending_clarification` is the durable v2 artifact for unresolved inbound
+actions, including shared-reminder requests blocked by unmatched or ambiguous
+friend references. It stores the unresolved action fingerprint, candidates,
+source input window, expiry, and status. It does not materialize effects
+directly; it is consumed only by a later fresh v2 close that resolves the same
+action.
 
 When IdentityAccess marks `onboarding_guidance_required`, The Turn injects an
-`onboarding_guidance` trusted fact block into the single Interaction Agent call.
-The block may include the configured onboarding prompt/settings and trusted
-`user_address_name`; it must describe only current product capabilities.
+`onboarding_guidance` trusted fact block into the inbound v2 context or retained
+render-mode model call. The block may include the configured onboarding
+prompt/settings and trusted `user_address_name`; it must describe only current
+product capabilities.
 `first_guidance_sent_at` is stamped only after a committed final onboarding reply
 has reached the product-defined visible delivery state, never after waiting
 text, failed delivery, no-reply, invalid output, access-denied, failed, or
@@ -285,12 +291,11 @@ Postgres stores all durable state:
   logical intent, retry attempt, traceparent, container, context-token source and
   age, latency, provider route, and provider error.
 - ConversationRuntime: `conversation`, `message`, `inbound_media`, `turn`,
-  `output_disposition`, and the shared `outbox`.
+  `output_disposition`, `pending_clarification`, and the shared `outbox`.
 - Reminder: `reminder`, `reminder_fire`, recurrence data, and reminder calendar
   read models.
 - SocialScheduling: `friend_link`, `friendship`, `shared_reminder`,
-  `reminder_projection`, `notification_fact`, `notification_recipient`, and
-  `recoverable_scheduling_intent`.
+  `reminder_projection`, `notification_fact`, and `notification_recipient`.
 - CalendarImport: `calendar_import_run` and `calendar_import_item`.
 - Agno substrate: session, history, memory, knowledge, and pgvector.
 
@@ -342,8 +347,8 @@ conversation `context_token`.
 - A messaging-first anchor channel identity is not removable while it is the only
   identity anchoring the account.
 - Each account has at most one reachable personal channel.
-- Chat/channel-visible product prose is produced by the Interaction Agent, except
-  for the runtime-owned waiting text.
+- Chat/channel-visible product prose is produced by inbound v2 Express or the
+  retained render-mode Interaction Agent, except for runtime-owned waiting text.
 - Turn disposition and delivery state are separate. Reminder undelivered state,
   proactive discard, shared-reminder projection delivery, and notification
   recipient delivery are not collapsed into a generic failure bucket.

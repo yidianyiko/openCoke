@@ -13,7 +13,7 @@ from coke.domains.reminder.models import (
 )
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
-from coke.llm.semantic_interpreter import LLMOutputError
+from coke.llm.json_completion import LLMOutputError
 
 NOW = datetime(2026, 5, 30, 12, 0, tzinfo=UTC)
 

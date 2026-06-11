@@ -203,8 +203,8 @@ def test_settings_from_env_rejects_public_base_url_query_for_production(
 
 
 def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
-    from coke.llm.config import ZAI_BASE_URL
     from coke.config import Settings
+    from coke.llm.config import ZAI_BASE_URL
 
     monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
     monkeypatch.setenv("REDIS_URL", REDIS_URL)
@@ -214,7 +214,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     monkeypatch.setenv("ZAI_API_KEY", "zai-key")
     monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
     monkeypatch.setenv("COKE_INTERACTION_MODEL", "custom/interaction")
-    monkeypatch.setenv("COKE_INTERPRETER_MODEL", "custom/interpreter")
+    monkeypatch.setenv("COKE_PLANNER_MODEL", "custom/planner")
     monkeypatch.setenv("COKE_DETECTOR_MODEL", "custom/detector")
     monkeypatch.delenv("COKE_INTERACTION_TIMEOUT_S", raising=False)
     monkeypatch.setenv("COKE_GOOGLE_CLIENT_ID", "google-client")
@@ -237,7 +237,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     assert settings.zai_base_url == ZAI_BASE_URL
     assert settings.siliconflow_api_key == "sf-key"
     assert settings.interaction_model == "custom/interaction"
-    assert settings.interpreter_model == "custom/interpreter"
+    assert settings.planner_model == "custom/planner"
     assert settings.detector_model == "custom/detector"
     assert settings.interaction_timeout_s == 45.0
     assert settings.google_client_id == "google-client"

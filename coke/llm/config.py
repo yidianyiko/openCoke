@@ -8,12 +8,12 @@ from agno.models.openai.like import OpenAILike
 
 # Official Z.AI OpenAI-compatible endpoint and thinking-off request shape were
 # verified against Z.AI docs on 2026-06-09. All turn-path models (interaction,
-# interpreter, detector) keep GLM-5.1 thinking disabled: thinking mode breaks the
+# planner, detector) keep GLM-5.1 thinking disabled: thinking mode breaks the
 # JSON output protocol and inflates latency without a verified quality gain.
 ZAI_BASE_URL = "https://api.z.ai/api/paas/v4/"
 SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
 DEFAULT_INTERACTION_MODEL = "glm-5.1"
-DEFAULT_INTERPRETER_MODEL = "glm-5.1"
+DEFAULT_PLANNER_MODEL = "glm-5.1"
 DEFAULT_DETECTOR_MODEL = "glm-5.1"
 DEFAULT_INTERACTION_TIMEOUT_S = 45.0
 DEFAULT_MEDIA_MODEL_TIMEOUT_S = 60.0
@@ -35,7 +35,7 @@ class ZAILLMConfig:
     api_key: str
     base_url: str = ZAI_BASE_URL
     interaction_model: str = DEFAULT_INTERACTION_MODEL
-    interpreter_model: str = DEFAULT_INTERPRETER_MODEL
+    planner_model: str = DEFAULT_PLANNER_MODEL
     detector_model: str = DEFAULT_DETECTOR_MODEL
     interaction_timeout_s: float = DEFAULT_INTERACTION_TIMEOUT_S
     agno_database_url: str | None = None
@@ -54,8 +54,8 @@ class ZAILLMConfig:
             interaction_model=_optional_model(
                 source, "COKE_INTERACTION_MODEL", DEFAULT_INTERACTION_MODEL
             ),
-            interpreter_model=_optional_model(
-                source, "COKE_INTERPRETER_MODEL", DEFAULT_INTERPRETER_MODEL
+            planner_model=_optional_model(
+                source, "COKE_PLANNER_MODEL", DEFAULT_PLANNER_MODEL
             ),
             detector_model=_optional_model(
                 source, "COKE_DETECTOR_MODEL", DEFAULT_DETECTOR_MODEL
@@ -78,13 +78,13 @@ class ZAILLMConfig:
             extra_body=_thinking_disabled_body(),
         )
 
-    def create_interpreter_model(self) -> OpenAILike:
-        # Interpreter and detector run on the same user-reply critical path as
+    def create_planner_model(self) -> OpenAILike:
+        # Planner and detector run on the same user-reply critical path as
         # interaction, so they share the same bounded per-request timeout. Left
         # unbounded, the OpenAI client falls back to its ~600s default and a
         # single stalled Z.AI request blocks the whole turn for minutes.
         return self._create_model(
-            self.interpreter_model,
+            self.planner_model,
             timeout=self.interaction_timeout_s,
             extra_body=_thinking_disabled_body(),
         )

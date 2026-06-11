@@ -73,7 +73,6 @@ from coke.llm.media_text import (
     SiliconFlowVisionTextClient,
 )
 from coke.llm.reminder_detector import SiliconFlowReminderDetector
-from coke.llm.semantic_interpreter import SiliconFlowSemanticInterpreter
 from coke.providers.base import provider_registry
 from coke.providers.linq import LinqAdapter
 from coke.providers.wechat_ecloud import WeChatECloudAdapter
@@ -93,7 +92,6 @@ from coke.turn.memory import MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import DeliveryRequest, OutboundDeliveryPort, TurnRunner
-from coke.turn.semantic_interpreter import SemanticDecision, SemanticInterpreter
 from coke.turn.staged_commands import StagedCommandMaterializer
 from coke.turn.v2.close import CloseCoordinator
 from coke.turn.v2.contracts import TurnPlan
@@ -170,15 +168,6 @@ class EmptyGoogleCalendarClient(GoogleCalendarClientPort):
 
     def revoke_authorization(self, auth_handle: str) -> None:
         return None
-
-
-class FakeSemanticInterpreter:
-    def interpret(self, request) -> SemanticDecision:
-        return SemanticDecision(
-            reply_necessity="reply_needed",
-            intent_family="chit_chat",
-            language_hint=None,
-        )
 
 
 class FakeInteractionAgent:
@@ -997,9 +986,7 @@ class SocialSchedulingToolAdapter:
             if operation == "update_shared_reminder":
                 update_kwargs = {
                     "account_id": _required_str(command, "account_id"),
-                    "shared_reminder_id": _required_str(
-                        command, "shared_reminder_id"
-                    ),
+                    "shared_reminder_id": _required_str(command, "shared_reminder_id"),
                     "local_trigger_at": _optional_datetime(
                         command.get("local_trigger_at") or command.get("trigger_time")
                     ),
@@ -1397,7 +1384,6 @@ def _compose_turn_pipeline(
 
 def compose_coke_runtime(
     *,
-    semantic_interpreter: SemanticInterpreter,
     interaction_agent: Any,
     redis_client: RedisLockPort,
     outbound_delivery: OutboundDeliveryPort,
@@ -1578,7 +1564,6 @@ def compose_coke_runtime(
         conversation_runtime=conversation_runtime_service,
         lock_manager=lock_manager,
         pre_llm_gate=pre_llm_gate,
-        semantic_interpreter=semantic_interpreter,
         memory_port=memory_port,
         interaction_agent=interaction_agent,
         output_protocol=OutputProtocolValidator(),
@@ -1650,7 +1635,6 @@ def build_runtime_from_settings(
     provider_adapters = _provider_adapters_from_settings(settings, now=now)
     repositories = _postgres_repositories(session)
     (
-        semantic_interpreter,
         interaction_agent,
         reminder_detector,
         turn_planner,
@@ -1666,7 +1650,6 @@ def build_runtime_from_settings(
         child_session = session_factory()
         child_repositories = _postgres_repositories(child_session)
         child_runtime = compose_coke_runtime(
-            semantic_interpreter=semantic_interpreter,
             interaction_agent=interaction_agent,
             redis_client=redis_lock,
             outbound_delivery=_DeferredOutboundDelivery(),
@@ -1720,7 +1703,6 @@ def build_runtime_from_settings(
         )
 
     runtime = compose_coke_runtime(
-        semantic_interpreter=semantic_interpreter,
         interaction_agent=interaction_agent,
         redis_client=redis_lock,
         outbound_delivery=_DeferredOutboundDelivery(),
@@ -1831,7 +1813,6 @@ def _provider_adapters_from_settings(
 def _llm_from_settings(settings: Settings):
     if settings.llm_fake:
         return (
-            FakeSemanticInterpreter(),
             FakeInteractionAgent(),
             FakeReminderDetector(),
             FakeTurnPlanner(),
@@ -1844,7 +1825,7 @@ def _llm_from_settings(settings: Settings):
         api_key=settings.zai_api_key,
         base_url=settings.zai_base_url,
         interaction_model=settings.interaction_model,
-        interpreter_model=settings.interpreter_model,
+        planner_model=settings.planner_model,
         detector_model=settings.detector_model,
         interaction_timeout_s=settings.interaction_timeout_s,
         agno_database_url=settings.agno_database_url,
@@ -1886,9 +1867,6 @@ def _llm_from_settings(settings: Settings):
             ),
         )
     return (
-        SiliconFlowSemanticInterpreter.from_model(
-            llm_config.create_interpreter_model()
-        ),
         AgnoInteractionAgent.from_config(llm_config),
         SiliconFlowReminderDetector.from_model(llm_config.create_detector_model()),
         SiliconFlowPlanner.from_config(llm_config),
@@ -2388,11 +2366,6 @@ def _social_scheduling_outcome_from_command(
         "facts_hash": (
             command.get("facts_hash")
             if isinstance(command.get("facts_hash"), str)
-            else None
-        ),
-        "recoverable_scheduling_intent_id": (
-            command.get("recoverable_scheduling_intent_id")
-            if isinstance(command.get("recoverable_scheduling_intent_id"), str)
             else None
         ),
     }

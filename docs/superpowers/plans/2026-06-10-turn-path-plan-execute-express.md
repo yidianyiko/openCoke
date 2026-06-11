@@ -3,8 +3,16 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the inbound interactive turn path as a single uniform
-`Plan → PlanCompile → Execute → Express` pipeline, built alongside the current
-path and cut over only at correctness + latency parity.
+`Plan → PlanCompile → Execute → Express` pipeline and retire the old inbound v1
+path.
+
+**Current implementation status (2026-06-11):** v2 is the only inbound
+interactive path. The temporary cutover flag and old inbound `SemanticInterpreter`
+/ `ActionRunner` / routing / streaming / recoverable-command implementation are
+removed. Render-mode Interaction Agent remains for notification, access-denied,
+reminder-fire, and other structured render turns. Manual V6 smoke was completed
+outside this repo by the user; no further V6 completion work is required for this
+cleanup.
 
 **Architecture:** Plan (the interpreter, promoted to propose a flat `TurnPlan` of
 keyword-param actions) → PlanCompile (deterministic enum/required-param
@@ -23,12 +31,10 @@ downstream verifier). Source spec:
 
 ## Phasing And Cutover Strategy
 
-The rebuild is built in `coke/turn/v2/` (new, additive) and the existing path is
-untouched until cutover. **Production stays on the current build throughout.**
-A feature flag (`COKE_TURN_PIPELINE=v2`, default off) selects the new pipeline at
-the runner entry for inbound interactive turns only; render/notification turns
-always use the existing path. Cutover = flipping the flag after parity, then a
-later cleanup phase deletes the old inbound path.
+The rebuild lives in `coke/turn/v2/` and is now the active inbound interactive
+path. The old feature-flagged dual path has been removed: inbound turns enter v2
+unconditionally after the standard access, lock, freshness, and focus gates.
+Render/notification turns always use the retained render-mode path.
 
 Phases (each produces working, testable software; phases 2–6 are expanded to
 full task detail when their predecessor lands):
@@ -39,12 +45,13 @@ full task detail when their predecessor lands):
 - **Phase 3:** Express (narrowed render/converse agent) + streaming rule
   (non-mutating stream, mutating buffer-until-commit).
 - **Phase 4:** `CloseCoordinator` (selective atomic materialize, disposition,
-  close-advance) + `PendingClarification` record + runner wiring behind the flag.
+  close-advance) + `PendingClarification` record + runner wiring.
 - **Phase 5:** Remaining `ActionHandler`s (social_scheduling, friendship,
   settings, calendar_import) with their typed statuses; multi-action aggregation.
 - **Phase 6:** Parity evals + real-account smoke + cutover + deletion of the old
   inbound path / fast-path / output-protocol claim layer / recoverable-command
-  subsystem.
+  subsystem. Manual smoke is complete; cleanup deletes the remaining v1
+  implementation.
 
 ## File Structure (new, additive)
 
@@ -63,7 +70,7 @@ full task detail when their predecessor lands):
 - `coke/turn/v2/close.py` (Phase 4) — `CloseCoordinator`, `PendingClarification`
   repository use.
 - `coke/turn/v2/pipeline.py` (Phase 4) — wires Plan→Compile→Execute→Express→Close
-  behind the flag.
+  as the unconditional inbound path.
 - Tests mirror under `tests/unit/coke/turn/v2/`.
 
 ---
@@ -110,8 +117,9 @@ def test_turn_plan_defaults_reply_needed():
 ### Task 2: Planner emits a TurnPlan (LLM)
 
 **Files:** Create `coke/turn/v2/plan.py`; Test `tests/unit/coke/turn/v2/test_plan.py`.
-Reference current interpreter `coke/llm/semantic_interpreter.py:94-137` (prompt),
-`coke/llm/config.py:81` (`create_interpreter_model`, GLM thinking-off).
+Reference the current shared JSON completion client in
+`coke/llm/json_completion.py` and planner model factory
+`coke/llm/config.py` (`create_planner_model`, GLM thinking-off).
 
 - [ ] Step 1: Write a failing test with a stubbed JSON completion client whose
   `complete_json` returns `{"actions":[{"domain":"reminder","operation":"delete","params":{"match":"gym"}}],"reply_necessity":"reply_needed"}` and assert
@@ -121,8 +129,7 @@ Reference current interpreter `coke/llm/semantic_interpreter.py:94-137` (prompt)
   `intentional_no_reply` parsed.
 - [ ] Step 2: Run — expect failure.
 - [ ] Step 3: Implement `Planner` Protocol (`plan(request) -> TurnPlan`) and
-  `SiliconFlowPlanner` reusing `AgnoJSONCompletionClient` shape from
-  `coke/llm/semantic_interpreter.py:154-181`. Prompt: propose a flat list of
+  `SiliconFlowPlanner` using `AgnoJSONCompletionClient`. Prompt: propose a flat list of
   `{domain, operation, params}` with **keyword/natural params, never IDs, never
   precise extracted times** (detector owns extraction in Execute), plus
   `reply_necessity`. No `confidence`, no keyword routing. Validate domain/operation
@@ -205,8 +212,7 @@ Files: `coke/turn/v2/close.py`, `coke/turn/v2/pipeline.py`.
   `coke/domains/conversation_runtime/service.py:207`), set disposition, advance
   `last_closed_inbound_seq`, persist `PendingClarification` for unresolved actions.
 - `pipeline.py` wires Plan→Compile→Execute→Express→Close, reads any open
-  `PendingClarification`, and is selected at the runner inbound entry behind
-  `COKE_TURN_PIPELINE=v2`.
+  `PendingClarification`, and is selected at the runner inbound entry.
 - Tests: selective partial close materializes only resolved commands; supersede
   before commit mutates/delivers nothing; pending_async_reply non-closing;
   PendingClarification round-trips and resolves next turn by fingerprint.
@@ -227,7 +233,7 @@ Files: `coke/turn/v2/handlers/{social,friend,settings,calendar}.py`.
 - Real-account webhook smoke (greeting/list/create/update/cancel/ambiguous-delete/
   shared/calendar/multi-action/clarification) reading `turn.plan|execute|express`
   telemetry; latency + TTFT before/after.
-- Flip `COKE_TURN_PIPELINE=v2`, deploy, verify on real path.
+- Cut over inbound turns to v2 and verify on the real path.
 - Delete the old inbound path: fast path (`action_runner`/`routing`/`streaming`
   eligibility), output-protocol claim layer, recoverable-command subsystem,
   interaction-agent orchestration — keeping render-mode agent for notifications.
@@ -239,7 +245,8 @@ Files: `coke/turn/v2/handlers/{social,friend,settings,calendar}.py`.
 - **Spec coverage:** Phase 1 covers data contracts + Plan + PlanCompile; Phases
   2–6 map to Execute/handlers/typed-outcomes (2,5), Express+streaming (3), close +
   PendingClarification + partial materialize (4), evals/smoke/cutover/deletion (6).
-  Scope (inbound-only, render retained) is enforced by the flag + v2 isolation.
+  Scope (inbound-only, render retained) is enforced by runner entry points and
+  v2 isolation.
 - **No placeholders in Phase 1:** tasks carry concrete tests, signatures, and the
   contract fields. Phases 2–6 are explicitly roadmap, expanded before execution.
 - **Type consistency:** `ActionOutcome{category,status,data,staged_command_id}`,

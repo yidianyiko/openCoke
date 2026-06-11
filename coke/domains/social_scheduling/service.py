@@ -27,13 +27,11 @@ from coke.domains.social_scheduling.models import (
     NotificationFact,
     NotificationRecipient,
     PublicFriendLinkView,
-    RecoverableSchedulingIntent,
     ReminderProjection,
     SharedReminder,
     SharedReminderCancellationResult,
     SharedReminderCreateResult,
     SharedReminderUpdateResult,
-    SocialSchedulingOutcome,
     SocialSchedulingError,
     UndeliveredNotificationResendTurn,
 )
@@ -265,110 +263,6 @@ class SocialSchedulingService:
                 candidates=unique_candidates,
             )
         return FriendResolutionResult(status="unmatched")
-
-    def create_recoverable_intent_from_outcome(
-        self,
-        *,
-        conversation_id: str,
-        creator_account_id: str,
-        outcome: SocialSchedulingOutcome,
-        unresolved_reference_text: str,
-        source_turn_id: str,
-        source_input_from_seq: int,
-        source_input_to_seq: int,
-        source_message_ids: tuple[str, ...],
-    ) -> RecoverableSchedulingIntent | None:
-        creator_account_id = _canon(creator_account_id)
-        blocker_by_status = {
-            "blocked_unmatched_friend": "unmatched_friend",
-            "blocked_ambiguous_friend": "ambiguous_friend",
-        }
-        blocker = blocker_by_status.get(outcome.status)
-        if blocker is None:
-            return None
-        if outcome.operation not in {
-            "create_shared_reminder",
-            "detect_and_create_shared_reminder",
-        }:
-            return None
-        if outcome.title is None or outcome.local_trigger_at is None:
-            return None
-        if not outcome.captured_timezone:
-            return None
-        unresolved = unresolved_reference_text.strip()
-        if not unresolved:
-            return None
-        now = self._now()
-        facts = {
-            "operation": "shared_reminder_create",
-            "blocker": blocker,
-            "title": outcome.title,
-            "local_trigger_at": outcome.local_trigger_at.isoformat(),
-            "captured_timezone": outcome.captured_timezone,
-            "duration_minutes": outcome.duration_minutes,
-            "unresolved_reference_text": unresolved,
-            "source_turn_id": source_turn_id,
-            "source_input_from_seq": source_input_from_seq,
-            "source_input_to_seq": source_input_to_seq,
-            "source_message_ids": list(source_message_ids),
-        }
-        intent = RecoverableSchedulingIntent(
-            id=self._new_id("recoverable_intent"),
-            conversation_id=conversation_id,
-            creator_account_id=creator_account_id,
-            operation="shared_reminder_create",
-            status="open",
-            blocker=blocker,  # type: ignore[arg-type]
-            title=outcome.title,
-            local_trigger_at=outcome.local_trigger_at,
-            captured_timezone=outcome.captured_timezone,
-            duration_minutes=outcome.duration_minutes,
-            unresolved_reference_text=unresolved,
-            source_turn_id=source_turn_id,
-            source_input_from_seq=source_input_from_seq,
-            source_input_to_seq=source_input_to_seq,
-            source_message_ids=tuple(source_message_ids),
-            facts=facts,
-            facts_hash=canonical_hash(facts),
-            expires_at=now + timedelta(minutes=15),
-            consumed_turn_id=None,
-            created_at=now,
-            updated_at=now,
-        )
-        self.repository.save_recoverable_intent(intent)
-        return intent
-
-    def recoverable_intent_for_correction(
-        self,
-        *,
-        conversation_id: str,
-        prior_reference_text: str,
-    ) -> RecoverableSchedulingIntent | None:
-        intent = self.repository.open_recoverable_intent_for_conversation(
-            conversation_id,
-            now=self._now(),
-        )
-        if intent is None:
-            return None
-        if _normalize_friend_reference(prior_reference_text) != (
-            _normalize_friend_reference(intent.unresolved_reference_text)
-        ):
-            return None
-        return intent
-
-    def consume_recoverable_intent(
-        self,
-        intent_id: str,
-        *,
-        facts_hash: str,
-        consumed_turn_id: str,
-    ) -> RecoverableSchedulingIntent:
-        return self.repository.consume_recoverable_intent(
-            intent_id,
-            facts_hash=facts_hash,
-            consumed_turn_id=consumed_turn_id,
-            now=self._now(),
-        )
 
     def friend_identifiers_for_shared_reminder(
         self,

@@ -10,8 +10,8 @@ from coke.llm.config import (
     DEFAULT_DETECTOR_MODEL,
     DEFAULT_INTERACTION_MODEL,
     DEFAULT_INTERACTION_TIMEOUT_S,
-    DEFAULT_INTERPRETER_MODEL,
     DEFAULT_MEDIA_MODEL_TIMEOUT_S,
+    DEFAULT_PLANNER_MODEL,
     DEFAULT_VISION_TEXT_MODEL,
     SILICONFLOW_BASE_URL,
     ZAI_BASE_URL,
@@ -54,7 +54,7 @@ class Settings:
     siliconflow_api_key: str | None = None
     siliconflow_base_url: str = SILICONFLOW_BASE_URL
     interaction_model: str = DEFAULT_INTERACTION_MODEL
-    interpreter_model: str = DEFAULT_INTERPRETER_MODEL
+    planner_model: str = DEFAULT_PLANNER_MODEL
     detector_model: str = DEFAULT_DETECTOR_MODEL
     interaction_timeout_s: float = DEFAULT_INTERACTION_TIMEOUT_S
     agno_database_url: str | None = None
@@ -174,8 +174,8 @@ class Settings:
             interaction_model=(
                 _optional(source, "COKE_INTERACTION_MODEL") or DEFAULT_INTERACTION_MODEL
             ),
-            interpreter_model=(
-                _optional(source, "COKE_INTERPRETER_MODEL") or DEFAULT_INTERPRETER_MODEL
+            planner_model=(
+                _optional(source, "COKE_PLANNER_MODEL") or DEFAULT_PLANNER_MODEL
             ),
             detector_model=(
                 _optional(source, "COKE_DETECTOR_MODEL") or DEFAULT_DETECTOR_MODEL

@@ -10,11 +10,6 @@ from coke.turn.context import TurnMode, TurnTrigger
 NOW = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
 
 
-class FakeSemanticInterpreter:
-    def interpret(self, request):
-        raise AssertionError("not used in this composition test")
-
-
 class FakeInteractionAgent:
     def invoke(self, request):
         return AgentResult.completed({"type": "reply", "segments": ["ok"]})
@@ -30,7 +25,6 @@ class FakeOutboundDelivery:
 
 def test_composition_exposes_settings_tool_and_pre_llm_trusted_settings_facts():
     runtime = compose_coke_runtime(
-        semantic_interpreter=FakeSemanticInterpreter(),
         interaction_agent=FakeInteractionAgent(),
         redis_client=object(),
         outbound_delivery=FakeOutboundDelivery(),
@@ -78,7 +72,6 @@ def test_composition_exposes_settings_tool_and_pre_llm_trusted_settings_facts():
 
 def test_composition_threads_public_base_url_to_social_scheduling():
     runtime = compose_coke_runtime(
-        semantic_interpreter=FakeSemanticInterpreter(),
         interaction_agent=FakeInteractionAgent(),
         redis_client=object(),
         outbound_delivery=FakeOutboundDelivery(),
@@ -92,9 +85,8 @@ def test_composition_threads_public_base_url_to_social_scheduling():
     )
 
 
-def test_composition_exposes_dormant_v2_turn_pipeline():
+def test_composition_exposes_active_v2_turn_pipeline():
     runtime = compose_coke_runtime(
-        semantic_interpreter=FakeSemanticInterpreter(),
         interaction_agent=FakeInteractionAgent(),
         redis_client=object(),
         outbound_delivery=FakeOutboundDelivery(),
@@ -108,7 +100,6 @@ def test_composition_exposes_dormant_v2_turn_pipeline():
 
 def test_composition_uses_null_email_sender_without_resend_key():
     runtime = compose_coke_runtime(
-        semantic_interpreter=FakeSemanticInterpreter(),
         interaction_agent=FakeInteractionAgent(),
         redis_client=object(),
         outbound_delivery=FakeOutboundDelivery(),
@@ -121,7 +112,6 @@ def test_composition_uses_null_email_sender_without_resend_key():
 
 def test_composition_builds_resend_email_sender_from_settings_values():
     runtime = compose_coke_runtime(
-        semantic_interpreter=FakeSemanticInterpreter(),
         interaction_agent=FakeInteractionAgent(),
         redis_client=object(),
         outbound_delivery=FakeOutboundDelivery(),

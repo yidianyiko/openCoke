@@ -541,62 +541,6 @@ shared_reminder = Table(
     _updated_at(),
 )
 
-recoverable_scheduling_intent = Table(
-    "recoverable_scheduling_intent",
-    metadata,
-    _id_column(),
-    Column(
-        "conversation_id",
-        UUID(as_uuid=False),
-        ForeignKey("conversation.id"),
-        nullable=False,
-    ),
-    Column(
-        "creator_account_id",
-        UUID(as_uuid=False),
-        ForeignKey("account.id"),
-        nullable=False,
-    ),
-    Column("operation", String(128), nullable=False),
-    Column("status", String(32), nullable=False),
-    Column("blocker", String(64), nullable=False),
-    Column("title", Text(), nullable=False),
-    Column("local_trigger_at", DateTime(timezone=False), nullable=False),
-    Column("captured_timezone", String(64), nullable=False),
-    Column("duration_minutes", Integer(), nullable=True),
-    Column("unresolved_reference_text", Text(), nullable=False),
-    Column(
-        "source_turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=False
-    ),
-    Column("source_input_from_seq", BigInteger(), nullable=False),
-    Column("source_input_to_seq", BigInteger(), nullable=False),
-    Column("source_message_ids", JSONB(), nullable=False),
-    Column("facts", JSONB(), nullable=False),
-    Column("facts_hash", String(128), nullable=False),
-    Column("expires_at", DateTime(timezone=True), nullable=False),
-    Column(
-        "consumed_turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=True
-    ),
-    _created_at(),
-    _updated_at(),
-    CheckConstraint(
-        "operation in ('shared_reminder_create')",
-        name="recoverable_operation",
-    ),
-    CheckConstraint(
-        "status in ('open', 'consumed', 'expired', 'superseded')",
-        name="recoverable_status",
-    ),
-    CheckConstraint(
-        "blocker in ('unmatched_friend', 'ambiguous_friend')",
-        name="recoverable_blocker",
-    ),
-    CheckConstraint(
-        "source_input_from_seq <= source_input_to_seq",
-        name="recoverable_input_window_order",
-    ),
-)
-
 reminder_projection = Table(
     "reminder_projection",
     metadata,
@@ -763,12 +707,6 @@ Index(
     shared_reminder.c.duration_minutes,
     unique=True,
     postgresql_where=shared_reminder.c.status == "active",
-)
-Index(
-    "uq_recoverable_intent_one_open_per_conversation",
-    recoverable_scheduling_intent.c.conversation_id,
-    unique=True,
-    postgresql_where=recoverable_scheduling_intent.c.status == "open",
 )
 Index(
     "uq_pending_clarification_one_open_per_conversation",

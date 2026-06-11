@@ -1,9 +1,9 @@
 # Turn Plan Conversation Context — Design
 
-Status: SHIPPED (2026-06-10). Scope: v2 interactive turn path
-(`COKE_TURN_PIPELINE=v2`). Pass 1 (conversation history window into the planner)
-is implemented, deployed, and empirically verified. Pass 2 (structured resumable
-pending action) is NOT needed — see "Empirical result" below.
+Status: SHIPPED (2026-06-10). Scope: the v2 interactive inbound turn path, now
+the default and only inbound path. Pass 1 (conversation history window into the
+planner) is implemented, deployed, and empirically verified. Pass 2 (structured
+resumable pending action) is NOT needed — see "Empirical result" below.
 
 ## Empirical result (2026-06-10) — the hint is NOT needed
 

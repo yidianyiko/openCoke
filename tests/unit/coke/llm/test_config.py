@@ -8,7 +8,7 @@ from coke.llm.config import (
     DEFAULT_DETECTOR_MODEL,
     DEFAULT_INTERACTION_MODEL,
     DEFAULT_INTERACTION_TIMEOUT_S,
-    DEFAULT_INTERPRETER_MODEL,
+    DEFAULT_PLANNER_MODEL,
     DEFAULT_VISION_TEXT_MODEL,
     SILICONFLOW_BASE_URL,
     ZAI_BASE_URL,
@@ -29,7 +29,7 @@ def test_zai_config_reads_key_base_url_and_default_model_ids():
     assert config.api_key == "test-key"
     assert config.base_url == ZAI_BASE_URL
     assert config.interaction_model == DEFAULT_INTERACTION_MODEL
-    assert config.interpreter_model == DEFAULT_INTERPRETER_MODEL
+    assert config.planner_model == DEFAULT_PLANNER_MODEL
     assert config.detector_model == DEFAULT_DETECTOR_MODEL
     assert llm_config.DEFAULT_INTERACTION_TIMEOUT_S == 45.0
     assert config.interaction_timeout_s == DEFAULT_INTERACTION_TIMEOUT_S
@@ -42,7 +42,7 @@ def test_zai_config_allows_model_and_agno_database_overrides():
             "ZAI_API_KEY": "test-key",
             "ZAI_BASE_URL": "https://zai.example/v4/",
             "COKE_INTERACTION_MODEL": "custom-interaction",
-            "COKE_INTERPRETER_MODEL": "custom-interpreter",
+            "COKE_PLANNER_MODEL": "custom-planner",
             "COKE_DETECTOR_MODEL": "custom-detector",
             "COKE_INTERACTION_TIMEOUT_S": "12.5",
             "COKE_AGNO_DATABASE_URL": "postgresql+psycopg://agno:agno@localhost/agno",
@@ -51,7 +51,7 @@ def test_zai_config_allows_model_and_agno_database_overrides():
 
     assert config.base_url == "https://zai.example/v4/"
     assert config.interaction_model == "custom-interaction"
-    assert config.interpreter_model == "custom-interpreter"
+    assert config.planner_model == "custom-planner"
     assert config.detector_model == "custom-detector"
     assert config.interaction_timeout_s == 12.5
     assert config.agno_database_url == "postgresql+psycopg://agno:agno@localhost/agno"
@@ -83,7 +83,7 @@ def test_openai_like_model_uses_zai_settings_and_interaction_timeout():
     )
 
     interaction_model = config.create_interaction_model()
-    interpreter_model = config.create_interpreter_model()
+    planner_model = config.create_planner_model()
     model = config.create_detector_model()
 
     assert interaction_model.id == "glm-5.1-interaction"
@@ -97,8 +97,8 @@ def test_openai_like_model_uses_zai_settings_and_interaction_timeout():
     # client falls back to its ~600s default and a single stalled Z.AI request
     # blocks the whole turn for minutes. See
     # docs/issues/2026-06-09-turn-latency-uncapped-interpreter-timeout.md.
-    assert interpreter_model.timeout == 31.5
-    assert interpreter_model.extra_body == {"thinking": {"type": "disabled"}}
+    assert planner_model.timeout == 31.5
+    assert planner_model.extra_body == {"thinking": {"type": "disabled"}}
     assert model.id == "glm-5.1-detector"
     assert str(model.base_url) == ZAI_BASE_URL
     assert model.api_key == "test-key"

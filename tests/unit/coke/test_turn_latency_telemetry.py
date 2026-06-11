@@ -13,7 +13,7 @@ def test_turn_latency_span_logs_safe_completion_fields(caplog):
 
     with caplog.at_level(logging.INFO, logger="coke.observability.turn_latency"):
         with turn_latency_span(
-            "turn.semantic_interpreter",
+            "llm_json.turn_plan",
             turn_id="turn-1",
             trigger_type="InboundTurn",
             mode="interactive",
@@ -21,7 +21,7 @@ def test_turn_latency_span_logs_safe_completion_fields(caplog):
             conversation_id="conv-1",
             clock=lambda: next(clock_values),
             extra={
-                "model_role": "semantic_interpreter",
+                "model_role": "turn_plan",
                 "prompt": "must-not-leak",
                 "content": "must-not-leak",
             },
@@ -31,11 +31,11 @@ def test_turn_latency_span_logs_safe_completion_fields(caplog):
     record = caplog.records[-1]
     assert record.event_name == "turn_latency_event"
     assert record.getMessage().startswith("turn_latency_event {")
-    assert record.phase == "turn.semantic_interpreter"
+    assert record.phase == "llm_json.turn_plan"
     assert record.status == "ok"
     assert record.duration_ms == 125
     assert record.turn_id == "turn-1"
-    assert record.model_role == "semantic_interpreter"
+    assert record.model_role == "turn_plan"
     assert not hasattr(record, "prompt")
     assert not hasattr(record, "content")
     assert "must-not-leak" not in record.getMessage()
@@ -88,7 +88,7 @@ def test_turn_latency_span_stringifies_safe_values_in_log_message(caplog):
 
     with caplog.at_level(logging.INFO, logger="coke.observability.turn_latency"):
         with turn_latency_span(
-            "llm_json.semantic_decision",
+            "llm_json.turn_plan",
             clock=lambda: next(clock_values),
             extra={"model": model_id},
         ):

@@ -528,7 +528,6 @@ def test_blocked_shared_reminder_tool_result_returns_blocked_outcome():
         "participant_account_ids": [],
         "blocker": "unmatched_friend",
         "facts_hash": None,
-        "recoverable_scheduling_intent_id": None,
     }
 
 
@@ -566,36 +565,6 @@ def test_preflight_unmatched_friend_shared_reminder_returns_blocked_outcome():
     )
     assert result.facts["social_scheduling_outcome"]["blocker"] == "unmatched_friend"
     assert guard.staged == []
-
-
-def test_recovered_shared_reminder_command_carries_recovery_ids():
-    service = FakeSocialSchedulingService()
-    adapter = SocialSchedulingToolAdapter(service)
-    guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=2, input_to_seq=2)
-
-    result = adapter.execute(
-        {
-            "operation": "create_shared_reminder",
-            "creator_account_id": "account_1",
-            "receiver_account_ids": ["account_2"],
-            "title": "Dinner",
-            "local_trigger_at": "2026-06-01T19:00:00",
-            "captured_timezone": "UTC",
-            "duration_minutes": 15,
-            "recoverable_scheduling_intent_id": "intent_1",
-            "facts_hash": "facts_hash_1",
-        },
-        guard,
-    )
-
-    assert guard.staged[0]["command_payload"]["recoverable_scheduling_intent_id"] == (
-        "intent_1"
-    )
-    assert guard.staged[0]["command_payload"]["facts_hash"] == "facts_hash_1"
-    assert (
-        result.facts["social_scheduling_outcome"]["recoverable_scheduling_intent_id"]
-        == "intent_1"
-    )
 
 
 def test_create_shared_reminder_repository_failure_returns_clear_non_success_result():

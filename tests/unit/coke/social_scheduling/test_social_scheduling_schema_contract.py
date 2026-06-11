@@ -103,36 +103,5 @@ def test_notification_fact_has_no_text_or_payload_text_column():
     assert "payload_text" not in columns
 
 
-def test_recoverable_scheduling_intent_schema_tracks_single_open_artifact():
-    table = schema.metadata.tables["recoverable_scheduling_intent"]
-
-    assert {
-        "id",
-        "conversation_id",
-        "creator_account_id",
-        "operation",
-        "status",
-        "blocker",
-        "title",
-        "local_trigger_at",
-        "captured_timezone",
-        "duration_minutes",
-        "unresolved_reference_text",
-        "source_turn_id",
-        "source_input_from_seq",
-        "source_input_to_seq",
-        "source_message_ids",
-        "facts",
-        "facts_hash",
-        "expires_at",
-        "consumed_turn_id",
-        "created_at",
-        "updated_at",
-    }.issubset(set(table.c.keys()))
-    index = _index(
-        "recoverable_scheduling_intent",
-        "uq_recoverable_intent_one_open_per_conversation",
-    )
-    assert index.unique is True
-    assert tuple(column.name for column in index.columns) == ("conversation_id",)
-    assert "recoverable_scheduling_intent.status = 'open'" in _compiled_where(index)
+def test_recoverable_scheduling_intent_schema_is_retired():
+    assert "recoverable_scheduling_intent" not in schema.metadata.tables

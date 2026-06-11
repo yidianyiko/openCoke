@@ -31,21 +31,21 @@ PRE_REPLY_INPUT_WINDOW_REVISION_PATH = (
     ROOT / "migrations" / "versions" / "20260531_0001_pre_reply_input_windows.py"
 )
 RECOVERABLE_INTENT_REVISION_PATH = (
-    ROOT
-    / "migrations"
-    / "versions"
-    / "20260607_0001_recoverable_scheduling_intent.py"
+    ROOT / "migrations" / "versions" / "20260607_0001_recoverable_scheduling_intent.py"
 )
 DELIVERY_ATTEMPT_DIAGNOSTICS_REVISION_PATH = (
-    ROOT
-    / "migrations"
-    / "versions"
-    / "20260607_0002_delivery_attempt_diagnostics.py"
+    ROOT / "migrations" / "versions" / "20260607_0002_delivery_attempt_diagnostics.py"
 )
 PENDING_CLARIFICATION_REVISION_PATH = (
     ROOT / "migrations" / "versions" / "20260610_0001_pending_clarification.py"
 )
-HEAD_REVISION_PATH = PENDING_CLARIFICATION_REVISION_PATH
+DROP_RECOVERABLE_INTENT_REVISION_PATH = (
+    ROOT
+    / "migrations"
+    / "versions"
+    / "20260611_0001_drop_recoverable_scheduling_intent.py"
+)
+HEAD_REVISION_PATH = DROP_RECOVERABLE_INTENT_REVISION_PATH
 
 EXPECTED_TABLES = {
     "account",
@@ -73,7 +73,6 @@ EXPECTED_TABLES = {
     "friend_link",
     "friendship",
     "shared_reminder",
-    "recoverable_scheduling_intent",
     "reminder_projection",
     "notification_fact",
     "notification_recipient",
@@ -263,9 +262,13 @@ class RecordingOp:
 
     def drop_index(self, name: str, table_name: str | None = None, **kwargs) -> None:
         self.dropped_indexes.append((name, table_name))
+        self.indexes.pop(name, None)
 
     def drop_table(self, name: str, **kwargs) -> None:
         self.dropped_tables.append(name)
+        table = self.metadata.tables.get(name)
+        if table is not None:
+            self.metadata.remove(table)
 
     def add_column(self, table_name: str, column: sa.Column, **kwargs) -> None:
         self.metadata.tables[table_name].append_column(column)
@@ -362,6 +365,7 @@ def _load_migration_chain():
         RECOVERABLE_INTENT_REVISION_PATH,
         DELIVERY_ATTEMPT_DIAGNOSTICS_REVISION_PATH,
         PENDING_CLARIFICATION_REVISION_PATH,
+        DROP_RECOVERABLE_INTENT_REVISION_PATH,
     )
     return tuple(
         _load_revision_module(
@@ -841,6 +845,23 @@ def test_pending_clarification_revision_has_expected_identity():
     assert ".".join(["metadata", "drop_all"]) not in source
 
 
+def test_drop_recoverable_scheduling_intent_revision_has_expected_identity():
+    source = DROP_RECOVERABLE_INTENT_REVISION_PATH.read_text()
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".")[0])
+
+    assert 'revision = "20260611_0001"' in source
+    assert 'down_revision = "20260610_0001"' in source
+    assert "coke" not in imported_roots
+    assert ".".join(["metadata", "create_all"]) not in source
+    assert ".".join(["metadata", "drop_all"]) not in source
+
+
 def test_migration_chain_upgrade_matches_schema_metadata_without_live_db():
     metadata = _metadata()
     revisions = _load_migration_chain()
@@ -880,6 +901,7 @@ def test_migration_chain_downgrade_drops_recorded_objects_in_reverse_order():
         revision.downgrade()
 
     assert [name for name, _table_name in recorder.dropped_indexes] == [
+        "uq_recoverable_intent_one_open_per_conversation",
         "uq_pending_clarification_one_open_per_conversation",
         "uq_recoverable_intent_one_open_per_conversation",
         "uq_reminder_active_no_trigger_duplicate",
@@ -888,11 +910,15 @@ def test_migration_chain_downgrade_drops_recorded_objects_in_reverse_order():
         "uq_friendship_one_active_pair",
         "uq_channel_one_active_per_account",
     ]
-    assert recorder.dropped_tables[0] == "pending_clarification"
-    assert recorder.dropped_tables[1] == "recoverable_scheduling_intent"
-    assert recorder.dropped_tables[2] == "staged_command"
+    assert recorder.dropped_tables[0] == "recoverable_scheduling_intent"
+    assert recorder.dropped_tables[1] == "pending_clarification"
+    assert recorder.dropped_tables[2] == "recoverable_scheduling_intent"
+    assert recorder.dropped_tables[3] == "staged_command"
     assert recorder.dropped_tables[-1] == "account"
-    assert set(recorder.dropped_tables) == EXPECTED_TABLES
+    assert set(recorder.dropped_tables) == {
+        *EXPECTED_TABLES,
+        "recoverable_scheduling_intent",
+    }
 
     drop_position = {
         table_name: position

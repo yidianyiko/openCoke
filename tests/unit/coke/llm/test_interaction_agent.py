@@ -787,8 +787,9 @@ def test_agent_instructions_forbid_personal_reminder_time_conflict_override():
     assert "ask the user to choose another time" in instructions
     assert "Do not ask whether to still use that time" in instructions
     assert "override" in instructions
-    assert "do not suggest a concrete alternate time unless a tool result checked it" in (
-        instructions
+    assert (
+        "do not suggest a concrete alternate time unless a tool result checked it"
+        in (instructions)
     )
 
 
@@ -2178,7 +2179,6 @@ def _created_social_outcome(outcome_id: str) -> dict[str, Any]:
         "participant_account_ids": ["account_2"],
         "blocker": None,
         "facts_hash": None,
-        "recoverable_scheduling_intent_id": None,
     }
 
 
@@ -2196,7 +2196,6 @@ def _staged_social_outcome(outcome_id: str) -> dict[str, Any]:
         "participant_account_ids": ["account_2"],
         "blocker": None,
         "facts_hash": None,
-        "recoverable_scheduling_intent_id": None,
     }
 
 
@@ -2214,7 +2213,6 @@ def _blocked_social_outcome(outcome_id: str) -> dict[str, Any]:
         "participant_account_ids": [],
         "blocker": "unmatched_friend",
         "facts_hash": None,
-        "recoverable_scheduling_intent_id": None,
     }
 
 

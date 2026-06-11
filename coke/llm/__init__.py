@@ -11,7 +11,6 @@ from coke.llm.media_text import (
     VisionTextClient,
 )
 from coke.llm.reminder_detector import SiliconFlowReminderDetector
-from coke.llm.semantic_interpreter import SiliconFlowSemanticInterpreter
 
 __all__ = [
     "AgnoInteractionAgent",
@@ -22,7 +21,6 @@ __all__ = [
     "SiliconFlowAsrClient",
     "SiliconFlowVisionTextClient",
     "SiliconFlowReminderDetector",
-    "SiliconFlowSemanticInterpreter",
     "VisionTextClient",
     "ZAILLMConfig",
 ]

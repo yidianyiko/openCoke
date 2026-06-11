@@ -5,7 +5,7 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.domains.reminder.models import DetectedReminderFields, ReminderKind
-from coke.llm.semantic_interpreter import (
+from coke.llm.json_completion import (
     AgnoJSONCompletionClient,
     JSONCompletionClient,
     LLMOutputError,

@@ -76,7 +76,7 @@ def test_runtime_wires_media_text_resolver_when_media_models_are_configured(
 
     assert runtime.media_text_resolver is not None
     assert runtime.turn_runner.interaction_agent.model.api_key == "zai-key"
-    assert runtime.turn_runner.semantic_interpreter.client.model.api_key == "zai-key"
+    assert runtime.turn_pipeline._planner.client.model.api_key == "zai-key"
     assert runtime.reminder_service.detector.client.model.api_key == "zai-key"
     assert runtime.media_text_resolver.asr_client.api_key == "sf-key"
     assert runtime.media_text_resolver.vision_text_client.api_key == "sf-key"

@@ -20,7 +20,6 @@ from coke.domains.conversation_runtime.models import (
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.social_scheduling.models import SocialSchedulingOutcome
 from coke.observability.turn_latency import turn_latency_span
-from coke.turn.action_runner import ActionRunner
 from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
 from coke.turn.focus import FocusResolver
@@ -30,13 +29,6 @@ from coke.turn.memory import MemoryManager, MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator, ValidatedOutput
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.reference_resolver import ReferenceResolver
-from coke.turn.routing import derive_route
-from coke.turn.semantic_interpreter import (
-    SemanticDecision,
-    SemanticInterpreter,
-    SemanticInterpreterRequest,
-)
-from coke.turn.streaming import is_streaming_eligible
 from coke.turn.v2.pipeline import SegmentDeliveryPort, TurnPipelineRequest
 
 WAITING_TEXT = "我还在处理，稍等一下。"
@@ -401,7 +393,6 @@ class TurnRunner:
         conversation_runtime: ConversationRuntimeService,
         lock_manager: ConversationLockManager,
         pre_llm_gate: PreLLMGateService,
-        semantic_interpreter: SemanticInterpreter,
         memory_port: MemoryPort | None,
         interaction_agent: InteractionAgent,
         output_protocol: OutputProtocolValidator,
@@ -427,11 +418,9 @@ class TurnRunner:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
         self.pre_llm_gate = pre_llm_gate
-        self.semantic_interpreter = semantic_interpreter
         self.memory_manager = MemoryManager(memory_port)
         self.interaction_agent = interaction_agent
         self.output_protocol = output_protocol
-        self.action_runner = ActionRunner()
         self.outbound_delivery = outbound_delivery
         self.delivery_lifecycle = delivery_lifecycle
         self.reminder_fire_facts = reminder_fire_facts
@@ -521,102 +510,12 @@ class TurnRunner:
                     input_to_seq=start.turn.input_to_seq,
                 )
                 focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
-                if self._use_v2_turn_pipeline(trigger):
-                    return self._run_v2_inbound_turn(
-                        trigger=trigger,
-                        start=start,
-                        gate=gate,
-                        freshness_guard=freshness_guard,
-                        focus_subject=focus_subject,
-                    )
-                with turn_latency_span(
-                    "turn.semantic_interpreter",
-                    turn_id=start.turn.id,
-                    trigger_type=trigger.trigger_type,
-                    mode=TurnMode.INTERACTIVE.value,
-                    account_id=trigger.account_id,
-                    conversation_id=trigger.conversation_id,
-                ):
-                    semantic_decision = self.semantic_interpreter.interpret(
-                        SemanticInterpreterRequest(
-                            account_id=trigger.account_id,
-                            conversation_id=trigger.conversation_id,
-                            payload=dict(trigger.payload),
-                            trusted_facts=gate.trust_facts,
-                            focus_subject=focus_subject,
-                        )
-                    )
-                    semantic_decision = (
-                        _clear_reference_clarification_with_single_focus(
-                            semantic_decision, focus_subject
-                        )
-                    )
-                    semantic_decision = (
-                        _clear_context_clarification_for_followup_answer(
-                            semantic_decision, trigger
-                        )
-                    )
-                    semantic_decision = _require_agent_visibility_for_inbound_no_reply(
-                        semantic_decision
-                    )
-
-                with turn_latency_span(
-                    "turn.context_assembly",
-                    turn_id=start.turn.id,
-                    trigger_type=trigger.trigger_type,
-                    mode=TurnMode.INTERACTIVE.value,
-                    account_id=trigger.account_id,
-                    conversation_id=trigger.conversation_id,
-                ):
-                    trusted_facts = _trusted_facts_for_agent(
-                        gate.trust_facts,
-                        trigger=trigger,
-                        semantic_decision=semantic_decision,
-                        now=self._now,
-                        account_timezone=self._account_timezone,
-                        onboarding_guidance_required=gate.activation_guidance_required,
-                    )
-                    trusted_facts = _add_recoverable_scheduling_context(
-                        trusted_facts,
-                        service=self._social_scheduling_service(),
-                        trigger=trigger,
-                        semantic_decision=semantic_decision,
-                    )
-                    context = self.context_assembler.build(
-                        trigger=trigger,
-                        trusted_facts=trusted_facts,
-                        semantic_decision=semantic_decision,
-                        focus_subject=focus_subject,
-                        reference_resolution=self.reference_resolver.resolve_all([]),
-                        memory_context=self.memory_manager.load(
-                            account_id=trigger.account_id,
-                            conversation_id=trigger.conversation_id,
-                            long_term_enabled=bool(
-                                gate.trust_facts.get("memory_enabled", True)
-                            ),
-                        ),
-                        freshness_guard=freshness_guard,
-                        tool_profile=_tool_profile_for_interactive_decision(
-                            semantic_decision,
-                            trusted_facts=trusted_facts,
-                            tool_ports=self.tool_ports,
-                        ),
-                        onboarding_guidance_required=gate.activation_guidance_required,
-                        turn_source=trusted_facts["turn_source"],
-                        current_input_messages=start.input_messages,
-                    )
-                prepared_result = self._run_prepared_action_if_available(
+                return self._run_v2_inbound_turn(
                     trigger=trigger,
-                    context=context,
-                    semantic_decision=semantic_decision,
-                    current_input_messages=start.input_messages,
-                )
-                if prepared_result is not None:
-                    return prepared_result
-                return self._invoke_agent_and_record(
-                    trigger,
-                    context,
-                    semantic_decision,
+                    start=start,
+                    gate=gate,
+                    freshness_guard=freshness_guard,
+                    focus_subject=focus_subject,
                 )
             except ConversationRuntimeError as error:
                 return self._conversation_runtime_error_result(
@@ -687,106 +586,12 @@ class TurnRunner:
                         input_to_seq=start.turn.input_to_seq,
                     )
                     focus_subject = self.focus_resolver.resolve(trigger.conversation_id)
-                    if self._use_v2_turn_pipeline(trigger):
-                        return await self._run_v2_inbound_turn_async(
-                            trigger=trigger,
-                            start=start,
-                            gate=gate,
-                            freshness_guard=freshness_guard,
-                            focus_subject=focus_subject,
-                        )
-                    with turn_latency_span(
-                        "turn.semantic_interpreter",
-                        turn_id=start.turn.id,
-                        trigger_type=trigger.trigger_type,
-                        mode=TurnMode.INTERACTIVE.value,
-                        account_id=trigger.account_id,
-                        conversation_id=trigger.conversation_id,
-                    ):
-                        semantic_decision = await self._interpret_semantic_async(
-                            SemanticInterpreterRequest(
-                                account_id=trigger.account_id,
-                                conversation_id=trigger.conversation_id,
-                                payload=dict(trigger.payload),
-                                trusted_facts=gate.trust_facts,
-                                focus_subject=focus_subject,
-                            )
-                        )
-                        semantic_decision = (
-                            _clear_reference_clarification_with_single_focus(
-                                semantic_decision, focus_subject
-                            )
-                        )
-                        semantic_decision = (
-                            _clear_context_clarification_for_followup_answer(
-                                semantic_decision, trigger
-                            )
-                        )
-                        semantic_decision = (
-                            _require_agent_visibility_for_inbound_no_reply(
-                                semantic_decision
-                            )
-                        )
-
-                    with turn_latency_span(
-                        "turn.context_assembly",
-                        turn_id=start.turn.id,
-                        trigger_type=trigger.trigger_type,
-                        mode=TurnMode.INTERACTIVE.value,
-                        account_id=trigger.account_id,
-                        conversation_id=trigger.conversation_id,
-                    ):
-                        trusted_facts = _trusted_facts_for_agent(
-                            gate.trust_facts,
-                            trigger=trigger,
-                            semantic_decision=semantic_decision,
-                            now=self._now,
-                            account_timezone=self._account_timezone,
-                            onboarding_guidance_required=gate.activation_guidance_required,
-                        )
-                        trusted_facts = _add_recoverable_scheduling_context(
-                            trusted_facts,
-                            service=self._social_scheduling_service(),
-                            trigger=trigger,
-                            semantic_decision=semantic_decision,
-                        )
-                        context = self.context_assembler.build(
-                            trigger=trigger,
-                            trusted_facts=trusted_facts,
-                            semantic_decision=semantic_decision,
-                            focus_subject=focus_subject,
-                            reference_resolution=self.reference_resolver.resolve_all(
-                                []
-                            ),
-                            memory_context=self.memory_manager.load(
-                                account_id=trigger.account_id,
-                                conversation_id=trigger.conversation_id,
-                                long_term_enabled=bool(
-                                    gate.trust_facts.get("memory_enabled", True)
-                                ),
-                            ),
-                            freshness_guard=freshness_guard,
-                            tool_profile=_tool_profile_for_interactive_decision(
-                                semantic_decision,
-                                trusted_facts=trusted_facts,
-                                tool_ports=self.tool_ports,
-                            ),
-                            onboarding_guidance_required=gate.activation_guidance_required,
-                            turn_source=trusted_facts["turn_source"],
-                            current_input_messages=start.input_messages,
-                        )
-                    prepared_result = self._run_prepared_action_if_available(
+                    return await self._run_v2_inbound_turn_async(
                         trigger=trigger,
-                        context=context,
-                        semantic_decision=semantic_decision,
-                        current_input_messages=start.input_messages,
-                    )
-                    if prepared_result is not None:
-                        return prepared_result
-                    return await self._invoke_agent_and_record_async(
-                        trigger,
-                        context,
-                        semantic_decision,
+                        start=start,
+                        gate=gate,
+                        freshness_guard=freshness_guard,
+                        focus_subject=focus_subject,
                     )
                 except ConversationRuntimeError as error:
                     return self._conversation_runtime_error_result(
@@ -801,13 +606,6 @@ class TurnRunner:
             if is_newer_inbound_cancellation(error):
                 self._record_interrupted_turn(start.turn.id)
             raise
-
-    def _use_v2_turn_pipeline(self, trigger: TurnTrigger) -> bool:
-        if os.environ.get("COKE_TURN_PIPELINE") == "v2":
-            return True
-        allowlist = os.environ.get("COKE_TURN_PIPELINE_ACCOUNTS", "")
-        canary = {a.strip() for a in allowlist.split(",") if a.strip()}
-        return trigger.account_id in canary
 
     def _run_v2_inbound_turn(
         self,
@@ -940,7 +738,6 @@ class TurnRunner:
         trusted_facts = _trusted_facts_for_agent(
             gate.trust_facts,
             trigger=trigger,
-            semantic_decision=None,
             now=lambda: now,
             account_timezone=self._account_timezone,
             onboarding_guidance_required=gate.activation_guidance_required,
@@ -1101,7 +898,6 @@ class TurnRunner:
             trusted_facts = _trusted_facts_for_agent(
                 render_gate.trust_facts,
                 trigger=render_trigger,
-                semantic_decision=None,
                 now=self._now,
                 account_timezone=self._account_timezone,
             )
@@ -1174,7 +970,6 @@ class TurnRunner:
             trusted_facts = _trusted_facts_for_agent(
                 render_gate.trust_facts,
                 trigger=render_trigger,
-                semantic_decision=None,
                 now=self._now,
                 account_timezone=self._account_timezone,
             )
@@ -1265,7 +1060,6 @@ class TurnRunner:
                     trusted_facts = _trusted_facts_for_agent(
                         gate.trust_facts,
                         trigger=trigger,
-                        semantic_decision=None,
                         now=self._now,
                         account_timezone=self._account_timezone,
                     )
@@ -1315,63 +1109,11 @@ class TurnRunner:
             finally:
                 lock.release()
 
-    def _run_prepared_action_if_available(
-        self,
-        *,
-        trigger: TurnTrigger,
-        context: Any,
-        semantic_decision: SemanticDecision,
-        current_input_messages: tuple[Any, ...] = (),
-    ) -> TurnRunResult | None:
-        route = derive_route(semantic_decision)
-        if route != "prepared_list":
-            return None
-        reminder_tool = self.tool_ports.reminder_tool
-        if reminder_tool is None or not hasattr(
-            reminder_tool, "execute_without_staging"
-        ):
-            return None
-        with turn_latency_span(
-            "turn.prepared_action",
-            turn_id=context.freshness_guard.turn_id,
-            trigger_type=trigger.trigger_type,
-            mode=trigger.mode,
-            account_id=trigger.account_id,
-            conversation_id=trigger.conversation_id,
-            extra={"route": route, "action": "list_reminders"},
-        ) as latency_fields:
-            result = self.action_runner.run_plain_reminder_list(
-                account_id=str(
-                    context.trusted_facts.get("account_id") or trigger.account_id
-                ),
-                display_timezone=str(
-                    context.trusted_facts.get("default_timezone") or "UTC"
-                ),
-                user_text=_user_text_from_payload(trigger.payload),
-                reminder_tool=reminder_tool,
-                guard=context.freshness_guard,
-            )
-            latency_fields["tool_count"] = len(result.tool_events)
-        if not result.handled or result.validated is None:
-            return None
-        return self._record_validated_output(
-            turn_id=context.freshness_guard.turn_id,
-            trigger=trigger,
-            validated=result.validated,
-            current_input_messages=tuple(
-                current_input_messages or getattr(context, "current_input_messages", ())
-            ),
-            tool_events=tuple(result.tool_events),
-            onboarding_guidance_required=bool(
-                getattr(context, "onboarding_guidance_required", False)
-            ),
-        )
-
     def _invoke_agent_and_record(
         self,
         trigger: TurnTrigger,
         context: Any,
-        semantic_decision: SemanticDecision | None,
+        semantic_decision: Any | None,
         *,
         current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
@@ -1476,7 +1218,7 @@ class TurnRunner:
         self,
         trigger: TurnTrigger,
         context: Any,
-        semantic_decision: SemanticDecision | None,
+        semantic_decision: Any | None,
         *,
         current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
@@ -1499,8 +1241,6 @@ class TurnRunner:
                 fallback=context.freshness_guard.turn_id,
             ),
         )
-        streamed_segment_count = 0
-        streamed_reply_outcomes: tuple[DeliveryOutcome, ...] = ()
         with turn_latency_span(
             "agent.primary",
             turn_id=agent_request.turn_id,
@@ -1509,31 +1249,7 @@ class TurnRunner:
             account_id=trigger.account_id,
             conversation_id=trigger.conversation_id,
         ) as latency_fields:
-            streaming_invoke = getattr(
-                self.interaction_agent, "ainvoke_streaming", None
-            )
-            if (
-                semantic_decision is not None
-                and callable(streaming_invoke)
-                and is_streaming_eligible(
-                    trigger, semantic_decision, context.tool_profile
-                )
-            ):
-                (
-                    agent_result,
-                    streamed_segment_count,
-                    first_segment_ms,
-                    streamed_reply_outcomes,
-                ) = await self._consume_streaming_agent_reply(
-                    trigger=trigger,
-                    request=agent_request,
-                    streaming_invoke=streaming_invoke,
-                )
-                latency_fields["streamed"] = streamed_segment_count > 0
-                if first_segment_ms is not None:
-                    latency_fields["first_segment_ms"] = first_segment_ms
-            else:
-                agent_result = await self.interaction_agent.ainvoke(agent_request)
+            agent_result = await self.interaction_agent.ainvoke(agent_request)
             latency_fields["tool_count"] = len(agent_result.tool_events)
             latency_fields["timeout"] = agent_result.timed_out
         if agent_result.timed_out:
@@ -1601,70 +1317,6 @@ class TurnRunner:
             onboarding_guidance_required=bool(
                 getattr(context, "onboarding_guidance_required", False)
             ),
-            skip_delivered_segment_count=streamed_segment_count,
-            pre_delivered_reply_outcomes=streamed_reply_outcomes,
-        )
-
-    async def _consume_streaming_agent_reply(
-        self,
-        *,
-        trigger: TurnTrigger,
-        request: AgentRequest,
-        streaming_invoke: Callable[[AgentRequest], Any],
-    ) -> tuple[AgentResult, int, int | None, tuple[DeliveryOutcome, ...]]:
-        started_at = time.perf_counter()
-        streamed_segment_count = 0
-        first_segment_ms: int | None = None
-        reply_outcomes: list[DeliveryOutcome] = []
-        final_result: AgentResult | None = None
-        streaming_suppressed = False
-        async for event in streaming_invoke(request):
-            if isinstance(event, AgentResult):
-                final_result = event
-                break
-            if (
-                streaming_suppressed
-                or streamed_segment_count > 0
-                or not isinstance(event, str)
-            ):
-                continue
-            segment = event.strip()
-            if not segment:
-                continue
-            if _contains_serialized_tool_call(segment):
-                streaming_suppressed = True
-                continue
-            first_segment_validation = self._validate_agent_output(
-                trigger,
-                request,
-                {"type": "reply", "segments": [segment]},
-                tool_events=(),
-            )
-            if not first_segment_validation.valid:
-                streaming_suppressed = True
-                continue
-            first_segment_ms = max(
-                0, int(round((time.perf_counter() - started_at) * 1000))
-            )
-            for delivery_request in self._reply_delivery_requests(
-                trigger=trigger,
-                turn_id=request.turn_id,
-                visible_text=segment,
-                segments=(segment,),
-                outbound_messages=[],
-                start_index=1,
-            ):
-                outcome = self._deliver(delivery_request)
-                reply_outcomes.append(outcome)
-                self._record_delivery_lifecycle(trigger, delivery_request, outcome)
-            streamed_segment_count = 1
-        if final_result is None:
-            final_result = AgentResult.completed(None, blank_output=True)
-        return (
-            final_result,
-            streamed_segment_count,
-            first_segment_ms,
-            tuple(reply_outcomes),
         )
 
     def _validate_agent_output(
@@ -1694,11 +1346,6 @@ class TurnRunner:
         )
         validated = _validate_for_trigger(trigger, validated)
         return _validate_reminder_fire_output(request, validated)
-
-    async def _interpret_semantic_async(
-        self, request: SemanticInterpreterRequest
-    ) -> SemanticDecision:
-        return await asyncio.to_thread(self.semantic_interpreter.interpret, request)
 
     def _social_scheduling_service(self) -> Any | None:
         if self.social_scheduling_service is not None:
@@ -1744,49 +1391,6 @@ class TurnRunner:
             ):
                 return True
         return False
-
-    def _pending_clarification_context(
-        self,
-        *,
-        trigger: TurnTrigger,
-        gate: GateDecision,
-        freshness_guard: FreshnessGuard,
-        focus_subject: Any | None,
-        current_input_messages: tuple[Any, ...],
-    ) -> Any | None:
-        trusted_facts = _trusted_facts_for_agent(
-            gate.trust_facts,
-            trigger=trigger,
-            semantic_decision=None,
-            now=self._now,
-            account_timezone=self._account_timezone,
-            onboarding_guidance_required=gate.activation_guidance_required,
-        )
-        trusted_facts = _add_pending_clarification_resolution(
-            trusted_facts,
-            conversation_runtime=self.conversation_runtime,
-            trigger=trigger,
-            current_turn_id=freshness_guard.turn_id,
-        )
-        if not _has_executable_pending_clarification(trusted_facts):
-            return None
-        return self.context_assembler.build(
-            trigger=trigger,
-            trusted_facts=trusted_facts,
-            semantic_decision=None,
-            focus_subject=focus_subject,
-            reference_resolution=self.reference_resolver.resolve_all([]),
-            memory_context=self.memory_manager.load(
-                account_id=trigger.account_id,
-                conversation_id=trigger.conversation_id,
-                long_term_enabled=bool(gate.trust_facts.get("memory_enabled", True)),
-            ),
-            freshness_guard=freshness_guard,
-            tool_profile=ToolProfile.interactive(self.tool_ports),
-            onboarding_guidance_required=gate.activation_guidance_required,
-            turn_source=trusted_facts["turn_source"],
-            current_input_messages=current_input_messages,
-        )
 
     async def _acquire_conversation_lock_async(self, conversation_id: str):
         while True:
@@ -1985,13 +1589,6 @@ class TurnRunner:
             materialize_staged_command=self._materialize_staged_command,
         )
         self._commit_close_boundary()
-        self._record_social_scheduling_recovery_after_close(
-            trigger=trigger,
-            turn_id=turn_id,
-            validated=validated,
-            tool_events=tool_events,
-            current_input_messages=current_input_messages,
-        )
         visible_text = "\n".join(segments)
         outbound_messages = [
             message
@@ -2063,32 +1660,6 @@ class TurnRunner:
             turn_id=command.turn_id,
         )
         self.staged_command_materializer.materialize(command, guard)
-
-    def _record_social_scheduling_recovery_after_close(
-        self,
-        *,
-        trigger: TurnTrigger,
-        turn_id: str,
-        validated: ValidatedOutput,
-        tool_events: tuple[Mapping[str, Any], ...],
-        current_input_messages: tuple[Any, ...],
-    ) -> None:
-        service = self._social_scheduling_service()
-        if service is None or trigger.trigger_type != "InboundTurn":
-            return
-        _create_recoverable_intents_from_tool_events(
-            service=service,
-            trigger=trigger,
-            turn_id=turn_id,
-            validated=validated,
-            tool_events=tool_events,
-            current_input_messages=current_input_messages,
-        )
-        _consume_recoverable_intents_from_materialized_commands(
-            service=service,
-            conversation_runtime=self.conversation_runtime,
-            turn_id=turn_id,
-        )
 
     def _replayed_result(
         self,
@@ -2350,85 +1921,6 @@ def _turn_input_window(turn: Any) -> tuple[int, int] | None:
     return None
 
 
-def _create_recoverable_intents_from_tool_events(
-    *,
-    service: Any,
-    trigger: TurnTrigger,
-    turn_id: str,
-    validated: ValidatedOutput,
-    tool_events: tuple[Mapping[str, Any], ...],
-    current_input_messages: tuple[Any, ...],
-) -> None:
-    claim = validated.domain_claim
-    if (
-        not isinstance(claim, Mapping)
-        or claim.get("domain") != "social_scheduling"
-        or claim.get("status")
-        not in {"blocked_unmatched_friend", "blocked_ambiguous_friend"}
-    ):
-        return
-    source_from_seq, source_to_seq, source_message_ids = _source_input_window(
-        current_input_messages
-    )
-    for event in tool_events:
-        outcome_mapping = _social_scheduling_outcome_from_event(event)
-        if outcome_mapping is None:
-            continue
-        if outcome_mapping.get("outcome_id") != claim.get("outcome_id"):
-            continue
-        unresolved = _unresolved_friend_reference_from_event(event)
-        if unresolved is None:
-            continue
-        outcome = _social_scheduling_outcome_model(outcome_mapping)
-        if outcome is None:
-            continue
-        service.create_recoverable_intent_from_outcome(
-            conversation_id=trigger.conversation_id,
-            creator_account_id=trigger.account_id,
-            outcome=outcome,
-            unresolved_reference_text=unresolved,
-            source_turn_id=turn_id,
-            source_input_from_seq=source_from_seq,
-            source_input_to_seq=source_to_seq,
-            source_message_ids=source_message_ids,
-        )
-
-
-def _consume_recoverable_intents_from_materialized_commands(
-    *,
-    service: Any,
-    conversation_runtime: ConversationRuntimeService,
-    turn_id: str,
-) -> None:
-    repository = getattr(conversation_runtime, "repository", None)
-    staged_commands_for_turn = getattr(repository, "staged_commands_for_turn", None)
-    if not callable(staged_commands_for_turn):
-        return
-    for command in staged_commands_for_turn(turn_id):
-        if (
-            getattr(command, "status", None) != "materialized"
-            or getattr(command, "domain", None) != "social_scheduling"
-            or getattr(command, "operation", None)
-            not in {"create_shared_reminder", "detect_and_create_shared_reminder"}
-        ):
-            continue
-        payload = getattr(command, "command_payload", {})
-        if not isinstance(payload, Mapping):
-            continue
-        intent_id = payload.get("recoverable_scheduling_intent_id")
-        facts_hash = payload.get("facts_hash")
-        if not isinstance(intent_id, str) or not isinstance(facts_hash, str):
-            continue
-        try:
-            service.consume_recoverable_intent(
-                intent_id,
-                facts_hash=facts_hash,
-                consumed_turn_id=turn_id,
-            )
-        except ValueError:
-            continue
-
-
 def _social_scheduling_outcomes_from_tool_events(
     tool_events: tuple[Mapping[str, Any], ...],
 ) -> list[Mapping[str, Any]]:
@@ -2474,46 +1966,7 @@ def _social_scheduling_outcome_model(
         participant_account_ids=tuple(str(item) for item in participant_ids),
         blocker=_optional_str(outcome.get("blocker")),
         facts_hash=_optional_str(outcome.get("facts_hash")),
-        recoverable_scheduling_intent_id=_optional_str(
-            outcome.get("recoverable_scheduling_intent_id")
-        ),
     )
-
-
-def _unresolved_friend_reference_from_event(event: Mapping[str, Any]) -> str | None:
-    facts = event.get("facts")
-    if not isinstance(facts, Mapping):
-        return None
-    follow_up_facts = facts.get("follow_up_facts")
-    if isinstance(follow_up_facts, Mapping):
-        value = follow_up_facts.get("unresolved_reference_text")
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    outcome = facts.get("social_scheduling_outcome")
-    if isinstance(outcome, Mapping):
-        value = outcome.get("unresolved_reference_text")
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
-
-
-def _source_input_window(
-    current_input_messages: tuple[Any, ...],
-) -> tuple[int, int, tuple[str, ...]]:
-    seqs = [
-        seq
-        for message in current_input_messages
-        if isinstance(seq := getattr(message, "seq", None), int)
-    ]
-    message_ids = tuple(
-        message_id
-        for message in current_input_messages
-        if isinstance(message_id := getattr(message, "message_id", None), str)
-        and message_id
-    )
-    if not seqs:
-        return 0, 0, message_ids
-    return min(seqs), max(seqs), message_ids
 
 
 def _optional_local_datetime(value: Any) -> datetime | None:
@@ -3037,7 +2490,6 @@ def _trusted_facts_for_agent(
     trust_facts: dict[str, Any],
     *,
     trigger: TurnTrigger,
-    semantic_decision: SemanticDecision | None,
     now: Callable[[], datetime],
     account_timezone: Callable[[str], str | None] | None = None,
     onboarding_guidance_required: bool = False,
@@ -3054,79 +2506,8 @@ def _trusted_facts_for_agent(
             account_timezone=account_timezone,
         )
     )
-    if semantic_decision is not None:
-        facts["semantic_decision"] = _semantic_decision_fact(semantic_decision)
     if onboarding_guidance_required:
         facts["onboarding_guidance"] = _onboarding_guidance_fact(facts)
-    if (
-        semantic_decision is not None
-        and semantic_decision.required_clarification != "none"
-    ):
-        facts["required_clarification"] = {
-            "signal": semantic_decision.required_clarification,
-            "ambiguity": semantic_decision.ambiguity,
-            "instruction": "Ask exactly this clarification before any domain action.",
-        }
-    return facts
-
-
-def _add_recoverable_scheduling_context(
-    trusted_facts: Mapping[str, Any],
-    *,
-    service: Any | None,
-    trigger: TurnTrigger,
-    semantic_decision: SemanticDecision,
-) -> dict[str, Any]:
-    facts = dict(trusted_facts)
-    action = semantic_decision.follow_up_action
-    if (
-        service is None
-        or action is None
-        or action.type != "resolve_friend_reference_correction"
-        or action.scope != "immediately_preceding_unresolved_intent"
-    ):
-        return facts
-    intent = service.recoverable_intent_for_correction(
-        conversation_id=trigger.conversation_id,
-        prior_reference_text=action.prior_reference_text,
-    )
-    if intent is None:
-        return facts
-    resolution = service.resolve_active_friend_reference(
-        trigger.account_id,
-        action.corrected_friend_text,
-    )
-    if resolution.status == "matched" and resolution.matched_account_id:
-        facts["recoverable_scheduling_intent"] = {
-            "id": intent.id,
-            "operation": intent.operation,
-            "facts_hash": intent.facts_hash,
-            "title": intent.title,
-            "local_trigger_at": intent.local_trigger_at.isoformat(),
-            "captured_timezone": intent.captured_timezone,
-            "duration_minutes": intent.duration_minutes,
-            "unresolved_reference_text": intent.unresolved_reference_text,
-            "corrected_friend_text": action.corrected_friend_text,
-            "resolved_friend_account_id": resolution.matched_account_id,
-            "source_turn_id": intent.source_turn_id,
-            "instruction": (
-                "Use this trusted recoverable intent only for the current turn. "
-                "Call social_scheduling_tool create_shared_reminder with "
-                "recoverable_scheduling_intent_id and facts_hash; do not store "
-                "the corrected friend as an alias."
-            ),
-        }
-        return facts
-    facts["recoverable_scheduling_intent_resolution"] = {
-        "status": resolution.status,
-        "prior_reference_text": action.prior_reference_text,
-        "corrected_friend_text": action.corrected_friend_text,
-        "candidate_account_ids": list(resolution.candidates),
-        "instruction": (
-            "Ask one concise confirmation about which active friend to use. "
-            "Do not treat this as approval for a pending command."
-        ),
-    }
     return facts
 
 
@@ -3170,132 +2551,8 @@ def _onboarding_guidance_fact(facts: Mapping[str, Any]) -> dict[str, Any]:
     return guidance
 
 
-REFERENCE_CLARIFICATIONS = {"ask_context", "ask_reference_choice"}
-REFERENCE_AMBIGUITIES = {"ambiguous_reference", "missing_context"}
-REMINDER_FOCUS_ACTIONS = {
-    "update_reminder",
-    "complete_reminder",
-    "delete_reminder",
-    "clear_trigger_time",
-    "schedule_unscheduled",
-}
-
-
-def _clear_reference_clarification_with_single_focus(
-    decision: SemanticDecision,
-    focus_subject: Any | None,
-) -> SemanticDecision:
-    if not _has_single_focus(focus_subject, "reminder"):
-        return decision
-    if decision.intent_family != "reminder_op":
-        return decision
-    if decision.intent_action not in REMINDER_FOCUS_ACTIONS:
-        return decision
-    if decision.required_clarification not in REFERENCE_CLARIFICATIONS:
-        return decision
-    if decision.ambiguity not in REFERENCE_AMBIGUITIES:
-        return decision
-    return replace(decision, ambiguity="clear", required_clarification="none")
-
-
-SHORT_AFFIRMATIVE_TEXTS = {
-    "yes",
-    "y",
-    "yeah",
-    "yep",
-    "ok",
-    "okay",
-    "sure",
-    "confirm",
-    "confirmed",
-    "是",
-    "是的",
-    "对",
-    "对的",
-    "嗯",
-    "好",
-    "好的",
-    "可以",
-    "确认",
-}
-
-
-def _clear_context_clarification_for_followup_answer(
-    decision: SemanticDecision,
-    trigger: TurnTrigger,
-) -> SemanticDecision:
-    if decision.required_clarification != "ask_context":
-        return decision
-    if decision.ambiguity != "missing_context":
-        return decision
-    if not _is_concise_followup_answer_payload(trigger.payload):
-        return decision
-    return replace(decision, ambiguity="clear", required_clarification="none")
-
-
-def _is_concise_followup_answer_payload(payload: Mapping[str, Any]) -> bool:
-    text = str(payload.get("text") or payload.get("input") or "").strip()
-    if not text:
-        return False
-    normalized = text.casefold().strip(" \t\r\n.!?。！？~～")
-    if normalized in SHORT_AFFIRMATIVE_TEXTS:
-        return True
-    if any(mark in text for mark in ("?", "？")):
-        return False
-    return len(text) <= 40 and len(text.split()) <= 4
-
-
-def _tool_profile_for_interactive_decision(
-    semantic_decision: SemanticDecision,
-    *,
-    trusted_facts: Mapping[str, Any],
-    tool_ports: AgentToolPorts,
-) -> ToolProfile:
-    if "recoverable_scheduling_intent_resolution" in trusted_facts:
-        return ToolProfile.clarification()
-    if semantic_decision.required_clarification != "none":
-        return ToolProfile.clarification()
-    return ToolProfile.interactive(tool_ports)
-
-
 def _requires_social_scheduling_claim(request: AgentRequest) -> bool:
-    if request.trigger_type != "InboundTurn":
-        return False
-    if not getattr(request.tool_profile, "intent_tools_enabled", False):
-        return False
-    if getattr(request.tool_profile, "social_scheduling_tool", None) is None:
-        return False
-    semantic = request.trusted_facts.get("semantic_decision")
-    if not isinstance(semantic, Mapping):
-        return "recoverable_scheduling_intent" in request.trusted_facts
-    return semantic.get("intent_family") == "scheduling" and semantic.get(
-        "intent_action"
-    ) in {"create_shared_reminder", "update_shared_reminder"}
-
-
-def _require_agent_visibility_for_inbound_no_reply(
-    decision: SemanticDecision,
-) -> SemanticDecision:
-    if decision.reply_necessity != "intentional_no_reply":
-        return decision
-    return replace(decision, reply_necessity="reply_needed")
-
-
-def _has_single_focus(focus_subject: Any | None, subject_type: str) -> bool:
-    if focus_subject is None:
-        return False
-    if isinstance(focus_subject, Mapping):
-        focus_type = focus_subject.get("subject_type")
-        object_ids = focus_subject.get("object_ids")
-    else:
-        focus_type = getattr(focus_subject, "subject_type", None)
-        object_ids = getattr(focus_subject, "object_ids", None)
-    if focus_type != subject_type or isinstance(object_ids, str):
-        return False
-    try:
-        return len(tuple(object_ids or ())) == 1
-    except TypeError:
-        return False
+    return False
 
 
 def _current_time_facts(
@@ -3344,17 +2601,6 @@ def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo | Any]:
         return timezone_name, ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
         return "UTC", UTC
-
-
-def _semantic_decision_fact(decision: SemanticDecision) -> dict[str, Any]:
-    return asdict(decision)
-
-
-def _user_text_from_payload(payload: Mapping[str, Any]) -> str:
-    text = payload.get("text")
-    if isinstance(text, str) and text.strip():
-        return text.strip()
-    return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 def _turn_source_for_trigger(trigger: TurnTrigger) -> dict[str, Any]:
