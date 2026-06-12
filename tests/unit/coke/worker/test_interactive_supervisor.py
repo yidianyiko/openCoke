@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
@@ -96,10 +97,47 @@ class CompletingRunner:
         return {"trigger_id": trigger.trigger_id, "session": self.session}
 
 
+class CancelledRunner:
+    def __init__(self, session: FakeSession) -> None:
+        self.session = session
+
+    async def run_inbound_turn_async(self, trigger: TurnTrigger):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            assert self.session.rollbacks == 0
+            raise
+
+
 class Runtime:
     def __init__(self, session: FakeSession) -> None:
         self.session = session
         self.turn_runner = CompletingRunner(session)
+
+
+class CancelledRuntime(Runtime):
+    def __init__(self, session: FakeSession) -> None:
+        self.session = session
+        self.turn_runner = CancelledRunner(session)
+
+
+class SupersedingCancelledRuntime(CancelledRuntime):
+    def __init__(self, session: FakeSession) -> None:
+        super().__init__(session)
+        self.superseded: list[tuple[str, str]] = []
+        self.repositories = SimpleNamespace(
+            conversation_runtime=SimpleNamespace(
+                get_turn_by_trigger_id=lambda trigger_id: (
+                    SimpleNamespace(id="turn_1") if trigger_id == "inbound:1" else None
+                )
+            )
+        )
+        self.conversation_runtime_service = SimpleNamespace(
+            mark_superseded=self._mark_superseded
+        )
+
+    def _mark_superseded(self, turn_id: str, *, reason_code: str) -> None:
+        self.superseded.append((turn_id, reason_code))
 
 
 @pytest.mark.asyncio
@@ -336,6 +374,61 @@ async def test_runtime_factory_uses_fresh_session_per_interactive_task():
     assert [session.commits for session in sessions] == [1, 1]
     assert [session.closed for session in sessions] == [True, True]
     assert [result["session"] for _, result in completed] == sessions
+
+
+@pytest.mark.asyncio
+async def test_cancelled_runtime_task_rolls_back_without_commit():
+    sessions: list[FakeSession] = []
+
+    def runtime_factory() -> CancelledRuntime:
+        session = FakeSession()
+        sessions.append(session)
+        return CancelledRuntime(session)
+
+    supervisor = InteractiveTurnSupervisor(
+        runtime_factory=runtime_factory,
+        interaction_agent=FakeAgent(),
+    )
+
+    await supervisor.submit(_inbound_trigger("inbound:1", "provider:1"))
+    await asyncio.sleep(0)
+    await supervisor.submit(_inbound_trigger("inbound:2", "provider:2"))
+    await asyncio.sleep(0)
+    await supervisor.drain_completed()
+
+    assert len(sessions) == 2
+    assert sessions[0].rollbacks == 1
+    assert sessions[0].commits == 0
+    assert sessions[0].closed is True
+
+
+@pytest.mark.asyncio
+async def test_newer_inbound_cancel_marks_superseded_after_rollback():
+    sessions: list[FakeSession] = []
+    runtimes: list[SupersedingCancelledRuntime] = []
+
+    def runtime_factory() -> SupersedingCancelledRuntime:
+        session = FakeSession()
+        runtime = SupersedingCancelledRuntime(session)
+        sessions.append(session)
+        runtimes.append(runtime)
+        return runtime
+
+    supervisor = InteractiveTurnSupervisor(
+        runtime_factory=runtime_factory,
+        interaction_agent=FakeAgent(),
+    )
+
+    await supervisor.submit(_inbound_trigger("inbound:1", "provider:1"))
+    await asyncio.sleep(0)
+    await supervisor.submit(_inbound_trigger("inbound:2", "provider:2"))
+    await asyncio.sleep(0)
+    await supervisor.drain_completed()
+
+    assert sessions[0].rollbacks == 1
+    assert sessions[0].commits == 1
+    assert sessions[0].closed is True
+    assert runtimes[0].superseded == [("turn_1", "interrupted_by_newer_inbound")]
 
 
 def _inbound_trigger(

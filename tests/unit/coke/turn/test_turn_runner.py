@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 from datetime import UTC, datetime
 from itertools import count
@@ -19,7 +20,7 @@ from coke.turn.freshness import FreshnessGuard
 from coke.turn.locks import ConversationLockManager
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
-from coke.turn.runner import TurnRunner
+from coke.turn.runner import INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON, TurnRunner
 
 NOW = datetime(2026, 5, 30, 10, 0, tzinfo=UTC)
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
@@ -176,6 +177,11 @@ class RuntimeErrorCloseTurnPipeline:
         )
 
 
+class NewerInboundCancelledTurnPipeline:
+    async def run(self, request, guard, delivery=None):
+        raise asyncio.CancelledError(INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON)
+
+
 @pytest.fixture
 def harness():
     clock = MutableClock(NOW)
@@ -197,6 +203,7 @@ def harness():
     agent = FakeAgent()
     delivery = FakeDelivery()
     pipeline = RecordingTurnPipeline()
+    close_commits = []
     runner = TurnRunner(
         conversation_runtime=runtime,
         lock_manager=ConversationLockManager(
@@ -212,6 +219,7 @@ def harness():
         tool_ports=AgentToolPorts(),
         now=clock.now,
         account_timezone=lambda _account_id: gate_port.account_timezone,
+        close_boundary_committer=lambda: close_commits.append("close"),
         turn_pipeline=pipeline,
     )
     trigger = TurnTrigger(
@@ -230,6 +238,7 @@ def harness():
         "agent": agent,
         "delivery": delivery,
         "pipeline": pipeline,
+        "close_commits": close_commits,
         "runner": runner,
         "trigger": trigger,
     }
@@ -263,6 +272,19 @@ async def test_async_inbound_turn_uses_turn_pipeline(harness):
     assert result.disposition == "replied"
     assert result.visible_text == "async pipeline"
     assert harness["agent"].requests == []
+
+
+@pytest.mark.asyncio
+async def test_newer_inbound_cancellation_does_not_commit_close_boundary(harness):
+    harness["runner"].turn_pipeline = NewerInboundCancelledTurnPipeline()
+
+    with pytest.raises(asyncio.CancelledError):
+        await harness["runner"].run_inbound_turn_async(harness["trigger"])
+
+    turn = harness["repository"].get_turn_by_trigger_id(harness["trigger"].trigger_id)
+    assert turn is not None
+    assert harness["repository"].get_disposition(turn.id) is None
+    assert harness["close_commits"] == []
 
 
 def test_inbound_without_turn_pipeline_recovers_and_closes_window(harness):

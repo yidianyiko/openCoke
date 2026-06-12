@@ -660,10 +660,13 @@ Execute while turn N holds the lock. A newer inbound also (a) marks active turns
 superseded at record time (`coke/domains/conversation_runtime/service.py:141`,
 `:716`) and (b) causes the supervisor to cancel the in-flight task with
 `INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON`
-(`coke/worker/interactive_supervisor.py:71`, `:83`) and the provider run (`:91`);
-the runner recognizes that cancellation (`coke/turn/runner.py:39`, `:61`, `:605`)
-and records the interrupted turn as superseded (`coke/turn/runner.py:1657`,
-`:1660`).
+(`coke/worker/interactive_supervisor.py:71`, `:83`) and the provider run (`:91`).
+The runner must not record superseded or commit the close boundary from the
+cancelled shared turn transaction. It propagates the cancellation so the
+supervisor rolls back any Execute-time writes first; the supervisor may then
+perform an idempotent superseded cleanup in a fresh transaction. This keeps B2's
+supersession-undo contract intact even when a cancellation happens while domain
+writes are still uncommitted.
 
 Under B2 there is no destructive-op residual window. Because Execute writes are
 uncommitted until the close-boundary commit, the supersession outcomes are clean:

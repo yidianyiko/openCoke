@@ -600,9 +600,7 @@ class TurnRunner:
                     )
                 finally:
                     lock.release()
-        except asyncio.CancelledError as error:
-            if is_newer_inbound_cancellation(error):
-                self._record_interrupted_turn(start.turn.id)
+        except asyncio.CancelledError:
             raise
 
     def _run_inbound_pipeline(
@@ -1654,13 +1652,6 @@ class TurnRunner:
     def _commit_close_boundary(self) -> None:
         self._close_boundary_committer()
         notify_close_boundary_committed()
-
-    def _record_interrupted_turn(self, turn_id: str) -> None:
-        self.conversation_runtime.mark_superseded(
-            turn_id,
-            reason_code="interrupted_by_newer_inbound",
-        )
-        self._close_boundary_committer()
 
     def _commit_claim_boundary(self) -> None:
         self._claim_boundary_committer()

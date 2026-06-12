@@ -35,6 +35,7 @@ class FakeResult:
 class FakeSession:
     def __init__(self) -> None:
         self.commits = 0
+        self.message_seq = 2
 
     def execute(self, statement):
         sql = str(statement)
@@ -45,6 +46,7 @@ class FakeSession:
                 {
                     "id": "message_1",
                     "channel_identity_id": "channel_identity_1",
+                    "seq": self.message_seq,
                     "text": "hello",
                     "payload": {"provider": "wechat_personal"},
                     "causal_inbound_event_id": "provider_message_1",
@@ -279,6 +281,50 @@ def test_inbound_event_cancels_interrupted_provider_runs_before_submit():
         (run_ids, trigger.trigger_id)
         for run_ids, trigger in supervisor.cancelled_provider_runs
     ] == [(("inbound:provider_message_0",), "inbound:provider_message_1")]
+
+
+def test_inbound_event_already_covered_by_active_window_acks_without_resubmit():
+    redis = fakeredis.FakeRedis(decode_responses=True)
+    stream = RedisWorkStream(redis, stream_name="coke.work", group_name="workers")
+    stream.ensure_group()
+    stream.publish_event(
+        event_id="outbox_inbound_covered_by_active",
+        topic="turn.inbound",
+        idempotency_key="inbound:covered-by-active",
+        traceparent=TRACEPARENT,
+        payload={
+            "trigger_id": "inbound:provider_message_2",
+            "conversation_id": "conversation_1",
+            "message_id": "message_1",
+            "latest_inbound_seq": 3,
+        },
+    )
+    runtime = FakeRuntime()
+    runtime.repositories.conversation_runtime = SimpleNamespace(
+        active_interactive_turns=lambda conversation_id: [
+            SimpleNamespace(
+                conversation_id=conversation_id,
+                input_from_seq=1,
+                input_to_seq=3,
+                completed_at=None,
+            )
+        ]
+    )
+    supervisor = FakeSupervisor()
+    acked: list[str] = []
+    consumer = _consumer(stream, acked)
+
+    count = consumer.poll_once(
+        lambda event: _handle_event(runtime, event, supervisor=supervisor)
+    )
+
+    assert count == 1
+    assert acked == ["outbox_inbound_covered_by_active"]
+    assert runtime.session.commits == 1
+    assert supervisor.submitted == []
+    assert supervisor.cancelled_provider_runs == []
+    assert runtime.turn_runner.inbound_triggers == []
+    assert redis.xpending("coke.work", "workers")["pending"] == 0
 
 
 def test_covered_inbound_event_publishes_terminal_no_visible_result_and_acks():

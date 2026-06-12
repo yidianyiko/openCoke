@@ -127,6 +127,18 @@ def _handle_event(
     results: list[tuple[TurnTrigger, Any]] = []
     for trigger in _turn_triggers_from_event(runtime, event):
         if trigger.mode == TurnMode.INTERACTIVE and supervisor is not None:
+            if _interactive_trigger_already_covered_by_active_window(runtime, trigger):
+                LOGGER.info(
+                    "interactive_inbound_event_acked_as_active_window_covered",
+                    extra={
+                        "event_id": event.event_id,
+                        "trigger_id": trigger.trigger_id,
+                        "conversation_id": trigger.conversation_id,
+                        "seq": trigger.payload.get("seq"),
+                        "latest_inbound_seq": trigger.payload.get("latest_inbound_seq"),
+                    },
+                )
+                continue
             _submit_interactive_trigger(
                 supervisor,
                 _with_worker_event_id(trigger, event.event_id),
@@ -551,6 +563,12 @@ def _inbound_trigger(runtime: CokeRuntime, payload: Mapping[str, Any]) -> TurnTr
         "payload": dict(message.get("payload") or {}),
         "causal_inbound_event_id": message.get("causal_inbound_event_id"),
     }
+    seq = _optional_int(message.get("seq"))
+    if seq is not None:
+        trigger_payload["seq"] = seq
+    latest_inbound_seq = _optional_int(payload.get("latest_inbound_seq"))
+    if latest_inbound_seq is not None:
+        trigger_payload["latest_inbound_seq"] = latest_inbound_seq
     traceparent = payload.get("_traceparent")
     if isinstance(traceparent, str) and traceparent:
         trigger_payload["_traceparent"] = traceparent
@@ -770,6 +788,47 @@ def _message_row(runtime: CokeRuntime, message_id: str) -> Mapping[str, Any]:
     if row is None:
         raise RuntimeError(f"message_not_found:{message_id}")
     return dict(row)
+
+
+def _interactive_trigger_already_covered_by_active_window(
+    runtime: CokeRuntime,
+    trigger: TurnTrigger,
+) -> bool:
+    trigger_seq = _optional_int(trigger.payload.get("seq"))
+    if trigger_seq is None:
+        return False
+    latest_inbound_seq = _optional_int(trigger.payload.get("latest_inbound_seq"))
+    required_to_seq = max(
+        item for item in (trigger_seq, latest_inbound_seq) if item is not None
+    )
+    repository = getattr(runtime.repositories, "conversation_runtime", None)
+    active_interactive_turns = getattr(repository, "active_interactive_turns", None)
+    if not callable(active_interactive_turns):
+        return False
+    for turn in active_interactive_turns(trigger.conversation_id):
+        if getattr(turn, "conversation_id", None) != trigger.conversation_id:
+            continue
+        if getattr(turn, "completed_at", None) is not None:
+            continue
+        input_from_seq = _optional_int(getattr(turn, "input_from_seq", None))
+        input_to_seq = _optional_int(getattr(turn, "input_to_seq", None))
+        if input_from_seq is None or input_to_seq is None:
+            continue
+        if (
+            input_from_seq <= trigger_seq <= input_to_seq
+            and required_to_seq <= input_to_seq
+        ):
+            return True
+    return False
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _required_str(payload: Mapping[str, Any], key: str) -> str:

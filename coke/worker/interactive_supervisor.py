@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, replace
 from typing import Any, Callable
 
@@ -8,7 +9,10 @@ from coke.turn.context import TurnTrigger
 from coke.turn.runner import (
     INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON,
     close_boundary_observer,
+    is_newer_inbound_cancellation,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -255,10 +259,49 @@ class InteractiveTurnSupervisor:
                 if session is not None and callable(getattr(session, "commit", None)):
                     session.commit()
                 return result
-            except BaseException:
+            except BaseException as error:
+                newer_inbound_cancel = isinstance(
+                    error, asyncio.CancelledError
+                ) and is_newer_inbound_cancellation(error)
                 if session is not None and callable(getattr(session, "rollback", None)):
                     session.rollback()
+                if newer_inbound_cancel:
+                    self._mark_superseded_after_rollback(runtime, trigger, session)
                 raise
             finally:
                 if session is not None and callable(getattr(session, "close", None)):
                     session.close()
+
+    def _mark_superseded_after_rollback(
+        self,
+        runtime: Any,
+        trigger: TurnTrigger,
+        session: Any,
+    ) -> None:
+        try:
+            repositories = getattr(runtime, "repositories", None)
+            repository = getattr(repositories, "conversation_runtime", None)
+            get_turn_by_trigger_id = getattr(repository, "get_turn_by_trigger_id", None)
+            service = getattr(runtime, "conversation_runtime_service", None)
+            mark_superseded = getattr(service, "mark_superseded", None)
+            if not callable(get_turn_by_trigger_id) or not callable(mark_superseded):
+                return
+            turn = get_turn_by_trigger_id(trigger.trigger_id)
+            if turn is None:
+                return
+            mark_superseded(
+                turn.id,
+                reason_code="interrupted_by_newer_inbound",
+            )
+            if session is not None and callable(getattr(session, "commit", None)):
+                session.commit()
+        except Exception:
+            if session is not None and callable(getattr(session, "rollback", None)):
+                session.rollback()
+            LOGGER.exception(
+                "interactive_turn_cancel_cleanup_failed",
+                extra={
+                    "trigger_id": trigger.trigger_id,
+                    "conversation_id": trigger.conversation_id,
+                },
+            )
