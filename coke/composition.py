@@ -1403,6 +1403,7 @@ def compose_coke_runtime(
     resend_api_key: str | None = None,
     email_from: str = "noreply@keep4oforever.com",
     email_from_name: str | None = None,
+    email_auth_enabled: bool = True,
     claim_boundary_committer: Callable[[], None] | None = None,
     close_boundary_committer: Callable[[], None] | None = None,
 ) -> CokeRuntime:
@@ -1462,6 +1463,7 @@ def compose_coke_runtime(
         id_factory=id_factory,
         email_sender=email_sender,
         public_base_url=public_base_url,
+        email_auth_enabled=email_auth_enabled,
     )
     channel_reachability_service = ChannelReachabilityService(
         repository=repositories.channel_reachability,
@@ -1667,6 +1669,7 @@ def build_runtime_from_settings(
             resend_api_key=settings.resend_api_key,
             email_from=settings.email_from,
             email_from_name=settings.email_from_name,
+            email_auth_enabled=settings.email_auth_enabled,
             claim_boundary_committer=child_session.commit,
             close_boundary_committer=child_session.commit,
         )
@@ -1720,6 +1723,7 @@ def build_runtime_from_settings(
         resend_api_key=settings.resend_api_key,
         email_from=settings.email_from,
         email_from_name=settings.email_from_name,
+        email_auth_enabled=settings.email_auth_enabled,
         claim_boundary_committer=session.commit,
         close_boundary_committer=session.commit,
     )

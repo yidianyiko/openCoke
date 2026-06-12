@@ -108,7 +108,7 @@ const CAPABILITY_CARDS = {
       tone: 'c5',
       eyebrow: 'Access',
       title: 'Keep account access, renewal, and reconnect steps visible.',
-      body: 'Email verification, subscription renewal, channel reconnect, and suspended access states are handled in the customer pages.',
+      body: 'Registration, subscription renewal, channel reconnect, and suspended access states are handled in the customer pages.',
     },
   ],
   zh: [
@@ -640,7 +640,7 @@ function StartPath({ locale }: { locale: Locale }) {
           icon: MessageCircle,
           label: 'Domestic users',
           title: 'Create an account, then connect Personal WeChat.',
-          body: 'Register and verify email first. Kap keeps connect, disconnect, reconnect, and renewal steps visible in the same account flow.',
+          body: 'Register and sign in first. Kap keeps connect, disconnect, reconnect, and renewal steps visible in the same account flow.',
           href: '/auth/register',
           cta: 'Create account',
         },

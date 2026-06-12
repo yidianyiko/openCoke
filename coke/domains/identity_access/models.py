@@ -141,7 +141,7 @@ class RegistrationResult:
     user_profile: UserProfile
     credential: Credential
     session: Session
-    email_verification: AuthArtifact
+    email_verification: AuthArtifact | None
 
 
 @dataclass(frozen=True, slots=True)

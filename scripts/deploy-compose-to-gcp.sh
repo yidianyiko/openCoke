@@ -285,6 +285,10 @@ if [[ -z "$wechat_personal_endpoint" ]]; then
 fi
 wechat_personal_api_key="$(read_env COKE_PROVIDER_WECHAT_PERSONAL_API_KEY)"
 resend_api_key="$(read_env RESEND_API_KEY)"
+email_auth_enabled="$(read_env COKE_EMAIL_AUTH_ENABLED)"
+if [[ -z "$email_auth_enabled" ]]; then
+  email_auth_enabled="0"
+fi
 email_from="$(read_env EMAIL_FROM)"
 if [[ -z "$email_from" ]]; then
   email_from="noreply@keep4oforever.com"
@@ -296,7 +300,9 @@ missing=()
 [[ -n "$siliconflow_api_key" ]] || missing+=("SiliconFlow_API_KEY (media ASR/VLM)")
 [[ -n "$evolution_base" ]] || missing+=("COKE_PROVIDER_EVOLUTION_BASE_URL")
 [[ -n "$evolution_api_key" ]] || missing+=("COKE_PROVIDER_EVOLUTION_API_KEY")
-[[ -n "$resend_api_key" ]] || missing+=("RESEND_API_KEY")
+if [[ "$email_auth_enabled" != "0" && "$email_auth_enabled" != "false" && "$email_auth_enabled" != "no" && "$email_auth_enabled" != "off" ]]; then
+  [[ -n "$resend_api_key" ]] || missing+=("RESEND_API_KEY")
+fi
 if (( ${#missing[@]} > 0 )); then
   printf 'Missing required clean env keys: %s\n' "${missing[*]}" >&2
   exit 1
@@ -313,6 +319,7 @@ ZAI_API_KEY=${zai_api_key}
 SiliconFlow_API_KEY=${siliconflow_api_key}
 RESEND_API_KEY=${resend_api_key}
 EMAIL_FROM=${email_from}
+COKE_EMAIL_AUTH_ENABLED=${email_auth_enabled}
 COKE_PROVIDER_EVOLUTION_BASE_URL=${evolution_base}
 COKE_PROVIDER_EVOLUTION_API_KEY=${evolution_api_key}
 COKE_PROVIDER_EVOLUTION_INSTANCE=${evolution_instance}

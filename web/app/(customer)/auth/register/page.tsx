@@ -39,11 +39,7 @@ export default function CustomerRegisterPage() {
       }
 
       storeCustomerAuth(res.data);
-      router.push(
-        `/auth/verify-email?email=${encodeURIComponent(res.data.email)}${
-          safeNext ? `&next=${encodeURIComponent(safeNext)}` : ''
-        }`,
-      );
+      router.push(safeNext ?? '/channels/wechat-personal');
     } catch {
       setError(copy.genericError);
     } finally {

@@ -52,6 +52,8 @@ The clean production backend must start with the public web origin configured:
 
 ```bash
 COKE_PUBLIC_BASE_URL=https://coke.keep4oforever.com
+COKE_EMAIL_AUTH_ENABLED=0
+# Required only when COKE_EMAIL_AUTH_ENABLED is true.
 RESEND_API_KEY=<resend-api-key>
 EMAIL_FROM=noreply@keep4oforever.com
 EMAIL_FROM_NAME=<optional-display-name>
@@ -59,18 +61,23 @@ EMAIL_FROM_NAME=<optional-display-name>
 
 Production backend startup fails without `COKE_PUBLIC_BASE_URL` because copied
 friend links are user-visible public URLs and must not fall back to localhost.
-It also fails without `RESEND_API_KEY` because email verification, password
-reset, and claim emails are sent synchronously by `coke-api` through Resend.
+`COKE_EMAIL_AUTH_ENABLED=0` is the current clean production setting: web
+registration directly creates a logged-in, email-verified account; email
+verification resend and password reset are disabled. When
+`COKE_EMAIL_AUTH_ENABLED` is true, production startup also fails without
+`RESEND_API_KEY` because email verification, password reset, and claim emails
+are sent synchronously by `coke-api` through Resend.
 `EMAIL_FROM` defaults to `noreply@keep4oforever.com`; set `EMAIL_FROM_NAME`
 only when the sender display name should be formatted as `"Name" <address>`.
 The canonical compose deployment writes this value alongside
 `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_COKE_WEB_URL`.
 
-`scripts/deploy-compose-to-gcp.sh` preserves `RESEND_API_KEY`, `EMAIL_FROM`, and
-`EMAIL_FROM_NAME` from the existing clean `.env` on every deploy and aborts if
-`RESEND_API_KEY` is absent. Because the rewrite has no other source, seed
-`RESEND_API_KEY` (the active Resend key) into the remote clean `.env`
-(`<remote-root>/.env`) once before the first deploy that carries email delivery.
+`scripts/deploy-compose-to-gcp.sh` preserves `COKE_EMAIL_AUTH_ENABLED`,
+`RESEND_API_KEY`, `EMAIL_FROM`, and `EMAIL_FROM_NAME` from the existing clean
+`.env` on every deploy. If `COKE_EMAIL_AUTH_ENABLED` is absent, the script
+writes `0`. It aborts for a missing `RESEND_API_KEY` only when email auth is
+enabled. Before re-enabling email delivery, seed `RESEND_API_KEY` (the active
+Resend key) into the remote clean `.env` (`<remote-root>/.env`).
 
 ## State And Restart Semantics
 

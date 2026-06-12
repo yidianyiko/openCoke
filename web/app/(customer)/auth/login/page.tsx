@@ -9,12 +9,9 @@ import {
   clearCustomerAuth,
   getCustomerProfile,
   loginCustomer,
-  resendCustomerVerification,
   storeCustomerAuth,
   storeCustomerProfile,
 } from '../../../../lib/customer-auth';
-
-type VerificationRecoveryReason = 'expired' | 'retry' | null;
 
 function isSafeInternalNext(next: string | null): next is string {
   return next != null && next.startsWith('/') && !next.startsWith('//');
@@ -29,10 +26,6 @@ export default function CustomerLoginPage() {
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [verificationRecovery, setVerificationRecovery] = useState<VerificationRecoveryReason>(null);
-  const [resendMessage, setResendMessage] = useState('');
-  const [resendStatus, setResendStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -45,26 +38,11 @@ export default function CustomerLoginPage() {
     if (nextEmail !== null) {
       setEmail(nextEmail);
     }
-
-    const verificationState = params.get('verification');
-    setVerificationRecovery(
-      verificationState === 'expired' || verificationState === 'retry' ? verificationState : null,
-    );
   }, []);
 
-  const verificationRecoveryDescription =
-    verificationRecovery === 'retry'
-      ? copy.verificationRetryDescription
-      : copy.verificationRecoveryDescription;
   const next =
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('next') : null;
   const safeNext = isSafeInternalNext(next) ? next : null;
-
-  function showVerificationRecovery(reason: Exclude<VerificationRecoveryReason, null>) {
-    setVerificationRecovery(reason);
-    setResendMessage('');
-    setResendStatus('idle');
-  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -98,12 +76,6 @@ export default function CustomerLoginPage() {
         return;
       }
 
-      if (profile.data.email_verified !== true) {
-        setStatusMessage(copy.emailVerificationRequired);
-        showVerificationRecovery('expired');
-        return;
-      }
-
       if (profile.data.subscription_active !== true) {
         setStatusMessage(copy.subscriptionRenewalRequired);
         router.push('/account/subscription');
@@ -122,66 +94,10 @@ export default function CustomerLoginPage() {
     }
   }
 
-  async function handleResendVerification() {
-    if (email.trim() === '') {
-      return;
-    }
-
-    setResendMessage('');
-    setResendStatus('idle');
-    setResending(true);
-
-    try {
-      const res = await resendCustomerVerification({ email });
-
-      if (!res.ok) {
-        setResendStatus('error');
-        setResendMessage(copy.resendVerificationError);
-        return;
-      }
-
-      setResendStatus('success');
-      setResendMessage(copy.resendVerificationSuccess);
-    } catch {
-      setResendStatus('error');
-      setResendMessage(copy.resendVerificationError);
-    } finally {
-      setResending(false);
-    }
-  }
-
   return (
     <section className="auth-card">
       <h1 className="auth-card__title">{copy.title}</h1>
       <p className="auth-card__desc">{copy.description}</p>
-
-      {verificationRecovery ? (
-        <div className="auth-alert auth-alert--warning">
-          <div className="auth-alert__body">
-            <p className="auth-alert__title">{copy.verificationRecoveryTitle}</p>
-            <p className="auth-alert__copy">{verificationRecoveryDescription}</p>
-          </div>
-          <div className="auth-alert__actions">
-            <button
-              type="button"
-              className="auth-submit auth-submit--compact"
-              disabled={resending || email.trim() === ''}
-              onClick={handleResendVerification}
-            >
-              {resending ? copy.resendingVerificationEmail : copy.resendVerificationEmail}
-            </button>
-          </div>
-          {resendMessage ? (
-            <p
-              className={`auth-alert__status ${
-                resendStatus === 'success' ? 'auth-alert__status--success' : 'auth-alert__status--error'
-              }`}
-            >
-              {resendMessage}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
 
       {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
 
@@ -222,13 +138,6 @@ export default function CustomerLoginPage() {
           {loading ? copy.submitting : copy.submit}
         </button>
       </form>
-
-      <div className="auth-linkrow">
-        <span className="auth-linkrow__text">{copy.forgotPasswordPrompt}</span>
-        <Link href="/auth/forgot-password" className="auth-linkrow__link">
-          {copy.forgotPasswordLink}
-        </Link>
-      </div>
 
       <div className="auth-linkrow">
         <span className="auth-linkrow__text">{copy.registerPrompt}</span>

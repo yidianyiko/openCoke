@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { LocaleProvider } from '../../../../components/locale-provider';
 const loginCustomerMock = vi.hoisted(() => vi.fn());
 const getCustomerProfileMock = vi.hoisted(() => vi.fn());
-const resendCustomerVerificationMock = vi.hoisted(() => vi.fn());
 const storeCustomerAuthMock = vi.hoisted(() => vi.fn());
 const storeCustomerProfileMock = vi.hoisted(() => vi.fn());
 const clearCustomerAuthMock = vi.hoisted(() => vi.fn());
@@ -29,7 +28,6 @@ vi.mock('next/link', () => ({
 vi.mock('../../../../lib/customer-auth', () => ({
   loginCustomer: (...args: unknown[]) => loginCustomerMock(...args),
   getCustomerProfile: (...args: unknown[]) => getCustomerProfileMock(...args),
-  resendCustomerVerification: (...args: unknown[]) => resendCustomerVerificationMock(...args),
   storeCustomerAuth: (...args: unknown[]) => storeCustomerAuthMock(...args),
   storeCustomerProfile: (...args: unknown[]) => storeCustomerProfileMock(...args),
   clearCustomerAuth: (...args: unknown[]) => clearCustomerAuthMock(...args),
@@ -105,7 +103,6 @@ describe('CustomerLoginPage', () => {
     pushMock.mockReset();
     loginCustomerMock.mockReset();
     getCustomerProfileMock.mockReset();
-    resendCustomerVerificationMock.mockReset();
     storeCustomerAuthMock.mockReset();
     storeCustomerProfileMock.mockReset();
     clearCustomerAuthMock.mockReset();
@@ -134,8 +131,9 @@ describe('CustomerLoginPage', () => {
     expect(container.querySelector('.auth-form')).toBeTruthy();
     expect(container.querySelector('.auth-input#email')).toBeTruthy();
     expect(container.querySelector('.auth-submit')).toBeTruthy();
-    expect(container.querySelectorAll('.auth-linkrow')).toHaveLength(2);
+    expect(container.querySelectorAll('.auth-linkrow')).toHaveLength(1);
     expect(container.querySelector('a[href="/auth/register"]')).toBeTruthy();
+    expect(container.querySelector('a[href="/auth/forgot-password"]')).toBeFalsy();
     expect(container.querySelector('a[href="/"]')).toBeFalsy();
 
     const links = Array.from(container.querySelectorAll('a')).map((link) => link.getAttribute('href'));
@@ -143,11 +141,11 @@ describe('CustomerLoginPage', () => {
     expect(container.textContent).toContain('Sign in to Kap');
     expect(container.textContent).not.toContain('Return to your Kap account');
     expect(container.textContent).not.toContain('Back to homepage');
-    expect(links).toContain('/auth/forgot-password');
+    expect(links).not.toContain('/auth/forgot-password');
     expect(links).toContain('/auth/register');
   });
 
-  it('prefills the email and shows recovery copy from an expired verification link', async () => {
+  it('prefills the email but does not show expired-verification recovery UI', async () => {
     window.history.replaceState({}, '', '/auth/login?email=alice%40example.com&verification=expired');
 
     flushSync(() => {
@@ -159,17 +157,14 @@ describe('CustomerLoginPage', () => {
     });
     await flushTicks(1);
 
-    expect(container.querySelector('.auth-alert--warning')).toBeTruthy();
-    expect(container.querySelector('.auth-alert--warning .auth-alert__body')).toBeTruthy();
-    expect(container.querySelector('.auth-alert--warning .auth-alert__actions')).toBeTruthy();
-    expect(container.querySelector('.auth-alert--warning .auth-submit--compact')).toBeTruthy();
     expect((container.querySelector('#email') as HTMLInputElement).value).toBe('alice@example.com');
-    expect(container.textContent).toContain('This link is invalid or expired.');
-    expect(container.textContent).toContain('Resend verification email');
-    expect(container.querySelector('button[type="button"]')).toBeTruthy();
+    expect(container.querySelector('.auth-alert--warning')).toBeFalsy();
+    expect(container.textContent).not.toContain('This link is invalid or expired.');
+    expect(container.textContent).not.toContain('Resend verification email');
+    expect(container.querySelector('button[type="button"]')).toBeFalsy();
   });
 
-  it('shows retry recovery copy when verification could not be completed right now', async () => {
+  it('does not show retry verification recovery UI while email auth is disabled', async () => {
     window.history.replaceState({}, '', '/auth/login?email=alice%40example.com&verification=retry');
 
     flushSync(() => {
@@ -182,49 +177,12 @@ describe('CustomerLoginPage', () => {
     await flushTicks(1);
 
     expect((container.querySelector('#email') as HTMLInputElement).value).toBe('alice@example.com');
-    expect(container.textContent).toContain("We couldn't verify your email right now.");
-    expect(container.textContent).toContain('Resend verification email');
-    expect(container.querySelector('button[type="button"]')).toBeTruthy();
+    expect(container.textContent).not.toContain("We couldn't verify your email right now.");
+    expect(container.textContent).not.toContain('Resend verification email');
+    expect(container.querySelector('button[type="button"]')).toBeFalsy();
   });
 
-  it('calls the resend endpoint with the current email from recovery state', async () => {
-    let resolveResend: (value: { ok: boolean; data: Record<string, never> }) => void = () => {};
-    const resendPromise = new Promise<{ ok: boolean; data: Record<string, never> }>((resolve) => {
-      resolveResend = resolve;
-    });
-    resendCustomerVerificationMock.mockReturnValueOnce(resendPromise);
-
-    window.history.replaceState({}, '', '/auth/login?email=alice%40example.com&verification=expired');
-
-    flushSync(() => {
-      root.render(
-        <LocaleProvider initialLocale="en">
-          <CustomerLoginPage />
-        </LocaleProvider>,
-      );
-    });
-    await flushTicks(1);
-
-    const button = container.querySelector('button[type="button"]') as HTMLButtonElement;
-    button.click();
-
-    await flushTicks(1);
-
-    expect(button.disabled).toBe(true);
-    expect(button.textContent).toBe('Sending verification email...');
-
-    resolveResend({ ok: true, data: {} });
-    await flushTicks(1);
-
-    expect(resendCustomerVerificationMock).toHaveBeenCalledWith({
-      email: 'alice@example.com',
-    });
-    expect(container.textContent).toContain('Verification email sent.');
-    expect(container.textContent).toContain('valid for 24 hours');
-    expect(container.textContent).toContain('spam folder');
-  });
-
-  it('keeps unverified login attempts on the recovery flow after neutral login and profile hydration', async () => {
+  it('allows login to continue even when the hydrated profile still reports unverified email', async () => {
     loginCustomerMock.mockResolvedValueOnce({
       ok: true,
       data: makeCustomerAuthResult(),
@@ -257,8 +215,9 @@ describe('CustomerLoginPage', () => {
       }),
     );
     expect(pushMock).not.toHaveBeenCalledWith('/auth/verify-email');
-    expect(container.textContent).toContain('This link is invalid or expired.');
-    expect(container.querySelector('button[type="button"]')).toBeTruthy();
+    expect(pushMock).toHaveBeenCalledWith('/channels/wechat-personal');
+    expect(container.textContent).not.toContain('This link is invalid or expired.');
+    expect(container.querySelector('button[type="button"]')).toBeFalsy();
   });
 
   it('routes renewal-required login success through the account subscription path', async () => {

@@ -14,7 +14,7 @@ const FAQ_SECTIONS = [
   },
   {
     title: 'How do I start using Kap?',
-    body: 'Domestic users can register, verify email, and connect a Personal WeChat channel. Global users can open the WhatsApp entry and send the first real task there.',
+    body: 'Domestic users can register and connect a Personal WeChat channel. Global users can open the WhatsApp entry and send the first real task there.',
   },
   {
     title: 'What can I ask Kap to track?',

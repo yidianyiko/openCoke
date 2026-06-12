@@ -224,6 +224,34 @@ class UnknownEmailService(FakeService):
         raise IdentityAccessError("unknown_email")
 
 
+class NoEmailVerificationService(FakeService):
+    def register_web_account(
+        self, email, password, display_name=None, default_timezone="UTC"
+    ):
+        result = super().register_web_account(
+            email=email,
+            password=password,
+            display_name=display_name,
+            default_timezone=default_timezone,
+        )
+        result.email_verification = None
+        return result
+
+
+class EmailAuthDisabledService(FakeService):
+    def resend_email_verification(self, email):
+        self.calls.append(("resend_email_verification", {"email": email}))
+        raise IdentityAccessError("email_auth_disabled")
+
+    def issue_password_reset(self, email):
+        self.calls.append(("issue_password_reset", {"email": email}))
+        raise IdentityAccessError("email_auth_disabled")
+
+    def reset_password(self, token, password):
+        self.calls.append(("reset_password", {"token": token, "password": password}))
+        raise IdentityAccessError("email_auth_disabled")
+
+
 class ClaimEmailConflictService(FakeService):
     def send_claim_email(self, token, email):
         self.calls.append(("send_claim_email", {"token": token, "email": email}))
@@ -347,6 +375,27 @@ def test_register_route_calls_service_and_returns_json():
             "default_timezone": "Asia/Tokyo",
         },
     )
+
+
+def test_register_route_omits_verification_artifact_when_email_auth_disabled():
+    client, service = make_client(NoEmailVerificationService())
+
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "a@example.com",
+            "password": "hash_1",
+            "display_name": "Alice",
+            "default_timezone": "Asia/Tokyo",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.get_json() == {
+        "account_id": "acct_1",
+        "session_token": "session_token",
+    }
+    assert service.calls[-1][0] == "register_web_account"
 
 
 def test_register_route_rejects_missing_display_name_before_service_call():
@@ -498,6 +547,34 @@ def test_resend_email_verification_route_hides_unknown_email():
         "resend_email_verification",
         {"email": "missing@example.com"},
     )
+
+
+def test_email_auth_disabled_routes_return_disabled_error():
+    client, service = make_client(EmailAuthDisabledService())
+
+    resend_response = client.post(
+        "/api/auth/email-verification/resend",
+        json={"email": "a@example.com"},
+    )
+    request_response = client.post(
+        "/api/auth/password-reset/request", json={"email": "a@example.com"}
+    )
+    complete_response = client.post(
+        "/api/auth/password-reset/complete",
+        json={"token": "reset_token", "password": "hash_2"},
+    )
+
+    assert resend_response.status_code == 400
+    assert resend_response.get_json() == {"error": {"code": "email_auth_disabled"}}
+    assert request_response.status_code == 400
+    assert request_response.get_json() == {"error": {"code": "email_auth_disabled"}}
+    assert complete_response.status_code == 400
+    assert complete_response.get_json() == {"error": {"code": "email_auth_disabled"}}
+    assert service.calls[-3:] == [
+        ("resend_email_verification", {"email": "a@example.com"}),
+        ("issue_password_reset", {"email": "a@example.com"}),
+        ("reset_password", {"token": "reset_token", "password": "hash_2"}),
+    ]
 
 
 def test_login_url_landing_calls_service():

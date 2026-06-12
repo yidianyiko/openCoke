@@ -47,7 +47,15 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 
 - `/api/public/user-links/:code`
 - `/api/auth/*`
+  - `/api/auth/register`
+  - `/api/auth/login`
+  - `/api/auth/current-user`
+  - `/api/auth/access-status`
+  - `/api/auth/email-verification/verify`
   - `/api/auth/email-verification/resend`
+  - `/api/auth/password-reset/request`
+  - `/api/auth/password-reset/complete`
+  - `/api/auth/login-url/redeem`
 - `/api/account/*`
 - `/api/channels/*`
 - `/api/reminders/*`
@@ -58,6 +66,13 @@ Runtime ownership is defined in `docs/ARCHITECTURE.md`.
 - `/api/subscription/*`
 - `/api/claim/*`
   - `/api/claim/email`
+
+`COKE_EMAIL_AUTH_ENABLED=0` is the current clean production contract for the
+web-first registration path. Under that setting, `/api/auth/register` returns a
+usable session immediately and stores the account as email-verified;
+email-verification resend and password-reset routes return
+`email_auth_disabled`. Login-url and claim routes remain active for
+messaging-first account-claim flows.
 
 The public user-link route resolves active reachable friend links for the
 public `/u/:code` web landing. Authenticated friendship creation remains

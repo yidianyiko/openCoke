@@ -44,6 +44,7 @@ class IdentityAccessService:
         password_hasher: PasswordHasher | None = None,
         email_sender: CustomerEmailSender | None = None,
         public_base_url: str = "http://localhost:4040",
+        email_auth_enabled: bool = True,
     ) -> None:
         self.repository = repository
         self._now = now or (lambda: datetime.now(UTC))
@@ -57,6 +58,7 @@ class IdentityAccessService:
         self._password_hasher = password_hasher or PasswordHasher()
         self._email_sender = email_sender or NullEmailSender()
         self._public_base_url = public_base_url
+        self._email_auth_enabled = email_auth_enabled
 
     def register_web_account(
         self,
@@ -81,25 +83,27 @@ class IdentityAccessService:
             account_id=account.id,
             email=email,
             password_hash=self._hash_password(password),
-            email_verified_at=None,
+            email_verified_at=self._now() if not self._email_auth_enabled else None,
             reset_required=False,
             created_at=self._now(),
             updated_at=self._now(),
         )
         self.repository.add_credential(credential)
         session = self._create_session(account.id)
-        email_verification = self._issue_artifact(
-            artifact_type=ArtifactType.EMAIL_VERIFICATION,
-            purpose="verify_email",
-            delivery="email",
-            account_id=account.id,
-            ttl=timedelta(hours=24),
-        ).artifact
-        self._email_sender.send_verification(
-            to=email,
-            token=email_verification.code,
-            email=email,
-        )
+        email_verification = None
+        if self._email_auth_enabled:
+            email_verification = self._issue_artifact(
+                artifact_type=ArtifactType.EMAIL_VERIFICATION,
+                purpose="verify_email",
+                delivery="email",
+                account_id=account.id,
+                ttl=timedelta(hours=24),
+            ).artifact
+            self._email_sender.send_verification(
+                to=email,
+                token=email_verification.code,
+                email=email,
+            )
         return RegistrationResult(
             account=account,
             user_profile=self._require_user_profile(account.id),
@@ -128,7 +132,7 @@ class IdentityAccessService:
         return self._require_account(session.account_id)
 
     def get_access_status(self, account_id: str) -> AccountAccess:
-        return self._require_access(account_id)
+        return self._effective_access(self._require_access(account_id))
 
     def set_access_state(
         self,
@@ -458,6 +462,8 @@ class IdentityAccessService:
         return self.issue_pairing_code(account_id)
 
     def issue_password_reset(self, email: str) -> ArtifactIssueResult:
+        if not self._email_auth_enabled:
+            raise IdentityAccessError("email_auth_disabled")
         credential = self.repository.get_credential_by_email(email)
         if credential is None:
             raise IdentityAccessError("unknown_email")
@@ -472,6 +478,8 @@ class IdentityAccessService:
         return result
 
     def reset_password(self, token: str, password: str) -> Credential:
+        if not self._email_auth_enabled:
+            raise IdentityAccessError("email_auth_disabled")
         artifact = self._consume_artifact(
             token, expected_type=ArtifactType.PASSWORD_RESET
         )
@@ -490,6 +498,8 @@ class IdentityAccessService:
         return updated
 
     def verify_email(self, token: str) -> Credential:
+        if not self._email_auth_enabled:
+            raise IdentityAccessError("email_auth_disabled")
         artifact = self._consume_artifact(
             token, expected_type=ArtifactType.EMAIL_VERIFICATION
         )
@@ -547,6 +557,8 @@ class IdentityAccessService:
         return updated
 
     def resend_email_verification(self, email: str) -> ArtifactIssueResult:
+        if not self._email_auth_enabled:
+            raise IdentityAccessError("email_auth_disabled")
         credential = self.repository.get_credential_by_email(email)
         if credential is None:
             raise IdentityAccessError("unknown_email")
@@ -682,6 +694,16 @@ class IdentityAccessService:
     def _create_account(
         self, origin: str, default_timezone: str, display_name: str
     ) -> Account:
+        email_verification_state = (
+            "required"
+            if origin == "web_first" and self._email_auth_enabled
+            else "verified"
+        )
+        denial_reason = self._derive_denial_reason(
+            email_verification_state=email_verification_state,
+            subscription_state="active",
+            suspension_state="active",
+        )
         account = Account(
             id=self._id_factory("account"),
             origin=origin,
@@ -718,17 +740,11 @@ class IdentityAccessService:
             AccountAccess(
                 id=self._id_factory("access"),
                 account_id=account.id,
-                email_verification_state=(
-                    "required" if origin == "web_first" else "verified"
-                ),
+                email_verification_state=email_verification_state,
                 subscription_state="active",
                 suspension_state="active",
-                access_allowed=origin == "messaging_first",
-                denial_reason=(
-                    AccessDeniedReason.EMAIL_VERIFICATION_REQUIRED
-                    if origin == "web_first"
-                    else None
-                ),
+                access_allowed=denial_reason is None,
+                denial_reason=denial_reason,
                 created_at=self._now(),
                 updated_at=self._now(),
             )
@@ -868,7 +884,7 @@ class IdentityAccessService:
         self, account_id: str, include_checkout_for_messaging: bool
     ) -> AccessDecision:
         account = self._require_account(account_id)
-        access = self._require_access(account_id)
+        access = self._effective_access(self._require_access(account_id))
         if access.access_allowed:
             return AccessDecision(allowed=True)
 
@@ -900,11 +916,34 @@ class IdentityAccessService:
     ) -> str | None:
         if suspension_state == "suspended":
             return AccessDeniedReason.SUSPENDED
-        if email_verification_state != "verified":
+        if self._email_auth_enabled and email_verification_state != "verified":
             return AccessDeniedReason.EMAIL_VERIFICATION_REQUIRED
         if subscription_state != "active":
             return AccessDeniedReason.SUBSCRIPTION_INACTIVE
         return None
+
+    def _effective_access(self, access: AccountAccess) -> AccountAccess:
+        email_verification_state = access.email_verification_state
+        if not self._email_auth_enabled:
+            email_verification_state = "verified"
+        denial_reason = self._derive_denial_reason(
+            email_verification_state=email_verification_state,
+            subscription_state=access.subscription_state,
+            suspension_state=access.suspension_state,
+        )
+        access_allowed = denial_reason is None
+        if (
+            email_verification_state == access.email_verification_state
+            and access_allowed == access.access_allowed
+            and denial_reason == access.denial_reason
+        ):
+            return access
+        return replace(
+            access,
+            email_verification_state=email_verification_state,
+            access_allowed=access_allowed,
+            denial_reason=denial_reason,
+        )
 
     def _recompute_activation(self, account_id: str) -> AccountActivation:
         account = self._require_account(account_id)

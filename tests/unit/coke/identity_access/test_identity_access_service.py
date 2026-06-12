@@ -66,6 +66,21 @@ def identity_service_with_email_sender(
     )
 
 
+@pytest.fixture
+def identity_service_with_email_auth_disabled(
+    email_sender: FakeEmailSender,
+) -> IdentityAccessService:
+    return IdentityAccessService(
+        repository=InMemoryIdentityAccessRepository(now=lambda: NOW),
+        now=lambda: NOW,
+        token_factory=sequence_factory("token"),
+        id_factory=sequence_factory("id"),
+        checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
+        email_sender=email_sender,
+        email_auth_enabled=False,
+    )
+
+
 def test_register_web_account_creates_credential_session_and_verification_artifact(
     identity_service,
 ):
@@ -87,6 +102,29 @@ def test_register_web_account_creates_credential_session_and_verification_artifa
     assert result.email_verification.type == ArtifactType.EMAIL_VERIFICATION
     assert result.email_verification.account_id == result.account.id
     assert result.email_verification.delivery == "email"
+
+
+def test_register_web_account_directly_verifies_when_email_auth_disabled(
+    identity_service_with_email_auth_disabled,
+    email_sender,
+):
+    result = identity_service_with_email_auth_disabled.register_web_account(
+        email="a@example.com",
+        password="correct horse battery staple",
+        display_name="Alice A",
+    )
+
+    access = identity_service_with_email_auth_disabled.get_access_status(
+        account_id=result.account.id
+    )
+
+    assert result.email_verification is None
+    assert result.credential.email_verified_at == NOW
+    assert access.email_verification_state == "verified"
+    assert access.access_allowed is True
+    assert access.denial_reason is None
+    assert email_sender.calls == []
+    assert identity_service_with_email_auth_disabled.repository.artifacts_by_code == {}
 
 
 def test_register_web_account_sends_verification_email_with_round_trip_token(
@@ -214,6 +252,58 @@ def test_resend_artifact_sends_email_matching_artifact_type(
             {"to": "a@example.com", "token": resent_reset.code},
         ),
     ]
+
+
+def test_email_verification_and_password_reset_methods_are_disabled_when_email_auth_disabled(
+    identity_service_with_email_auth_disabled,
+):
+    registered = identity_service_with_email_auth_disabled.register_web_account(
+        email="a@example.com",
+        password="correct horse battery staple",
+        display_name="Alice A",
+    )
+
+    assert registered.email_verification is None
+    with pytest.raises(IdentityAccessError, match="email_auth_disabled"):
+        identity_service_with_email_auth_disabled.resend_email_verification(
+            email="a@example.com"
+        )
+    with pytest.raises(IdentityAccessError, match="email_auth_disabled"):
+        identity_service_with_email_auth_disabled.issue_password_reset(
+            email="a@example.com"
+        )
+    with pytest.raises(IdentityAccessError, match="email_auth_disabled"):
+        identity_service_with_email_auth_disabled.reset_password(
+            token="reset_token",
+            password="new-password",
+        )
+
+
+def test_disabled_email_auth_lifts_existing_email_verification_gate(identity_service):
+    registered = identity_service.register_web_account(
+        email="a@example.com",
+        password="correct horse battery staple",
+        display_name="Alice A",
+    )
+    disabled_service = IdentityAccessService(
+        repository=identity_service.repository,
+        now=lambda: NOW,
+        token_factory=sequence_factory("disabled_token"),
+        id_factory=sequence_factory("disabled_id"),
+        checkout_url_factory=lambda account_id: f"https://checkout.example/{account_id}",
+        email_auth_enabled=False,
+    )
+
+    access = disabled_service.get_access_status(account_id=registered.account.id)
+    decision = disabled_service.check_access_for_action(
+        account_id=registered.account.id,
+        action="connect_channel",
+    )
+
+    assert access.email_verification_state == "verified"
+    assert access.access_allowed is True
+    assert access.denial_reason is None
+    assert decision.allowed is True
 
 
 def test_resend_email_verification_reuses_active_artifact_or_issues_fresh_one(

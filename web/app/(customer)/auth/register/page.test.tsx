@@ -85,7 +85,7 @@ describe('CustomerRegisterPage', () => {
     expect(container.textContent).not.toContain('返回首页');
   });
 
-  it('submits through the neutral register API and routes to /auth/verify-email with the email handoff', async () => {
+  it('submits through the neutral register API and routes directly to channel setup', async () => {
     registerCustomerMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -126,7 +126,7 @@ describe('CustomerRegisterPage', () => {
       claimStatus: 'pending',
       membershipRole: 'owner',
     });
-    expect(pushMock).toHaveBeenCalledWith('/auth/verify-email?email=alice%40example.com');
+    expect(pushMock).toHaveBeenCalledWith('/channels/wechat-personal');
   });
 
   it('shows the duplicate-email conflict copy when the email already exists', async () => {

@@ -15,6 +15,7 @@ services:
       AGNO_TELEMETRY: "false"
       COKE_AGNO_CREATE_SCHEMA: "1"
       COKE_PUBLIC_BASE_URL: ${COKE_PUBLIC_BASE_URL:-https://coke.keep4oforever.com}
+      COKE_EMAIL_AUTH_ENABLED: ${COKE_EMAIL_AUTH_ENABLED:-0}
 
   coke-api:
     environment: *clean_runtime_environment

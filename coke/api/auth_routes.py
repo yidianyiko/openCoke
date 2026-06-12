@@ -25,16 +25,13 @@ def create_auth_blueprint(identity_service) -> Blueprint:
             display_name=_body_field(payload, "display_name"),
             default_timezone=payload.get("default_timezone", "UTC"),
         )
-        return (
-            jsonify(
-                {
-                    "account_id": result.account.id,
-                    "session_token": result.session.token,
-                    "email_verification_artifact_id": result.email_verification.id,
-                }
-            ),
-            201,
-        )
+        body = {
+            "account_id": result.account.id,
+            "session_token": result.session.token,
+        }
+        if result.email_verification is not None:
+            body["email_verification_artifact_id"] = result.email_verification.id
+        return (jsonify(body), 201)
 
     @blueprint.post("/login")
     def login():

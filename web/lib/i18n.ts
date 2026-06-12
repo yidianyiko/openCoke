@@ -120,6 +120,7 @@ type CustomerPagesMessages = {
   forgotPassword: {
     title: string;
     description: string;
+    disabledDescription: string;
     emailLabel: string;
     emailPlaceholder: string;
     submit: string;
@@ -132,6 +133,7 @@ type CustomerPagesMessages = {
   resetPassword: {
     title: string;
     description: string;
+    disabledDescription: string;
     tokenLabel: string;
     tokenPlaceholder: string;
     passwordLabel: string;
@@ -610,6 +612,7 @@ export const messages: MessagesCatalog = {
         title: 'Forgot your password',
         description:
           'Enter your account email and we will send a reset link if the address is registered.',
+        disabledDescription: 'Password recovery is temporarily unavailable.',
         emailLabel: 'Email',
         emailPlaceholder: 'alice@example.com',
         submit: 'Send reset link',
@@ -622,6 +625,7 @@ export const messages: MessagesCatalog = {
       resetPassword: {
         title: 'Reset your password',
         description: 'Paste the reset token from your email and choose a new password.',
+        disabledDescription: 'Password recovery is temporarily unavailable.',
         tokenLabel: 'Reset token',
         tokenPlaceholder: 'Paste the token from your email',
         passwordLabel: 'New password',
@@ -631,7 +635,7 @@ export const messages: MessagesCatalog = {
         mismatchError: 'Passwords do not match.',
         success: 'Password reset complete.',
         requestNewLinkPrompt: 'Need to start over?',
-        requestNewLinkLink: 'Request a new reset link',
+        requestNewLinkLink: 'Back to sign in',
         genericError: 'Unable to reset your password right now.',
       },
       verifyEmail: {
@@ -1052,6 +1056,7 @@ export const messages: MessagesCatalog = {
       forgotPassword: {
         title: '忘记密码',
         description: '输入账号邮箱，如果该地址已注册，我们会发送重置链接。',
+        disabledDescription: '密码找回暂时不可用。',
         emailLabel: '邮箱',
         emailPlaceholder: 'alice@example.com',
         submit: '发送重置链接',
@@ -1064,6 +1069,7 @@ export const messages: MessagesCatalog = {
       resetPassword: {
         title: '重置密码',
         description: '粘贴邮件中的重置令牌，并设置一个新密码。',
+        disabledDescription: '密码找回暂时不可用。',
         tokenLabel: '重置令牌',
         tokenPlaceholder: '粘贴邮件中的令牌',
         passwordLabel: '新密码',
@@ -1073,7 +1079,7 @@ export const messages: MessagesCatalog = {
         mismatchError: '两次输入的密码不一致。',
         success: '密码重置完成。',
         requestNewLinkPrompt: '需要重新开始？',
-        requestNewLinkLink: '申请新的重置链接',
+        requestNewLinkLink: '返回登录',
         genericError: '暂时无法重置密码，请稍后再试。',
       },
       verifyEmail: {

@@ -49,6 +49,7 @@ class Settings:
     resend_api_key: str | None = None
     email_from: str = "noreply@keep4oforever.com"
     email_from_name: str | None = None
+    email_auth_enabled: bool = True
     zai_api_key: str | None = None
     zai_base_url: str = ZAI_BASE_URL
     siliconflow_api_key: str | None = None
@@ -110,7 +111,10 @@ class Settings:
 
         llm_fake = _bool_env(source, "COKE_LLM_FAKE")
         resend_api_key = _optional(source, "RESEND_API_KEY")
-        if app_env == "production" and not resend_api_key:
+        email_auth_enabled = _bool_env_default(
+            source, "COKE_EMAIL_AUTH_ENABLED", default=True
+        )
+        if app_env == "production" and email_auth_enabled and not resend_api_key:
             raise ConfigurationError(
                 "RESEND_API_KEY is required for production email delivery"
             )
@@ -165,6 +169,7 @@ class Settings:
             resend_api_key=resend_api_key,
             email_from=(_optional(source, "EMAIL_FROM") or "noreply@keep4oforever.com"),
             email_from_name=_optional(source, "EMAIL_FROM_NAME"),
+            email_auth_enabled=email_auth_enabled,
             zai_api_key=zai_api_key,
             zai_base_url=_optional(source, "ZAI_BASE_URL") or ZAI_BASE_URL,
             siliconflow_api_key=siliconflow_api_key,
@@ -256,6 +261,13 @@ def _normalize_public_base_url(raw_value: str) -> str | None:
 def _bool_env(source: Mapping[str, str], key: str) -> bool:
     value = (source.get(key) or "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _bool_env_default(source: Mapping[str, str], key: str, default: bool) -> bool:
+    raw = _optional(source, key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _positive_int(source: Mapping[str, str], key: str, default: int) -> int:

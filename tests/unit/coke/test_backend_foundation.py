@@ -78,6 +78,7 @@ def test_settings_from_env_reads_resend_email_settings_with_local_defaults():
     assert settings.resend_api_key is None
     assert settings.email_from == "noreply@keep4oforever.com"
     assert settings.email_from_name is None
+    assert settings.email_auth_enabled is True
 
 
 def test_settings_from_env_reads_resend_email_overrides():
@@ -99,6 +100,21 @@ def test_settings_from_env_reads_resend_email_overrides():
     assert settings.email_from_name == "Coke Support"
 
 
+def test_settings_from_env_reads_disabled_email_auth_mode():
+    from coke.config import Settings
+
+    settings = Settings.from_env(
+        {
+            "DATABASE_URL": POSTGRES_URL,
+            "REDIS_URL": REDIS_URL,
+            "APP_ENV": "test",
+            "COKE_EMAIL_AUTH_ENABLED": "0",
+        }
+    )
+
+    assert settings.email_auth_enabled is False
+
+
 def test_settings_from_env_requires_resend_api_key_for_production_email_delivery():
     from coke.config import ConfigurationError, Settings
 
@@ -112,6 +128,24 @@ def test_settings_from_env_requires_resend_api_key_for_production_email_delivery
                 "COKE_LLM_FAKE": "1",
             }
         )
+
+
+def test_settings_from_env_allows_missing_resend_key_when_email_auth_disabled():
+    from coke.config import Settings
+
+    settings = Settings.from_env(
+        {
+            "DATABASE_URL": POSTGRES_URL,
+            "REDIS_URL": REDIS_URL,
+            "APP_ENV": "production",
+            "COKE_PUBLIC_BASE_URL": "https://coke.example.com",
+            "COKE_LLM_FAKE": "1",
+            "COKE_EMAIL_AUTH_ENABLED": "0",
+        }
+    )
+
+    assert settings.email_auth_enabled is False
+    assert settings.resend_api_key is None
 
 
 def test_settings_from_env_requires_public_base_url_for_production(monkeypatch):

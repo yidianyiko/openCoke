@@ -18,7 +18,7 @@ const TERMS_SECTIONS = [
   },
   {
     title: 'Account and channel access',
-    body: 'You should keep your account, email verification, subscription, WeChat, WhatsApp, and Google authorization information accurate and under your control.',
+    body: 'You should keep your account, subscription, WeChat, WhatsApp, and Google authorization information accurate and under your control.',
   },
   {
     title: 'Acceptable use',
