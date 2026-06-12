@@ -1224,8 +1224,10 @@ new messages are not dragged behind stale input.
 
 ## Current Status
 
-Open for the broader Eva RCA tracks that were outside this workstream, plus the
-2026-06-12 open-window close bug described above. The
+Open for the broader Eva RCA tracks that were outside this workstream. The
+2026-06-12 open-window close bug described above has a deployed runtime
+convergence fix; Eva's current remaining delivery blocker is the separate
+expired personal-WeChat connector session. The
 specific no-reply deploy slice above is verified in production: fenced-JSON turn
 normalization and relay-to-connector reachability are deployed, and eva's real
 wechat_personal turn path produced a sent reply. On `2026-06-07`, the local issue
