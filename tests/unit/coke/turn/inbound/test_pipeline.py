@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import pytest
 
@@ -159,7 +159,6 @@ class RecordingClosePort:
         turn_id: str,
         segments: Sequence[str],
         reason_code: str = "reply_ready",
-        materialize_staged_command: Callable[[Any], Any] | None = None,
     ) -> FakeDisposition:
         self.events.append("commit_reply")
         self.calls.append(("reply", turn_id, tuple(segments), reason_code))
@@ -169,7 +168,6 @@ class RecordingClosePort:
         self,
         turn_id: str,
         reason_code: str = "intentional_no_reply",
-        materialize_staged_command: Callable[[Any], Any] | None = None,
     ) -> FakeDisposition:
         self.events.append("commit_no_reply")
         self.calls.append(("no_reply", turn_id, (), reason_code))
