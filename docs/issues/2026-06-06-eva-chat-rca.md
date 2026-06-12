@@ -1320,6 +1320,19 @@ channel-identity ownership checks. Regression coverage:
 .venv/bin/python -m pytest tests/unit/coke/identity_access/test_identity_access_service.py tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py tests/unit/coke/channel_reachability/test_provider_webhooks.py -q
 ```
 
+Deploy evidence:
+
+- Fix commit: `257829d6 fix(identity): compare account UUIDs canonically`.
+- Clean backend deploy recreated `coke-api`, `coke-worker`, `coke-scheduler`,
+  and `coke-outbox-relay`; deploy marker:
+  `257829d66559cb92931c8482a95736ec153ea994`.
+- Post-deploy rollback diagnostic in `coke-api` returned `ACCEPT_OK` for the
+  new Eva account and wxid, then `RECORD_OK` for a synthetic inbound row and
+  outbox row, then `ROLLBACK_OK`.
+- No real new Eva message had landed at the time of verification; the previously
+  rejected connector delivery was already absent from Coke's durable message
+  table, so the fix applies to the next real webhook delivery.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The
