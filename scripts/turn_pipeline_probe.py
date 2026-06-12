@@ -9,7 +9,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -43,7 +42,7 @@ class ProbeResult:
     outcome_status: str | None = None
     outcome_payload: Any = None
     segments: tuple[str, ...] = ()
-    staged: tuple[Mapping[str, Any], ...] = ()
+    state_change_calls: int = 0
     exception: str | None = None
     passed: bool = False
     notes: tuple[str, ...] = ()
@@ -55,35 +54,16 @@ class RawPathResult:
     compiled: Any
     settled_outcome: Any
     segments: tuple[str, ...]
-    staged: tuple[Mapping[str, Any], ...]
+    state_change_calls: int
 
 
 class RecordingGuard:
     def __init__(self, turn_id: str) -> None:
         self.turn_id = turn_id
-        self.staged: list[dict[str, Any]] = []
         self.state_change_calls = 0
 
     def guard_state_change(self, turn_id: str | None = None) -> None:
         self.state_change_calls += 1
-
-    def stage_command(
-        self,
-        domain: str,
-        operation: str,
-        command_payload: Mapping[str, Any],
-        preview_facts: Mapping[str, Any],
-        item_index: int = 1,
-    ) -> Any:
-        record = {
-            "domain": domain,
-            "operation": operation,
-            "command_payload": dict(command_payload),
-            "preview_facts": dict(preview_facts),
-            "item_index": item_index,
-        }
-        self.staged.append(record)
-        return SimpleNamespace(id=f"{self.turn_id}:stage:{len(self.staged)}")
 
 
 REQUIRED_CORPUS: tuple[ProbeCase, ...] = (
@@ -526,7 +506,7 @@ def _run_one_path(
         compiled=compiled,
         settled_outcome=settled_outcome,
         segments=segments,
-        staged=tuple(dict(item) for item in guard.staged),
+        state_change_calls=guard.state_change_calls,
     )
 
 
@@ -569,7 +549,7 @@ def _evaluate_result(case: ProbeCase, raw: RawPathResult) -> ProbeResult:
         outcome_status=status,
         outcome_payload=_plain_value(raw.settled_outcome),
         segments=raw.segments,
-        staged=raw.staged,
+        state_change_calls=raw.state_change_calls,
         passed=plan_ok and category_ok and express_ok,
         notes=tuple(notes),
     )
@@ -740,7 +720,7 @@ def _print_case_list(cases: Sequence[ProbeCase]) -> None:
 
 
 def _print_matrix(results: Sequence[ProbeResult]) -> None:
-    headers = ("CASE", "EXPECT", "PLAN", "COMPILED", "OUTCOME", "EXP", "STAGED", "PASS")
+    headers = ("CASE", "EXPECT", "PLAN", "COMPILED", "OUTCOME", "EXP", "STATE", "PASS")
     rows = []
     for result in results:
         expected = (
@@ -764,7 +744,7 @@ def _print_matrix(results: Sequence[ProbeResult]) -> None:
                 "yes" if result.compiled_ok else "no",
                 outcome,
                 str(len(result.segments)),
-                str(len(result.staged)),
+                str(result.state_change_calls),
                 "PASS" if result.passed else "FAIL",
             )
         )
@@ -817,7 +797,7 @@ def _print_failures(results: Sequence[ProbeResult]) -> None:
             "compiled": result.compiled_payload,
             "outcome": result.outcome_payload,
             "segments": list(result.segments),
-            "staged": _plain_value(result.staged),
+            "state_change_calls": result.state_change_calls,
             "exception": result.exception,
         }
         print(json.dumps(detail, ensure_ascii=False, indent=2, default=str))

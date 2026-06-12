@@ -707,4 +707,3 @@ class ConversationRuntimeService:
         if turn is None:
             raise ConversationRuntimeError("turn_not_found")
         return turn
-

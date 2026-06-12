@@ -634,15 +634,10 @@ class TurnRunner:
         focus_subject: Any | None,
     ) -> TurnRunResult:
         if self.turn_pipeline is None:
-            disposition = self.conversation_runtime.mark_failed(
-                start.turn.id,
-                "inbound_pipeline_unavailable",
-            )
-            return self._result_from_disposition(
+            return self._record_runtime_failure_recovery(
                 turn_id=start.turn.id,
                 trigger=trigger,
-                disposition=disposition.disposition,
-                reason_code=disposition.reason_code,
+                reason_code="inbound_pipeline_unavailable",
                 current_input_messages=start.input_messages,
             )
         delivery = _TurnPipelineRunnerDelivery(self, trigger)
@@ -652,12 +647,37 @@ class TurnRunner:
             gate=gate,
             focus_subject=focus_subject,
         )
-        pipeline_result = await self.turn_pipeline.run(
-            request,
-            freshness_guard,
-            delivery=delivery,
-        )
-        close_result = pipeline_result.close_result
+        try:
+            pipeline_result = await self.turn_pipeline.run(
+                request,
+                freshness_guard,
+                delivery=delivery,
+            )
+        except ConversationRuntimeError:
+            raise
+        except Exception:
+            LOGGER.exception(
+                "turn_pipeline_runtime_error",
+                extra={
+                    "turn_id": start.turn.id,
+                    "conversation_id": trigger.conversation_id,
+                    "account_id": trigger.account_id,
+                },
+            )
+            return self._record_runtime_failure_recovery(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                reason_code="turn_pipeline_runtime_error",
+                current_input_messages=start.input_messages,
+            )
+        close_result = getattr(pipeline_result, "close_result", None)
+        if close_result is None:
+            return self._record_runtime_failure_recovery(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                reason_code="turn_pipeline_close_missing_result",
+                current_input_messages=start.input_messages,
+            )
         if not close_result.committed:
             error = close_result.error
             if isinstance(error, ConversationRuntimeError):
@@ -667,15 +687,10 @@ class TurnRunner:
                     error,
                     current_input_messages=start.input_messages,
                 )
-            disposition = self.conversation_runtime.mark_failed(
-                start.turn.id,
-                close_result.reason_code or "turn_pipeline_close_failed",
-            )
-            return self._result_from_disposition(
+            return self._record_runtime_failure_recovery(
                 turn_id=start.turn.id,
                 trigger=trigger,
-                disposition=disposition.disposition,
-                reason_code=disposition.reason_code,
+                reason_code=close_result.reason_code or "turn_pipeline_close_failed",
                 current_input_messages=start.input_messages,
             )
 
@@ -684,15 +699,10 @@ class TurnRunner:
         disposition = close_result.disposition
         disposition_value = getattr(disposition, "disposition", None)
         if not isinstance(disposition_value, str):
-            disposition = self.conversation_runtime.mark_failed(
-                start.turn.id,
-                "turn_pipeline_close_missing_disposition",
-            )
-            return self._result_from_disposition(
+            return self._record_runtime_failure_recovery(
                 turn_id=start.turn.id,
                 trigger=trigger,
-                disposition=disposition.disposition,
-                reason_code=disposition.reason_code,
+                reason_code="turn_pipeline_close_missing_disposition",
                 current_input_messages=start.input_messages,
             )
         visible_text = (
@@ -839,19 +849,10 @@ class TurnRunner:
             ),
         )
         if result.timed_out:
-            disposition = self.conversation_runtime.mark_failed(
-                state.turn_id, "async_timeout_after_budget"
-            )
-            self._record_render_failure_lifecycle(
-                trigger,
-                state.turn_id,
-                disposition.reason_code or "async_timeout_after_budget",
-            )
-            return self._result_from_disposition(
+            return self._record_runtime_failure_recovery(
                 turn_id=state.turn_id,
                 trigger=trigger,
-                disposition=disposition.disposition,
-                reason_code=disposition.reason_code,
+                reason_code="async_timeout_after_budget",
                 current_input_messages=state.current_input_messages,
             )
         validated = self.output_protocol.validate_first_answer(result.output)
@@ -1392,6 +1393,13 @@ class TurnRunner:
     ) -> TurnRunResult:
         current_input_messages = tuple(getattr(context, "current_input_messages", ()))
         if agent_result.task_id is None:
+            if current_input_messages or trigger.trigger_type == "InboundTurn":
+                return self._record_runtime_failure_recovery(
+                    turn_id=context.freshness_guard.turn_id,
+                    trigger=trigger,
+                    reason_code="async_task_missing",
+                    current_input_messages=current_input_messages,
+                )
             disposition = self.conversation_runtime.mark_failed(
                 context.freshness_guard.turn_id,
                 "async_task_missing",
@@ -1516,6 +1524,22 @@ class TurnRunner:
             current_input_messages=current_input_messages,
         )
 
+    def _record_runtime_failure_recovery(
+        self,
+        *,
+        turn_id: str,
+        trigger: TurnTrigger,
+        reason_code: str,
+        current_input_messages: tuple[Any, ...] = (),
+    ) -> TurnRunResult:
+        self._record_render_failure_lifecycle(trigger, turn_id, reason_code)
+        return self._record_recovery_reply(
+            turn_id=turn_id,
+            trigger=trigger,
+            recovery_text=_runtime_failure_recovery_text(),
+            current_input_messages=current_input_messages,
+        )
+
     def _record_validated_output(
         self,
         *,
@@ -1529,6 +1553,13 @@ class TurnRunner:
         pre_delivered_reply_outcomes: tuple[DeliveryOutcome, ...] = (),
     ) -> TurnRunResult:
         if not validated.valid:
+            if current_input_messages:
+                return self._record_runtime_failure_recovery(
+                    turn_id=turn_id,
+                    trigger=trigger,
+                    reason_code=validated.reason_code or "invalid_output_protocol",
+                    current_input_messages=current_input_messages,
+                )
             disposition = self.conversation_runtime.mark_failed(
                 turn_id=turn_id,
                 reason_code=validated.reason_code or "invalid_output_protocol",
@@ -1814,6 +1845,16 @@ class TurnRunner:
                 trigger=trigger,
                 disposition=disposition.disposition,
                 reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
+            )
+        if (
+            trigger.mode == TurnMode.INTERACTIVE
+            and trigger.trigger_type == "InboundTurn"
+        ):
+            return self._record_runtime_failure_recovery(
+                turn_id=turn_id,
+                trigger=trigger,
+                reason_code=error.code,
                 current_input_messages=current_input_messages,
             )
         disposition = self.conversation_runtime.mark_failed(turn_id, error.code)
@@ -2142,13 +2183,16 @@ def _grounded_recovery_text(
 ) -> str | None:
     if request.trigger_type != "InboundTurn":
         return None
-    grounding = (
-        _recovery_grounding_from_tool_events(tool_events)
-        or _recovery_grounding_from_input(request)
-    )
+    grounding = _recovery_grounding_from_tool_events(
+        tool_events
+    ) or _recovery_grounding_from_input(request)
     if grounding is None:
         return None
     return f"我没能帮你完成「{grounding.intent}」，{grounding.ask}"
+
+
+def _runtime_failure_recovery_text() -> str:
+    return "刚才这条消息没有处理成功，我已经恢复会话状态。请把刚才的请求再发我一次。"
 
 
 def _recovery_grounding_from_tool_events(

@@ -10,13 +10,8 @@ Verdict model (see ``v6_wechat_smoke``), corrected against the live stack:
 * The HARD verdict is the **row effect** of a turn: which active
   ``reminder`` / ``shared_reminder`` rows were created, cancelled, or updated.
   This is unambiguous and what v6 actually cares about.
-* ``staged_command`` is a SOFT signal. Its ``operation`` is an execution-layer
-  name, not the planner vocab: a personal-reminder create materializes as
-  ``reminder.execute_batch`` / ``reminder.detect_and_create`` / ``reminder.create``;
-  a shared create as ``social_scheduling.detect_and_create_shared_reminder`` /
-  ``create_shared_reminder``. Read intents (list, availability) produce NO
-  ``staged_command`` at all. So we assert at the semantic-bucket + row-effect
-  level, never on an exact operation string.
+* Execute writes real domain rows inside the turn transaction. The smoke asserts
+  row effects directly and does not inspect execution-layer staging artifacts.
 * We never assert reply *wording*. Reply quality is an eval concern.
 
 Product decision baked into this corpus (confirmed 2026-06-11): there is no
@@ -35,8 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-# Semantic forbid tags ("不允许发生" lines). Checked against both the
-# materialized staged_command buckets and the row-effect diff.
+# Semantic forbid tags ("不允许发生" lines). Checked against the row-effect diff.
 ForbidTag = Literal["reminder_create", "shared_create", "shared_cancel"]
 
 Outcome = Literal[

@@ -11,6 +11,15 @@ transaction, streaming classification, inbound/render split, concrete data
 contracts — are all incorporated (see "Resolved Design Decisions"). The inbound
 pipeline is the only interactive inbound path.
 
+Amended on 2026-06-12 by
+`docs/superpowers/specs/2026-06-12-turn-eager-execute-abolish-staging-design.md`.
+The Plan / PlanCompile / Execute / Express bounded split remains current, but
+this document's staging, selected-command materialization, and mutating streaming
+sub-design is historical only. Current runtime truth: Execute calls real domain
+services inside the shared turn transaction, `ActionOutcome` carries only the
+real typed outcome data, Close commits domain writes + outbound rows +
+disposition atomically, and there is no staged-command storage layer.
+
 Supersedes the fast-path direction in
 `docs/superpowers/specs/2026-06-09-agent-flow-time-optimization-design.md`. Clean
 slate, no compatibility shims. Render-mode Interaction Agent remains for
@@ -292,6 +301,10 @@ formatting.
 
 ## Data Contracts
 
+> Historical after 2026-06-12: this section records the implemented 2026-06-10
+> contract before the eager-execute amendment. The current `ActionOutcome` has no
+> staged id field, and the materialization-plan concept is retired.
+
 The implementation plan defines exact fields; the spine is these typed units (so
 no boundary is "guessed"):
 
@@ -314,6 +327,10 @@ producing the normalized `ActionOutcome` (`category` + mandatory `status`).
 PlanCompile stays generic (enum/required-param validation only).
 
 ## Close Boundary And Streaming (made explicit)
+
+> Historical after 2026-06-12: current mutating inbound turns buffer Express
+> segments, commit real Execute-time domain writes at Close, then deliver from
+> committed outbound rows. There is no close-time command materialization step.
 
 The close/materialization order must be exact, and the streaming rule must be
 mechanical (no "classify the prose as descriptive vs success"). The contract:
@@ -461,6 +478,10 @@ the current interpreter + orchestrating agent + detector + protocol-retry chain.
 - **Latency evidence**: turn total and time-to-first-token, before/after.
 
 ## Resolved Design Decisions (2026-06-10)
+
+> Historical amendment: the bounded spine, typed outcomes, and inbound/render
+> split remain. The 2026-06-12 eager-execute spec replaces the selected-command
+> materialization and mutating streaming decisions below.
 
 Decided across two dual-review rounds and a decision pass with the user.
 

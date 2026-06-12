@@ -11,9 +11,11 @@ import pytest
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
 )
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.turn.agent import AgentResult, AgentToolPorts
 from coke.turn.context import TurnMode, TurnTrigger
+from coke.turn.freshness import FreshnessGuard
 from coke.turn.locks import ConversationLockManager
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
@@ -155,6 +157,25 @@ class ExplodingTurnPipeline:
         raise AssertionError("turn pipeline should not be invoked")
 
 
+class RaisingTurnPipeline:
+    async def run(self, request, guard, delivery=None):
+        raise RuntimeError("planner exploded")
+
+
+class RuntimeErrorCloseTurnPipeline:
+    async def run(self, request, guard, delivery=None):
+        return SimpleNamespace(
+            segments=(),
+            close_result=SimpleNamespace(
+                committed=False,
+                disposition=None,
+                error=ConversationRuntimeError("invalid_segment_count"),
+                reason_code="invalid_segment_count",
+            ),
+            streamed=False,
+        )
+
+
 @pytest.fixture
 def harness():
     clock = MutableClock(NOW)
@@ -244,14 +265,135 @@ async def test_async_inbound_turn_uses_turn_pipeline(harness):
     assert harness["agent"].requests == []
 
 
-def test_inbound_without_turn_pipeline_fails_closed(harness):
+def test_inbound_without_turn_pipeline_recovers_and_closes_window(harness):
     harness["runner"].turn_pipeline = None
 
     result = harness["runner"].run_inbound_turn(harness["trigger"])
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
 
-    assert result.disposition == "failed"
-    assert result.reason_code == "inbound_pipeline_unavailable"
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert result.visible_text
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
     assert harness["agent"].requests == []
+
+
+def test_inbound_pipeline_exception_recovers_and_closes_window(harness):
+    harness["runner"].turn_pipeline = RaisingTurnPipeline()
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert "恢复会话状态" in result.visible_text
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
+    assert harness["agent"].requests == []
+
+
+def test_inbound_pipeline_runtime_close_error_recovers_and_closes_window(harness):
+    harness["runner"].turn_pipeline = RuntimeErrorCloseTurnPipeline()
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
+    assert harness["agent"].requests == []
+
+
+def test_async_reply_timeout_recovers_and_closes_window(harness):
+    start = harness["runtime"].start_turn(
+        conversation_id=harness["trigger"].conversation_id,
+        trigger_id=harness["trigger"].trigger_id,
+        trigger_type=harness["trigger"].trigger_type,
+        mode=TurnMode.INTERACTIVE.value,
+    )
+    context = SimpleNamespace(
+        freshness_guard=FreshnessGuard(
+            conversation_runtime=harness["runtime"],
+            turn_id=start.turn.id,
+            input_from_seq=start.turn.input_from_seq,
+            input_to_seq=start.turn.input_to_seq,
+        ),
+        current_input_messages=start.input_messages,
+        onboarding_guidance_required=False,
+    )
+    harness["runner"]._record_pending_async(
+        harness["trigger"],
+        context,
+        AgentResult.timeout("task_1"),
+    )
+    harness["agent"].result = AgentResult.timeout("task_2")
+
+    result = harness["runner"].complete_async_reply("task_1")
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
+
+
+def test_async_timeout_missing_task_recovers_and_closes_window(harness):
+    start = harness["runtime"].start_turn(
+        conversation_id=harness["trigger"].conversation_id,
+        trigger_id=harness["trigger"].trigger_id,
+        trigger_type=harness["trigger"].trigger_type,
+        mode=TurnMode.INTERACTIVE.value,
+    )
+    context = SimpleNamespace(
+        freshness_guard=FreshnessGuard(
+            conversation_runtime=harness["runtime"],
+            turn_id=start.turn.id,
+            input_from_seq=start.turn.input_from_seq,
+            input_to_seq=start.turn.input_to_seq,
+        ),
+        current_input_messages=start.input_messages,
+        onboarding_guidance_required=False,
+    )
+
+    result = harness["runner"]._record_pending_async(
+        harness["trigger"],
+        context,
+        AgentResult(timed_out=True, task_id=None),
+    )
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
+
+
+def test_access_denied_invalid_output_recovers_and_closes_window(harness):
+    harness["gate_port"].allowed = False
+    harness["agent"].result = AgentResult.completed(None)
+    harness["runner"].turn_pipeline = ExplodingTurnPipeline()
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+    conversation = harness["repository"].get_conversation(
+        harness["trigger"].conversation_id
+    )
+
+    assert result.disposition == "recovered"
+    assert result.reason_code == "grounded_failure_recovery"
+    assert conversation is not None
+    assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
 
 
 def test_render_turn_stays_on_render_agent_path(harness):

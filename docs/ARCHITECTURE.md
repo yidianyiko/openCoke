@@ -21,7 +21,7 @@ Services in the target deployment:
   durable facts and outbox rows, and calls provider adapters for outbound sends.
 - `coke-worker`: Python Redis Stream turn workers. It owns The Turn execution,
   context assembly, inbound turn pipeline planning/execution/expression, render-mode
-  Interaction Agent invocation, output disposition, and domain command staging.
+  Interaction Agent invocation, output disposition, and close-boundary commit.
 - `coke-scheduler`: singleton Python reminder scheduler. It creates durable
   reminder-fire facts and outbox wake-ups.
 - `coke-outbox-relay`: Postgres outbox to Redis Stream relay. Postgres remains
@@ -69,9 +69,9 @@ Turn execution has one spine:
    Memory, pending clarification, and trigger facts.
 5. For interactive inbound user turns, run Plan -> PlanCompile -> Execute ->
    Express -> Close. Plan emits requested actions, PlanCompile validates shape,
-   Execute resolves through domain services and stages concrete effects, Express
-   renders only the settled outcomes, and Close atomically commits the fresh
-   turn.
+   Execute calls real domain services inside the shared turn transaction, Express
+   renders only the settled outcomes, and Close atomically commits domain writes,
+   outbound rows, disposition, and close state.
 6. For structured reminder, notification, access, and recovery turns, invoke the
    render-mode Interaction Agent over already-trusted facts.
 7. Validate the first returned structured output. Malformed, empty, blocked, or
@@ -85,9 +85,9 @@ Turn execution has one spine:
 11. Update output-class-specific lifecycle state from delivery callbacks.
 
 The inbound turn pipeline does not expose business mutation tools to a prose
-agent. Mutations are staged by Execute through domain services and materialized
-only by the close transaction. Render mode receives already-trusted structured
-facts and has no business mutation tools.
+agent. Mutations execute through typed domain services inside the shared turn
+session and become durable only when the close transaction commits. Render mode
+receives already-trusted structured facts and has no business mutation tools.
 
 Render-mode Interaction Agent construction disables Agno chat history as a fact
 source. Render turns use trusted trigger facts, domain results, and dynamic
@@ -145,17 +145,17 @@ The close boundary is close-result persistence, not provider delivery. A
 conversation-closing decision for a claimed input window is `replied`,
 product-approved terminal `no_reply`, or `recovered`. The `replied` and
 `no_reply` close transactions must atomically verify that no newer inbound has
-arrived for the claimed window, materialize staged interactive commands, persist
-the close result, and advance `last_closed_inbound_seq` to the turn's
-`input_to_seq`. A `recovered` close uses grounded runtime-owned recovery text,
-marks staged commands superseded without materializing them, persists the
-distinct `recovered` disposition, and advances `last_closed_inbound_seq`.
+arrived for the claimed window, persist outbound messages and the close result,
+commit any Execute-time domain writes, and advance `last_closed_inbound_seq` to
+the turn's `input_to_seq`. A `recovered` close uses grounded runtime-owned
+recovery text, persists the distinct `recovered` disposition, commits with the
+same close-boundary transaction, and advances `last_closed_inbound_seq`.
 `failed` and `superseded` complete the stale or failed turn audit without
 claiming the input window as product-handled.
 
 `pending_async_reply` is an intermediate visibility disposition, not a close
 decision. It records that runtime-owned waiting text was attempted, but it must
-not materialize staged commands, set `turn.completed_at`, or advance
+not commit an interactive close decision, set `turn.completed_at`, or advance
 `last_closed_inbound_seq`.
 
 Waiting delivery evidence is not equivalent to user-visible waiting progress.
@@ -193,7 +193,7 @@ active and interruptible. When the active turn pipeline eventually returns, the
 same turn may still transition from `pending_async_reply` to `replied` or
 `failed` if no newer inbound has arrived. If a newer inbound arrives first, the
 pending turn is superseded and any later state-changing command from that stale
-turn is rejected before materialization.
+turn is rejected before the close-boundary commit.
 
 Waiting sends use logical delivery intents (`turn_id:waiting:1` and, at most,
 `turn_id:waiting:2`) rather than blind provider-idempotency retries. A waiting
@@ -203,18 +203,16 @@ allows it. Context-token, invalid-token, and provider session-window failures do
 not retry; they are recorded as failed waiting delivery evidence and the final
 reply remains the authoritative user-visible outcome.
 
-Interactive state-changing tools must stage commands before the close boundary.
-They may validate intent, read state, and create turn-local drafts, but they
-must not activate reminders, shared-reminder proposals, notifications, or
-external adapter effects until the fresh close transaction materializes the
-staged commands. This avoids leaving wrong durable side effects when a user sends
-a correction before receiving the first agent-visible reply.
+Interactive state-changing actions call the real domain service during Execute.
+Those writes live in the shared turn transaction and are not durable until the
+fresh close transaction commits. This lets Express describe a real service
+outcome without leaving durable side effects if the user sends a correction
+before the close boundary.
 
 Shared-reminder execution produces structured social-scheduling outcomes through
 the Execute step. Express may describe only the settled outcome status and
-blocker it receives. A staged command is never a user-visible success claim;
-visible success must match a close-time materialized or duplicate-active
-outcome. This is a structural reply contract, not a phrase denylist or
+blocker it receives. Visible success must match the real Execute outcome that is
+committed at close. This is a structural reply contract, not a phrase denylist or
 deterministic renderer.
 
 Friend-reference corrections for blocked shared-reminder creates are handled by

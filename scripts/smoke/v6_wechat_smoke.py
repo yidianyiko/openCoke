@@ -12,12 +12,10 @@ Relationship to ``clean_smoke``:
 
 Verdict model (validated against the live stack on 2026-06-11):
 
-* The HARD verdict is the row-effect diff: which active ``reminder`` /
-  ``shared_reminder`` rows were created / removed for the requester across the
-  turn. ``staged_command`` is a soft, execution-layer signal (a create may
-  materialize as ``reminder.execute_batch`` / ``detect_and_create`` / ``create``;
-  reads produce no staged_command), so we bucket it semantically, never assert
-  an exact op string.
+    * The HARD verdict is the row-effect diff: which active ``reminder`` /
+      ``shared_reminder`` rows were created / removed / updated for the requester
+      across the turn. Execute writes real domain rows in the turn transaction, so
+      the smoke no longer depends on execution-layer staging rows.
 
 WeChat reality (validated 2026-06-11):
 
@@ -72,16 +70,6 @@ DEFAULT_EVIDENCE_DIR = Path("artifacts/evidence/v6-wechat-smoke")
 PROVIDER_TYPE = "wechat_personal"
 WEBHOOK_PATH = "/webhooks/wechat/personal"
 REPLY_LIKE_DISPOSITIONS = {"replied", "pending_async_reply"}
-APPLIED_STATUS = "materialized"
-
-# Execution-layer staged_command ops grouped into semantic buckets. Learned
-# from the live staged_command vocabulary, not the planner param schema.
-REMINDER_CREATE_OPS = {"create", "detect_and_create", "execute_batch"}
-REMINDER_UPDATE_OPS = {"update_reminder"}
-REMINDER_DELETE_OPS = {"delete_reminder"}
-SHARED_CREATE_OPS = {"create_shared_reminder", "detect_and_create_shared_reminder"}
-SHARED_UPDATE_OPS = {"update_shared_reminder"}
-SHARED_CANCEL_OPS = {"cancel_shared_reminder"}
 
 
 # --------------------------------------------------------------------------
@@ -222,14 +210,6 @@ def _turn_for_event() -> sa.Select:
         .where(msg.c.causal_inbound_event_id == event_id, msg.c.direction == "inbound")
         .order_by(turn.c.started_at.desc())
         .limit(1)
-    )
-
-
-def _ops_for_turn() -> sa.Select:
-    sc = schema.staged_command
-    turn_id = sa.bindparam("turn_id")
-    return sa.select(sc.c.domain, sc.c.operation, sc.c.status).where(
-        sc.c.turn_id == turn_id
     )
 
 
@@ -412,12 +392,6 @@ class V6WeChatSmoke:
     ) -> dict[str, Any]:
         assert self.db is not None
         turn_id = turn_row["turn_id"]
-        ops = self.db.rows(_ops_for_turn().params(turn_id=turn_id))
-        materialized = {
-            f"{r['domain']}.{r['operation']}"
-            for r in ops
-            if r["status"] == APPLIED_STATUS
-        }
         disposition = self.db.one_or_none(
             _disposition_for_turn().params(turn_id=turn_id)
         )
@@ -426,7 +400,6 @@ class V6WeChatSmoke:
         before_shared_ids = set(before[1])
         after_shared_ids = set(after[1])
         return {
-            "materialized_ops": sorted(materialized),
             "disposition": (disposition or {}).get("disposition"),
             "has_outbound": bool(outbound),
             "new_reminders": sorted(after[0] - before[0]),
@@ -440,42 +413,20 @@ class V6WeChatSmoke:
             ),
         }
 
-    @staticmethod
-    def _bucket(ops: set[str]) -> dict[str, bool]:
-        def any_op(domain: str, names: set[str]) -> bool:
-            return any(op == f"{domain}.{n}" for op in ops for n in names)
-
-        return {
-            "reminder_create": any_op("reminder", REMINDER_CREATE_OPS),
-            "reminder_update": any_op("reminder", REMINDER_UPDATE_OPS),
-            "reminder_delete": any_op("reminder", REMINDER_DELETE_OPS),
-            "shared_create": any_op("social_scheduling", SHARED_CREATE_OPS),
-            "shared_update": any_op("social_scheduling", SHARED_UPDATE_OPS),
-            "shared_cancel": any_op("social_scheduling", SHARED_CANCEL_OPS),
-        }
-
     def _assert_case(self, case: V6Case, verdict: dict[str, Any]) -> None:
         expect = case.expect
-        ops = set(verdict["materialized_ops"])
-        bucket = self._bucket(ops)
 
         # Negative assertions, enforced for every case (incl. gap cases).
         for tag in expect.forbid:
-            if tag == "reminder_create" and (
-                bucket["reminder_create"] or verdict["new_reminders"]
-            ):
+            if tag == "reminder_create" and verdict["new_reminders"]:
                 self.transcript.fail_and_raise(
                     case.case_id, "forbidden: reminder created", verdict
                 )
-            if tag == "shared_create" and (
-                bucket["shared_create"] or verdict["new_shared"]
-            ):
+            if tag == "shared_create" and verdict["new_shared"]:
                 self.transcript.fail_and_raise(
                     case.case_id, "forbidden: shared created", verdict
                 )
-            if tag == "shared_cancel" and (
-                bucket["shared_cancel"] or verdict["removed_shared"]
-            ):
+            if tag == "shared_cancel" and verdict["removed_shared"]:
                 self.transcript.fail_and_raise(
                     case.case_id, "forbidden: shared cancelled", verdict
                 )
@@ -501,7 +452,6 @@ class V6WeChatSmoke:
 
     def _assert_outcome(self, case: V6Case, verdict: dict[str, Any]) -> None:
         outcome = case.expect.outcome
-        bucket = self._bucket(set(verdict["materialized_ops"]))
         if outcome == "create_reminder":
             if not verdict["new_reminders"]:
                 self.transcript.fail_and_raise(
@@ -527,7 +477,7 @@ class V6WeChatSmoke:
                 self.transcript.fail_and_raise(
                     case.case_id, "shared update created or removed a row", verdict
                 )
-            if not (bucket["shared_update"] or verdict.get("updated_shared")):
+            if not verdict.get("updated_shared"):
                 self.transcript.fail_and_raise(
                     case.case_id, "no shared reminder updated", verdict
                 )

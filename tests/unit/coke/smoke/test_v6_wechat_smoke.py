@@ -104,7 +104,6 @@ def _smoke(tmp_path) -> V6WeChatSmoke:
 
 
 _BASE = {
-    "materialized_ops": [],
     "disposition": "replied",
     "has_outbound": True,
     "new_reminders": [],
@@ -155,7 +154,6 @@ def test_update_shared_requires_existing_row_update_without_create_or_cancel(tmp
         case,
         {
             **_BASE,
-            "materialized_ops": ["social_scheduling.update_shared_reminder"],
             "updated_shared": ["sr1"],
         },
     )
