@@ -364,6 +364,26 @@ recreate_services() {
   compose up -d --build --no-deps --force-recreate "$@"
 }
 
+run_backend_deploy() {
+  require_services "backend" "${BACKEND_DEPLOY_SERVICES[@]}"
+  printf 'Recreating backend services: %s\n' "${BACKEND_DEPLOY_SERVICES[*]}"
+  compose build coke-migrate
+  compose run --rm coke-migrate alembic upgrade head
+  compose run --rm coke-migrate alembic check
+  recreate_services "${BACKEND_DEPLOY_SERVICES[@]}"
+}
+
+run_web_migration_check() {
+  compose run --rm coke-migrate alembic upgrade head
+  compose run --rm coke-migrate alembic check
+}
+
+run_web_deploy() {
+  require_services "web" "${WEB_DEPLOY_SERVICES[@]}"
+  printf 'Recreating web services: %s\n' "${WEB_DEPLOY_SERVICES[*]}"
+  recreate_services "${WEB_DEPLOY_SERVICES[@]}"
+}
+
 require_services() {
   local label="$1"
   shift
@@ -380,27 +400,20 @@ record_deployed_sha() {
 
 compose up -d postgres redis
 case "$DEPLOY_TIER" in
-  backend|full)
-    require_services "backend" "${BACKEND_DEPLOY_SERVICES[@]}"
-    compose build coke-migrate
-    compose run --rm coke-migrate alembic upgrade head
-    compose run --rm coke-migrate alembic check
-    recreate_services "${BACKEND_DEPLOY_SERVICES[@]}"
+  backend)
+    run_backend_deploy
     ;;
   web)
-    compose run --rm coke-migrate alembic upgrade head
-    compose run --rm coke-migrate alembic check
+    run_web_migration_check
+    run_web_deploy
+    ;;
+  full)
+    run_backend_deploy
+    run_web_deploy
     ;;
   *)
     echo "Unsupported deploy tier: $DEPLOY_TIER" >&2
     exit 1
-    ;;
-esac
-
-case "$DEPLOY_TIER" in
-  web|full)
-    require_services "web" "${WEB_DEPLOY_SERVICES[@]}"
-    recreate_services "${WEB_DEPLOY_SERVICES[@]}"
     ;;
 esac
 

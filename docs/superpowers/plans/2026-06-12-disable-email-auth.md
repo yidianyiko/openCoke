@@ -79,5 +79,12 @@
   `validate_trigger_time` calls. This file is not part of the email-auth change and was
   not staged. Email-auth backend targets passed (`158 passed`), full web tests passed
   (`222 passed`), and `pnpm build` passed.
-- [ ] Commit the completed change.
-- [ ] Deploy using the documented clean compose path and smoke registration/current-user/access-status in production.
+- [x] Commit the completed change: `33aded3b fix: disable email auth for direct registration`.
+- [x] Deploy using the documented clean compose path and smoke registration/current-user/access-status in production:
+  clean backend deploy wrote `COKE_EMAIL_AUTH_ENABLED=0`, migrations passed, and backend health passed.
+  The first deploy did not recreate `coke-web` despite a full tier, so `coke-web` was force-recreated
+  manually and the deploy script was tightened to use explicit `backend`, `web`, and `full` branches.
+  Production smoke evidence is in `artifacts/evidence/2026-06-12-disable-email-auth-production-smoke.md`:
+  server-local register/current-user/access-status/login/password-reset checks passed, DB showed zero
+  email auth artifacts for the smoke account, and public API registration/access-status passed with a
+  browser user agent.
