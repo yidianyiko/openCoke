@@ -8,7 +8,10 @@ from uuid import UUID
 import pytest
 
 from coke.domains.identity_access.models import (
+    Account,
+    AccountAccess,
     ArtifactType,
+    ChannelIdentity,
     IdentityAccessError,
 )
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
@@ -877,6 +880,58 @@ def test_known_provider_identity_cannot_be_rebound_with_valid_pairing_code(
         identity_service.repository.get_artifact_by_code(pairing.code).consumed_at
         is None
     )
+
+
+def test_bind_channel_identity_accepts_dashed_uuid_for_existing_compact_identity(
+    identity_service,
+):
+    compact_account_id = "55d922f55dae47b4820be6ea0ac04794"
+    dashed_account_id = str(UUID(compact_account_id))
+    repository = identity_service.repository
+    account = Account(
+        id=compact_account_id,
+        origin="web_first",
+        default_timezone="UTC",
+        lifecycle="active",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    access = AccountAccess(
+        id="access_uuid_shape",
+        account_id=compact_account_id,
+        email_verification_state="verified",
+        subscription_state="active",
+        suspension_state="active",
+        access_allowed=True,
+        denial_reason=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    identity = ChannelIdentity(
+        id="identity_uuid_shape",
+        account_id=compact_account_id,
+        provider_type="wechat_personal",
+        provider_subject="wxid_alice",
+        lifecycle="active",
+        is_account_anchor=False,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    repository.add_account(account)
+    repository.add_access(access)
+    repository.add_channel_identity(identity)
+    repository.accounts[dashed_account_id] = account
+    repository.access[dashed_account_id] = access
+
+    resolved = identity_service.bind_channel_identity_to_account(
+        account_id=dashed_account_id,
+        provider_type="wechat_personal",
+        provider_subject="wxid_alice",
+    )
+
+    assert resolved.account == account
+    assert resolved.channel_identity == identity
+    assert resolved.created_account is False
 
 
 def test_login_url_authenticates_bound_account_once(identity_service):

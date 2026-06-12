@@ -1280,6 +1280,46 @@ explicit account-handoff domain operation and make the connector/API boundary
 canonicalize account ids, instead of relying on manual database and state-file
 repairs.
 
+## 2026-06-13 Eva Post-Handoff Webhook Rejection
+
+After the operational handoff, Eva sent another personal-WeChat message but no
+reply was produced. Production checks showed this was not another open-window
+stall:
+
+- no new Eva inbound row appeared in `message`;
+- the old Eva conversation remained closed
+  (`latest_inbound_seq=82`, `last_closed_inbound_seq=82`);
+- the connector logged webhook delivery failures to
+  `/webhooks/wechat/personal` with HTTP `400`, then dropped the message after
+  retry exhaustion.
+
+A rollback-only production diagnostic rebuilt the same inbound shape for
+account `eva@potaristudio.com`
+(`55d922f5-5dae-47b4-820b-e6ea0ac04794`) and wxid
+`o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat`. It failed before writing a message:
+
+```text
+ChannelReachabilityError code=channel_identity_already_bound
+```
+
+The durable row was correct: `channel_identity
+a202a065-ddf5-42a7-b9b7-49faa654dad7` already belonged to the new Eva account.
+The code path was wrong. `PostgresIdentityAccessRepository` maps UUID columns
+through `db_id`, so loaded domain objects carry compact UUID strings, while the
+account-bound connector webhook sends the canonical dashed UUID string. The
+identity service compared those strings directly in
+`bind_channel_identity_to_account`, so the same account was misclassified as a
+different account and rejected as `channel_identity_already_bound`.
+
+Local fix: compare account ownership through UUID-equivalence rather than raw
+string equality in `IdentityAccessService`, covering both the bind path and
+channel-identity ownership checks. Regression coverage:
+
+```bash
+.venv/bin/python -m pytest tests/unit/coke/identity_access/test_identity_access_service.py::test_bind_channel_identity_accepts_dashed_uuid_for_existing_compact_identity -q
+.venv/bin/python -m pytest tests/unit/coke/identity_access/test_identity_access_service.py tests/unit/coke/channel_reachability/test_wechat_personal_ilink_flow.py tests/unit/coke/channel_reachability/test_provider_webhooks.py -q
+```
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The

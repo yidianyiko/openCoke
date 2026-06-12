@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from coke.domains.identity_access.email import CustomerEmailSender, NullEmailSender
 from coke.domains.identity_access.models import (
@@ -279,7 +279,7 @@ class IdentityAccessService:
             provider_type, provider_subject
         )
         if existing is not None:
-            if existing.account_id != account_id:
+            if not _same_account_id(existing.account_id, account_id):
                 raise IdentityAccessError("channel_identity_already_bound")
             return ChannelIdentityResolution(
                 account=account,
@@ -645,7 +645,7 @@ class IdentityAccessService:
     ) -> bool:
         account = self._require_account(account_id)
         identity = self.repository.get_channel_identity(channel_identity_id)
-        if identity is None or identity.account_id != account_id:
+        if identity is None or not _same_account_id(identity.account_id, account_id):
             raise IdentityAccessError("channel_identity_not_found")
         active_identities = self.repository.list_channel_identities(account_id)
         if (
@@ -663,7 +663,7 @@ class IdentityAccessService:
         identity = self.repository.get_channel_identity(channel_identity_id)
         if (
             identity is None
-            or identity.account_id != account_id
+            or not _same_account_id(identity.account_id, account_id)
             or identity.lifecycle != "active"
         ):
             raise IdentityAccessError("channel_identity_not_found")
@@ -1013,6 +1013,18 @@ def _normalize_display_name(value: str | None) -> str | None:
 def _display_name_from_email(email: str) -> str:
     local_part = email.split("@", 1)[0].strip()
     return _fallback_display_name(local_part or email)
+
+
+def _same_account_id(left: str, right: str) -> bool:
+    return _account_id_key(left) == _account_id_key(right)
+
+
+def _account_id_key(value: str) -> str:
+    text = str(value)
+    try:
+        return UUID(text).hex
+    except ValueError:
+        return text
 
 
 def _display_name_for_provider_subject(
