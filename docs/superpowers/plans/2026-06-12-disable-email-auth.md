@@ -60,7 +60,8 @@
 - [x] Run targeted `pnpm test` filters and confirm the new tests fail.
 - [x] Route successful registration directly to `next` or `/channels/wechat-personal`.
 - [x] Remove the visible forgot-password link and ignore verification recovery query UI while email auth is disabled.
-- [x] Run targeted web tests and confirm they pass: auth/i18n target `31 passed`, full web test `222 passed`, web build passed.
+- [x] Disable the `/auth/verify-email` page itself so old email links no longer attempt verification or resend recovery.
+- [x] Run targeted web tests and confirm they pass: auth/i18n target `31 passed`, verify-email page `2 passed`, full web test `214 passed`, web build passed.
 
 ### Task 4: Docs, Verification, Commit, Deploy
 
@@ -78,7 +79,8 @@
   `tests/unit/coke/turn/inbound/test_reminder_handler.py`, which now expects reminder
   `validate_trigger_time` calls. This file is not part of the email-auth change and was
   not staged. Email-auth backend targets passed (`158 passed`), full web tests passed
-  (`222 passed`), and `pnpm build` passed.
+  (`214 passed` after replacing legacy verify-email flow tests with disabled-page tests), and
+  `pnpm build` passed.
 - [x] Commit the completed change: `33aded3b fix: disable email auth for direct registration`.
 - [x] Deploy using the documented clean compose path and smoke registration/current-user/access-status in production:
   clean backend deploy wrote `COKE_EMAIL_AUTH_ENABLED=0`, migrations passed, and backend health passed.

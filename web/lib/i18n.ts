@@ -150,6 +150,9 @@ type CustomerPagesMessages = {
     title: string;
     description: string;
     verifyingDescription: string;
+    disabledDescription: string;
+    disabledDetail: string;
+    backToSignInLink: string;
   };
   claim: {
     eyebrow: string;
@@ -639,9 +642,13 @@ export const messages: MessagesCatalog = {
         genericError: 'Unable to reset your password right now.',
       },
       verifyEmail: {
-        title: 'Verify your email',
+        title: 'Email verification is temporarily disabled.',
         description: 'We are preparing your secure email verification.',
         verifyingDescription: 'Verifying your email link now...',
+        disabledDescription: 'New accounts can sign in immediately after registration.',
+        disabledDetail:
+          'Email verification links are not required while email delivery is disabled.',
+        backToSignInLink: 'Back to sign in',
       },
       claim: {
         eyebrow: 'Shared channel access',
@@ -1083,9 +1090,12 @@ export const messages: MessagesCatalog = {
         genericError: '暂时无法重置密码，请稍后再试。',
       },
       verifyEmail: {
-        title: '验证邮箱',
+        title: '邮箱验证已暂时关闭。',
         description: '我们正在为你准备安全的邮箱验证。',
         verifyingDescription: '正在验证你的邮箱链接...',
+        disabledDescription: '新账号注册后可以直接登录。',
+        disabledDetail: '邮箱发送功能关闭期间，不需要再使用验证链接。',
+        backToSignInLink: '返回登录',
       },
       claim: {
         eyebrow: '共享通道访问',
