@@ -162,7 +162,6 @@ def _settled_outcome_payload(settled_outcome: SettledOutcome) -> dict[str, Any]:
                 "category": outcome.category,
                 "status": outcome.status,
                 "data": _plain_value(outcome.data),
-                "staged_command_id": outcome.staged_command_id,
             }
             for outcome in settled_outcome.outcomes
         ]

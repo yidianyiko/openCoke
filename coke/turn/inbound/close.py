@@ -29,6 +29,13 @@ class TurnClosePort(Protocol):
         materialize_staged_command: Callable[[Any], Any] | None = None,
     ) -> Any: ...
 
+    def commit_recovery_reply(
+        self,
+        turn_id: str,
+        segments: Sequence[str],
+        reason_code: str = "grounded_failure_recovery",
+    ) -> Any: ...
+
 
 class CloseFreshnessGuard(Protocol):
     def guard_state_change(self) -> None: ...
@@ -93,6 +100,36 @@ class CloseCoordinator:
                     request.selected_staged_command_ids,
                     _reason_code(exc),
                 ),
+                selected_staged_command_ids=request.selected_staged_command_ids,
+                reason_code=_reason_code(exc),
+                error=exc,
+            )
+        self._save_pending_clarifications(request)
+        return CloseResult(
+            committed=True,
+            disposition=disposition,
+            settled_outcome=request.settled_outcome,
+            selected_staged_command_ids=request.selected_staged_command_ids,
+            reason_code=getattr(disposition, "reason_code", None),
+        )
+
+    def commit_recovery(
+        self,
+        request: CloseRequest,
+        guard: CloseFreshnessGuard,
+    ) -> CloseResult:
+        try:
+            guard.guard_state_change()
+            disposition = self._close_port.commit_recovery_reply(
+                request.turn_id,
+                request.segments,
+                reason_code="grounded_failure_recovery",
+            )
+        except Exception as exc:
+            return CloseResult(
+                committed=False,
+                disposition=None,
+                settled_outcome=request.settled_outcome,
                 selected_staged_command_ids=request.selected_staged_command_ids,
                 reason_code=_reason_code(exc),
                 error=exc,

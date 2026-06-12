@@ -145,7 +145,6 @@ def test_render_produces_segments_from_settled_outcome() -> None:
         "category": "done",
         "status": "listed",
         "data": {"count": 1},
-        "staged_command_id": None,
     }
     agent_kwargs = factory.agent_kwargs[0]
     assert agent_kwargs["tools"] == []
@@ -247,7 +246,6 @@ def _partial_request() -> ExpressRequest:
                         "succeeded": [{"content": "water"}],
                         "failed": [{"content": "gym", "reason": "already_cancelled"}],
                     },
-                    staged_command_id="stage-1",
                 ),
             )
         ),

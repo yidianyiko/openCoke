@@ -14,7 +14,7 @@ from coke.turn.inbound.contracts import (
     TurnPlan,
 )
 from coke.turn.inbound.execute import ActionExecutor, ActionHandler
-from coke.turn.inbound.express import ExpressRequest
+from coke.turn.inbound.express import ExpressOutputError, ExpressRequest
 from coke.turn.inbound.pending import PendingClarificationPort
 from coke.turn.inbound.plan import Planner, PlanRequest
 from coke.turn.inbound.plan_compile import compile_plan
@@ -117,7 +117,6 @@ class TurnPipeline:
             turn_id=request.turn_id,
             action_context=_action_context(request),
         )
-        staged_command_ids = _staged_command_ids(settled_outcome)
         resolves_pending_fingerprint = _resolved_pending_fingerprint(plan, pending)
 
         if (
@@ -126,32 +125,60 @@ class TurnPipeline:
         ):
             segments: tuple[str, ...] = ()
             streamed = False
-        elif staged_command_ids:
-            segments = self._express.render(_express_request(request, settled_outcome))
-            streamed = False
+            close_result = self._close_coordinator.commit(
+                CloseRequest(
+                    turn_id=request.turn_id,
+                    conversation_id=request.conversation_id,
+                    plan=plan,
+                    settled_outcome=settled_outcome,
+                    segments=segments,
+                    source_input_window=request.source_input_window,
+                    pending_expires_at=request.pending_expires_at,
+                ),
+                guard,
+            )
+            delivery_segments: tuple[str, ...] = ()
+            recovered = False
         else:
-            streamed_segments: list[str] = []
-            async for segment in self._express.render_streaming(
-                _express_request(request, settled_outcome)
-            ):
-                streamed_segments.append(segment)
-                delivery_port.deliver(request.turn_id, segment)
-            segments = tuple(streamed_segments)
-            streamed = True
-
-        close_result = self._close_coordinator.commit(
-            CloseRequest(
-                turn_id=request.turn_id,
-                conversation_id=request.conversation_id,
-                plan=plan,
-                settled_outcome=settled_outcome,
-                segments=segments,
-                selected_staged_command_ids=staged_command_ids,
-                source_input_window=request.source_input_window,
-                pending_expires_at=request.pending_expires_at,
-            ),
-            guard,
-        )
+            try:
+                streamed_segments: list[str] = []
+                async for segment in self._express.render_streaming(
+                    _express_request(request, settled_outcome)
+                ):
+                    streamed_segments.append(segment)
+                segments = tuple(streamed_segments)
+                streamed = True
+                close_result = self._close_coordinator.commit(
+                    CloseRequest(
+                        turn_id=request.turn_id,
+                        conversation_id=request.conversation_id,
+                        plan=plan,
+                        settled_outcome=settled_outcome,
+                        segments=segments,
+                        source_input_window=request.source_input_window,
+                        pending_expires_at=request.pending_expires_at,
+                    ),
+                    guard,
+                )
+                delivery_segments = segments
+                recovered = False
+            except ExpressOutputError:
+                segments = _recovery_segments_from_settled_outcome(settled_outcome)
+                streamed = False
+                close_result = self._close_coordinator.commit_recovery(
+                    CloseRequest(
+                        turn_id=request.turn_id,
+                        conversation_id=request.conversation_id,
+                        plan=plan,
+                        settled_outcome=settled_outcome,
+                        segments=segments,
+                        source_input_window=request.source_input_window,
+                        pending_expires_at=request.pending_expires_at,
+                    ),
+                    guard,
+                )
+                delivery_segments = segments
+                recovered = True
         if close_result.committed:
             if resolves_pending_fingerprint is not None:
                 self._pending_store.consume(
@@ -159,17 +186,16 @@ class TurnPipeline:
                     resolves_pending_fingerprint,
                     now=request.now,
                 )
-            if staged_command_ids:
-                for segment in segments:
-                    delivery_port.deliver(request.turn_id, segment)
+            for segment in delivery_segments:
+                delivery_port.deliver(request.turn_id, segment)
 
         return TurnPipelineResult(
             plan=plan,
             compiled_plan=compiled_plan,
             settled_outcome=close_result.settled_outcome,
-            segments=segments if close_result.committed or streamed else (),
+            segments=segments if close_result.committed else (),
             close_result=close_result,
-            streamed=streamed,
+            streamed=streamed and not recovered,
         )
 
 
@@ -226,14 +252,6 @@ def _express_request(
     )
 
 
-def _staged_command_ids(settled_outcome: SettledOutcome) -> tuple[str, ...]:
-    return tuple(
-        outcome.staged_command_id
-        for outcome in settled_outcome.outcomes
-        if outcome.staged_command_id
-    )
-
-
 def _resolved_pending_fingerprint(
     plan: TurnPlan,
     pending: PendingClarification | None,
@@ -255,3 +273,72 @@ def _pending_payload(pending: PendingClarification) -> dict[str, Any]:
         "expires_at": pending.expires_at.isoformat(),
         "status": pending.status,
     }
+
+
+def _recovery_segments_from_settled_outcome(
+    settled_outcome: SettledOutcome,
+) -> tuple[str, ...]:
+    return (_recovery_text_from_settled_outcome(settled_outcome),)
+
+
+def _recovery_text_from_settled_outcome(settled_outcome: SettledOutcome) -> str:
+    if not settled_outcome.outcomes:
+        return "我这边处理时正常回复失败了，请再说一次。"
+    if len(settled_outcome.outcomes) > 1:
+        return "我已经处理了这次请求，但正常回复失败了。请查看结果或再说一次。"
+
+    outcome = settled_outcome.outcomes[0]
+    summary = _outcome_summary(outcome.data)
+    suffix = f"：{summary}" if summary else ""
+    if outcome.status == "needs_past_time_confirmation":
+        return f"这个时间看起来已经过去了{suffix}。请确认是否仍要继续。"
+    if outcome.category == "done":
+        verb = _done_recovery_verb(outcome.status)
+        return f"我已经{verb}{suffix}。刚才正常回复失败了。"
+    if outcome.category in {"needs_choice", "needs_input", "needs_confirmation"}:
+        return f"还需要你确认或补充信息{suffix}。刚才正常回复失败了。"
+    if outcome.category == "not_possible":
+        return f"这次请求没有完成{suffix}。刚才正常回复失败了。"
+    return f"我已经处理了这次请求{suffix}。刚才正常回复失败了。"
+
+
+def _done_recovery_verb(status: str) -> str:
+    if status in {"created", "scheduled"}:
+        return "创建"
+    if status in {"updated", "rescheduled"}:
+        return "更新"
+    if status in {"cancelled", "deleted", "completed"}:
+        return "处理"
+    if status == "partial":
+        return "完成了部分操作"
+    return "完成"
+
+
+def _outcome_summary(data: Mapping[str, Any]) -> str | None:
+    parts: list[str] = []
+    for key in (
+        "content",
+        "title",
+        "text",
+        "summary",
+        "time_phrase",
+        "local_trigger_at",
+        "trigger_at",
+    ):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    if not parts:
+        reminder = data.get("reminder")
+        if isinstance(reminder, Mapping):
+            return _outcome_summary(reminder)
+    if not parts:
+        succeeded = data.get("succeeded")
+        if isinstance(succeeded, Sequence) and not isinstance(succeeded, str):
+            for item in succeeded:
+                if isinstance(item, Mapping):
+                    summary = _outcome_summary(item)
+                    if summary:
+                        parts.append(summary)
+                        break
+    return " ".join(dict.fromkeys(parts)) or None

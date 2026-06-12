@@ -22,6 +22,7 @@ from coke.turn.inbound.pipeline import (
     TurnPipelineRequest,
     _plan_request,
 )
+from coke.turn.inbound.express import ExpressOutputError
 from coke.turn.inbound.plan import PlanRequest, SiliconFlowPlanner
 
 
@@ -29,11 +30,6 @@ from coke.turn.inbound.plan import PlanRequest, SiliconFlowPlanner
 class FakeDisposition:
     disposition: str
     reason_code: str
-
-
-@dataclass(frozen=True, slots=True)
-class FakeStagedCommand:
-    id: str
 
 
 class StaticPlanner:
@@ -75,10 +71,13 @@ class StaticHandler:
         self.events = events
         self.calls: list[CompiledAction] = []
 
-    def resolve_and_stage(
+    def execute(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         self.events.append(f"execute:{compiled_action.action.operation}")  # type: ignore[union-attr]
         self.calls.append(compiled_action)
@@ -103,6 +102,24 @@ class RecordingExpress:
         for segment in self.segments:
             self.events.append(f"stream_segment:{segment}")
             yield segment
+
+
+class FailingExpress:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.render_calls: list[Any] = []
+        self.stream_calls: list[Any] = []
+
+    def render(self, request: Any) -> tuple[str, ...]:
+        self.events.append("express_render")
+        self.render_calls.append(request)
+        raise ExpressOutputError("invalid Express output")
+
+    async def render_streaming(self, request: Any):
+        self.events.append("express_stream")
+        self.stream_calls.append(request)
+        raise ExpressOutputError("invalid Express output")
+        yield  # pragma: no cover
 
 
 class RecordingDelivery(SegmentDeliveryPort):
@@ -131,11 +148,9 @@ class RecordingClosePort:
         self,
         events: list[str],
         *,
-        staged_commands: Sequence[FakeStagedCommand] = (),
         existing_disposition: str | None = None,
     ) -> None:
         self.events = events
-        self.staged_commands = tuple(staged_commands)
         self.existing_disposition = existing_disposition
         self.calls: list[tuple[str, str, tuple[str, ...], str]] = []
 
@@ -148,9 +163,6 @@ class RecordingClosePort:
     ) -> FakeDisposition:
         self.events.append("commit_reply")
         self.calls.append(("reply", turn_id, tuple(segments), reason_code))
-        for command in self.staged_commands:
-            if materialize_staged_command is not None:
-                materialize_staged_command(command)
         return FakeDisposition(disposition="replied", reason_code=reason_code)
 
     def commit_no_reply(
@@ -161,10 +173,17 @@ class RecordingClosePort:
     ) -> FakeDisposition:
         self.events.append("commit_no_reply")
         self.calls.append(("no_reply", turn_id, (), reason_code))
-        for command in self.staged_commands:
-            if materialize_staged_command is not None:
-                materialize_staged_command(command)
         return FakeDisposition(disposition="no_reply", reason_code=reason_code)
+
+    def commit_recovery_reply(
+        self,
+        turn_id: str,
+        segments: Sequence[str],
+        reason_code: str = "grounded_failure_recovery",
+    ) -> FakeDisposition:
+        self.events.append("commit_recovery_reply")
+        self.calls.append(("recovery", turn_id, tuple(segments), reason_code))
+        return FakeDisposition(disposition="recovered", reason_code=reason_code)
 
 
 def test_plan_request_and_planner_payload_preserve_conversation_history() -> None:
@@ -254,20 +273,16 @@ async def test_read_only_turn_streams_segments_and_then_closes() -> None:
         "execute:list",
         "express_stream",
         "stream_segment:Here is your reminder.",
-        "deliver:Here is your reminder.",
         "guard:turn-1",
         "commit_reply",
+        "deliver:Here is your reminder.",
     ]
 
 
 @pytest.mark.asyncio
 async def test_mutating_turn_buffers_until_after_close_commit() -> None:
     events: list[str] = []
-    materialized: list[str] = []
-    close_port = RecordingClosePort(
-        events,
-        staged_commands=(FakeStagedCommand(id="stage-1"),),
-    )
+    close_port = RecordingClosePort(events)
     delivery = RecordingDelivery(events)
     pipeline = TurnPipeline(
         planner=StaticPlanner(
@@ -290,40 +305,29 @@ async def test_mutating_turn_buffers_until_after_close_commit() -> None:
                 ActionOutcome(
                     category="done",
                     status="created",
-                    staged_command_id="stage-1",
+                    data={"content": "drink water"},
                 ),
                 events,
             )
         },
         express=RecordingExpress(("Created it.",), events),
-        close_coordinator=CloseCoordinator(
-            close_port,
-            materialize_staged_command=lambda command: materialized.append(command.id),
-        ),
+        close_coordinator=CloseCoordinator(close_port),
         pending_store=InMemoryPendingClarificationStore(),
         delivery=delivery,
     )
 
     result = await pipeline.run(_pipeline_request(), RecordingGuard(events))
 
-    assert result.streamed is False
+    assert result.streamed is True
     assert result.segments == ("Created it.",)
-    assert materialized == ["stage-1"]
     assert delivery.segments == ["Created it."]
     assert events.index("deliver:Created it.") > events.index("commit_reply")
-    assert "express_stream" not in events
 
 
 @pytest.mark.asyncio
-async def test_supersede_before_mutating_commit_delivers_and_materializes_nothing() -> (
-    None
-):
+async def test_supersede_before_mutating_commit_delivers_nothing() -> None:
     events: list[str] = []
-    materialized: list[str] = []
-    close_port = RecordingClosePort(
-        events,
-        staged_commands=(FakeStagedCommand(id="stage-1"),),
-    )
+    close_port = RecordingClosePort(events)
     delivery = RecordingDelivery(events)
     pipeline = TurnPipeline(
         planner=StaticPlanner(
@@ -346,16 +350,13 @@ async def test_supersede_before_mutating_commit_delivers_and_materializes_nothin
                 ActionOutcome(
                     category="done",
                     status="created",
-                    staged_command_id="stage-1",
+                    data={"content": "drink water"},
                 ),
                 events,
             )
         },
         express=RecordingExpress(("Created it.",), events),
-        close_coordinator=CloseCoordinator(
-            close_port,
-            materialize_staged_command=lambda command: materialized.append(command.id),
-        ),
+        close_coordinator=CloseCoordinator(close_port),
         pending_store=InMemoryPendingClarificationStore(),
         delivery=delivery,
     )
@@ -368,8 +369,73 @@ async def test_supersede_before_mutating_commit_delivers_and_materializes_nothin
     assert result.close_result.committed is False
     assert result.close_result.reason_code == "turn_superseded"
     assert delivery.segments == []
-    assert materialized == []
     assert close_port.calls == []
+
+
+@pytest.mark.asyncio
+async def test_express_failure_recovers_from_real_settled_outcome() -> None:
+    events: list[str] = []
+    close_port = RecordingClosePort(events)
+    delivery = RecordingDelivery(events)
+    pipeline = TurnPipeline(
+        planner=StaticPlanner(
+            TurnPlan(
+                actions=(
+                    ProposedAction(
+                        domain="reminder",
+                        operation="create",
+                        params={
+                            "content": "drink water",
+                            "time_phrase": "tomorrow morning",
+                        },
+                    ),
+                ),
+            ),
+            events,
+        ),
+        handlers={
+            "reminder": StaticHandler(
+                ActionOutcome(
+                    category="done",
+                    status="created",
+                    data={"content": "drink water"},
+                ),
+                events,
+            )
+        },
+        express=FailingExpress(events),
+        close_coordinator=CloseCoordinator(close_port),
+        pending_store=InMemoryPendingClarificationStore(),
+        delivery=delivery,
+    )
+
+    result = await pipeline.run(_pipeline_request(), RecordingGuard(events))
+
+    assert result.close_result.committed is True
+    assert result.close_result.disposition == FakeDisposition(
+        disposition="recovered",
+        reason_code="grounded_failure_recovery",
+    )
+    assert result.segments
+    assert "drink water" in result.segments[0]
+    assert "已经" in result.segments[0]
+    assert delivery.segments == list(result.segments)
+    assert close_port.calls == [
+        (
+            "recovery",
+            "turn-1",
+            result.segments,
+            "grounded_failure_recovery",
+        )
+    ]
+    assert events == [
+        "plan",
+        "execute:create",
+        "express_stream",
+        "guard:turn-1",
+        "commit_recovery_reply",
+        f"deliver:{result.segments[0]}",
+    ]
 
 
 @pytest.mark.asyncio
@@ -463,10 +529,7 @@ async def test_next_turn_resolution_consumes_pending_by_fingerprint() -> None:
         ),
         events,
     )
-    close_port = RecordingClosePort(
-        events,
-        staged_commands=(FakeStagedCommand(id="stage-1"),),
-    )
+    close_port = RecordingClosePort(events)
     pipeline = TurnPipeline(
         planner=planner,
         handlers={
@@ -474,7 +537,6 @@ async def test_next_turn_resolution_consumes_pending_by_fingerprint() -> None:
                 ActionOutcome(
                     category="done",
                     status="cancelled",
-                    staged_command_id="stage-1",
                 ),
                 events,
             )
@@ -529,13 +591,9 @@ async def test_intentional_no_reply_uses_close_without_streaming_or_segments() -
 
 
 @pytest.mark.asyncio
-async def test_staged_action_overrides_planner_no_reply_and_delivers_reply() -> None:
+async def test_action_outcome_overrides_planner_no_reply_and_delivers_reply() -> None:
     events: list[str] = []
-    materialized: list[str] = []
-    close_port = RecordingClosePort(
-        events,
-        staged_commands=(FakeStagedCommand(id="stage-1"),),
-    )
+    close_port = RecordingClosePort(events)
     delivery = RecordingDelivery(events)
     pipeline = TurnPipeline(
         planner=StaticPlanner(
@@ -556,25 +614,20 @@ async def test_staged_action_overrides_planner_no_reply_and_delivers_reply() -> 
                 ActionOutcome(
                     category="done",
                     status="rescheduled",
-                    staged_command_id="stage-1",
                 ),
                 events,
             )
         },
         express=RecordingExpress(("Updated it.",), events),
-        close_coordinator=CloseCoordinator(
-            close_port,
-            materialize_staged_command=lambda command: materialized.append(command.id),
-        ),
+        close_coordinator=CloseCoordinator(close_port),
         pending_store=InMemoryPendingClarificationStore(),
         delivery=delivery,
     )
 
     result = await pipeline.run(_pipeline_request(), RecordingGuard(events))
 
-    assert result.streamed is False
+    assert result.streamed is True
     assert result.segments == ("Updated it.",)
-    assert materialized == ["stage-1"]
     assert delivery.segments == ["Updated it."]
     assert close_port.calls == [("reply", "turn-1", ("Updated it.",), "reply_ready")]
     assert "commit_no_reply" not in events
