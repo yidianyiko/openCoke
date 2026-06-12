@@ -1362,6 +1362,31 @@ and let `upsert_route` repair/reuse an existing active route when the
 account/channel/provider/address identity matches and only the route key is
 stale.
 
+Follow-up deployment and live-send evidence:
+
+- Route-key fix commit: `815f0bb6 fix(channel): canonicalize delivery route keys`.
+- Clean backend deploy marker after the route-key fix:
+  `815f0bb64a7101950ef2c5cbc49f151c4aaba614`.
+- First post-deploy active send
+  `manual-eva-connectivity-20260612T161854Z` repaired Eva's stale route key but
+  failed quickly with `delivery_attempt.status=failed` and
+  `error_code=wechat_not_connected`.
+- That second failure was not a stuck-message condition. The personal-WeChat
+  connector held the connected session account id as dashed UUID
+  `55d922f5-5dae-47b4-820b-e6ea0ac04794`, while Coke sent the compact UUID
+  `55d922f55dae47b4820be6ea0ac04794`; the connector compared the strings
+  directly and falsely rejected the session as disconnected.
+- Connector fix commit:
+  `29a78d6e fix(wechat): match connector account UUIDs canonically`.
+- Connector deploy rebuilt and restarted compose project
+  `wechat-personal-connector`; `/healthz` returned
+  `{"connected":true,"connected_session_count":3,"ok":true,"status":"connected"}`.
+- Final active send
+  `manual-eva-connectivity-20260612T162724Z` succeeded with
+  `delivery_attempt.status=sent`,
+  `provider_message_id=coke-1781281651063-8e8b7da2e620`, route
+  `1eca0551-4099-4606-b8dd-a64a63c2f5da`, and `latency_ms=871`.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The
