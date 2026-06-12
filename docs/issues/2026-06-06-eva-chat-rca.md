@@ -3,7 +3,7 @@ kind: investigation
 status: open
 title: Eva 2026-06-06 chat root-cause analysis
 created_at: 2026-06-06
-updated_at: 2026-06-07
+updated_at: 2026-06-12
 surface:
   - clean-rebuild
   - conversation-runtime
@@ -1106,9 +1106,65 @@ accepted one inbound reminder request with eva's current connector context token
 Evidence is saved under
 `artifacts/evidence/2026-06-07-eva-reply-fix-deploy/`.
 
+## 2026-06-12 Eva Open-Window State Reset
+
+On `2026-06-12`, Eva again appeared unable to receive replies. Production
+inspection showed this was not a provider outage, outbox stall, active worker
+turn, or Redis lock:
+
+- clean stack health was OK and `coke-api` was healthy;
+- Eva's account/channel/route were active and connected;
+- Eva was the only conversation with an open input window;
+- no active Eva turn existed;
+- recent Eva inbound outbox rows were `published`, `processed`, and `acked`.
+
+The stuck conversation state was:
+
+- account `94566791-4d39-4b28-9d9f-367c1ed0be2c`;
+- conversation `50425626-97b2-4056-b493-99aa738ba171`;
+- before reset: `last_closed_inbound_seq=69`, `latest_inbound_seq=72`;
+- inbound `70`: `王五今天什么时候有空？`;
+- inbound `71`: `今天8-9给我建立一个运动的日程`;
+- inbound `72`: `hey`.
+
+The window `70..72` had already been processed repeatedly, but each replacement
+turn completed with `output_disposition.disposition='failed'` and
+`reason_code='needs_past_time_confirmation'`:
+
+- turn `979d2444-e39d-4cfa-b1e8-5ca5a8ec0ba2`, input `70..71`;
+- recovery turn `3e4ceba8-6b4c-4031-8758-6178929d8020`, input `70..71`;
+- turn `42dbde86-2656-4db5-b722-de8d4a05d572`, input `70..72`.
+
+Because `failed` is an audit terminal state rather than an input-window close
+decision, `last_closed_inbound_seq` stayed at `69`. Every new Eva message was
+therefore coalesced with the stale `70..latest` window and retriggered the same
+past-time failure.
+
+Operational repair was a scoped conversation reset:
+
+```sql
+UPDATE conversation
+SET last_closed_inbound_seq = latest_inbound_seq,
+    updated_at = now()
+WHERE id = '50425626-97b2-4056-b493-99aa738ba171'
+  AND account_id = '94566791-4d39-4b28-9d9f-367c1ed0be2c'
+  AND last_closed_inbound_seq = 69
+  AND latest_inbound_seq = 72;
+```
+
+The update affected exactly one row. Post-reset verification showed Eva at
+`last_closed_inbound_seq=72`, `latest_inbound_seq=72`, no remaining open input
+windows, and no active Eva turns.
+
+Follow-up product/runtime bug: `needs_past_time_confirmation` and similar
+needs-confirmation settled outcomes must produce a user-visible close decision
+(`replied` or `recovered`) instead of leaving the conversation in a repeating
+`failed` window.
+
 ## Current Status
 
-Open for the broader Eva RCA tracks that were outside this workstream. The
+Open for the broader Eva RCA tracks that were outside this workstream, plus the
+2026-06-12 open-window close bug described above. The
 specific no-reply deploy slice above is verified in production: fenced-JSON turn
 normalization and relay-to-connector reachability are deployed, and eva's real
 wechat_personal turn path produced a sent reply. On `2026-06-07`, the local issue
