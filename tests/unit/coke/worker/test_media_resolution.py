@@ -113,7 +113,6 @@ class FakeConversationRuntimeService:
         self,
         turn_id,
         reason_code="intentional_no_reply",
-        materialize_staged_command=None,
     ):
         self.no_reply_calls.append({"turn_id": turn_id, "reason_code": reason_code})
         return OutputDisposition(

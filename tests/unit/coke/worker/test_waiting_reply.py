@@ -102,27 +102,13 @@ def test_waiting_reply_dispatches_after_budget_and_final_reply_can_still_close()
     assert delivery.requests[0].context_token_source == "latest_inbound_message"
     assert delivery.requests[0].context_token_age_seconds == 21
 
-    staged = service.stage_command(
-        turn_id=turn.id,
-        domain="social_scheduling",
-        operation="create_shared_reminder",
-        command_payload={
-            "title": "music lesson",
-            "local_trigger_at": "2026-06-01T22:30:00+08:00",
-        },
-        preview_facts={"status": "staged"},
-        item_index=0,
-    )
-    materialized = []
     final = service.commit_reply(
         turn.id,
         segments=("final answer",),
-        materialize_staged_command=materialized.append,
     )
 
     assert final.disposition == "replied"
     assert service.get_disposition(turn.id).disposition == "replied"
-    assert materialized == [staged]
 
 
 def test_waiting_reply_failed_provider_network_error_keeps_turn_active_and_observable(
@@ -148,7 +134,7 @@ def test_waiting_reply_failed_provider_network_error_keeps_turn_active_and_obser
         trigger_type="InboundTurn",
         mode="interactive",
     ).turn
-    staged = service.stage_command(
+    service.stage_command(
         turn_id=turn.id,
         domain="social_scheduling",
         operation="create_shared_reminder",
@@ -193,15 +179,13 @@ def test_waiting_reply_failed_provider_network_error_keeps_turn_active_and_obser
     assert (
         service.repository.outbound_messages_for_turn(turn.id)[0].text == WAITING_TEXT
     )
-    materialized = []
     final = service.commit_reply(
         turn.id,
         segments=("final answer",),
-        materialize_staged_command=materialized.append,
     )
 
     assert final.disposition == "replied"
-    assert materialized == [staged]
+    assert repository.staged_commands_for_turn(turn.id)[0].status == "staged"
 
 
 def test_waiting_reply_context_token_failure_does_not_retry():

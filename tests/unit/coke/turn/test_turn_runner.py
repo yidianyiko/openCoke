@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from datetime import UTC, datetime
 from itertools import count
 from types import SimpleNamespace
@@ -20,6 +21,11 @@ from coke.turn.runner import TurnRunner
 
 NOW = datetime(2026, 5, 30, 10, 0, tzinfo=UTC)
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+
+def test_turn_runner_constructor_has_no_staged_materializer_wiring() -> None:
+    signature = inspect.signature(TurnRunner)
+    assert "staged_command_materializer" not in signature.parameters
 
 
 class MutableClock:

@@ -403,7 +403,6 @@ class TurnRunner:
         reference_resolver: ReferenceResolver | None = None,
         delivery_lifecycle: DeliveryLifecyclePort | None = None,
         reminder_fire_facts: ReminderFireFactsPort | None = None,
-        staged_command_materializer: Any | None = None,
         social_scheduling_service: Any | None = None,
         now: Callable[[], datetime] | None = None,
         account_timezone: Callable[[str], str | None] | None = None,
@@ -424,7 +423,6 @@ class TurnRunner:
         self.outbound_delivery = outbound_delivery
         self.delivery_lifecycle = delivery_lifecycle
         self.reminder_fire_facts = reminder_fire_facts
-        self.staged_command_materializer = staged_command_materializer
         self.social_scheduling_service = social_scheduling_service
         self.turn_pipeline = turn_pipeline
         self.tool_ports = tool_ports or AgentToolPorts()
@@ -1342,12 +1340,6 @@ class TurnRunner:
         validated = self.output_protocol.validate_first_answer(output)
         social_outcomes = _social_scheduling_outcomes_from_tool_events(tool_events)
         claim_required = _requires_social_scheduling_claim(request)
-        if (
-            claim_required
-            and not social_outcomes
-            and self._has_current_turn_social_scheduling_create_stage(request.turn_id)
-        ):
-            claim_required = False
         validated = self.output_protocol.validate_social_scheduling_claim(
             validated,
             outcomes=social_outcomes,
@@ -1385,25 +1377,6 @@ class TurnRunner:
 
         return exists
 
-    def _has_current_turn_social_scheduling_create_stage(self, turn_id: str) -> bool:
-        repository = getattr(self.conversation_runtime, "repository", None)
-        staged_commands_for_turn = getattr(repository, "staged_commands_for_turn", None)
-        if not callable(staged_commands_for_turn):
-            return False
-        for command in staged_commands_for_turn(turn_id):
-            if (
-                getattr(command, "status", None) == "staged"
-                and getattr(command, "domain", None) == "social_scheduling"
-                and getattr(command, "operation", None)
-                in {
-                    "create_shared_reminder",
-                    "detect_and_create_shared_reminder",
-                    "update_shared_reminder",
-                }
-            ):
-                return True
-        return False
-
     async def _acquire_conversation_lock_async(self, conversation_id: str):
         while True:
             lock = self.lock_manager.acquire(conversation_id)
@@ -1434,7 +1407,6 @@ class TurnRunner:
         disposition = self.conversation_runtime.mark_pending_async_reply(
             turn_id=context.freshness_guard.turn_id,
             reason_code="sync_timeout",
-            materialize_staged_command=self._materialize_staged_command,
         )
         waiting_message = self.conversation_runtime.record_outbound_message(
             context.freshness_guard.turn_id,
@@ -1577,7 +1549,6 @@ class TurnRunner:
             disposition = self.conversation_runtime.commit_no_reply(
                 turn_id=turn_id,
                 reason_code="intentional_no_reply",
-                materialize_staged_command=self._materialize_staged_command,
             )
             self._record_render_failure_lifecycle(
                 trigger,
@@ -1598,7 +1569,6 @@ class TurnRunner:
             turn_id=turn_id,
             segments=segments,
             reason_code=validated.reason_code or "reply_ready",
-            materialize_staged_command=self._materialize_staged_command,
         )
         self._commit_close_boundary()
         visible_text = "\n".join(segments)
@@ -1663,15 +1633,6 @@ class TurnRunner:
 
     def _commit_claim_boundary(self) -> None:
         self._claim_boundary_committer()
-
-    def _materialize_staged_command(self, command) -> None:
-        if self.staged_command_materializer is None:
-            raise ConversationRuntimeError("staged_command_materializer_missing")
-        guard = FreshnessGuard(
-            conversation_runtime=self.conversation_runtime,
-            turn_id=command.turn_id,
-        )
-        self.staged_command_materializer.materialize(command, guard)
 
     def _replayed_result(
         self,
@@ -1969,7 +1930,6 @@ def _social_scheduling_outcome_model(
         outcome_id=str(outcome.get("outcome_id") or ""),
         operation=str(outcome.get("operation") or ""),
         status=str(outcome.get("status") or "invalid"),  # type: ignore[arg-type]
-        staged_command_id=_optional_str(outcome.get("staged_command_id")),
         shared_reminder_id=_optional_str(outcome.get("shared_reminder_id")),
         title=_optional_str(outcome.get("title")),
         local_trigger_at=local_trigger_at,
