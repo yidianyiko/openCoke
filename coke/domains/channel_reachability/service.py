@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from time import monotonic
 from typing import Protocol, TypeVar
+from uuid import UUID
 from uuid import uuid4
 
 from coke.domains.channel_reachability.models import (
@@ -618,8 +619,19 @@ def _delivery_route_key(
     provider_type: str,
     provider_subject: str,
 ) -> str:
-    material = f"{channel_id}\0{provider_type}\0{provider_subject}".encode("utf-8")
+    material = (
+        f"{_route_key_id(channel_id)}\0{provider_type}\0{provider_subject}".encode(
+            "utf-8"
+        )
+    )
     return f"delivery-route:{sha256(material).hexdigest()}"
+
+
+def _route_key_id(value: str) -> str:
+    try:
+        return UUID(str(value)).hex
+    except ValueError:
+        return str(value)
 
 
 def _optional_response_str(response: object, field: str) -> str | None:

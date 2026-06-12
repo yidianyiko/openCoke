@@ -130,3 +130,25 @@ def test_retire_routes_for_channel(repository) -> None:
     retired = repository.get_route(route.id)
     assert retired.lifecycle == "removed"
     assert repository.get_active_route_for_channel(CHANNEL_A) is None
+
+
+def test_upsert_route_repairs_stale_key_for_same_active_channel(repository) -> None:
+    repository.add_channel(_channel())
+    stale = repository.upsert_route(_route())
+
+    repaired = repository.upsert_route(
+        replace(
+            stale,
+            id="21000000000000000000000000000002",
+            route_key="route:canonical-channel-a",
+            updated_at=NOW,
+        )
+    )
+
+    assert repaired.id == stale.id
+    assert repaired.route_key == "route:canonical-channel-a"
+    assert repository.get_route(stale.id).route_key == "route:canonical-channel-a"
+    assert (
+        repository.get_active_route_for_channel(CHANNEL_A).route_key
+        == "route:canonical-channel-a"
+    )

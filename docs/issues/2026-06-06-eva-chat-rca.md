@@ -1333,6 +1333,35 @@ Deploy evidence:
   rejected connector delivery was already absent from Coke's durable message
   table, so the fix applies to the next real webhook delivery.
 
+## 2026-06-13 Eva Outbound Route-Key Rejection
+
+After the webhook UUID fix, a manual active outbound test for
+`eva@potaristudio.com` still failed before reaching the personal-WeChat
+connector. Production evidence:
+
+- Eva's new account, `channel_identity`, active `channel`, and active
+  `delivery_route` were present and connected;
+- the connector session `860c1bbf61ea4b02aca54fb9bcb1ff3e` was connected and
+  had a context token for wxid
+  `o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat`;
+- `ChannelReachabilityService.send_text(...)` failed in
+  `resolve_route -> upsert_route` with:
+
+```text
+ValueError: duplicate_active_route_for_channel
+```
+
+The route row existed, but its `route_key` had been generated from the dashed
+channel UUID. Runtime domain objects loaded through `db_id` use compact UUID
+strings, so `send_text` recomputed a different route key, failed to find the
+existing active route by key, then tried to create a second active route for the
+same channel.
+
+Fix direction: make delivery route keys canonicalize UUID inputs before hashing,
+and let `upsert_route` repair/reuse an existing active route when the
+account/channel/provider/address identity matches and only the route key is
+stale.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The

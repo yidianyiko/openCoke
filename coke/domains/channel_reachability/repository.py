@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -125,6 +126,22 @@ class InMemoryChannelReachabilityRepository:
             raise ValueError("duplicate_delivery_route_id")
         active_for_channel = self.get_active_route_for_channel(route.channel_id)
         if active_for_channel is not None:
+            if _same_route_identity(route, active_for_channel):
+                updated = DeliveryRoute(
+                    id=active_for_channel.id,
+                    account_id=active_for_channel.account_id,
+                    channel_id=active_for_channel.channel_id,
+                    provider_type=active_for_channel.provider_type,
+                    provider_address=active_for_channel.provider_address,
+                    route_key=route.route_key,
+                    lifecycle="active",
+                    created_at=active_for_channel.created_at,
+                    updated_at=route.updated_at,
+                )
+                self.routes_by_key.pop(active_for_channel.route_key, None)
+                self.routes_by_id[updated.id] = updated
+                self.routes_by_key[updated.route_key] = updated
+                return updated
             raise ValueError("duplicate_active_route_for_channel")
         self.routes_by_id[route.id] = route
         self.routes_by_key[route.route_key] = route
@@ -255,7 +272,14 @@ class PostgresChannelReachabilityRepository:
             return updated
         if self.get_route(route.id) is not None:
             raise ValueError("duplicate_delivery_route_id")
-        if self.get_active_route_for_channel(route.channel_id) is not None:
+        active = self.get_active_route_for_channel(route.channel_id)
+        if active is not None:
+            if _same_route_identity(route, active):
+                updated = replace(
+                    active, route_key=route.route_key, updated_at=route.updated_at
+                )
+                self._save_route(updated)
+                return updated
             raise ValueError("duplicate_active_route_for_channel")
         insert_row(
             self.session,
@@ -409,6 +433,22 @@ def _route(row: Mapping) -> DeliveryRoute:
         row["created_at"],
         row["updated_at"],
     )
+
+
+def _same_route_identity(left: DeliveryRoute, right: DeliveryRoute) -> bool:
+    return (
+        _same_identifier(left.account_id, right.account_id)
+        and _same_identifier(left.channel_id, right.channel_id)
+        and left.provider_type == right.provider_type
+        and left.provider_address == right.provider_address
+    )
+
+
+def _same_identifier(left: str, right: str) -> bool:
+    try:
+        return UUID(str(left)).hex == UUID(str(right)).hex
+    except ValueError:
+        return str(left) == str(right)
 
 
 def _attempt_values(attempt: DeliveryAttempt) -> dict:

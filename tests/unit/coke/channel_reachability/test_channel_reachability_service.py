@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from itertools import count
 from uuid import UUID
@@ -15,7 +16,10 @@ from coke.domains.channel_reachability.models import (
 from coke.domains.channel_reachability.repository import (
     InMemoryChannelReachabilityRepository,
 )
-from coke.domains.channel_reachability.service import ChannelReachabilityService
+from coke.domains.channel_reachability.service import (
+    ChannelReachabilityService,
+    _delivery_route_key,
+)
 from coke.domains.identity_access.repository import InMemoryIdentityAccessRepository
 from coke.domains.identity_access.service import IdentityAccessService
 from coke.domains.social_scheduling.availability import ReminderAvailabilityPort
@@ -972,6 +976,45 @@ def test_route_key_is_bounded_for_max_schema_provider_subject(
     assert provider_subject not in route.route_key
     assert second_route.id == route.id
     assert second_route.route_key == route.route_key
+
+
+def test_route_key_canonicalizes_uuid_string_forms():
+    provider_subject = "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+
+    assert _delivery_route_key(
+        "8f4d5482-cea8-4b42-9204-38e7298025d5",
+        "wechat_personal",
+        provider_subject,
+    ) == _delivery_route_key(
+        "8f4d5482cea84b42920438e7298025d5",
+        "wechat_personal",
+        provider_subject,
+    )
+
+
+def test_send_text_repairs_stale_route_key_for_existing_active_channel(
+    identity_service,
+    reachability,
+):
+    account, identity = verified_web_account(identity_service)
+    service, adapter = reachability
+    channel = service.create_channel(
+        account.id, "whatsapp_evolution", identity.id, removable=True
+    )
+    service.mark_connected(account.id, channel.id)
+    route = service.resolve_route(account.id)
+    stale_route = replace(route, route_key="delivery-route:legacy-dashed-key")
+    service.repository.routes_by_key.pop(route.route_key)
+    service.repository.routes_by_key[stale_route.route_key] = stale_route
+    service.repository.routes_by_id[stale_route.id] = stale_route
+
+    attempt = service.send_text(account.id, "hello", "idem_stale_route")
+
+    repaired = service.repository.get_active_route_for_channel(channel.id)
+    assert attempt.status == "sent"
+    assert repaired.id == route.id
+    assert repaired.route_key == route.route_key
+    assert adapter.calls == [(route.id, "hello", "idem_stale_route")]
 
 
 def test_mark_connected_missing_activation_maps_error_without_connection_write(
