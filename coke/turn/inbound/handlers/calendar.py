@@ -16,10 +16,13 @@ class CalendarImportActionHandler:
     def __init__(self, calendar_import_service: CalendarImportService) -> None:
         self.calendar_import_service = calendar_import_service
 
-    def resolve_and_stage(
+    def execute(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         action = compiled_action.action
         if action is None:
@@ -72,29 +75,10 @@ class CalendarImportActionHandler:
             return _calendar_error_outcome(error)
         data = _summary_data(summary)
         status = "partial" if summary.failed_count > 0 else "imported"
-        staged_id = _stage_calendar_command(
-            guard,
-            command_payload={
-                "operation": "import_google_calendar",
-                "account_id": account_id,
-                "auth_handle": auth_handle,
-                "provider_account_id": params.get("provider_account_id"),
-                "visible_start": visible_start,
-                "visible_end": visible_end,
-                "captured_timezone": captured_timezone,
-                "auth_artifact_id": params.get("auth_artifact_id"),
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "import_google_calendar",
-                "account_id": account_id,
-            },
-        )
         return ActionOutcome(
             category="done",
             status=status,
             data=data,
-            staged_command_id=staged_id,
         )
 
 
@@ -119,29 +103,6 @@ def _calendar_error_outcome(error: BaseException) -> ActionOutcome:
         category="not_possible",
         status=str(error) or "calendar_import_failed",
     )
-
-
-def _stage_calendar_command(
-    guard: Any,
-    *,
-    command_payload: Mapping[str, Any],
-    preview_facts: Mapping[str, Any],
-) -> str | None:
-    stage_command = getattr(guard, "stage_command", None)
-    if not callable(stage_command):
-        return None
-    staged = stage_command(
-        domain="calendar_import",
-        operation="import_google_calendar",
-        command_payload={
-            key: value
-            for key, value in dict(command_payload).items()
-            if value is not None
-        },
-        preview_facts=dict(preview_facts),
-        item_index=1,
-    )
-    return getattr(staged, "id", None)
 
 
 def _optional_datetime(value: Any) -> datetime | None:

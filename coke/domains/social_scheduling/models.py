@@ -24,7 +24,6 @@ SocialSchedulingOutcomeStatus = Literal[
     "needs_past_time_confirmation",
     "needs_incomplete_date_clarification",
     "invalid",
-    "staged_pending_close",
 ]
 SocialSchedulingClaim = Literal[
     "active_created",
@@ -152,7 +151,6 @@ class SocialSchedulingOutcome:
     outcome_id: str
     operation: str
     status: SocialSchedulingOutcomeStatus
-    staged_command_id: str | None = None
     shared_reminder_id: str | None = None
     title: str | None = None
     local_trigger_at: datetime | None = None

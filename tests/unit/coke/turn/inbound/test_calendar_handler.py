@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from typing import Any
 
 from coke.domains.calendar_import.models import (
@@ -47,7 +46,7 @@ class RecordingGuard:
 
     def stage_command(self, **kwargs: Any) -> Any:
         self.staged.append(kwargs)
-        return SimpleNamespace(id=f"stage-{len(self.staged)}")
+        raise AssertionError("calendar import handler must not stage commands")
 
 
 def _compiled(params: dict[str, Any]) -> CompiledAction:
@@ -58,11 +57,25 @@ def _compiled(params: dict[str, Any]) -> CompiledAction:
     )
 
 
+def _execute_handler(
+    handler: CalendarImportActionHandler,
+    compiled: CompiledAction,
+    guard: RecordingGuard,
+) -> ActionOutcome:
+    return handler.execute(
+        compiled,
+        guard,
+        action_index=0,
+        turn_id="turn-1",
+    )
+
+
 def test_import_success_maps_counts_and_stages_google_import() -> None:
     service = StubCalendarImportService()
     guard = RecordingGuard()
 
-    outcome = CalendarImportActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        CalendarImportActionHandler(service),
         _compiled(
             {
                 "account_id": "acct-1",
@@ -86,7 +99,6 @@ def test_import_success_maps_counts_and_stages_google_import() -> None:
             "downgraded": 0,
             "failed": 0,
         },
-        staged_command_id="stage-1",
     )
     assert service.calls == [
         (
@@ -102,9 +114,6 @@ def test_import_success_maps_counts_and_stages_google_import() -> None:
             },
         )
     ]
-    assert guard.staged[0]["domain"] == "calendar_import"
-    assert guard.staged[0]["operation"] == "import_google_calendar"
-    assert guard.staged[0]["command_payload"]["operation"] == "import_google_calendar"
 
 
 def test_import_with_failed_count_maps_partial_and_preserves_counts() -> None:
@@ -121,7 +130,8 @@ def test_import_with_failed_count_maps_partial_and_preserves_counts() -> None:
     )
     guard = RecordingGuard()
 
-    outcome = CalendarImportActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        CalendarImportActionHandler(service),
         _compiled(
             {
                 "account_id": "acct-1",
@@ -143,14 +153,14 @@ def test_import_with_failed_count_maps_partial_and_preserves_counts() -> None:
         "downgraded": 1,
         "failed": 3,
     }
-    assert outcome.staged_command_id == "stage-1"
 
 
 def test_import_missing_auth_handle_needs_input_without_service_or_stage() -> None:
     service = StubCalendarImportService()
     guard = RecordingGuard()
 
-    outcome = CalendarImportActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        CalendarImportActionHandler(service),
         _compiled(
             {
                 "account_id": "acct-1",
@@ -179,7 +189,8 @@ def test_import_access_denied_is_not_possible_without_stage() -> None:
     )
     guard = RecordingGuard()
 
-    outcome = CalendarImportActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        CalendarImportActionHandler(service),
         _compiled(
             {
                 "account_id": "acct-1",
@@ -204,7 +215,8 @@ def test_import_unsupported_source_is_not_possible_without_service_or_stage() ->
     service = StubCalendarImportService()
     guard = RecordingGuard()
 
-    outcome = CalendarImportActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        CalendarImportActionHandler(service),
         _compiled(
             {
                 "account_id": "acct-1",

@@ -20,10 +20,13 @@ class FriendshipActionHandler:
     def __init__(self, social_scheduling_service: SocialSchedulingService) -> None:
         self.social_scheduling_service = social_scheduling_service
 
-    def resolve_and_stage(
+    def execute(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         action = compiled_action.action
         if action is None:
@@ -61,24 +64,10 @@ class FriendshipActionHandler:
             )
         except (SocialSchedulingError, ValueError) as error:
             return _friend_error_outcome(error)
-        staged_id = _stage_social_command(
-            guard,
-            operation="get_friend_link",
-            command_payload={
-                "operation": "get_friend_link",
-                "owner_account_id": account_id,
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "get_friend_link",
-                "account_id": account_id,
-            },
-        )
         return ActionOutcome(
             category="done",
             status="link",
             data=_friend_link_facts(link),
-            staged_command_id=staged_id,
         )
 
     def _add_via_code(
@@ -105,22 +94,6 @@ class FriendshipActionHandler:
             )
         except (SocialSchedulingError, ValueError) as error:
             return _friend_error_outcome(error)
-        staged_id = None
-        if result.status == "created":
-            staged_id = _stage_social_command(
-                guard,
-                operation="establish_friendship_from_token",
-                command_payload={
-                    "operation": "establish_friendship_from_token",
-                    "joiner_account_id": account_id,
-                    "link_code": code,
-                },
-                preview_facts={
-                    "status": "staged",
-                    "operation": "establish_friendship_from_token",
-                    "account_id": account_id,
-                },
-            )
         return ActionOutcome(
             category="done",
             status="added",
@@ -131,7 +104,6 @@ class FriendshipActionHandler:
                 "counterpart_display_name": result.counterpart_display_name,
                 "continuation": dict(result.continuation),
             },
-            staged_command_id=staged_id,
         )
 
     def _list_friends(self, params: Mapping[str, Any]) -> ActionOutcome:
@@ -168,25 +140,10 @@ class FriendshipActionHandler:
             )
         except (SocialSchedulingError, ValueError) as error:
             return _friend_error_outcome(error)
-        staged_id = _stage_social_command(
-            guard,
-            operation="remove_friend",
-            command_payload={
-                "operation": "remove_friend",
-                "account_id": account_id,
-                "friend_account_id": friend_account_id,
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "remove_friend",
-                "account_id": account_id,
-            },
-        )
         return ActionOutcome(
             category="done",
             status="removed",
             data=_friendship_fact(friendship),
-            staged_command_id=staged_id,
         )
 
     def _resolve_friend(
@@ -273,26 +230,6 @@ def _friendship_fact(friendship: Friendship) -> dict[str, Any]:
             else None
         ),
     }
-
-
-def _stage_social_command(
-    guard: Any,
-    *,
-    operation: str,
-    command_payload: Mapping[str, Any],
-    preview_facts: Mapping[str, Any],
-) -> str | None:
-    stage_command = getattr(guard, "stage_command", None)
-    if not callable(stage_command):
-        return None
-    staged = stage_command(
-        domain="social_scheduling",
-        operation=operation,
-        command_payload=dict(command_payload),
-        preview_facts=dict(preview_facts),
-        item_index=1,
-    )
-    return getattr(staged, "id", None)
 
 
 def _commit_guard(guard: Any) -> CommitGuard:

@@ -13,7 +13,6 @@ from coke.domains.social_scheduling.models import (
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
-from coke.turn.inbound.staging import json_safe
 
 CommitGuard = Callable[[], None] | None
 
@@ -27,10 +26,13 @@ class SocialSchedulingActionHandler:
         self.social_scheduling_service = social_scheduling_service
         self._now = now or (lambda: datetime.now(UTC))
 
-    def resolve_and_stage(
+    def execute(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         action = compiled_action.action
         if action is None:
@@ -96,30 +98,7 @@ class SocialSchedulingActionHandler:
         except (SocialSchedulingError, ValueError) as error:
             return _social_error_outcome(error)
 
-        outcome = _shared_reminder_create_outcome(result)
-        if outcome.category == "done" and outcome.status in {"created", "partial"}:
-            staged_id = _stage_command(
-                guard,
-                operation="create_shared_reminder",
-                command_payload=_create_command_payload(
-                    creator=creator,
-                    receiver_account_ids=resolved,
-                    params=params,
-                    result=result,
-                ),
-                preview_facts={
-                    "status": "staged",
-                    "operation": "create_shared_reminder",
-                    "account_id": creator,
-                },
-            )
-            return ActionOutcome(
-                category=outcome.category,
-                status=outcome.status,
-                data=outcome.data,
-                staged_command_id=staged_id,
-            )
-        return outcome
+        return _shared_reminder_create_outcome(result)
 
     def _cancel_shared_reminder(
         self,
@@ -156,25 +135,10 @@ class SocialSchedulingActionHandler:
                 status=result.status,
                 data=data,
             )
-        staged_id = _stage_command(
-            guard,
-            operation="cancel_shared_reminder",
-            command_payload={
-                "operation": "cancel_shared_reminder",
-                "account_id": account_id,
-                "shared_reminder_id": shared_reminder_id,
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "cancel_shared_reminder",
-                "account_id": account_id,
-            },
-        )
         return ActionOutcome(
             category="done",
             status="cancelled",
             data=data,
-            staged_command_id=staged_id,
         )
 
     def _update_shared_reminder(
@@ -221,36 +185,7 @@ class SocialSchedulingActionHandler:
             return _social_error_outcome(error)
 
         outcome = _shared_reminder_update_outcome(result)
-        if outcome.category != "done" or outcome.status != "rescheduled":
-            return outcome
-        staged_id = _stage_command(
-            guard,
-            operation="update_shared_reminder",
-            command_payload={
-                key: value
-                for key, value in {
-                    "operation": "update_shared_reminder",
-                    "account_id": account_id,
-                    "shared_reminder_id": shared_reminder_id,
-                    "local_trigger_at": local_trigger_at,
-                    "captured_timezone": captured_timezone,
-                    "duration_minutes": _optional_int(params.get("duration_minutes")),
-                    "idempotent_replay": True,
-                }.items()
-                if value is not None
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "update_shared_reminder",
-                "account_id": account_id,
-            },
-        )
-        return ActionOutcome(
-            category="done",
-            status="rescheduled",
-            data=outcome.data,
-            staged_command_id=staged_id,
-        )
+        return outcome
 
     def _list_shared(self, params: Mapping[str, Any]) -> ActionOutcome:
         account_id = _account_id(params)
@@ -533,39 +468,6 @@ def _breakdown_list(result: Any, key: str) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _create_command_payload(
-    *,
-    creator: str,
-    receiver_account_ids: list[str],
-    params: Mapping[str, Any],
-    result: Any,
-) -> dict[str, Any]:
-    shared_reminder = getattr(result, "shared_reminder", None)
-    payload = {
-        "operation": "create_shared_reminder",
-        "creator_account_id": creator,
-        "receiver_account_ids": receiver_account_ids,
-        "title": (
-            getattr(shared_reminder, "title", None)
-            or _optional_str(params.get("title") or params.get("content"))
-        ),
-        "local_trigger_at": (
-            getattr(shared_reminder, "local_trigger_at", None)
-            or _optional_datetime(
-                params.get("local_trigger_at") or params.get("trigger_time")
-            )
-        ),
-        "captured_timezone": (
-            getattr(shared_reminder, "captured_timezone", None) or _timezone(params)
-        ),
-        "duration_minutes": (
-            getattr(shared_reminder, "duration_minutes", None)
-            or _optional_int(params.get("duration_minutes"))
-        ),
-    }
-    return {key: value for key, value in payload.items() if value is not None}
-
-
 def _shared_reminder_fact(reminder: SharedReminder) -> dict[str, Any]:
     return {
         "shared_reminder_id": reminder.id,
@@ -644,26 +546,6 @@ def _social_error_status(code: str) -> str:
         "owner_channel_required": "unreachable",
         "joiner_channel_required": "unreachable",
     }.get(code, code)
-
-
-def _stage_command(
-    guard: Any,
-    *,
-    operation: str,
-    command_payload: Mapping[str, Any],
-    preview_facts: Mapping[str, Any],
-) -> str | None:
-    stage_command = getattr(guard, "stage_command", None)
-    if not callable(stage_command):
-        return None
-    staged = stage_command(
-        domain="social_scheduling",
-        operation=operation,
-        command_payload=json_safe(dict(command_payload)),
-        preview_facts=json_safe(dict(preview_facts)),
-        item_index=1,
-    )
-    return getattr(staged, "id", None)
 
 
 def _commit_guard(guard: Any) -> CommitGuard:

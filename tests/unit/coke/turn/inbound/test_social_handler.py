@@ -117,7 +117,7 @@ class RecordingGuard:
 
     def stage_command(self, **kwargs: Any) -> Any:
         self.staged.append(kwargs)
-        return SimpleNamespace(id=f"stage-{len(self.staged)}")
+        raise AssertionError("social handler must not stage commands")
 
 
 def _compiled(operation: str, params: dict[str, Any]) -> CompiledAction:
@@ -127,6 +127,19 @@ def _compiled(operation: str, params: dict[str, Any]) -> CompiledAction:
             operation=operation,
             params=params,
         )
+    )
+
+
+def _execute_handler(
+    handler: SocialSchedulingActionHandler,
+    compiled: CompiledAction,
+    guard: RecordingGuard,
+) -> ActionOutcome:
+    return handler.execute(
+        compiled,
+        guard,
+        action_index=0,
+        turn_id="turn-1",
     )
 
 
@@ -152,7 +165,8 @@ def test_create_shared_reminder_resolves_participant_and_stages_created() -> Non
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "create_shared_reminder",
             {
@@ -184,7 +198,6 @@ def test_create_shared_reminder_resolves_participant_and_stages_created() -> Non
             "breakdown": {},
             "follow_up_facts": {},
         },
-        staged_command_id="stage-1",
     )
     assert service.calls[0] == (
         "resolve_active_friend_reference",
@@ -192,16 +205,14 @@ def test_create_shared_reminder_resolves_participant_and_stages_created() -> Non
     )
     assert service.calls[1][0] == "create_shared_reminder"
     assert service.calls[1][1]["receiver_account_ids"] == ["friend-amy"]
-    assert guard.staged[0]["domain"] == "social_scheduling"
-    assert guard.staged[0]["operation"] == "create_shared_reminder"
-    assert guard.staged[0]["command_payload"]["receiver_account_ids"] == ["friend-amy"]
 
 
 def test_create_shared_reminder_time_phrase_uses_detector_text_and_title() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "create_shared_reminder",
             {
@@ -228,7 +239,6 @@ def test_create_shared_reminder_time_phrase_uses_detector_text_and_title() -> No
             "commit_guard": guard.guard_state_change,
         },
     )
-    assert guard.staged[0]["command_payload"]["title"] == "send deck"
 
 
 def test_create_shared_reminder_ambiguous_participant_needs_choice_without_stage() -> (
@@ -241,7 +251,8 @@ def test_create_shared_reminder_ambiguous_participant_needs_choice_without_stage
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "create_shared_reminder",
             {
@@ -276,7 +287,8 @@ def test_create_shared_reminder_missing_time_needs_input_without_stage() -> None
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "create_shared_reminder",
             {
@@ -304,7 +316,8 @@ def test_create_shared_reminder_duplicate_is_not_possible_without_stage() -> Non
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "create_shared_reminder",
             {
@@ -320,7 +333,6 @@ def test_create_shared_reminder_duplicate_is_not_possible_without_stage() -> Non
     assert outcome.category == "not_possible"
     assert outcome.status == "duplicate_active"
     assert outcome.data["shared_reminder"]["shared_reminder_id"] == "sr-duplicate"
-    assert outcome.staged_command_id is None
     assert guard.staged == []
 
 
@@ -337,7 +349,8 @@ def test_create_shared_reminder_partial_delivery_returns_partial_with_counts() -
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "create_shared_reminder",
             {
@@ -356,14 +369,14 @@ def test_create_shared_reminder_partial_delivery_returns_partial_with_counts() -
     assert outcome.data["failed"] == [
         {"account_id": "friend-bob", "reason": "unreachable"}
     ]
-    assert outcome.staged_command_id == "stage-1"
 
 
 def test_cancel_shared_reminder_resolves_keyword_and_stages_cancel() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "cancel_shared_reminder",
             {"account_id": "acct-1", "participant": "Amy", "match": "deck"},
@@ -374,10 +387,8 @@ def test_cancel_shared_reminder_resolves_keyword_and_stages_cancel() -> None:
     assert outcome.category == "done"
     assert outcome.status == "cancelled"
     assert outcome.data["shared_reminder_id"] == "sr-1"
-    assert outcome.staged_command_id == "stage-1"
     assert service.calls[-1][0] == "cancel_shared_reminder"
     assert service.calls[-1][1]["shared_reminder_id"] == "sr-1"
-    assert guard.staged[0]["operation"] == "cancel_shared_reminder"
 
 
 def test_cancel_shared_reminder_generic_reference_with_two_same_friend_needs_choice_without_stage() -> (
@@ -390,7 +401,8 @@ def test_cancel_shared_reminder_generic_reference_with_two_same_friend_needs_cho
     ]
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "cancel_shared_reminder",
             {
@@ -404,7 +416,6 @@ def test_cancel_shared_reminder_generic_reference_with_two_same_friend_needs_cho
 
     assert outcome.category == "needs_choice"
     assert outcome.status == "ambiguous"
-    assert outcome.staged_command_id is None
     assert [
         candidate["shared_reminder_id"] for candidate in outcome.data["candidates"]
     ] == [
@@ -433,7 +444,8 @@ def test_cancel_shared_reminder_exact_title_reference_with_multiple_same_friend_
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "cancel_shared_reminder",
             {
@@ -450,7 +462,6 @@ def test_cancel_shared_reminder_exact_title_reference_with_multiple_same_friend_
     assert outcome.data["shared_reminder_id"] == "sr-open"
     assert service.calls[-1][0] == "cancel_shared_reminder"
     assert service.calls[-1][1]["shared_reminder_id"] == "sr-open"
-    assert guard.staged[0]["operation"] == "cancel_shared_reminder"
 
 
 def test_update_shared_reminder_resolves_keyword_and_stages_reschedule() -> None:
@@ -464,7 +475,8 @@ def test_update_shared_reminder_resolves_keyword_and_stages_reschedule() -> None
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "update_shared_reminder",
             {
@@ -482,7 +494,6 @@ def test_update_shared_reminder_resolves_keyword_and_stages_reschedule() -> None
     assert outcome.category == "done"
     assert outcome.status == "rescheduled"
     assert outcome.data["shared_reminder"]["shared_reminder_id"] == "sr-1"
-    assert outcome.staged_command_id == "stage-1"
     assert service.calls[-1] == (
         "update_shared_reminder",
         {
@@ -494,8 +505,6 @@ def test_update_shared_reminder_resolves_keyword_and_stages_reschedule() -> None
             "commit_guard": guard.guard_state_change,
         },
     )
-    assert guard.staged[0]["operation"] == "update_shared_reminder"
-    assert guard.staged[0]["command_payload"]["shared_reminder_id"] == "sr-1"
 
 
 def test_update_shared_reminder_time_phrase_uses_detector_and_preserves_duration() -> (
@@ -516,7 +525,8 @@ def test_update_shared_reminder_time_phrase_uses_detector_and_preserves_duration
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "update_shared_reminder",
             {
@@ -543,12 +553,7 @@ def test_update_shared_reminder_time_phrase_uses_detector_and_preserves_duration
             "commit_guard": guard.guard_state_change,
         },
     )
-    assert guard.staged[0]["operation"] == "update_shared_reminder"
-    assert guard.staged[0]["command_payload"]["local_trigger_at"] == (
-        "2026-06-11T16:00:00"
-    )
-    assert guard.staged[0]["command_payload"]["idempotent_replay"] is True
-    assert "duration_minutes" not in guard.staged[0]["command_payload"]
+    assert guard.staged == []
 
 
 def test_update_shared_reminder_conflict_stages_nothing() -> None:
@@ -566,7 +571,8 @@ def test_update_shared_reminder_conflict_stages_nothing() -> None:
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "update_shared_reminder",
             {
@@ -582,7 +588,6 @@ def test_update_shared_reminder_conflict_stages_nothing() -> None:
 
     assert outcome.category == "not_possible"
     assert outcome.status == "receiver_conflict"
-    assert outcome.staged_command_id is None
     assert guard.staged == []
 
 
@@ -590,7 +595,8 @@ def test_list_shared_returns_listed_without_staging() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled("list_shared", {"account_id": "acct-1"}),
         guard,
     )
@@ -599,7 +605,6 @@ def test_list_shared_returns_listed_without_staging() -> None:
     assert outcome.status == "listed"
     assert outcome.data["count"] == 1
     assert outcome.data["shared_reminders"][0]["shared_reminder_id"] == "sr-1"
-    assert outcome.staged_command_id is None
     assert guard.staged == []
 
 
@@ -607,7 +612,8 @@ def test_availability_query_resolves_participant_without_staging() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "availability_query",
             {
@@ -625,7 +631,6 @@ def test_availability_query_resolves_participant_without_staging() -> None:
     assert outcome.status == "availability"
     assert outcome.data["availability"][0]["friend_account_id"] == "friend-amy"
     assert outcome.data["availability"][0]["windows"][0]["state"] == "free"
-    assert outcome.staged_command_id is None
     assert guard.staged == []
 
 
@@ -637,7 +642,8 @@ def test_availability_query_ambiguous_participant_needs_choice_without_query() -
     )
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled(
             "availability_query",
             {
@@ -670,10 +676,11 @@ def test_availability_query_today_token_uses_requester_local_day_without_staging
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(
-        service,
-        now=lambda: datetime(2026, 6, 10, 15, 0, tzinfo=UTC),
-    ).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(
+            service,
+            now=lambda: datetime(2026, 6, 10, 15, 0, tzinfo=UTC),
+        ),
         _compiled(
             "availability_query",
             {
@@ -699,7 +706,6 @@ def test_availability_query_today_token_uses_requester_local_day_without_staging
             "requester_timezone": "Asia/Tokyo",
         },
     )
-    assert outcome.staged_command_id is None
     assert guard.staged == []
 
 
@@ -707,10 +713,11 @@ def test_availability_query_same_today_tokens_use_single_local_day() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
 
-    outcome = SocialSchedulingActionHandler(
-        service,
-        now=lambda: datetime(2026, 6, 10, 1, 0, tzinfo=UTC),
-    ).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(
+            service,
+            now=lambda: datetime(2026, 6, 10, 1, 0, tzinfo=UTC),
+        ),
         _compiled(
             "availability_query",
             {
@@ -746,7 +753,8 @@ def test_availability_query_non_iso_datetime_needs_time_without_service_call(
     }
     params[datetime_field] = "someday"
 
-    outcome = SocialSchedulingActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
         _compiled("availability_query", params),
         guard,
     )

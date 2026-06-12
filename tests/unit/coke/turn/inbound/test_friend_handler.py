@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -136,12 +135,25 @@ class RecordingGuard:
 
     def stage_command(self, **kwargs: Any) -> Any:
         self.staged.append(kwargs)
-        return SimpleNamespace(id=f"stage-{len(self.staged)}")
+        raise AssertionError("friend handler must not stage commands")
 
 
 def _compiled(operation: str, params: dict[str, Any]) -> CompiledAction:
     return CompiledAction(
         action=ProposedAction(domain="friendship", operation=operation, params=params)
+    )
+
+
+def _execute_handler(
+    handler: FriendshipActionHandler,
+    compiled: CompiledAction,
+    guard: RecordingGuard,
+) -> ActionOutcome:
+    return handler.execute(
+        compiled,
+        guard,
+        action_index=0,
+        turn_id="turn-1",
     )
 
 
@@ -162,7 +174,8 @@ def test_get_friend_link_returns_link_and_stages_existing_social_operation() -> 
     service = StubFriendshipService()
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("get_friend_link", {"account_id": "acct-1"}),
         guard,
     )
@@ -179,17 +192,15 @@ def test_get_friend_link_returns_link_and_stages_existing_social_operation() -> 
             "public_link_url": "https://coke.test/f/token-1",
             "qr_payload": "https://coke.test/f/token-1",
         },
-        staged_command_id="stage-1",
     )
-    assert guard.staged[0]["domain"] == "social_scheduling"
-    assert guard.staged[0]["operation"] == "get_friend_link"
 
 
 def test_get_friend_link_missing_account_needs_input_without_stage() -> None:
     service = StubFriendshipService()
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("get_friend_link", {}),
         guard,
     )
@@ -207,7 +218,8 @@ def test_add_via_code_success_maps_to_added_and_stages_code_command() -> None:
     service = StubFriendshipService()
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("add_via_code", {"account_id": "acct-1", "code": "ABC123"}),
         guard,
     )
@@ -216,10 +228,6 @@ def test_add_via_code_success_maps_to_added_and_stages_code_command() -> None:
     assert outcome.status == "added"
     assert outcome.data["friendship_id"] == "friendship-1"
     assert outcome.data["counterpart_account_id"] == "friend-1"
-    assert outcome.staged_command_id == "stage-1"
-    assert guard.staged[0]["domain"] == "social_scheduling"
-    assert guard.staged[0]["operation"] == "establish_friendship_from_token"
-    assert guard.staged[0]["command_payload"]["link_code"] == "ABC123"
 
 
 @pytest.mark.parametrize(
@@ -237,7 +245,8 @@ def test_add_via_code_invalid_or_used_code_is_not_possible(
     service.error = SocialSchedulingError(code, fact={"type": code})
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("add_via_code", {"account_id": "acct-1", "code": "ABC123"}),
         guard,
     )
@@ -245,7 +254,6 @@ def test_add_via_code_invalid_or_used_code_is_not_possible(
     assert outcome.category == "not_possible"
     assert outcome.status == status
     assert outcome.data == {"type": code}
-    assert outcome.staged_command_id is None
     assert guard.staged == []
 
 
@@ -253,7 +261,8 @@ def test_list_friends_returns_listed_without_staging() -> None:
     service = StubFriendshipService()
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("list_friends", {"account_id": "acct-1"}),
         guard,
     )
@@ -283,7 +292,8 @@ def test_remove_friend_ambiguous_reference_needs_choice_without_stage() -> None:
     )
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("remove_friend", {"account_id": "acct-1", "friend": "Amy"}),
         guard,
     )
@@ -306,7 +316,8 @@ def test_remove_friend_unmatched_reference_is_not_found_without_stage() -> None:
     service.resolution = FriendResolutionResult(status="unmatched")
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("remove_friend", {"account_id": "acct-1", "friend": "Nobody"}),
         guard,
     )
@@ -323,7 +334,8 @@ def test_remove_friend_success_maps_to_removed_and_stages_resolved_friend() -> N
     service = StubFriendshipService()
     guard = RecordingGuard()
 
-    outcome = FriendshipActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        FriendshipActionHandler(service),
         _compiled("remove_friend", {"account_id": "acct-1", "friend": "Amy"}),
         guard,
     )
@@ -331,8 +343,5 @@ def test_remove_friend_success_maps_to_removed_and_stages_resolved_friend() -> N
     assert outcome.category == "done"
     assert outcome.status == "removed"
     assert outcome.data["friendship_id"] == "friendship-1"
-    assert outcome.staged_command_id == "stage-1"
     assert service.calls[-1][0] == "remove_friend"
     assert service.calls[-1][1]["friend_account_id"] == "friend-1"
-    assert guard.staged[0]["operation"] == "remove_friend"
-    assert guard.staged[0]["command_payload"]["friend_account_id"] == "friend-1"

@@ -1,23 +1,24 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from coke.domains.settings.models import SettingsError, SettingsView
 from coke.domains.settings.service import SettingsService
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
 
-CommitGuard = Callable[[], None] | None
-
 
 class SettingsActionHandler:
     def __init__(self, settings_service: SettingsService) -> None:
         self.settings_service = settings_service
 
-    def resolve_and_stage(
+    def execute(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         action = compiled_action.action
         if action is None:
@@ -65,25 +66,10 @@ class SettingsActionHandler:
             view = self.settings_service.set_timezone(account_id, timezone)
         except (SettingsError, ValueError) as error:
             return _settings_error_outcome(error)
-        staged_id = _stage_settings_command(
-            guard,
-            operation="set_timezone",
-            command_payload={
-                "operation": "set_timezone",
-                "account_id": account_id,
-                "default_timezone": timezone,
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "set_timezone",
-                "account_id": account_id,
-            },
-        )
         return ActionOutcome(
             category="done",
             status="timezone_set",
             data=_settings_view_facts(view),
-            staged_command_id=staged_id,
         )
 
     def _update_settings(
@@ -101,25 +87,10 @@ class SettingsActionHandler:
             view = self.settings_service.update_settings(account_id, **fields)
         except (SettingsError, ValueError) as error:
             return _settings_error_outcome(error)
-        staged_id = _stage_settings_command(
-            guard,
-            operation="update_settings",
-            command_payload={
-                "operation": "update_settings",
-                "account_id": account_id,
-                **fields,
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "update_settings",
-                "account_id": account_id,
-            },
-        )
         return ActionOutcome(
             category="done",
             status="updated",
             data=_settings_view_facts(view),
-            staged_command_id=staged_id,
         )
 
     def _toggle_setting(
@@ -141,25 +112,10 @@ class SettingsActionHandler:
             view = self.settings_service.update_settings(account_id, **fields)
         except (SettingsError, ValueError) as error:
             return _settings_error_outcome(error)
-        staged_id = _stage_settings_command(
-            guard,
-            operation="update_settings",
-            command_payload={
-                "operation": "update_settings",
-                "account_id": account_id,
-                **fields,
-            },
-            preview_facts={
-                "status": "staged",
-                "operation": "update_settings",
-                "account_id": account_id,
-            },
-        )
         return ActionOutcome(
             category="done",
             status=status,
             data=_settings_view_facts(view),
-            staged_command_id=staged_id,
         )
 
 
@@ -174,26 +130,6 @@ def _settings_error_outcome(error: BaseException) -> ActionOutcome:
         category="not_possible",
         status=str(error) or "settings_error",
     )
-
-
-def _stage_settings_command(
-    guard: Any,
-    *,
-    operation: str,
-    command_payload: Mapping[str, Any],
-    preview_facts: Mapping[str, Any],
-) -> str | None:
-    stage_command = getattr(guard, "stage_command", None)
-    if not callable(stage_command):
-        return None
-    staged = stage_command(
-        domain="settings",
-        operation=operation,
-        command_payload=dict(command_payload),
-        preview_facts=dict(preview_facts),
-        item_index=1,
-    )
-    return getattr(staged, "id", None)
 
 
 def _account_id(params: Mapping[str, Any]) -> str | None:

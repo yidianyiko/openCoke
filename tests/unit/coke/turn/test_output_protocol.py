@@ -213,106 +213,15 @@ def test_social_scheduling_claim_accepts_duplicate_outcome_with_shared_reminder_
     assert result.domain_claim["claim"] == "active_duplicate"
 
 
-def test_social_scheduling_claim_rejects_staged_pending_close_success():
+def test_social_scheduling_claim_rejects_missing_claim_for_active_outcome():
     validator = OutputProtocolValidator()
     validated = validator.validate_first_answer(
-        {
-            "type": "reply",
-            "segments": ["done"],
-            "domain_claim": {
-                "domain": "social_scheduling",
-                "outcome_id": "outcome-1",
-                "status": "staged_pending_close",
-                "claim": "active_created",
-            },
-        }
+        {"type": "reply", "segments": ["安排好了。"]}
     )
 
     result = validator.validate_social_scheduling_claim(
         validated,
         outcomes=[
-            {
-                "outcome_id": "outcome-1",
-                "operation": "shared_reminder_create",
-                "status": "staged_pending_close",
-            }
-        ],
-    )
-
-    assert result.valid is False
-    assert result.retry_guidance == "social_scheduling_claim_not_allowed"
-
-
-def test_social_scheduling_claim_derives_staged_pending_close_no_success_claim():
-    validator = OutputProtocolValidator()
-    validated = validator.validate_first_answer(
-        {"type": "reply", "segments": ["我会继续确认这次安排。"]}
-    )
-
-    result = validator.validate_social_scheduling_claim(
-        validated,
-        outcomes=[
-            {
-                "outcome_id": "outcome-1",
-                "operation": "shared_reminder_create",
-                "status": "staged_pending_close",
-            }
-        ],
-    )
-
-    assert result.valid is True
-    assert result.domain_claim == {
-        "domain": "social_scheduling",
-        "outcome_id": "outcome-1",
-        "status": "staged_pending_close",
-        "claim": "no_success_claim",
-    }
-
-
-def test_social_scheduling_claim_rejects_staged_pending_close_active_overclaim():
-    validator = OutputProtocolValidator()
-    validated = validator.validate_first_answer(
-        {
-            "type": "reply",
-            "segments": ["done"],
-            "domain_claim": {
-                "domain": "social_scheduling",
-                "outcome_id": "outcome-1",
-                "status": "created_active",
-                "claim": "active_created",
-            },
-        }
-    )
-
-    result = validator.validate_social_scheduling_claim(
-        validated,
-        outcomes=[
-            {
-                "outcome_id": "outcome-1",
-                "operation": "shared_reminder_create",
-                "status": "staged_pending_close",
-            }
-        ],
-    )
-
-    assert result.valid is False
-    assert result.retry_guidance == "social_scheduling_claim_status_mismatch"
-
-
-def test_social_scheduling_claim_does_not_derive_when_active_outcome_is_also_present():
-    validator = OutputProtocolValidator()
-    validated = validator.validate_first_answer(
-        {"type": "reply", "segments": ["我会继续确认这次安排。"]}
-    )
-
-    result = validator.validate_social_scheduling_claim(
-        validated,
-        outcomes=[
-            {
-                "outcome_id": "outcome-staged",
-                "operation": "shared_reminder_create",
-                "status": "staged_pending_close",
-            },
             {
                 "outcome_id": "outcome-active",
                 "operation": "shared_reminder_create",

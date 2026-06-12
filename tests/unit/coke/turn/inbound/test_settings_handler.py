@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from typing import Any
 
 from coke.domains.settings.models import (
@@ -59,12 +58,25 @@ class RecordingGuard:
 
     def stage_command(self, **kwargs: Any) -> Any:
         self.staged.append(kwargs)
-        return SimpleNamespace(id=f"stage-{len(self.staged)}")
+        raise AssertionError("settings handler must not stage commands")
 
 
 def _compiled(operation: str, params: dict[str, Any]) -> CompiledAction:
     return CompiledAction(
         action=ProposedAction(domain="settings", operation=operation, params=params)
+    )
+
+
+def _execute_handler(
+    handler: SettingsActionHandler,
+    compiled: CompiledAction,
+    guard: RecordingGuard,
+) -> ActionOutcome:
+    return handler.execute(
+        compiled,
+        guard,
+        action_index=0,
+        turn_id="turn-1",
     )
 
 
@@ -109,7 +121,8 @@ def test_set_timezone_updates_and_stages_timezone_command() -> None:
     service = StubSettingsService()
     guard = RecordingGuard()
 
-    outcome = SettingsActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SettingsActionHandler(service),
         _compiled(
             "set_timezone",
             {"account_id": "acct-1", "timezone_text": "Asia/Tokyo"},
@@ -120,23 +133,20 @@ def test_set_timezone_updates_and_stages_timezone_command() -> None:
     assert outcome.category == "done"
     assert outcome.status == "timezone_set"
     assert outcome.data["default_timezone"] == "Asia/Tokyo"
-    assert outcome.staged_command_id == "stage-1"
     assert service.calls == [
         (
             "set_timezone",
             {"account_id": "acct-1", "default_timezone": "Asia/Tokyo"},
         )
     ]
-    assert guard.staged[0]["domain"] == "settings"
-    assert guard.staged[0]["operation"] == "set_timezone"
-    assert guard.staged[0]["command_payload"]["default_timezone"] == "Asia/Tokyo"
 
 
 def test_set_timezone_missing_value_needs_input_without_service_or_stage() -> None:
     service = StubSettingsService()
     guard = RecordingGuard()
 
-    outcome = SettingsActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SettingsActionHandler(service),
         _compiled("set_timezone", {"account_id": "acct-1"}),
         guard,
     )
@@ -154,7 +164,8 @@ def test_update_settings_maps_preference_to_extra_rules_and_stages_update() -> N
     service = StubSettingsService()
     guard = RecordingGuard()
 
-    outcome = SettingsActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SettingsActionHandler(service),
         _compiled(
             "update_settings",
             {"account_id": "acct-1", "preference": "use concise replies"},
@@ -165,7 +176,6 @@ def test_update_settings_maps_preference_to_extra_rules_and_stages_update() -> N
     assert outcome.category == "done"
     assert outcome.status == "updated"
     assert outcome.data["extra_rules"] == "use concise replies"
-    assert outcome.staged_command_id == "stage-1"
     assert service.calls == [
         (
             "update_settings",
@@ -175,15 +185,14 @@ def test_update_settings_maps_preference_to_extra_rules_and_stages_update() -> N
             },
         )
     ]
-    assert guard.staged[0]["operation"] == "update_settings"
-    assert guard.staged[0]["command_payload"]["extra_rules"] == "use concise replies"
 
 
 def test_toggle_memory_updates_boolean_and_stages_update_settings() -> None:
     service = StubSettingsService()
     guard = RecordingGuard()
 
-    outcome = SettingsActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SettingsActionHandler(service),
         _compiled("toggle_memory", {"account_id": "acct-1", "enabled": False}),
         guard,
     )
@@ -191,17 +200,15 @@ def test_toggle_memory_updates_boolean_and_stages_update_settings() -> None:
     assert outcome.category == "done"
     assert outcome.status == "memory_toggled"
     assert outcome.data["memory_enabled"] is False
-    assert outcome.staged_command_id == "stage-1"
     assert service.calls[0][1]["fields"] == {"memory_enabled": False}
-    assert guard.staged[0]["operation"] == "update_settings"
-    assert guard.staged[0]["command_payload"]["memory_enabled"] is False
 
 
 def test_toggle_proactive_updates_boolean_and_stages_update_settings() -> None:
     service = StubSettingsService()
     guard = RecordingGuard()
 
-    outcome = SettingsActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SettingsActionHandler(service),
         _compiled("toggle_proactive", {"account_id": "acct-1", "enabled": False}),
         guard,
     )
@@ -209,10 +216,7 @@ def test_toggle_proactive_updates_boolean_and_stages_update_settings() -> None:
     assert outcome.category == "done"
     assert outcome.status == "proactive_toggled"
     assert outcome.data["proactive_enabled"] is False
-    assert outcome.staged_command_id == "stage-1"
     assert service.calls[0][1]["fields"] == {"proactive_enabled": False}
-    assert guard.staged[0]["operation"] == "update_settings"
-    assert guard.staged[0]["command_payload"]["proactive_enabled"] is False
 
 
 def test_invalid_settings_value_is_not_possible_without_stage() -> None:
@@ -223,7 +227,8 @@ def test_invalid_settings_value_is_not_possible_without_stage() -> None:
     )
     guard = RecordingGuard()
 
-    outcome = SettingsActionHandler(service).resolve_and_stage(
+    outcome = _execute_handler(
+        SettingsActionHandler(service),
         _compiled(
             "set_timezone",
             {"account_id": "acct-1", "timezone_text": "Mars/Base"},
