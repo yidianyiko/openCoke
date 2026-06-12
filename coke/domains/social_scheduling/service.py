@@ -316,7 +316,7 @@ class SocialSchedulingService:
         title: str | None,
         local_trigger_at: datetime | None,
         captured_timezone: str,
-        duration_minutes: int,
+        duration_minutes: int | None,
         commit_guard: CommitGuard = None,
     ) -> SharedReminderCreateResult:
         creator_account_id = _canon(creator_account_id)
@@ -345,6 +345,13 @@ class SocialSchedulingService:
                     "captured_timezone": captured_timezone,
                 },
             )
+        if duration_minutes is None:
+            return SharedReminderCreateResult(
+                status="needs_duration",
+                shared_reminder=None,
+                follow_up_facts={"missing": "duration"},
+            )
+        duration_minutes = _positive_duration_minutes(duration_minutes)
 
         unique_receivers = _dedupe_preserve_order(receiver_account_ids)
         not_friends = [
@@ -494,7 +501,9 @@ class SocialSchedulingService:
             title=title or detected_title,
             local_trigger_at=detected_trigger_at,
             captured_timezone=captured_timezone,
-            duration_minutes=duration_minutes or detected_duration or 15,
+            duration_minutes=(
+                duration_minutes if duration_minutes is not None else detected_duration
+            ),
             commit_guard=commit_guard,
         )
 

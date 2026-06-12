@@ -886,8 +886,17 @@ class ReminderService:
         duration_minutes = (
             _duration_minutes(item.duration_minutes)
             if item.duration_minutes is not None
-            else 15
+            else None
         )
+        if _candidate_calendar_visible(kind, item.trigger_time):
+            if duration_minutes is None:
+                return ReminderItemResult(
+                    state="failed",
+                    reason="missing_duration_minutes",
+                    time_state=time_state,
+                )
+        else:
+            duration_minutes = duration_minutes if duration_minutes is not None else 15
         if _candidate_calendar_visible(kind, item.trigger_time):
             conflict = self.check_time_conflict(
                 owner_account_id=owner_account_id,

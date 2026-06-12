@@ -912,7 +912,11 @@ class SocialSchedulingToolAdapter:
                         command.get("local_trigger_at")
                     ),
                     captured_timezone=str(command.get("captured_timezone") or "UTC"),
-                    duration_minutes=int(command.get("duration_minutes") or 15),
+                    duration_minutes=(
+                        int(command["duration_minutes"])
+                        if command.get("duration_minutes") is not None
+                        else None
+                    ),
                     commit_guard=_guard_commit_guard(guard),
                 )
                 facts = _shared_reminder_create_tool_facts(
@@ -2287,6 +2291,7 @@ def _social_scheduling_outcome_status(
     if service_status in {
         "needs_title",
         "needs_time",
+        "needs_duration",
         "needs_past_time_confirmation",
         "needs_incomplete_date_clarification",
     }:

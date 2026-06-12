@@ -98,6 +98,8 @@ class ReminderActionHandler:
             item_index=1,
             guard=guard,
         )
+        if _item.trigger_time is not None and _item.duration_minutes is None:
+            return _missing_duration_outcome()
         conflict = self._check_time_conflict(owner, _item, exclude_reminder_id=None)
         if conflict is not None:
             return _blocked_keyword_outcome(conflict)
@@ -139,6 +141,8 @@ class ReminderActionHandler:
                     status="missing_trigger_time",
                     data={"field": "trigger_time", "item_index": index},
                 )
+            if item.duration_minutes is None:
+                return _missing_duration_outcome(item_index=index)
             conflict = self._check_time_conflict(owner, item, exclude_reminder_id=None)
             if conflict is not None:
                 return _blocked_keyword_outcome(conflict)
@@ -270,14 +274,13 @@ class ReminderActionHandler:
         check = getattr(self.reminder_service, "check_time_conflict", None)
         if not callable(check):
             return None
-        duration_minutes = (
-            item.duration_minutes if item.duration_minutes is not None else 15
-        )
+        if item.duration_minutes is None:
+            return None
         return check(
             owner_account_id=owner,
             trigger_time=item.trigger_time,
             captured_timezone=item.captured_timezone,
-            duration_minutes=duration_minutes,
+            duration_minutes=item.duration_minutes,
             exclude_reminder_id=exclude_reminder_id,
         )
 
@@ -436,6 +439,17 @@ def _blocked_keyword_outcome(result: ReminderItemResult) -> ActionOutcome:
         category="not_possible",
         status=result.reason or "reminder_action_failed",
         data=_item_data(result),
+    )
+
+
+def _missing_duration_outcome(*, item_index: int | None = None) -> ActionOutcome:
+    data: dict[str, Any] = {"field": "duration_minutes"}
+    if item_index is not None:
+        data["item_index"] = item_index
+    return ActionOutcome(
+        category="not_possible",
+        status="missing_duration_minutes",
+        data=data,
     )
 
 

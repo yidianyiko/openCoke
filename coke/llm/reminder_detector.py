@@ -61,7 +61,12 @@ class SiliconFlowReminderDetector:
                 "needs_time clarification. In a follow-up loop, a follow-up that only "
                 "supplies the missing time may complete the recently requested reminder; "
                 "a new topic does not reopen an already-confirmed reminder. "
-                "Do not repair output with regex, normalize guessed durations, or "
+                "duration_minutes must be a positive integer estimate for reminder "
+                "tasks. Use an explicit duration or time range when present; when "
+                "the user omits duration, infer a reasonable approximate duration "
+                "from the task content and context instead of leaving it null or "
+                "using a fixed default. Do not repair output with regex, hardcode "
+                "duration defaults, or "
                 "rewrite past/incomplete times."
             ),
             user={
@@ -77,7 +82,7 @@ class SiliconFlowReminderDetector:
                     "content": "string|null",
                     "trigger_time": "full ISO-8601 local wall-clock datetime in captured_timezone, including explicit hour/minute",
                     "recurrence_rule": "object; use {} for non-recurring reminders; never null",
-                    "duration_minutes": "integer|null",
+                    "duration_minutes": "positive integer estimated minutes for reminder tasks; null only when no reminder item is present",
                     "kind": "timed|no_trigger_time|recurring|proactive|shared_projection|null",
                 },
             },

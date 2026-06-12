@@ -715,7 +715,6 @@ def _with_tool_defaults(
                 "captured_timezone",
                 str(request.trusted_facts.get("default_timezone") or "UTC"),
             )
-            payload.setdefault("duration_minutes", 15)
         if payload.get("operation") == "update_shared_reminder":
             payload.setdefault("account_id", request.account_id)
             payload.setdefault(
