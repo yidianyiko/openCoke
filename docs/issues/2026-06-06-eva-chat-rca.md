@@ -1161,6 +1161,67 @@ needs-confirmation settled outcomes must produce a user-visible close decision
 (`replied` or `recovered`) instead of leaving the conversation in a repeating
 `failed` window.
 
+## 2026-06-12 Eva Open-Window Recurrence and Convergence Fix
+
+Eva's conversation stuck again later on `2026-06-12`. Production evidence showed
+the same open-window failure class with a different settled reason:
+
+- account `94566791-4d39-4b28-9d9f-367c1ed0be2c`;
+- conversation `50425626-97b2-4056-b493-99aa738ba171`;
+- before reset: `last_closed_inbound_seq=79`, `latest_inbound_seq=82`;
+- inbound `80`: `olivers今天什么时候有空`;
+- inbound `81`: `以及王五今天什么时候有空？`;
+- inbound `82`: `今天8-9给我建立一个运动的日程`.
+
+There was no active Eva turn. The three relevant inbound outbox rows were already
+`published`, `processed`, and `acked`. Replacement turns for input `80..82`
+completed as terminal `failed` rows with reasons including
+`needs_past_time_confirmation` and `duplicate_staged_command_idempotency`. No
+final delivery attempt existed for the window, so the primary failure was still
+the runtime close state rather than the outbox relay.
+
+Manual user notification was attempted before the reset with:
+
+`刚才有几条旧消息卡住了后面的回复，我已经恢复了。现在可以继续发新消息。`
+
+The first send failed with `context_token_required`. Retrying with the latest
+context token failed with `wechat_not_connected`; connector health was globally
+OK, but Eva's specific connector session
+`2e5c4cd8c9f34624abb19d49e590e715` was `expired`. That is a separate channel
+session problem and explains why the manual recovery notice could not be sent.
+
+Operational repair was again a scoped conversation reset:
+
+```sql
+UPDATE conversation
+SET last_closed_inbound_seq = latest_inbound_seq,
+    updated_at = now()
+WHERE id = '50425626-97b2-4056-b493-99aa738ba171'
+  AND account_id = '94566791-4d39-4b28-9d9f-367c1ed0be2c'
+  AND last_closed_inbound_seq = 79
+  AND latest_inbound_seq = 82;
+```
+
+The update affected exactly one row. Post-reset verification showed Eva at
+`last_closed_inbound_seq=82`, `latest_inbound_seq=82`, no active Eva turns, and
+zero open conversations globally.
+
+Runtime convergence fix: interactive input-window failures now prefer
+`recovered` close decisions over audit-only `failed` rows when there is a current
+input window to release. The added guardrails cover:
+
+- inbound pipeline unavailable;
+- inbound pipeline runtime exception;
+- inbound pipeline close-result runtime error;
+- async completion timeout after a pending reply;
+- async timeout without a task id;
+- invalid output protocol on a fallback/access-denied path with current input.
+
+The state-machine impact is intentionally narrow: `failed` remains available for
+render/system audit failures that do not own a user input window, while
+interactive user windows converge through `recovered` so the cursor advances and
+new messages are not dragged behind stale input.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream, plus the

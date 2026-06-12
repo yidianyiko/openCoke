@@ -75,8 +75,9 @@ Turn execution has one spine:
 6. For structured reminder, notification, access, and recovery turns, invoke the
    render-mode Interaction Agent over already-trusted facts.
 7. Validate the first returned structured output. Malformed, empty, blocked, or
-   timed-out-after-budget output is a failed or recovered turn, not an invented
-   success reply.
+   timed-out-after-budget output is never an invented success reply. If the turn
+   owns a current input window, it converges through a runtime-owned `recovered`
+   close; otherwise it is recorded as `failed` audit.
 8. Record exactly one turn disposition:
    `replied | no_reply | pending_async_reply | failed | recovered | superseded`.
 9. Persist outbound messages with deterministic segment ids.
@@ -191,9 +192,9 @@ pipeline. `coke-outbox-relay` scans active inbound turns and, after
 waiting text through the same channel route. The original worker turn remains
 active and interruptible. When the active turn pipeline eventually returns, the
 same turn may still transition from `pending_async_reply` to `replied` or
-`failed` if no newer inbound has arrived. If a newer inbound arrives first, the
-pending turn is superseded and any later state-changing command from that stale
-turn is rejected before the close-boundary commit.
+`recovered` if no newer inbound has arrived. If a newer inbound arrives first,
+the pending turn is superseded and any later state-changing command from that
+stale turn is rejected before the close-boundary commit.
 
 Waiting sends use logical delivery intents (`turn_id:waiting:1` and, at most,
 `turn_id:waiting:2`) rather than blind provider-idempotency retries. A waiting
