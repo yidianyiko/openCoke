@@ -112,7 +112,10 @@ class TurnPipeline:
         plan = self._planner.plan(_plan_request(request, pending))
         compiled_plan = self._compile(plan)
         settled_outcome = self._executor.execute(
-            compiled_plan, guard, _action_context(request)
+            compiled_plan,
+            guard,
+            turn_id=request.turn_id,
+            action_context=_action_context(request),
         )
         staged_command_ids = _staged_command_ids(settled_outcome)
         resolves_pending_fingerprint = _resolved_pending_fingerprint(plan, pending)

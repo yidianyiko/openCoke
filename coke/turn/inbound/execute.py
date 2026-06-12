@@ -13,10 +13,13 @@ from coke.turn.inbound.contracts import (
 
 
 class ActionHandler(Protocol):
-    def resolve_and_stage(
+    def execute(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome: ...
 
 
@@ -39,17 +42,30 @@ class ActionExecutor:
         self,
         compiled_plan: CompiledPlan,
         guard: Any,
+        *,
+        turn_id: str,
         action_context: Mapping[str, Any] | None = None,
     ) -> SettledOutcome:
         builder = ExecutionOutcomeBuilder()
-        for compiled_action in compiled_plan.actions:
-            builder.add(self._execute_one(compiled_action, guard, action_context))
+        for action_index, compiled_action in enumerate(compiled_plan.actions):
+            builder.add(
+                self._execute_one(
+                    compiled_action,
+                    guard,
+                    action_index=action_index,
+                    turn_id=turn_id,
+                    action_context=action_context,
+                )
+            )
         return builder.build()
 
     def _execute_one(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
         action_context: Mapping[str, Any] | None = None,
     ) -> ActionOutcome:
         if compiled_action.category is not None:
@@ -82,4 +98,9 @@ class ActionExecutor:
                 params={**dict(action.params), **dict(action_context)},
             )
             compiled_action = replace(compiled_action, action=enriched)
-        return handler.resolve_and_stage(compiled_action, guard)
+        return handler.execute(
+            compiled_action,
+            guard,
+            action_index=action_index,
+            turn_id=turn_id,
+        )

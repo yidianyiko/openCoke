@@ -64,7 +64,6 @@ class ActionOutcome:
     category: Category
     status: str
     data: Mapping[str, Any] = field(default_factory=dict)
-    staged_command_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "data", _frozen_mapping(self.data))
@@ -92,11 +91,3 @@ class PendingClarification:
             "candidates",
             tuple(_frozen_mapping(candidate) for candidate in self.candidates),
         )
-
-
-@dataclass(frozen=True, slots=True)
-class MaterializationPlan:
-    staged_command_ids: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "staged_command_ids", tuple(self.staged_command_ids))

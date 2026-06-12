@@ -9,7 +9,6 @@ from coke.turn.inbound.contracts import (
     ActionOutcome,
     CompiledAction,
     CompiledPlan,
-    MaterializationPlan,
     PendingClarification,
     ProposedAction,
     SettledOutcome,
@@ -37,7 +36,7 @@ def test_action_outcome_requires_category_and_status() -> None:
     assert outcome.category == "done"
     assert outcome.status == "created"
     assert outcome.data["id"] == "r1"
-    assert outcome.staged_command_id is None
+    assert not hasattr(outcome, "staged_command_id")
 
 
 def test_turn_plan_defaults_reply_needed() -> None:
@@ -71,7 +70,6 @@ def test_phase_one_contracts_construct_with_defaults() -> None:
         expires_at=datetime(2026, 6, 10, 12, 0, tzinfo=UTC),
         status="open",
     )
-    materialization = MaterializationPlan(staged_command_ids=("cmd-1",))
 
     assert compiled.action == action
     assert compiled.category is None
@@ -79,4 +77,3 @@ def test_phase_one_contracts_construct_with_defaults() -> None:
     assert compiled_plan.actions == (compiled,)
     assert settled.outcomes == (outcome,)
     assert pending.candidates[0]["content"] == "gym"
-    assert materialization.staged_command_ids == ("cmd-1",)

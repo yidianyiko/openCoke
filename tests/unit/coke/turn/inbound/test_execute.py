@@ -13,18 +13,22 @@ from coke.turn.inbound.execute import ActionExecutor, ExecutionOutcomeBuilder
 
 class RecordingHandler:
     def __init__(self) -> None:
-        self.calls: list[tuple[CompiledAction, Any]] = []
+        self.calls: list[tuple[CompiledAction, Any, int, str]] = []
 
-    def resolve_and_stage(
-        self, compiled_action: CompiledAction, guard: Any
+    def execute(
+        self,
+        compiled_action: CompiledAction,
+        guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
-        self.calls.append((compiled_action, guard))
+        self.calls.append((compiled_action, guard, action_index, turn_id))
         assert compiled_action.action is not None
         return ActionOutcome(
             category="done",
             status=f"{compiled_action.action.operation}_done",
             data={"operation": compiled_action.action.operation},
-            staged_command_id=f"stage-{len(self.calls)}",
         )
 
 
@@ -39,17 +43,18 @@ def test_action_executor_runs_compiled_actions_in_order() -> None:
     outcome = ActionExecutor({"reminder": handler}).execute(
         CompiledPlan(actions=(first, second)),
         guard,
+        turn_id="turn-1",
     )
 
     assert [item.status for item in outcome.outcomes] == [
         "create_done",
         "delete_done",
     ]
-    assert [item.staged_command_id for item in outcome.outcomes] == [
-        "stage-1",
-        "stage-2",
+    assert all(not hasattr(item, "staged_command_id") for item in outcome.outcomes)
+    assert handler.calls == [
+        (first, guard, 0, "turn-1"),
+        (second, guard, 1, "turn-1"),
     ]
-    assert handler.calls == [(first, guard), (second, guard)]
 
 
 def test_action_executor_passes_compile_marks_through_as_outcomes() -> None:
@@ -65,6 +70,7 @@ def test_action_executor_passes_compile_marks_through_as_outcomes() -> None:
     outcome = ActionExecutor({"reminder": handler}).execute(
         CompiledPlan(actions=(mark,)),
         object(),
+        turn_id="turn-1",
     )
 
     assert outcome.outcomes == (
@@ -103,6 +109,7 @@ def test_execute_injects_action_context_into_params() -> None:
     executor.execute(
         plan,
         guard=None,
+        turn_id="turn-1",
         action_context={
             "owner_account_id": "acct-1",
             "captured_timezone": "Asia/Tokyo",
@@ -131,5 +138,10 @@ def test_trusted_context_wins_over_planner_account_id() -> None:
             ),
         )
     )
-    executor.execute(plan, guard=None, action_context={"owner_account_id": "trusted"})
+    executor.execute(
+        plan,
+        guard=None,
+        turn_id="turn-1",
+        action_context={"owner_account_id": "trusted"},
+    )
     assert handler.calls[0][0].action.params["owner_account_id"] == "trusted"
