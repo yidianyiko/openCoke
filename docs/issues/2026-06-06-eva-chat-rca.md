@@ -3,7 +3,7 @@ kind: investigation
 status: open
 title: Eva 2026-06-06 chat root-cause analysis
 created_at: 2026-06-06
-updated_at: 2026-06-12
+updated_at: 2026-06-13
 surface:
   - clean-rebuild
   - conversation-runtime
@@ -1222,12 +1222,71 @@ render/system audit failures that do not own a user input window, while
 interactive user windows converge through `recovered` so the cursor advances and
 new messages are not dragged behind stale input.
 
+## 2026-06-13 Eva Account Handoff
+
+Eva later connected the same personal-WeChat identity while logged in as the new
+web account `eva@potaristudio.com`
+(`55d922f5-5dae-47b4-820b-e6ea0ac04794`). Production state was split:
+
+- the durable `channel_identity`, active `channel`, and active `delivery_route`
+  for wxid `o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat` still belonged to the old
+  account `eva.liu43@hotmail.com`
+  (`94566791-4d39-4b28-9d9f-367c1ed0be2c`);
+- the live connector session `860c1bbf61ea4b02aca54fb9bcb1ff3e` was connected
+  for the new account and the same wxid;
+- the old account's conversation was already closed
+  (`latest_inbound_seq=82`, `last_closed_inbound_seq=82`), so this was not a
+  recurrence of the open-window stall.
+
+Root cause: account handoff had no supported domain operation, and the connector
+state also used compact UUID strings for some sessions while Postgres-backed
+domain objects use canonical dashed UUID strings. With the split, Coke routed
+delivery through the old account while the connector could only send for the new
+account. With compact ids, later webhook or send paths could also compare the
+same account as unequal at Python string boundaries.
+
+Operational repair:
+
+- retired the old active Eva `channel` and `delivery_route`;
+- moved the wxid's `channel_identity` to `eva@potaristudio.com`;
+- created a fresh active connected channel
+  `8f4d5482-cea8-4b42-9204-38e7298025d5` and active route
+  `1eca0551-4099-4606-b8dd-a64a63c2f5da` for the new account;
+- left old messages, conversation, reminders, and shared-reminder projections on
+  the old account because this was a reachability handoff, not an account merge;
+- ensured the new account's onboarding fields
+  `first_inbound_received_at`, `activation_completed_at`, and
+  `first_guidance_sent_at` remained `NULL`, so the next real WeChat inbound can
+  complete first activation and receive first-use guidance;
+- normalized all personal-WeChat connector session `account_id` values from
+  compact UUIDs to canonical dashed UUIDs, then restarted the connector.
+
+Post-repair production checks showed:
+
+- `channel_identity a202a065-ddf5-42a7-b9b7-49faa654dad7` belongs to
+  `eva@potaristudio.com`;
+- the old Eva account has no active connected channel;
+- the new Eva account has an active connected `wechat_personal` channel and
+  route;
+- connector `/login/status` for session
+  `860c1bbf61ea4b02aca54fb9bcb1ff3e` returned `200`, `status=connected`, the
+  canonical new account id, and the expected wxid;
+- connector health returned `ok=true`, `connected=true`, and all connected
+  sessions now use canonical account ids;
+- no Eva-related API error appeared in the immediate post-repair logs.
+
+This was an operational handoff only. A durable product fix should add an
+explicit account-handoff domain operation and make the connector/API boundary
+canonicalize account ids, instead of relying on manual database and state-file
+repairs.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The
 2026-06-12 open-window close bug described above has a deployed runtime
-convergence fix; Eva's current remaining delivery blocker is the separate
-expired personal-WeChat connector session. The
+convergence fix. Eva's 2026-06-13 account handoff has been operationally
+repaired, but the product still needs a first-class self-service/account-handoff
+operation if this is expected to be a normal user flow. The
 specific no-reply deploy slice above is verified in production: fenced-JSON turn
 normalization and relay-to-connector reachability are deployed, and eva's real
 wechat_personal turn path produced a sent reply. On `2026-06-07`, the local issue
