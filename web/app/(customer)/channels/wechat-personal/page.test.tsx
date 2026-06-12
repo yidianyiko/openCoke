@@ -273,6 +273,10 @@ describe('CustomerWechatPersonalPage branded layout', () => {
     storeCustomerProfileMock.mockReset();
     clearCustomerAuthMock.mockReset();
     getCustomerWechatChannelStatusMock.mockReset();
+    createCustomerWechatChannelMock.mockReset();
+    connectCustomerWechatChannelMock.mockReset();
+    disconnectCustomerWechatChannelMock.mockReset();
+    archiveCustomerWechatChannelMock.mockReset();
 
     searchParamsMock.mockReturnValue(new URLSearchParams());
     getCustomerTokenMock.mockReturnValue('token');
@@ -293,23 +297,61 @@ describe('CustomerWechatPersonalPage branded layout', () => {
     container?.remove();
   });
 
-  it('renders the missing-channel flow inside the branded channel setup card', async () => {
+  it('auto-starts QR login when an eligible account has no WeChat channel', async () => {
     getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
       ok: true,
       data: {
         status: 'missing',
       },
     });
+    createCustomerWechatChannelMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'pending',
+        session_id: 'session_1',
+        qrcode_id: 'qr_1',
+        qrcode_image: 'data:image/png;base64,QR1',
+        connector_status: 'waiting_for_scan',
+        instructions: "scan this QR code with this user's own WeChat account",
+      },
+    });
 
     renderWithLocale(root, 'en');
-    await waitForText(container, 'Create my WeChat channel');
+    await waitForText(container, 'Scan to connect WeChat');
 
     expect(container.querySelector('.customer-channel-page')).toBeTruthy();
     expect(container.querySelector('.customer-channel-page__card')).toBeTruthy();
     expect(container.querySelector('.customer-channel-page__section')).toBeTruthy();
     expect(container.querySelector('.customer-channel-page__actions')).toBeTruthy();
-    expect(container.textContent).toContain('What you can do next');
-    expect(container.textContent).toContain('Need an account?');
+    expect(createCustomerWechatChannelMock).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.customer-channel-page__qr-image')?.getAttribute('src')).toBe(
+      'data:image/png;base64,QR1',
+    );
+    expect(container.textContent).not.toContain('Create my WeChat channel');
+  });
+
+  it('keeps the manual create action visible when automatic QR login fails', async () => {
+    getCustomerWechatChannelStatusMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        status: 'missing',
+      },
+    });
+    createCustomerWechatChannelMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'provider_login_failed',
+    });
+
+    renderWithLocale(root, 'en');
+    await waitForText(container, 'The last connect attempt failed. Retry or archive this channel.');
+
+    expect(createCustomerWechatChannelMock).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('The last connect attempt failed. Retry or archive this channel.');
+    expect(
+      Array.from(container.querySelectorAll('button')).some((button) =>
+        button.textContent?.includes('Create my WeChat channel'),
+      ),
+    ).toBe(true);
   });
 
   it('renders a pending personal-WeChat QR login', async () => {
@@ -376,15 +418,9 @@ describe('CustomerWechatPersonalPage branded layout', () => {
     });
 
     renderWithLocale(root, 'en');
-    await waitForText(container, 'Create my WeChat channel');
-
-    const createButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Create my WeChat channel'),
-    );
-    expect(createButton).toBeTruthy();
-    createButton?.click();
     await waitForText(container, 'Scan to connect WeChat');
 
+    expect(createCustomerWechatChannelMock).toHaveBeenCalledTimes(1);
     expect(replaceMock).not.toHaveBeenCalled();
     expect(container.querySelector('.customer-channel-page__qr-image')?.getAttribute('src')).toBe(
       'data:image/png;base64,QR1',

@@ -204,6 +204,8 @@ export default function CustomerWechatPersonalPage() {
   const channelRef = useRef<CustomerWechatChannelState | null>(null);
   const profileRefreshStartedRef = useRef(false);
   const busyActionRef = useRef<ChannelAction | null>(null);
+  const autoCreateAttemptedRef = useRef(false);
+  const autoCreateInFlightRef = useRef(false);
   const channelRevisionRef = useRef(0);
   const channelViewModel = useMemo(
     () => getCustomerWechatChannelViewModel(channel, copy.viewModel),
@@ -370,10 +372,10 @@ export default function CustomerWechatPersonalPage() {
     router.replace('/auth/login');
   }
 
-  async function runAction(
+  const runAction = useCallback(async (
     action: ChannelAction,
     operation: () => Promise<ApiResponse<CustomerWechatChannelState>>,
-  ) {
+  ) => {
     if (busyActionRef.current != null) {
       return;
     }
@@ -413,7 +415,7 @@ export default function CustomerWechatPersonalPage() {
       busyActionRef.current = null;
       setBusyAction(null);
     }
-  }
+  }, [channel, copy]);
 
   async function handleCreateChannel() {
     await runAction('create', () => createCustomerWechatChannel());
@@ -430,6 +432,26 @@ export default function CustomerWechatPersonalPage() {
   async function handleArchiveChannel() {
     await runAction('archive', () => archiveCustomerWechatChannel());
   }
+
+  useEffect(() => {
+    if (channel?.status !== 'missing') {
+      return;
+    }
+
+    if (autoCreateAttemptedRef.current || autoCreateInFlightRef.current) {
+      return;
+    }
+
+    if (busyActionRef.current != null) {
+      return;
+    }
+
+    autoCreateAttemptedRef.current = true;
+    autoCreateInFlightRef.current = true;
+    void runAction('create', () => createCustomerWechatChannel()).finally(() => {
+      autoCreateInFlightRef.current = false;
+    });
+  }, [channel?.status, runAction]);
 
   if (!hasToken) {
     return null;
