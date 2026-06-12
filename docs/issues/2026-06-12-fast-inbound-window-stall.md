@@ -51,6 +51,11 @@ Two B2 eager-execute boundaries were unsafe together:
    `latest_inbound_seq`. For a fast triplet, the first worker task can already
    cover all three messages, so seq `215` and `216` events should be acked as
    covered instead of cancelling the active full-window turn.
+3. Worker startup recovery used a deterministic
+   `recover:<conversation>:<latest_seq>` trigger id. If that recovery turn had
+   already reached `pending_async_reply`, a restarted worker replayed the
+   pending disposition instead of making a fresh attempt to close the still-open
+   window.
 
 ## Fix
 
@@ -62,6 +67,9 @@ Two B2 eager-execute boundaries were unsafe together:
 - The worker detects interactive inbound outbox events already covered by an
   active turn's input window and acks them without resubmitting or cancelling
   provider runs.
+- Startup recovery now uses a fresh synthetic recovery trigger id per attempt,
+  so a stale `pending_async_reply` recovery turn cannot permanently short-circuit
+  open-window convergence.
 - The B2 eager-execute supersession spec was updated to state that cancelled
   Execute-time writes roll back before any superseded cleanup.
 

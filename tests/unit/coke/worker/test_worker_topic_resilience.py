@@ -388,16 +388,40 @@ def test_recover_open_inbound_windows_submits_synthetic_inbound_turns():
 
     _recover_open_inbound_windows(runtime, supervisor)
 
-    assert supervisor.submitted == [
-        TurnTrigger(
-            trigger_id="recover:conversation_1:3",
-            trigger_type="InboundTurn",
-            mode=TurnMode.INTERACTIVE,
-            conversation_id="conversation_1",
-            account_id="account_1",
-            payload={"recovered_open_window": True},
+    assert len(supervisor.submitted) == 1
+    trigger = supervisor.submitted[0]
+    assert trigger.trigger_id.startswith("recover:conversation_1:3:")
+    assert trigger.trigger_type == "InboundTurn"
+    assert trigger.mode == TurnMode.INTERACTIVE
+    assert trigger.conversation_id == "conversation_1"
+    assert trigger.account_id == "account_1"
+    assert trigger.payload == {"recovered_open_window": True}
+
+
+def test_recover_open_inbound_windows_uses_fresh_trigger_for_each_attempt():
+    runtime = FakeRuntime()
+    runtime.repositories = SimpleNamespace(
+        conversation_runtime=SimpleNamespace(
+            list_open_inbound_conversations=lambda: [
+                SimpleNamespace(
+                    id="conversation_1",
+                    account_id="account_1",
+                    latest_inbound_seq=3,
+                )
+            ]
         )
-    ]
+    )
+    supervisor = FakeSupervisor()
+
+    _recover_open_inbound_windows(runtime, supervisor)
+    _recover_open_inbound_windows(runtime, supervisor)
+
+    assert len(supervisor.submitted) == 2
+    assert supervisor.submitted[0].trigger_id != supervisor.submitted[1].trigger_id
+    assert all(
+        trigger.trigger_id.startswith("recover:conversation_1:3:")
+        for trigger in supervisor.submitted
+    )
 
 
 def test_drain_supervisor_completions_logs_task_failures(caplog):

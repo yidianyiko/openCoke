@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from threading import Thread
 from typing import Any
+from uuid import uuid4
 
 import sqlalchemy as sa
 
@@ -167,7 +168,10 @@ def _recover_open_inbound_windows(
         return
     for conversation in list_open():
         trigger = TurnTrigger(
-            trigger_id=(f"recover:{conversation.id}:{conversation.latest_inbound_seq}"),
+            trigger_id=(
+                f"recover:{conversation.id}:{conversation.latest_inbound_seq}:"
+                f"{uuid4().hex}"
+            ),
             trigger_type="InboundTurn",
             mode=TurnMode.INTERACTIVE,
             conversation_id=conversation.id,
