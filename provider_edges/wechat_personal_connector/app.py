@@ -352,7 +352,7 @@ def create_app(
         if not session_id or not account_id:
             return jsonify({"error": "invalid_payload"}), 400
         session = _session_by_id(connector_state.snapshot(), session_id)
-        if not session or session.get("account_id") != account_id:
+        if not session or not _same_account_id(session.get("account_id"), account_id):
             return jsonify({"error": "session_not_found"}), 404
         if session.get("status") == "connected":
             start_poll_loop()
@@ -936,9 +936,20 @@ def _connected_session_entry_for_account(
     snapshot: dict[str, Any], account_id: str
 ) -> tuple[str, dict[str, Any]] | None:
     for session_id, session in _connected_sessions(snapshot).items():
-        if session.get("account_id") == account_id:
+        if _same_account_id(session.get("account_id"), account_id):
             return session_id, session
     return None
+
+
+def _same_account_id(left: Any, right: Any) -> bool:
+    left_text = str(left or "").strip()
+    right_text = str(right or "").strip()
+    if not left_text or not right_text:
+        return False
+    try:
+        return uuid.UUID(left_text).hex == uuid.UUID(right_text).hex
+    except ValueError:
+        return left_text == right_text
 
 
 def _session_public_view(session_id: str, session: dict[str, Any]) -> dict[str, Any]:

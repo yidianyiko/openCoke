@@ -245,6 +245,27 @@ def test_login_status_returns_cached_waiting_state_without_inline_ilink_poll(tmp
     assert "ilink_user_id" not in body
 
 
+def test_login_status_accepts_compact_account_id_for_dashed_session(state):
+    state.update_session(
+        "session-1",
+        {"account_id": "55d922f5-5dae-47b4-820b-e6ea0ac04794"},
+    )
+    app = create_app(
+        ConnectorConfig(api_key="connector-key"),
+        state=state,
+        ilink_client=FakeIlinkClient(),
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().get(
+        "/login/status?account_id=55d922f55dae47b4820be6ea0ac04794&session_id=session-1",
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "connected"
+
+
 def test_healthz_reports_connected_status_from_persisted_sessions(state):
     state.update({"status": "expired"})
     app = create_app(
@@ -321,6 +342,45 @@ def test_send_endpoint_maps_clean_contract_to_account_ilink_sendmessage(state):
 
     assert response.status_code == 202
     assert response.get_json() == {"message_id": "client-id-1", "status": "sent"}
+    assert ilink.sent == [
+        {
+            "base_url": "https://bot.example",
+            "token": "bot-token",
+            "to_user_id": "wxid_alice",
+            "context_token": "ctx-1",
+            "text": "hello",
+        }
+    ]
+
+
+def test_send_endpoint_accepts_compact_account_id_for_dashed_session(state):
+    state.update_session(
+        "session-1",
+        {"account_id": "55d922f5-5dae-47b4-820b-e6ea0ac04794"},
+    )
+    ilink = FakeIlinkClient()
+    app = create_app(
+        ConnectorConfig(
+            api_key="connector-key",
+            webhook_url="http://coke-api/webhooks/wechat/personal",
+        ),
+        state=state,
+        ilink_client=ilink,
+        webhook_client=FakeWebhookClient(),
+    )
+
+    response = app.test_client().post(
+        "/send",
+        json={
+            "account_id": "55d922f55dae47b4820be6ea0ac04794",
+            "to": "wxid_alice",
+            "context_token": "ctx-1",
+            "text": "hello",
+        },
+        headers={"Authorization": "Bearer connector-key"},
+    )
+
+    assert response.status_code == 202
     assert ilink.sent == [
         {
             "base_url": "https://bot.example",
