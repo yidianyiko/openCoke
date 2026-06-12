@@ -35,11 +35,60 @@ def test_extract_maps_structured_model_output_to_detected_reminder_fields():
 
     assert fields.content == "pay rent"
     assert fields.trigger_time == datetime.fromisoformat("2026-06-01T09:00:00+09:00")
-    assert fields.recurrence_rule == {"freq": "monthly", "interval": 1}
+    assert fields.recurrence_rule == {"frequency": "monthly", "interval": 1}
     assert fields.duration_minutes == 30
     assert fields.kind == "recurring"
     assert client.calls[0]["schema_name"] == "detected_reminder_fields"
     assert client.calls[0]["user"]["captured_timezone"] == "Asia/Tokyo"
+
+
+def test_extract_normalizes_weekly_model_rule_to_runtime_recurrence_contract():
+    client = FakeJSONClient(
+        {
+            "content": "看一下项目进展",
+            "trigger_time": "2026-06-15T09:00:00+08:00",
+            "recurrence_rule": {
+                "freq": "WEEKLY",
+                "byday": ["MO"],
+                "hour": 9,
+                "minute": 0,
+            },
+            "duration_minutes": 20,
+            "kind": "recurring",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    fields = detector.extract(
+        "每周一早上9点提醒我看一下项目进展",
+        "Asia/Shanghai",
+        datetime(2026, 6, 12, 13, 44, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+
+    assert fields.trigger_time == datetime.fromisoformat("2026-06-15T09:00:00+08:00")
+    assert fields.recurrence_rule == {"frequency": "weekly", "interval": 1}
+    assert fields.duration_minutes == 20
+    assert fields.kind == "recurring"
+
+
+def test_extract_rejects_recurring_output_without_first_trigger_time():
+    client = FakeJSONClient(
+        {
+            "content": "看一下项目进展",
+            "trigger_time": None,
+            "recurrence_rule": {"frequency": "weekly", "interval": 1},
+            "duration_minutes": 20,
+            "kind": "recurring",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    with pytest.raises(LLMOutputError, match="invalid recurring trigger_time"):
+        detector.extract(
+            "每周一早上9点提醒我看一下项目进展",
+            "Asia/Shanghai",
+            datetime(2026, 6, 12, 13, 44, tzinfo=ZoneInfo("Asia/Shanghai")),
+        )
 
 
 def test_extract_prompt_requires_empty_recurrence_object_for_non_recurring_items():
@@ -59,8 +108,12 @@ def test_extract_prompt_requires_empty_recurrence_object_for_non_recurring_items
     )
 
     assert "Use {} for one-time or non-recurring reminders" in client.calls[0]["system"]
+    assert "Recurring reminders must include the first concrete trigger_time" in (
+        client.calls[0]["system"]
+    )
     assert client.calls[0]["user"]["schema"]["recurrence_rule"] == (
-        "object; use {} for non-recurring reminders; never null"
+        "object; use {} for non-recurring reminders; recurring shape is "
+        "{'frequency':'hourly|daily|weekly|monthly|yearly','interval':positive integer}; never null"
     )
 
 
