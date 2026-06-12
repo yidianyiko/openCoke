@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: in_progress
+status: resolved
 surface:
   - conversation-runtime
   - worker-runtime
@@ -8,6 +8,7 @@ surface:
 severity: P0
 created_at: 2026-06-12
 updated_at: 2026-06-12
+resolved_at: 2026-06-12
 ---
 
 # 2026-06-12 P0: Fast Consecutive Inbound Window Stalled
@@ -75,4 +76,22 @@ Two B2 eager-execute boundaries were unsafe together:
 
 ## Verification
 
-Pending final deployment and production 1ms three-message smoke.
+- Fixed by commits `ccfa56ec032eff7e457c0d067e4c4ce71baef9cf`
+  (`fix(worker): avoid stuck fast inbound windows`) and
+  `c30a58f46995173abf6215d53a45244b084721a5`
+  (`fix(worker): make open-window recovery retryable`).
+- Final deployed backend SHA:
+  `c30a58f46995173abf6215d53a45244b084721a5`.
+- The original stuck window recovered from `latest_inbound_seq=216`,
+  `last_closed_inbound_seq=213` to `last_closed_inbound_seq=216`,
+  `open_lag=0`; its final WeChat delivery attempt was `status=sent`.
+- A production three-message simulation against the same conversation recorded
+  seq `217`, `218`, and `219` with `time.sleep(0.001)` between commits. The
+  worker processed the full window `217..219` as one interactive turn,
+  acked the two later outbox events as already covered by the active window,
+  closed the conversation to `open_lag=0`, and sent both reply segments.
+- Final production health checks showed active interactive turns `0`, Redis
+  `XPENDING coke.work workers=0`, Redis group `pending=0`, `lag=0`, Postgres
+  `lock_waits=0`, and `long_idle_xacts=0`.
+- Full evidence:
+  `artifacts/evidence/2026-06-12-fast-inbound-window-stall.md`.
