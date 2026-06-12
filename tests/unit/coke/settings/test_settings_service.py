@@ -26,6 +26,7 @@ def test_global_timezone_switch_persists_and_does_not_rewrite_existing_reminders
                 content="pay rent",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -44,6 +45,7 @@ def test_global_timezone_switch_persists_and_does_not_rewrite_existing_reminders
                 content="stretch",
                 trigger_time=NOW + timedelta(hours=2),
                 captured_timezone=view.default_timezone,
+                duration_minutes=15,
             )
         ],
     )
@@ -118,6 +120,7 @@ def test_proactive_off_discards_future_proactive_reminders_only():
                     content="ordinary",
                     trigger_time=NOW + timedelta(hours=1),
                     captured_timezone="UTC",
+                    duration_minutes=15,
                 )
             ],
         )

@@ -72,10 +72,12 @@ def _active_reminder_snapshot(service):
     ]
 
 
-def test_timed_and_no_trigger_create_use_owner_timezone_and_default_duration(service):
+def test_timed_create_without_duration_is_rejected_but_no_trigger_keeps_internal_duration(
+    service,
+):
     timed_at = NOW + timedelta(hours=1)
 
-    result = service.execute_batch(
+    missing_duration = service.execute_batch(
         owner_account_id="acct_1",
         items=[
             ReminderBatchItem(
@@ -84,6 +86,11 @@ def test_timed_and_no_trigger_create_use_owner_timezone_and_default_duration(ser
                 trigger_time=timed_at,
                 captured_timezone="Asia/Tokyo",
             ),
+        ],
+    )
+    no_trigger = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
             ReminderBatchItem(
                 operation="create",
                 content="buy batteries",
@@ -92,14 +99,16 @@ def test_timed_and_no_trigger_create_use_owner_timezone_and_default_duration(ser
         ],
     )
 
-    assert [item.state for item in result.items] == ["succeeded", "succeeded"]
+    assert missing_duration.items[0].state == "failed"
+    assert missing_duration.items[0].reason == "missing_duration_minutes"
+    assert no_trigger.items[0].state == "succeeded"
     reminders = service.repository.list_active_reminders("acct_1")
-    assert [reminder.kind for reminder in reminders] == ["timed", "no_trigger_time"]
-    assert reminders[0].next_fire_at == timed_at
+    assert len(reminders) == 1
+    assert reminders[0].kind == "no_trigger_time"
+    assert reminders[0].next_fire_at is None
     assert reminders[0].duration_minutes == 15
     assert reminders[0].captured_timezone == "Asia/Tokyo"
-    assert reminders[1].next_fire_at is None
-    assert reminders[1].hidden_from_calendar is False
+    assert reminders[0].hidden_from_calendar is False
 
 
 def test_personal_reminder_create_blocks_overlapping_active_interval(service):
@@ -140,6 +149,29 @@ def test_personal_reminder_create_blocks_overlapping_active_interval(service):
     assert [
         (reminder.content, reminder.duration_minutes) for reminder in reminders
     ] == [("team meeting", 60)]
+
+
+def test_timed_create_with_duration_succeeds(service):
+    timed_at = NOW + timedelta(hours=1)
+
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="pay rent",
+                trigger_time=timed_at,
+                captured_timezone="Asia/Tokyo",
+                duration_minutes=25,
+            ),
+        ],
+    )
+
+    assert result.items[0].state == "succeeded"
+    reminder = service.repository.list_active_reminders("acct_1")[0]
+    assert reminder.kind == "timed"
+    assert reminder.next_fire_at == timed_at
+    assert reminder.duration_minutes == 25
 
 
 def test_update_reminder_duration_blocks_overlap_with_other_reminder(service):
@@ -231,6 +263,7 @@ def test_personal_reminder_create_writes_outbox_event(service):
                 content="pay rent",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
                 turn_id="turn_1",
                 item_index=1,
             )
@@ -255,6 +288,7 @@ def test_personal_reminder_lifecycle_writes_outbox_events(service):
                 content="stretch",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -275,6 +309,7 @@ def test_personal_reminder_lifecycle_writes_outbox_events(service):
                 content="delete me",
                 trigger_time=NOW + timedelta(hours=3),
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -333,6 +368,7 @@ def test_filter_reminders_by_keyword_lifecycle_kind_and_time_range(service):
                 content="call mom",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
@@ -344,6 +380,7 @@ def test_filter_reminders_by_keyword_lifecycle_kind_and_time_range(service):
                 content="buy milk",
                 trigger_time=NOW + timedelta(days=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
         ],
     )
@@ -377,6 +414,7 @@ def test_filter_reminders_keyword_matches_bidirectionally(service):
                 content="跑步",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
         ],
     )
@@ -399,12 +437,14 @@ def test_resolve_user_mutable_keyword_returns_single_match_without_mutating(serv
                 content="pay rent",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
                 content="buy milk",
                 trigger_time=NOW + timedelta(hours=2),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
         ],
     )
@@ -432,12 +472,14 @@ def test_resolve_user_mutable_keyword_reports_ambiguous_without_mutating(service
                 content="call mom",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
                 content="call dentist",
                 trigger_time=NOW + timedelta(hours=2),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
         ],
     )
@@ -469,6 +511,7 @@ def test_resolve_user_mutable_keyword_reports_missing_match_without_mutating(ser
                 content="pay rent",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -496,6 +539,7 @@ def test_resolve_user_mutable_keyword_requires_keyword_without_mutating(service)
                 content="pay rent",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -522,12 +566,14 @@ def test_complete_reminder_by_keyword_mutates_single_unambiguous_match(service):
                 content="pay rent",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
                 content="buy milk",
                 trigger_time=NOW + timedelta(hours=2),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
         ],
     )
@@ -554,12 +600,14 @@ def test_complete_reminder_by_keyword_asks_follow_up_for_ambiguous_matches(servi
                 content="call mom",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
                 content="call dentist",
                 trigger_time=NOW + timedelta(hours=2),
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
         ],
     )
@@ -592,6 +640,7 @@ def test_commit_guard_blocks_personal_reminder_write(service):
                     content="pay rent",
                     trigger_time=NOW + timedelta(hours=1),
                     captured_timezone="UTC",
+                    duration_minutes=15,
                 )
             ],
             commit_guard=StaleCommitGuard(),
@@ -633,6 +682,7 @@ def test_duplicate_prevention_uses_schema_key_not_duration_or_entry_point(servic
                 content="Call Alice",
                 trigger_time=trigger_time + timedelta(minutes=1),
                 captured_timezone="UTC",
+                duration_minutes=90,
             ),
         ],
     )
@@ -689,6 +739,7 @@ def test_repository_write_errors_return_safe_reason_without_raw_exception_detail
                 content="pay rent",
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -707,7 +758,7 @@ def test_batch_items_commit_independently_and_detector_output_is_trusted_or_inva
                 content="book dentist",
                 trigger_time=NOW + timedelta(days=1),
                 recurrence_rule={},
-                duration_minutes=None,
+                duration_minutes=30,
             ),
             DetectedReminderFields(
                 content=None,
@@ -771,13 +822,13 @@ def test_detected_local_wall_clock_times_are_persisted_as_account_timezone_insta
                 content="run",
                 trigger_time=datetime(2026, 5, 31, 9, 0),
                 recurrence_rule={},
-                duration_minutes=None,
+                duration_minutes=30,
             ),
             DetectedReminderFields(
                 content="run",
                 trigger_time=datetime(2026, 5, 31, 9, 0),
                 recurrence_rule={},
-                duration_minutes=None,
+                duration_minutes=30,
             ),
         ]
     )
@@ -839,7 +890,7 @@ def test_detector_receives_account_local_now_for_relative_time_grounding(
                 content="午餐" if "午餐" in raw_text else "跑步",
                 trigger_time=detected_time,
                 recurrence_rule={},
-                duration_minutes=None,
+                duration_minutes=30,
             )
         ]
     )
@@ -885,7 +936,7 @@ def test_personal_reminder_tonight_uses_fixed_account_local_now(repository):
                 content="会议",
                 trigger_time=datetime(2026, 5, 31, 22, 30),
                 recurrence_rule={},
-                duration_minutes=None,
+                duration_minutes=30,
             )
         ]
     )
@@ -949,6 +1000,66 @@ def test_detector_invalid_shape_fails_item_without_tool_exception(repository):
     assert repository.list_active_reminders("acct_1") == []
 
 
+def test_create_rejects_recurring_rule_without_first_trigger_time(service):
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="weekly project review",
+                captured_timezone="Asia/Shanghai",
+                recurrence_rule={"frequency": "weekly", "interval": 1},
+                duration_minutes=20,
+            ),
+        ],
+    )
+
+    assert result.items[0].state == "needs-follow-up"
+    assert result.items[0].reason == "missing_recurring_trigger_time"
+    assert service.repository.list_active_reminders("acct_1") == []
+
+
+def test_create_rejects_noncanonical_recurring_rule_at_domain_boundary(service):
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="weekly project review",
+                trigger_time=NOW + timedelta(days=3),
+                captured_timezone="Asia/Shanghai",
+                recurrence_rule={"freq": "WEEKLY", "byday": ["MO"], "hour": 9},
+                duration_minutes=20,
+            ),
+        ],
+    )
+
+    assert result.items[0].state == "failed"
+    assert result.items[0].reason == "invalid_recurrence_rule"
+    assert service.repository.list_active_reminders("acct_1") == []
+
+
+def test_create_rejects_recurring_kind_without_canonical_rule(service):
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="weekly project review",
+                trigger_time=NOW + timedelta(days=3),
+                captured_timezone="Asia/Shanghai",
+                recurrence_rule={},
+                duration_minutes=20,
+                kind="recurring",
+            ),
+        ],
+    )
+
+    assert result.items[0].state == "failed"
+    assert result.items[0].reason == "missing_recurrence_rule"
+    assert service.repository.list_active_reminders("acct_1") == []
+
+
 def test_time_validation_blocks_past_or_incomplete_times_before_commit(service):
     past = NOW - timedelta(minutes=1)
     incomplete_today_passed = NOW.replace(hour=9)
@@ -1007,6 +1118,7 @@ def test_trigger_time_conversion_is_explicit_domain_state(service):
                 trigger_time=NOW + timedelta(hours=1),
                 captured_timezone="Asia/Tokyo",
                 recurrence_rule={"frequency": "daily", "interval": 1},
+                duration_minutes=15,
             ),
         ],
     )
@@ -1048,6 +1160,7 @@ def test_reschedule_reminder_updates_existing_timed_row_without_duplicate(servic
                 content="stretch",
                 trigger_time=NOW + timedelta(days=1),
                 captured_timezone="Asia/Shanghai",
+                duration_minutes=15,
             )
         ],
     )
@@ -1078,6 +1191,7 @@ def test_fire_lifecycle_is_occurrence_grain_idempotent_and_advances_recurring(se
                 trigger_time=trigger_time,
                 captured_timezone="UTC",
                 recurrence_rule={"frequency": "daily", "interval": 1},
+                duration_minutes=15,
             )
         ],
     )
@@ -1111,6 +1225,7 @@ def test_undelivered_resend_excludes_handled_deleted_and_proactive_discards(repo
                 content="personal",
                 trigger_time=NOW,
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
@@ -1147,6 +1262,7 @@ def test_record_fire_delivery_marks_failed_outputs_by_class(service):
                 content="personal",
                 trigger_time=NOW,
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",

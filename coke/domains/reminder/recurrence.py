@@ -3,20 +3,19 @@ from __future__ import annotations
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from coke.domains.reminder.temporal import canonical_recurrence_rule
+
 
 def next_occurrence_after(
     recurrence_rule: dict,
     previous_fire_at: datetime,
     captured_timezone: str,
 ) -> datetime:
+    recurrence_rule = canonical_recurrence_rule(recurrence_rule)
     if not recurrence_rule:
         raise ValueError("recurrence_rule_required")
-    frequency = recurrence_rule.get("frequency")
-    interval = int(recurrence_rule.get("interval", 1))
-    if interval < 1:
-        raise ValueError("invalid_recurrence_interval")
-    if frequency not in {"hourly", "daily", "weekly", "monthly", "yearly"}:
-        raise ValueError("unsupported_recurrence_frequency")
+    frequency = recurrence_rule["frequency"]
+    interval = recurrence_rule["interval"]
     zone = ZoneInfo(captured_timezone)
     local_previous = previous_fire_at.astimezone(zone)
     local_next = _add_interval(local_previous, frequency, interval)

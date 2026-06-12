@@ -536,7 +536,7 @@ def test_detected_shared_reminder_uses_account_local_now_for_relative_time(
                 content="会议",
                 trigger_time=detected_time,
                 recurrence_rule={},
-                duration_minutes=None,
+                duration_minutes=45,
             )
         ]
     )
@@ -561,6 +561,7 @@ def test_detected_shared_reminder_uses_account_local_now_for_relative_time(
     assert result.shared_reminder.status == "active"
     assert result.shared_reminder.local_trigger_at == detected_time
     assert result.shared_reminder.captured_timezone == "Asia/Shanghai"
+    assert result.shared_reminder.duration_minutes == 45
     assert len(repo.shared_reminders_by_id) == 1
     assert [(text, timezone) for text, timezone, _ in detector.calls] == [
         (raw_text, "Asia/Shanghai")

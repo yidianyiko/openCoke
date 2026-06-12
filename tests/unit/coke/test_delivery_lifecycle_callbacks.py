@@ -132,6 +132,7 @@ def test_context_token_window_failure_marks_reminder_fire_undelivered():
                 content="take medicine",
                 trigger_time=NOW,
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -274,6 +275,7 @@ def test_inbound_reply_completion_enqueues_undelivered_reminder_resend():
                 content="take medicine",
                 trigger_time=NOW,
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )
@@ -384,6 +386,7 @@ def test_inbound_reply_completion_does_not_resend_when_reply_delivery_failed():
                 content="take medicine",
                 trigger_time=NOW,
                 captured_timezone="UTC",
+                duration_minutes=15,
             )
         ],
     )

@@ -1725,7 +1725,6 @@ def test_shared_reminder_detect_tool_defaults_to_current_user_message_and_timezo
                 "raw_text": "帮我和 lizihao 约一个今天晚上10:30的会议",
                 "creator_account_id": "account_1",
                 "captured_timezone": "Asia/Shanghai",
-                "duration_minutes": 15,
             },
             guard,
         )

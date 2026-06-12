@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from coke.domains.reminder.calendar_read_model import ReminderCalendarReadModel
 from coke.domains.reminder.models import (
     CalendarQueryResult,
+    BatchItemState,
     DetectedReminderFields,
     Reminder,
     ReminderBatchItem,
@@ -30,6 +31,12 @@ from coke.domains.reminder.models import (
 )
 from coke.domains.reminder.recurrence import next_occurrence_after
 from coke.domains.reminder.repository import ReminderRepository
+from coke.domains.reminder.temporal import (
+    ReminderTemporalError,
+    normalize_create_temporal,
+    positive_duration_minutes,
+    trigger_time_to_utc,
+)
 from coke.infra.tracing import generate_traceparent
 
 CommitGuard = Callable[[], None] | None
@@ -857,11 +864,9 @@ class ReminderService:
         if fields.trigger_time is None:
             return None
         try:
-            zone = ZoneInfo(captured_timezone)
-        except ZoneInfoNotFoundError as error:
+            return trigger_time_to_utc(fields.trigger_time, captured_timezone)
+        except ReminderTemporalError as error:
             raise ReminderError("invalid_detector_output") from error
-        local_trigger = fields.trigger_time.replace(tzinfo=zone)
-        return local_trigger.astimezone(UTC)
 
     def _create(
         self,
@@ -882,27 +887,25 @@ class ReminderService:
                 reason=time_state,
                 time_state=time_state,
             )
-        kind = self._derive_kind(item)
-        duration_minutes = (
-            _duration_minutes(item.duration_minutes)
-            if item.duration_minutes is not None
-            else None
-        )
-        if _candidate_calendar_visible(kind, item.trigger_time):
-            if duration_minutes is None:
-                return ReminderItemResult(
-                    state="failed",
-                    reason="missing_duration_minutes",
-                    time_state=time_state,
-                )
-        else:
-            duration_minutes = duration_minutes if duration_minutes is not None else 15
-        if _candidate_calendar_visible(kind, item.trigger_time):
+        try:
+            temporal = normalize_create_temporal(
+                trigger_time=item.trigger_time,
+                recurrence_rule=item.recurrence_rule,
+                duration_minutes=item.duration_minutes,
+                kind=item.kind,
+            )
+        except ReminderTemporalError as error:
+            return ReminderItemResult(
+                state=_temporal_error_state(error.code),
+                reason=error.code,
+                time_state=time_state,
+            )
+        if _candidate_calendar_visible(temporal.kind, temporal.trigger_time):
             conflict = self.check_time_conflict(
                 owner_account_id=owner_account_id,
-                trigger_time=item.trigger_time,
+                trigger_time=temporal.trigger_time,
                 captured_timezone=item.captured_timezone,
-                duration_minutes=duration_minutes,
+                duration_minutes=temporal.duration_minutes,
                 content_hash=_content_hash(item.content),
             )
             if conflict is not None:
@@ -913,13 +916,13 @@ class ReminderService:
             owner_account_id=owner_account_id,
             content=item.content,
             content_hash=_content_hash(item.content),
-            kind=kind,
-            next_fire_at=item.trigger_time,
-            recurrence_rule=dict(item.recurrence_rule),
+            kind=temporal.kind,
+            next_fire_at=temporal.trigger_time,
+            recurrence_rule=temporal.recurrence_rule,
             captured_timezone=item.captured_timezone,
-            duration_minutes=duration_minutes,
+            duration_minutes=temporal.duration_minutes,
             lifecycle="active",
-            hidden_from_calendar=kind == "proactive",
+            hidden_from_calendar=temporal.kind == "proactive",
             shared_reminder_id=item.shared_reminder_id,
             created_at=now,
             updated_at=now,
@@ -965,15 +968,6 @@ class ReminderService:
                 "duration_minutes": reminder.duration_minutes,
             },
         )
-
-    def _derive_kind(self, item: ReminderBatchItem) -> ReminderKind:
-        if item.kind is not None:
-            return item.kind
-        if item.recurrence_rule:
-            return "recurring"
-        if item.trigger_time is None:
-            return "no_trigger_time"
-        return "timed"
 
     def _advance_or_complete_after_occurrence(
         self,
@@ -1160,14 +1154,13 @@ def _intervals_overlap(
 
 
 def _duration_minutes(value: Any) -> int:
-    if isinstance(value, bool):
-        raise ReminderError("invalid_duration_minutes")
-    if isinstance(value, int):
-        minutes = value
-    elif isinstance(value, str) and value.strip().isdigit():
-        minutes = int(value)
-    else:
-        raise ReminderError("invalid_duration_minutes")
-    if minutes <= 0:
-        raise ReminderError("invalid_duration_minutes")
-    return minutes
+    try:
+        return positive_duration_minutes(value)
+    except ReminderTemporalError as error:
+        raise ReminderError(error.code) from error
+
+
+def _temporal_error_state(code: str) -> BatchItemState:
+    if code in {"missing_recurring_trigger_time", "missing_trigger_time"}:
+        return "needs-follow-up"
+    return "failed"

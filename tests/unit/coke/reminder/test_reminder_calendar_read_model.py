@@ -65,6 +65,7 @@ def test_calendar_returns_typed_entries_and_type_specific_action_handles():
                 content="one time",
                 trigger_time=due,
                 captured_timezone="UTC",
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
@@ -72,6 +73,7 @@ def test_calendar_returns_typed_entries_and_type_specific_action_handles():
                 trigger_time=due + timedelta(days=1),
                 captured_timezone="UTC",
                 recurrence_rule={"frequency": "daily", "interval": 1},
+                duration_minutes=15,
             ),
             ReminderBatchItem(
                 operation="create",
@@ -85,6 +87,7 @@ def test_calendar_returns_typed_entries_and_type_specific_action_handles():
                 captured_timezone="UTC",
                 kind="shared_projection",
                 shared_reminder_id="shared_1",
+                duration_minutes=15,
             ),
         ],
     )
@@ -175,6 +178,7 @@ def test_reminder_service_calendar_uses_shared_friend_identifier_resolver():
                 captured_timezone="UTC",
                 kind="shared_projection",
                 shared_reminder_id="shared_1",
+                duration_minutes=15,
             )
         ],
     )

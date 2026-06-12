@@ -23,7 +23,7 @@ def test_extract_maps_structured_model_output_to_detected_reminder_fields():
         {
             "content": "pay rent",
             "trigger_time": "2026-06-01T09:00:00+09:00",
-            "recurrence_rule": {"freq": "monthly", "interval": 1},
+            "recurrence_rule": {"frequency": "monthly", "interval": 1},
             "duration_minutes": 30,
             "kind": "recurring",
         }
@@ -42,7 +42,7 @@ def test_extract_maps_structured_model_output_to_detected_reminder_fields():
     assert client.calls[0]["user"]["captured_timezone"] == "Asia/Tokyo"
 
 
-def test_extract_normalizes_weekly_model_rule_to_runtime_recurrence_contract():
+def test_extract_rejects_rrule_style_model_rule_without_runtime_repair():
     client = FakeJSONClient(
         {
             "content": "看一下项目进展",
@@ -53,6 +53,26 @@ def test_extract_normalizes_weekly_model_rule_to_runtime_recurrence_contract():
                 "hour": 9,
                 "minute": 0,
             },
+            "duration_minutes": 20,
+            "kind": "recurring",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    with pytest.raises(LLMOutputError, match="invalid recurrence_rule"):
+        detector.extract(
+            "每周一早上9点提醒我看一下项目进展",
+            "Asia/Shanghai",
+            datetime(2026, 6, 12, 13, 44, tzinfo=ZoneInfo("Asia/Shanghai")),
+        )
+
+
+def test_extract_accepts_weekly_model_rule_with_next_concrete_trigger():
+    client = FakeJSONClient(
+        {
+            "content": "看一下项目进展",
+            "trigger_time": "2026-06-15T09:00:00+08:00",
+            "recurrence_rule": {"frequency": "weekly", "interval": 1},
             "duration_minutes": 20,
             "kind": "recurring",
         }

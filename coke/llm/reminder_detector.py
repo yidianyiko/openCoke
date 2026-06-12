@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.domains.reminder.models import DetectedReminderFields, ReminderKind
+from coke.domains.reminder.temporal import (
+    ReminderTemporalError,
+    canonical_recurrence_rule,
+    positive_duration_minutes,
+)
 from coke.llm.json_completion import (
     AgnoJSONCompletionClient,
     JSONCompletionClient,
@@ -18,7 +23,6 @@ REMINDER_KINDS: set[ReminderKind] = {
     "proactive",
     "shared_projection",
 }
-RECURRENCE_FREQUENCIES = {"hourly", "daily", "weekly", "monthly", "yearly"}
 
 
 class SiliconFlowReminderDetector:
@@ -148,67 +152,10 @@ def _optional_datetime(value: Any) -> datetime | None:
 
 
 def _recurrence_rule(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        raise LLMOutputError("invalid recurrence_rule")
-    if not value:
-        return {}
-    if "frequency" in value:
-        frequency = _recurrence_frequency(value.get("frequency"))
-    elif "freq" in value:
-        frequency = _recurrence_frequency(value.get("freq"))
-    else:
-        raise LLMOutputError("invalid recurrence_rule")
-    rule: dict[str, Any] = {
-        "frequency": frequency,
-        "interval": _positive_int(
-            value.get("interval", 1),
-            "recurrence_rule.interval",
-        ),
-    }
-    if "window_start" in value:
-        rule["window_start"] = _window_time(value.get("window_start"), "window_start")
-    if "window_end" in value:
-        rule["window_end"] = _window_time(value.get("window_end"), "window_end")
-    return rule
-
-
-def _recurrence_frequency(value: Any) -> str:
-    if not isinstance(value, str):
-        raise LLMOutputError("invalid recurrence_rule.frequency")
-    frequency = value.strip().lower()
-    if frequency in RECURRENCE_FREQUENCIES:
-        return frequency
-    raise LLMOutputError("invalid recurrence_rule")
-
-
-def _positive_int(value: Any, field: str) -> int:
-    if isinstance(value, bool):
-        raise LLMOutputError(f"invalid {field}")
-    if isinstance(value, int):
-        number = value
-    elif isinstance(value, str) and value.strip().isdigit():
-        number = int(value.strip())
-    else:
-        raise LLMOutputError(f"invalid {field}")
-    if number < 1:
-        raise LLMOutputError(f"invalid {field}")
-    return number
-
-
-def _window_time(value: Any, field: str) -> str:
-    if not isinstance(value, str):
-        raise LLMOutputError(f"invalid recurrence_rule.{field}")
     try:
-        hour, minute = value.split(":", 1)
-        if len(hour) != 2 or len(minute) != 2:
-            raise ValueError
-        hour_number = int(hour)
-        minute_number = int(minute)
-    except ValueError as error:
-        raise LLMOutputError(f"invalid recurrence_rule.{field}") from error
-    if not (0 <= hour_number <= 23 and 0 <= minute_number <= 59):
-        raise LLMOutputError(f"invalid recurrence_rule.{field}")
-    return value
+        return canonical_recurrence_rule(value)
+    except ReminderTemporalError as error:
+        raise LLMOutputError("invalid recurrence_rule") from error
 
 
 def _validate_detected_combination(
@@ -229,11 +176,12 @@ def _validate_detected_combination(
 def _optional_int(value: Any, field: str) -> int | None:
     if value is None:
         return None
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise LLMOutputError(f"invalid {field}")
-    if isinstance(value, int):
-        return value
-    raise LLMOutputError(f"invalid {field}")
+    try:
+        return positive_duration_minutes(value)
+    except ReminderTemporalError as error:
+        raise LLMOutputError(f"invalid {field}") from error
 
 
 def _optional_kind(value: Any) -> ReminderKind | None:
