@@ -86,7 +86,6 @@ from coke.turn.agent import (
     ToolExecutionResult,
 )
 from coke.turn.focus import FocusResolver, MessageSubject
-from coke.turn.freshness import FreshnessGuard
 from coke.turn.inbound.close import CloseCoordinator
 from coke.turn.inbound.contracts import TurnPlan
 from coke.turn.inbound.express import ExpressAgent
@@ -106,7 +105,6 @@ from coke.turn.memory import MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
 from coke.turn.runner import DeliveryRequest, OutboundDeliveryPort, TurnRunner
-from coke.turn.staged_commands import StagedCommandMaterializer
 
 
 @dataclass(frozen=True, slots=True)
@@ -589,32 +587,6 @@ class ReminderToolAdapter:
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
-        if operation not in {"list_reminders", "filter_reminders"} and _guard_can_stage(
-            guard
-        ):
-            preflight_error = _validate_reminder_staged_write(command, operation)
-            if preflight_error is not None:
-                return preflight_error
-            owner = _required_str(command, "owner_account_id", default_key="account_id")
-            staged = _staged_command_result(
-                guard,
-                domain="reminder",
-                operation=operation,
-                command=command,
-                preview_facts={
-                    "status": "staged",
-                    "operation": operation,
-                    "owner_account_id": owner,
-                },
-            )
-            if staged is not None:
-                return staged
-        return self.execute_without_staging(command, guard)
-
-    def execute_without_staging(
-        self, command: Mapping[str, Any], guard: Any
-    ) -> ToolExecutionResult:
-        operation = _required_str(command, "operation")
         owner = _required_str(command, "owner_account_id", default_key="account_id")
 
         if operation in {"list_reminders", "filter_reminders"}:
@@ -795,54 +767,6 @@ class SocialSchedulingToolAdapter:
         self.social_scheduling_service = social_scheduling_service
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
-        operation = _required_str(command, "operation")
-        if operation in {"list_friends", "query_availability"}:
-            return self.execute_without_staging(command, guard)
-        try:
-            if _guard_can_stage(guard):
-                preflight_error = _validate_social_scheduling_staged_write(
-                    command, operation
-                )
-                if preflight_error is not None:
-                    return preflight_error
-                preview_facts: dict[str, Any] = {
-                    "status": "staged",
-                    "operation": operation,
-                    "account_id": _social_scheduling_preview_account_id(command),
-                }
-                if operation in {
-                    "create_shared_reminder",
-                    "detect_and_create_shared_reminder",
-                    "update_shared_reminder",
-                }:
-                    preview_facts["social_scheduling_outcome"] = (
-                        _social_scheduling_outcome_from_command(
-                            command,
-                            operation=operation,
-                            status="staged_pending_close",
-                        )
-                    )
-                staged = _staged_command_result(
-                    guard,
-                    domain="social_scheduling",
-                    operation=operation,
-                    command=command,
-                    preview_facts=preview_facts,
-                )
-                if staged is not None:
-                    return _social_scheduling_staged_result_with_outcome(staged)
-        except ValueError as error:
-            reason_code = str(error) or "social_scheduling_write_failed"
-            return ToolExecutionResult(
-                ok=False,
-                facts={"type": reason_code},
-                reason_code=reason_code,
-            )
-        return self.execute_without_staging(command, guard)
-
-    def execute_without_staging(
-        self, command: Mapping[str, Any], guard: Any
-    ) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
         try:
             if operation == "list_friends":
@@ -1092,29 +1016,6 @@ class CalendarImportToolAdapter:
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
-        if _guard_can_stage(guard):
-            preflight_error = _validate_calendar_import_staged_write(command, operation)
-            if preflight_error is not None:
-                return preflight_error
-            staged = _staged_command_result(
-                guard,
-                domain="calendar_import",
-                operation=operation,
-                command=command,
-                preview_facts={
-                    "status": "staged",
-                    "operation": operation,
-                    "account_id": _required_str(command, "account_id"),
-                },
-            )
-            if staged is not None:
-                return staged
-        return self.execute_without_staging(command, guard)
-
-    def execute_without_staging(
-        self, command: Mapping[str, Any], guard: Any
-    ) -> ToolExecutionResult:
-        operation = _required_str(command, "operation")
         _guard_state_change(guard)
         if operation == "import_google_calendar":
             summary = self.calendar_import_service.import_google_calendar(
@@ -1164,32 +1065,6 @@ class IdentityAccessToolAdapter:
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
         if operation == "get_access_status":
-            return self.execute_without_staging(command, guard)
-
-        if _guard_can_stage(guard):
-            preflight_error = _validate_identity_access_staged_write(command, operation)
-            if preflight_error is not None:
-                return preflight_error
-            staged = _staged_command_result(
-                guard,
-                domain="identity_access",
-                operation=operation,
-                command=command,
-                preview_facts={
-                    "status": "staged",
-                    "operation": operation,
-                    "account_id": command.get("account_id"),
-                },
-            )
-            if staged is not None:
-                return staged
-        return self.execute_without_staging(command, guard)
-
-    def execute_without_staging(
-        self, command: Mapping[str, Any], guard: Any
-    ) -> ToolExecutionResult:
-        operation = _required_str(command, "operation")
-        if operation == "get_access_status":
             access = self.identity_access_service.get_access_status(
                 _required_str(command, "account_id")
             )
@@ -1234,35 +1109,6 @@ class SettingsToolAdapter:
         self.settings_service = settings_service
 
     def execute(self, command: Mapping[str, Any], guard: Any) -> ToolExecutionResult:
-        operation = _required_str(command, "operation")
-        if operation == "view_settings":
-            return self.execute_without_staging(command, guard)
-
-        if _guard_can_stage(guard):
-            preflight_error = _validate_settings_staged_write(command, operation)
-            if preflight_error is not None:
-                return preflight_error
-            account_id = _required_str(
-                command, "account_id", default_key="owner_account_id"
-            )
-            staged = _staged_command_result(
-                guard,
-                domain="settings",
-                operation=operation,
-                command=command,
-                preview_facts={
-                    "status": "staged",
-                    "operation": operation,
-                    "account_id": account_id,
-                },
-            )
-            if staged is not None:
-                return staged
-        return self.execute_without_staging(command, guard)
-
-    def execute_without_staging(
-        self, command: Mapping[str, Any], guard: Any
-    ) -> ToolExecutionResult:
         operation = _required_str(command, "operation")
         account_id = _required_str(
             command, "account_id", default_key="owner_account_id"
@@ -1324,26 +1170,6 @@ class SettingsToolAdapter:
         )
 
 
-class _FreshStagedCommandMaterializer:
-    def __init__(
-        self,
-        *,
-        conversation_runtime: ConversationRuntimeService,
-        materializer: StagedCommandMaterializer | None,
-    ) -> None:
-        self.conversation_runtime = conversation_runtime
-        self.materializer = materializer
-
-    def __call__(self, command) -> None:
-        if self.materializer is None:
-            raise ConversationRuntimeError("staged_command_materializer_missing")
-        guard = FreshnessGuard(
-            conversation_runtime=self.conversation_runtime,
-            turn_id=command.turn_id,
-        )
-        self.materializer.materialize(command, guard)
-
-
 def _compose_turn_pipeline(
     *,
     planner: Any,
@@ -1354,7 +1180,6 @@ def _compose_turn_pipeline(
     settings_service: SettingsService,
     conversation_runtime_service: ConversationRuntimeService,
     pending_store: Any,
-    staged_command_materializer: StagedCommandMaterializer | None,
     reminder_detector: Any,
     now: Callable[[], datetime],
 ) -> TurnPipeline:
@@ -1377,10 +1202,6 @@ def _compose_turn_pipeline(
         close_coordinator=CloseCoordinator(
             conversation_runtime_service,
             pending_store=pending_store,
-            materialize_staged_command=_FreshStagedCommandMaterializer(
-                conversation_runtime=conversation_runtime_service,
-                materializer=staged_command_materializer,
-            ),
         ),
         pending_store=pending_store,
     )
@@ -1529,13 +1350,6 @@ def compose_coke_runtime(
         identity_access_tool=IdentityAccessToolAdapter(identity_access_service),
         settings_tool=SettingsToolAdapter(settings_service),
     )
-    staged_command_materializer = StagedCommandMaterializer(
-        reminder_tool=adapters.reminder_tool,
-        social_scheduling_tool=adapters.social_scheduling_tool,
-        calendar_import_tool=adapters.calendar_import_tool,
-        identity_access_tool=adapters.identity_access_tool,
-        settings_tool=adapters.settings_tool,
-    )
     tool_ports = AgentToolPorts(
         reminder_tool=adapters.reminder_tool,
         social_scheduling_tool=adapters.social_scheduling_tool,
@@ -1562,7 +1376,6 @@ def compose_coke_runtime(
         settings_service=settings_service,
         conversation_runtime_service=conversation_runtime_service,
         pending_store=repositories.pending_clarification,
-        staged_command_materializer=staged_command_materializer,
         reminder_detector=reminder_detector or FakeReminderDetector(),
         now=now,
     )
@@ -1588,7 +1401,6 @@ def compose_coke_runtime(
             conversation_runtime_service=conversation_runtime_service,
             identity_access_service=identity_access_service,
         ),
-        staged_command_materializer=staged_command_materializer,
         now=now,
         account_timezone=lambda account_id: _account_default_timezone(
             identity_access_service, account_id
@@ -1908,297 +1720,9 @@ def _guard_turn_id(guard: Any) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _guard_can_stage(guard: Any) -> bool:
-    return callable(getattr(guard, "stage_command", None))
-
-
-_REMINDER_WRITE_OPERATIONS = frozenset(
-    {
-        "create",
-        "detect_and_create",
-        "execute_batch",
-        "schedule_unscheduled",
-        "reschedule_reminder",
-        "update_reminder",
-        "clear_trigger_time",
-        "complete_reminder",
-        "delete_reminder",
-    }
-)
-_SOCIAL_SCHEDULING_WRITE_OPERATIONS = frozenset(
-    {
-        "get_friend_link",
-        "reset_friend_link",
-        "disable_friend_link",
-        "create_shared_reminder",
-        "detect_and_create_shared_reminder",
-        "update_shared_reminder",
-        "cancel_shared_reminder",
-        "establish_friendship_from_token",
-        "remove_friend",
-    }
-)
-_CALENDAR_IMPORT_WRITE_OPERATIONS = frozenset(
-    {"import_google_calendar", "stop_authorization", "revoke_authorization"}
-)
-_IDENTITY_ACCESS_WRITE_OPERATIONS = frozenset(
-    {"issue_login_url", "issue_pairing_code", "issue_web_claim_code"}
-)
-_SETTINGS_WRITE_OPERATIONS = frozenset(
-    {"set_timezone", "update_settings", "update_profile", "reset_agent_settings"}
-)
-
-
-def _tool_validation_error(reason_code: str) -> ToolExecutionResult:
-    return ToolExecutionResult(
-        ok=False,
-        facts={"type": reason_code},
-        reason_code=reason_code,
-    )
-
-
-def _unsupported_tool_operation(reason_code: str) -> ToolExecutionResult:
-    return ToolExecutionResult(ok=False, facts={}, reason_code=reason_code)
-
-
-def _social_scheduling_participant_preflight_error(
+def _social_scheduling_account_id_from_command(
     command: Mapping[str, Any],
-    operation: str,
-) -> ToolExecutionResult:
-    resolution = _friend_resolution_status(command, None)
-    status_by_resolution = {
-        "unmatched": "blocked_unmatched_friend",
-        "unmatched_friend": "blocked_unmatched_friend",
-        "ambiguous": "blocked_ambiguous_friend",
-        "ambiguous_friend": "blocked_ambiguous_friend",
-    }
-    outcome_status = status_by_resolution.get(str(resolution or ""))
-    if outcome_status is None:
-        return _tool_validation_error("needs_participants")
-    context = _optional_context(command.get("context")) or {}
-    unresolved = _unresolved_friend_reference(command, context)
-    facts: dict[str, Any] = {
-        "type": "needs_participants",
-        "status": "needs_participants",
-        "follow_up_facts": {
-            "reason": _social_scheduling_blocker(outcome_status),
-            "unresolved_reference_text": unresolved,
-        },
-        "social_scheduling_outcome": _social_scheduling_outcome_from_command(
-            command,
-            operation=operation,
-            status=outcome_status,
-            blocker=_social_scheduling_blocker(outcome_status),
-        ),
-    }
-    return ToolExecutionResult(
-        ok=False,
-        facts=facts,
-        reason_code="needs_participants",
-    )
-
-
-def _validate_reminder_staged_write(
-    command: Mapping[str, Any], operation: str
-) -> ToolExecutionResult | None:
-    if operation not in _REMINDER_WRITE_OPERATIONS:
-        return _unsupported_tool_operation("unsupported_reminder_operation")
-    try:
-        _required_str(command, "owner_account_id", default_key="account_id")
-        if operation == "create":
-            _reminder_batch_item(command, turn_id=None, item_index=1)
-            if not command.get("content"):
-                return _tool_validation_error("needs_content")
-        elif operation == "detect_and_create":
-            _required_str(command, "raw_text")
-            _reminder_batch_item(command, turn_id=None, item_index=1)
-        elif operation == "execute_batch":
-            items = command.get("items")
-            if not isinstance(items, list):
-                return _unsupported_tool_operation("items_required")
-            for index, item in enumerate(items, start=1):
-                if not isinstance(item, Mapping):
-                    raise ValueError("items_invalid")
-                item_operation = _required_str(item, "operation")
-                if item_operation not in {"create", "detect_and_create"}:
-                    return _unsupported_tool_operation("unsupported_reminder_operation")
-                _reminder_batch_item(item, turn_id=None, item_index=index)
-                if item_operation == "create" and not item.get("content"):
-                    return _tool_validation_error("needs_content")
-                if item_operation == "detect_and_create":
-                    _required_str(item, "raw_text")
-        elif operation in {"schedule_unscheduled", "reschedule_reminder"}:
-            _required_str(command, "reminder_id")
-            _required_datetime(command, "trigger_time")
-        elif operation == "update_reminder":
-            _required_str(command, "reminder_id")
-            _optional_datetime(command.get("trigger_time"))
-        else:
-            _required_str(command, "reminder_id")
-    except ValueError as error:
-        return _tool_validation_error(str(error) or "reminder_write_failed")
-    return None
-
-
-def _validate_social_scheduling_staged_write(
-    command: Mapping[str, Any], operation: str
-) -> ToolExecutionResult | None:
-    if operation not in _SOCIAL_SCHEDULING_WRITE_OPERATIONS:
-        return _unsupported_tool_operation("unsupported_social_scheduling_operation")
-    try:
-        if operation in {
-            "get_friend_link",
-            "reset_friend_link",
-            "disable_friend_link",
-        }:
-            _required_str(command, "owner_account_id", default_key="account_id")
-        elif operation == "create_shared_reminder":
-            _required_str(command, "creator_account_id", default_key="account_id")
-            receiver_account_ids = _list_value(
-                command,
-                "receiver_account_ids",
-                aliases=("participant_account_ids", "participants"),
-            )
-            if not receiver_account_ids:
-                return _social_scheduling_participant_preflight_error(
-                    command,
-                    operation,
-                )
-            title = command.get("title")
-            if not isinstance(title, str) or not title.strip():
-                return _tool_validation_error("needs_title")
-            if _optional_datetime(command.get("local_trigger_at")) is None:
-                return _tool_validation_error("needs_time")
-            if command.get("duration_minutes") is not None:
-                int(command["duration_minutes"])
-        elif operation == "detect_and_create_shared_reminder":
-            _required_str(command, "creator_account_id", default_key="account_id")
-            receiver_account_ids = _list_value(
-                command,
-                "receiver_account_ids",
-                aliases=("participant_account_ids", "participants"),
-            )
-            if not receiver_account_ids:
-                return _social_scheduling_participant_preflight_error(
-                    command,
-                    operation,
-                )
-            _required_str(command, "raw_text")
-            if command.get("duration_minutes") is not None:
-                int(command["duration_minutes"])
-        elif operation == "cancel_shared_reminder":
-            _required_str(command, "account_id")
-            _required_str(command, "shared_reminder_id")
-        elif operation == "update_shared_reminder":
-            _required_str(command, "account_id")
-            _required_str(command, "shared_reminder_id")
-            if (
-                command.get("local_trigger_at") is None
-                and command.get("trigger_time") is None
-                and command.get("duration_minutes") is None
-            ):
-                return _tool_validation_error("needs_update_fields")
-            _optional_datetime(
-                command.get("local_trigger_at") or command.get("trigger_time")
-            )
-            if command.get("duration_minutes") is not None:
-                int(command["duration_minutes"])
-        elif operation == "establish_friendship_from_token":
-            _required_str(command, "joiner_account_id", default_key="account_id")
-            if command.get("link_code"):
-                _required_str(command, "link_code")
-            else:
-                _required_str(command, "public_token")
-        elif operation == "remove_friend":
-            _required_str(command, "account_id")
-            _required_str(command, "friend_account_id")
-    except ValueError as error:
-        return _tool_validation_error(str(error) or "social_scheduling_write_failed")
-    return None
-
-
-def _validate_calendar_import_staged_write(
-    command: Mapping[str, Any], operation: str
-) -> ToolExecutionResult | None:
-    if operation not in _CALENDAR_IMPORT_WRITE_OPERATIONS:
-        return _unsupported_tool_operation("unsupported_calendar_import_operation")
-    try:
-        _required_str(command, "account_id")
-        _required_str(command, "auth_handle")
-        if operation == "import_google_calendar":
-            _required_datetime(command, "visible_start")
-            _required_datetime(command, "visible_end")
-    except ValueError as error:
-        return _tool_validation_error(str(error) or "calendar_import_write_failed")
-    return None
-
-
-def _validate_identity_access_staged_write(
-    command: Mapping[str, Any], operation: str
-) -> ToolExecutionResult | None:
-    if operation not in _IDENTITY_ACCESS_WRITE_OPERATIONS:
-        return _unsupported_tool_operation("unsupported_identity_access_operation")
-    try:
-        if operation in {"issue_login_url", "issue_pairing_code"}:
-            _required_str(command, "account_id")
-        elif operation == "issue_web_claim_code":
-            _required_str(command, "browser_session")
-    except ValueError as error:
-        return _tool_validation_error(str(error) or "identity_access_write_failed")
-    return None
-
-
-def _validate_settings_staged_write(
-    command: Mapping[str, Any], operation: str
-) -> ToolExecutionResult | None:
-    if operation not in _SETTINGS_WRITE_OPERATIONS:
-        return _unsupported_tool_operation("unsupported_settings_operation")
-    try:
-        _required_str(command, "account_id", default_key="owner_account_id")
-        if operation == "set_timezone":
-            _required_str(command, "default_timezone", default_key="timezone")
-    except ValueError as error:
-        return _tool_validation_error(str(error) or "settings_write_failed")
-    return None
-
-
-def _staged_command_result(
-    guard: Any,
-    *,
-    domain: str,
-    operation: str,
-    command: Mapping[str, Any],
-    preview_facts: Mapping[str, Any],
-) -> ToolExecutionResult | None:
-    stage_command = getattr(guard, "stage_command", None)
-    if not callable(stage_command):
-        return None
-    staged = stage_command(
-        domain=domain,
-        operation=operation,
-        command_payload=dict(command),
-        preview_facts=preview_facts,
-        item_index=_command_item_index(command),
-    )
-    return ToolExecutionResult(
-        ok=True,
-        facts={
-            "status": "staged",
-            "staged_command_id": staged.id,
-            "preview": dict(staged.preview_facts),
-        },
-    )
-
-
-def _command_item_index(command: Mapping[str, Any]) -> int:
-    value = command.get("item_index") or 1
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 1
-
-
-def _social_scheduling_preview_account_id(command: Mapping[str, Any]) -> str | None:
+) -> str | None:
     for key in (
         "account_id",
         "owner_account_id",
@@ -2209,30 +1733,6 @@ def _social_scheduling_preview_account_id(command: Mapping[str, Any]) -> str | N
         if isinstance(value, str) and value:
             return value
     return None
-
-
-def _social_scheduling_staged_result_with_outcome(
-    staged: ToolExecutionResult,
-) -> ToolExecutionResult:
-    preview = staged.facts.get("preview")
-    if not isinstance(preview, Mapping):
-        return staged
-    outcome = preview.get("social_scheduling_outcome")
-    if not isinstance(outcome, Mapping):
-        return staged
-    updated_outcome = dict(outcome)
-    updated_outcome["staged_command_id"] = staged.facts.get("staged_command_id")
-    updated_preview = dict(preview)
-    updated_preview["social_scheduling_outcome"] = updated_outcome
-    facts = dict(staged.facts)
-    facts["preview"] = updated_preview
-    facts["social_scheduling_outcome"] = updated_outcome
-    return ToolExecutionResult(
-        ok=staged.ok,
-        facts=facts,
-        reason_code=staged.reason_code,
-        domain_result=staged.domain_result,
-    )
 
 
 def _shared_reminder_create_tool_facts(
@@ -2328,17 +1828,15 @@ def _social_scheduling_outcome_from_command(
     operation: str,
     status: str,
     shared_reminder: Any | None = None,
-    staged_command_id: str | None = None,
     blocker: str | None = None,
 ) -> dict[str, Any]:
     context = _optional_context(command.get("context")) or {}
-    creator_account_id = _social_scheduling_preview_account_id(command) or "unknown"
+    creator_account_id = _social_scheduling_account_id_from_command(command) or "unknown"
     unresolved_reference = _unresolved_friend_reference(command, context)
     reference = (
         unresolved_reference
         or getattr(shared_reminder, "id", None)
         or command.get("title")
-        or staged_command_id
         or "none"
     )
     receiver_account_ids = _list_value(
@@ -2357,7 +1855,6 @@ def _social_scheduling_outcome_from_command(
         "outcome_id": f"{operation}:{status}:{creator_account_id}:{reference}",
         "operation": operation,
         "status": status,
-        "staged_command_id": staged_command_id,
         "shared_reminder_id": shared_reminder_id,
         "title": _outcome_title(command, shared_reminder),
         "local_trigger_at": _outcome_datetime_value(

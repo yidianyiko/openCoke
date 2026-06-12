@@ -1003,7 +1003,7 @@ def test_social_scheduling_outcome_block_is_in_prompt():
     assert "active_created" in block
 
 
-def test_created_shared_reminder_rejects_pending_structured_claim():
+def test_created_shared_reminder_rejects_mismatched_structured_claim():
     outcome = _created_social_outcome("outcome-1")
     fake_agent = ToolCallingFakeAgentInstance(
         content={
@@ -1012,8 +1012,9 @@ def test_created_shared_reminder_rejects_pending_structured_claim():
             "domain_claim": {
                 "domain": "social_scheduling",
                 "outcome_id": "outcome-1",
-                "status": "staged_pending_close",
-                "claim": "no_success_claim",
+                "status": "blocked_unmatched_friend",
+                "claim": "blocked_unmatched_friend",
+                "blocker": "unmatched_friend",
             },
         },
         command={"operation": "create_shared_reminder"},
@@ -1036,10 +1037,10 @@ def test_created_shared_reminder_rejects_pending_structured_claim():
     }
 
 
-def test_staged_shared_reminder_reply_derives_missing_structured_claim():
-    outcome = _staged_social_outcome("outcome-1")
+def test_created_shared_reminder_reply_requires_structured_claim():
+    outcome = _created_social_outcome("outcome-1")
     fake_agent = ToolCallingFakeAgentInstance(
-        content={"type": "reply", "segments": ["我会继续确认这次安排。"]},
+        content={"type": "reply", "segments": ["我已经安排好了。"]},
         command={"operation": "create_shared_reminder"},
     )
     agent = AgnoInteractionAgent(
@@ -1055,8 +1056,8 @@ def test_staged_shared_reminder_reply_derives_missing_structured_claim():
     )
 
     assert result.output == {
-        "type": "reply",
-        "segments": ["我会继续确认这次安排。"],
+        "type": "invalid_output_protocol",
+        "reason": "social_scheduling_claim_required",
     }
 
 
@@ -2120,25 +2121,7 @@ def _created_social_outcome(outcome_id: str) -> dict[str, Any]:
         "outcome_id": outcome_id,
         "operation": "create_shared_reminder",
         "status": "created_active",
-        "staged_command_id": None,
         "shared_reminder_id": "shared_1",
-        "title": "Dinner",
-        "local_trigger_at": "2026-06-01T19:00:00",
-        "captured_timezone": "UTC",
-        "duration_minutes": 15,
-        "participant_account_ids": ["account_2"],
-        "blocker": None,
-        "facts_hash": None,
-    }
-
-
-def _staged_social_outcome(outcome_id: str) -> dict[str, Any]:
-    return {
-        "outcome_id": outcome_id,
-        "operation": "create_shared_reminder",
-        "status": "staged_pending_close",
-        "staged_command_id": "staged_1",
-        "shared_reminder_id": None,
         "title": "Dinner",
         "local_trigger_at": "2026-06-01T19:00:00",
         "captured_timezone": "UTC",
@@ -2154,7 +2137,6 @@ def _blocked_social_outcome(outcome_id: str) -> dict[str, Any]:
         "outcome_id": outcome_id,
         "operation": "create_shared_reminder",
         "status": "blocked_unmatched_friend",
-        "staged_command_id": None,
         "shared_reminder_id": None,
         "title": "Dinner",
         "local_trigger_at": "2026-06-01T19:00:00",

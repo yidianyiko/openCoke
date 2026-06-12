@@ -34,13 +34,14 @@ class FakeStagingGuard:
         self.input_from_seq = input_from_seq
         self.input_to_seq = input_to_seq
         self.staged: list[dict[str, Any]] = []
+        self.calls = 0
+
+    def guard_state_change(self) -> None:
+        self.calls += 1
 
     def stage_command(self, **kwargs):
         self.staged.append(kwargs)
-        return SimpleNamespace(
-            id="staged_1",
-            preview_facts=dict(kwargs["preview_facts"]),
-        )
+        raise AssertionError("stage_command must not be called")
 
 
 class FakeSocialSchedulingService:
@@ -396,11 +397,11 @@ def test_detect_and_create_shared_reminder_routes_raw_text_to_service():
     assert guard.calls == 1
 
 
-def test_update_shared_reminder_materialize_passes_idempotent_replay_flag():
+def test_update_shared_reminder_execute_passes_idempotent_replay_flag():
     service = FakeSocialSchedulingService()
     adapter = SocialSchedulingToolAdapter(service)
 
-    result = adapter.execute_without_staging(
+    result = adapter.execute(
         {
             "operation": "update_shared_reminder",
             "account_id": "creator_1",
@@ -430,7 +431,7 @@ def test_update_shared_reminder_materialize_passes_idempotent_replay_flag():
     ]
 
 
-def test_interactive_shared_reminder_tool_stages_before_close():
+def test_interactive_shared_reminder_tool_executes_before_close():
     service = FakeSocialSchedulingService()
     adapter = SocialSchedulingToolAdapter(service)
     guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=1, input_to_seq=1)
@@ -448,13 +449,25 @@ def test_interactive_shared_reminder_tool_stages_before_close():
     )
 
     assert result.ok is True
-    assert result.facts["status"] == "staged"
-    assert service.calls == []
-    assert guard.staged[0]["domain"] == "social_scheduling"
-    assert guard.staged[0]["operation"] == "create_shared_reminder"
+    assert result.facts["status"] == "created"
+    assert service.calls == [
+        (
+            "create_shared_reminder",
+            {
+                "creator_account_id": "account_1",
+                "receiver_account_ids": ["account_2"],
+                "title": "Dinner",
+                "local_trigger_at": datetime(2026, 6, 1, 19, 0),
+                "captured_timezone": "UTC",
+                "duration_minutes": None,
+            },
+        )
+    ]
+    assert guard.calls == 1
+    assert guard.staged == []
 
 
-def test_staged_shared_reminder_tool_result_returns_social_outcome():
+def test_shared_reminder_tool_result_returns_social_outcome():
     service = FakeSocialSchedulingService()
     adapter = SocialSchedulingToolAdapter(service)
     guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=1, input_to_seq=1)
@@ -472,14 +485,11 @@ def test_staged_shared_reminder_tool_result_returns_social_outcome():
     )
 
     outcome = result.facts["social_scheduling_outcome"]
-    assert outcome["status"] == "staged_pending_close"
+    assert outcome["status"] == "created_active"
     assert outcome["operation"] == "create_shared_reminder"
-    assert outcome["staged_command_id"] == "staged_1"
+    assert all("staged" not in key for key in outcome)
     assert outcome["title"] == "Dinner"
-    assert (
-        guard.staged[0]["preview_facts"]["social_scheduling_outcome"]["status"]
-        == "staged_pending_close"
-    )
+    assert guard.staged == []
 
 
 def test_blocked_shared_reminder_tool_result_returns_blocked_outcome():
@@ -519,7 +529,6 @@ def test_blocked_shared_reminder_tool_result_returns_blocked_outcome():
         "outcome_id": "create_shared_reminder:blocked_unmatched_friend:creator_1:zihao",
         "operation": "create_shared_reminder",
         "status": "blocked_unmatched_friend",
-        "staged_command_id": None,
         "shared_reminder_id": None,
         "title": "Team sync",
         "local_trigger_at": "2026-06-01T09:00:00",
@@ -529,42 +538,6 @@ def test_blocked_shared_reminder_tool_result_returns_blocked_outcome():
         "blocker": "unmatched_friend",
         "facts_hash": None,
     }
-
-
-def test_preflight_unmatched_friend_shared_reminder_returns_blocked_outcome():
-    service = FakeSocialSchedulingService()
-    adapter = SocialSchedulingToolAdapter(service)
-    guard = FakeStagingGuard(turn_id="turn_1", input_from_seq=1, input_to_seq=1)
-
-    result = adapter.execute(
-        {
-            "operation": "create_shared_reminder",
-            "creator_account_id": "creator_1",
-            "receiver_account_ids": [],
-            "title": "Morning run",
-            "local_trigger_at": "2029-01-01T08:30:00",
-            "captured_timezone": "Asia/Shanghai",
-            "duration_minutes": 45,
-            "context": {
-                "source": "unit",
-                "friend_resolution_status": "unmatched",
-                "unresolved_reference_text": "zihao",
-            },
-        },
-        guard,
-    )
-
-    assert result.ok is False
-    assert result.reason_code == "needs_participants"
-    assert result.facts["follow_up_facts"] == {
-        "reason": "unmatched_friend",
-        "unresolved_reference_text": "zihao",
-    }
-    assert result.facts["social_scheduling_outcome"]["status"] == (
-        "blocked_unmatched_friend"
-    )
-    assert result.facts["social_scheduling_outcome"]["blocker"] == "unmatched_friend"
-    assert guard.staged == []
 
 
 def test_create_shared_reminder_repository_failure_returns_clear_non_success_result():

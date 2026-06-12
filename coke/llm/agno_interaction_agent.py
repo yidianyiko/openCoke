@@ -61,9 +61,6 @@ _SETTINGS_OP_ALIASES = {
     "reset": "reset_agent_settings",
     "reset_settings": "reset_agent_settings",
 }
-_SHARED_REMINDER_CREATE_OPERATIONS = frozenset(
-    {"create_shared_reminder", "detect_and_create_shared_reminder"}
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -478,52 +475,7 @@ def _tool_callable(
 def _model_visible_tool_payload(
     name: str, payload: Mapping[str, Any]
 ) -> Mapping[str, Any]:
-    if name != "social_scheduling":
-        return payload
-    facts = payload.get("facts")
-    if not isinstance(facts, Mapping):
-        return payload
-    outcome = facts.get("social_scheduling_outcome")
-    if not isinstance(outcome, Mapping):
-        return payload
-    if outcome.get("status") != "staged_pending_close":
-        return payload
-    if outcome.get("operation") not in _SHARED_REMINDER_CREATE_OPERATIONS:
-        return payload
-
-    visible_facts = _model_visible_staged_shared_reminder_facts(outcome)
-    visible_payload = dict(payload)
-    visible_payload["facts"] = visible_facts
-
-    domain_result = payload.get("domain_result")
-    if isinstance(domain_result, Mapping):
-        visible_domain_result = dict(domain_result)
-        visible_domain_result["visible_summary"] = json.dumps(
-            visible_facts, ensure_ascii=False, default=str
-        )
-        if "facts" in visible_domain_result:
-            visible_domain_result["facts"] = visible_facts
-        for key in ("staged_command_id", "preview", "social_scheduling_outcome"):
-            visible_domain_result.pop(key, None)
-        visible_payload["domain_result"] = visible_domain_result
-
-    return visible_payload
-
-
-def _model_visible_staged_shared_reminder_facts(
-    outcome: Mapping[str, Any],
-) -> dict[str, Any]:
-    visible: dict[str, Any] = {"operation": str(outcome.get("operation") or "")}
-    for key in ("title", "local_trigger_at", "captured_timezone"):
-        value = outcome.get(key)
-        if isinstance(value, str) and value.strip():
-            visible[key] = value
-    if outcome.get("duration_minutes") is not None:
-        visible["duration_minutes"] = outcome["duration_minutes"]
-    participant_account_ids = outcome.get("participant_account_ids")
-    if isinstance(participant_account_ids, list | tuple) and participant_account_ids:
-        visible["participant_account_ids"] = list(participant_account_ids)
-    return visible
+    return payload
 
 
 def _tool_doc(name: str) -> str:
@@ -1386,7 +1338,7 @@ def _social_scheduling_outcomes_block(outcomes: list[Mapping[str, Any]]) -> str:
             "trusted social_scheduling close-time outcomes:",
             _json_block({"outcomes": outcomes}),
             "When replying about these outcomes, include domain_claim with domain=social_scheduling, outcome_id, status, and the allowed claim that matches the trusted outcome.",
-            "created_active requires claim active_created; rescheduled_active requires active_rescheduled; duplicate_active requires active_duplicate; blocked_* requires the matching blocked_* claim and blocker; staged_pending_close allows only no_success_claim and must not be user-visible success.",
+            "created_active requires claim active_created; rescheduled_active requires active_rescheduled; duplicate_active requires active_duplicate; blocked_* requires the matching blocked_* claim and blocker.",
         ]
     )
 
