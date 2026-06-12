@@ -98,21 +98,6 @@ class CurrentInputMessage:
 
 
 @dataclass(frozen=True, slots=True)
-class StagedCommand:
-    id: str
-    turn_id: str
-    domain: str
-    operation: str
-    idempotency_key: str
-    command_payload: Mapping[str, Any]
-    preview_facts: Mapping[str, Any]
-    status: Literal["staged", "materialized", "superseded"]
-    materialized_at: datetime | None
-    created_at: datetime
-    updated_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
 class WaitingReplyCandidate:
     turn_id: str
     trigger_id: str

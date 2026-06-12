@@ -134,17 +134,6 @@ def test_waiting_reply_failed_provider_network_error_keeps_turn_active_and_obser
         trigger_type="InboundTurn",
         mode="interactive",
     ).turn
-    service.stage_command(
-        turn_id=turn.id,
-        domain="social_scheduling",
-        operation="create_shared_reminder",
-        command_payload={
-            "title": "music lesson",
-            "local_trigger_at": "2026-06-01T22:30:00+08:00",
-        },
-        preview_facts={"status": "staged"},
-        item_index=0,
-    )
     delivery = SequenceDelivery(
         [
             ("failed", "provider_network_error"),
@@ -175,7 +164,6 @@ def test_waiting_reply_failed_provider_network_error_keeps_turn_active_and_obser
         repository.get_conversation(inbound.conversation.id).last_closed_inbound_seq
         == inbound.conversation.last_closed_inbound_seq
     )
-    assert repository.staged_commands_for_turn(turn.id)[0].status == "staged"
     assert (
         service.repository.outbound_messages_for_turn(turn.id)[0].text == WAITING_TEXT
     )
@@ -185,7 +173,6 @@ def test_waiting_reply_failed_provider_network_error_keeps_turn_active_and_obser
     )
 
     assert final.disposition == "replied"
-    assert repository.staged_commands_for_turn(turn.id)[0].status == "staged"
 
 
 def test_waiting_reply_context_token_failure_does_not_retry():

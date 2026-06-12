@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision = "20260531_0001"
 down_revision = "20260529_0001"
@@ -67,39 +66,9 @@ def upgrade() -> None:
         "message",
         ["conversation_id", "direction", "seq"],
     )
-    op.create_table(
-        "staged_command",
-        sa.Column("id", postgresql.UUID(as_uuid=False), nullable=False),
-        sa.Column("turn_id", postgresql.UUID(as_uuid=False), nullable=False),
-        sa.Column("domain", sa.String(length=64), nullable=False),
-        sa.Column("operation", sa.String(length=128), nullable=False),
-        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
-        sa.Column(
-            "command_payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False
-        ),
-        sa.Column(
-            "preview_facts", postgresql.JSONB(astext_type=sa.Text()), nullable=False
-        ),
-        sa.Column("status", sa.String(length=32), nullable=False),
-        sa.Column("materialized_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.PrimaryKeyConstraint("id", name="pk_staged_command"),
-        sa.ForeignKeyConstraint(
-            ["turn_id"],
-            ["turn.id"],
-            name="fk_staged_command_turn_id_turn",
-        ),
-        sa.UniqueConstraint("idempotency_key", name="uq_staged_command_idempotency"),
-        sa.CheckConstraint(
-            "status in ('staged', 'materialized', 'superseded')",
-            name=op.f("ck_staged_command_status"),
-        ),
-    )
 
 
 def downgrade() -> None:
-    op.drop_table("staged_command")
     op.drop_constraint("uq_message_inbound_seq", "message", type_="unique")
     op.drop_constraint("ck_turn_input_window_order", "turn", type_="check")
     op.add_column(

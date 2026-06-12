@@ -267,27 +267,6 @@ turn = Table(
     ),
 )
 
-staged_command = Table(
-    "staged_command",
-    metadata,
-    _id_column(),
-    Column("turn_id", UUID(as_uuid=False), ForeignKey("turn.id"), nullable=False),
-    Column("domain", String(64), nullable=False),
-    Column("operation", String(128), nullable=False),
-    Column("idempotency_key", String(255), nullable=False),
-    Column("command_payload", JSONB(), nullable=False),
-    Column("preview_facts", JSONB(), nullable=False),
-    Column("status", String(32), nullable=False),
-    Column("materialized_at", DateTime(timezone=True), nullable=True),
-    _created_at(),
-    _updated_at(),
-    UniqueConstraint("idempotency_key", name="uq_staged_command_idempotency"),
-    CheckConstraint(
-        "status in ('staged', 'materialized', 'superseded')",
-        name="status",
-    ),
-)
-
 message = Table(
     "message",
     metadata,

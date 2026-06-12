@@ -52,12 +52,11 @@ def test_conversation_runtime_schema_has_ordering_and_replay_constraints():
     assert "acked_at" in outbox.c
 
 
-def test_conversation_runtime_schema_tracks_input_windows_and_staged_commands():
+def test_conversation_runtime_schema_tracks_input_windows():
     from coke.schema import metadata
 
     conversation = metadata.tables["conversation"]
     turn = metadata.tables["turn"]
-    staged_command = metadata.tables["staged_command"]
 
     assert "latest_inbound_seq" in conversation.c
     assert "last_closed_inbound_seq" in conversation.c
@@ -65,16 +64,3 @@ def test_conversation_runtime_schema_tracks_input_windows_and_staged_commands():
     assert "input_to_seq" in turn.c
     assert "superseded_by_inbound_seq" in turn.c
     assert "based_on_inbound_seq" not in turn.c
-    assert {
-        "turn_id",
-        "domain",
-        "operation",
-        "idempotency_key",
-        "command_payload",
-        "preview_facts",
-        "status",
-        "materialized_at",
-    }.issubset(set(staged_command.c.keys()))
-    assert _unique_columns(staged_command, "uq_staged_command_idempotency") == (
-        "idempotency_key",
-    )

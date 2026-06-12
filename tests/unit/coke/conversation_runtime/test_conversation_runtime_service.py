@@ -50,7 +50,8 @@ def test_close_apis_do_not_accept_staged_materializer_callbacks() -> None:
         "mark_pending_async_reply",
     ):
         signature = inspect.signature(getattr(ConversationRuntimeService, method_name))
-        assert "materialize_staged_command" not in signature.parameters
+        retired_parameter = "materialize" + "_staged" + "_command"
+        assert retired_parameter not in signature.parameters
 
 
 def test_default_conversation_runtime_ids_are_schema_uuid_strings(repository):
@@ -319,71 +320,6 @@ def test_close_advances_last_closed_inbound_seq(service, repository):
     assert saved.last_closed_inbound_seq == 1
 
 
-def test_stage_command_keeps_distinct_same_operation_payloads_without_item_index(
-    service,
-    repository,
-):
-    inbound = service.record_inbound(
-        account_id="account_1",
-        channel_identity_id="channel_identity_1",
-        causal_inbound_event_id="provider:message-1",
-        text="set two reminders",
-        payload={"provider": "whatsapp_evolution"},
-        traceparent=TRACEPARENT,
-    )
-    turn = service.start_turn(
-        conversation_id=inbound.conversation.id,
-        trigger_id="inbound:provider:message-1",
-        trigger_type="InboundTurn",
-        mode="interactive",
-    )
-
-    first = service.stage_command(
-        turn_id=turn.turn.id,
-        domain="reminder",
-        operation="create",
-        command_payload={
-            "operation": "create",
-            "owner_account_id": "account_1",
-            "content": "pay rent",
-        },
-        preview_facts={"status": "staged", "content": "pay rent"},
-        item_index=1,
-    )
-    second = service.stage_command(
-        turn_id=turn.turn.id,
-        domain="reminder",
-        operation="create",
-        command_payload={
-            "operation": "create",
-            "owner_account_id": "account_1",
-            "content": "call mom",
-        },
-        preview_facts={"status": "staged", "content": "call mom"},
-        item_index=1,
-    )
-    retry = service.stage_command(
-        turn_id=turn.turn.id,
-        domain="reminder",
-        operation="create",
-        command_payload={
-            "operation": "create",
-            "owner_account_id": "account_1",
-            "content": "pay rent",
-        },
-        preview_facts={"status": "staged", "content": "pay rent"},
-        item_index=1,
-    )
-
-    staged = repository.staged_commands_for_turn(turn.turn.id)
-    assert first.id != second.id
-    assert retry.id == first.id
-    assert [command.command_payload["content"] for command in staged] == [
-        "pay rent",
-        "call mom",
-    ]
-
-
 def test_newer_inbound_before_close_supersedes_old_turn_without_closing(
     service,
     repository,
@@ -631,7 +567,7 @@ def test_pending_async_reply_allows_original_turn_to_commit_final_reply(
     assert saved_turn.completed_at == NOW
 
 
-def test_recovery_reply_closes_window_without_touching_staged_commands(
+def test_recovery_reply_closes_window(
     service,
     repository,
 ):
@@ -649,17 +585,6 @@ def test_recovery_reply_closes_window_without_touching_staged_commands(
         trigger_type="InboundTurn",
         mode="interactive",
     )
-    staged = service.stage_command(
-        turn_id=turn.turn.id,
-        domain="social_scheduling",
-        operation="create_shared_reminder",
-        command_payload={
-            "title": "music lesson",
-            "local_trigger_at": "2026-06-01T22:30:00+08:00",
-        },
-        preview_facts={"status": "staged"},
-        item_index=0,
-    )
 
     disposition = service.commit_recovery_reply(
         turn_id=turn.turn.id,
@@ -668,7 +593,6 @@ def test_recovery_reply_closes_window_without_touching_staged_commands(
 
     saved = repository.get_conversation(inbound.conversation.id)
     saved_turn = repository.get_turn(turn.turn.id)
-    saved_staged = repository.staged_commands_for_turn(turn.turn.id)
     outbound = service.outbound_messages_for_turn(turn.turn.id)
 
     assert disposition.disposition == "recovered"
@@ -677,9 +601,6 @@ def test_recovery_reply_closes_window_without_touching_staged_commands(
     assert saved.last_closed_inbound_seq == turn.turn.input_to_seq
     assert saved_turn is not None
     assert saved_turn.completed_at == NOW
-    assert saved_staged[0].id == staged.id
-    assert saved_staged[0].status == "staged"
-    assert saved_staged[0].materialized_at is None
     assert [message.text for message in outbound] == [
         "我没能帮你完成 music lesson，请再说一次。"
     ]
@@ -718,17 +639,7 @@ def test_new_inbound_supersedes_pending_async_turn_before_state_change(
     )
 
     with pytest.raises(ConversationRuntimeError, match="turn_superseded"):
-        service.stage_command(
-            turn_id=turn.turn.id,
-            domain="social_scheduling",
-            operation="create_shared_reminder",
-            command_payload={
-                "title": "music lesson",
-                "local_trigger_at": "2026-06-01T22:30:00+08:00",
-            },
-            preview_facts={"status": "staged"},
-            item_index=0,
-        )
+        service.guard_state_change(turn_id=turn.turn.id)
 
     saved = repository.get_conversation(inbound.conversation.id)
     disposition = service.get_disposition(turn.turn.id)

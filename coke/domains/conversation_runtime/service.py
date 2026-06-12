@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -21,7 +19,6 @@ from coke.domains.conversation_runtime.models import (
     Message,
     OutboxRecord,
     OutputDisposition,
-    StagedCommand,
     Turn,
     TurnStartResult,
 )
@@ -380,43 +377,6 @@ class ConversationRuntimeService:
         turn = self._require_turn(turn_id)
         self._ensure_turn_can_close(turn)
 
-    def stage_command(
-        self,
-        *,
-        turn_id: str,
-        domain: str,
-        operation: str,
-        command_payload: Mapping[str, Any],
-        preview_facts: Mapping[str, Any],
-        item_index: int,
-    ) -> StagedCommand:
-        turn = self._require_turn(turn_id)
-        self._ensure_turn_can_close(turn)
-        payload_digest = _payload_digest(command_payload)
-        idempotency_key = (
-            f"staged:{turn.conversation_id}:{turn.input_from_seq}:"
-            f"{turn.input_to_seq}:{domain}:{operation}:{item_index}:"
-            f"{payload_digest}"
-        )
-        for existing in self.repository.staged_commands_for_turn(turn_id):
-            if existing.idempotency_key == idempotency_key:
-                return existing
-        now = self._now()
-        command = StagedCommand(
-            id=self._id_factory("staged_command"),
-            turn_id=turn_id,
-            domain=domain,
-            operation=operation,
-            idempotency_key=idempotency_key,
-            command_payload=dict(command_payload),
-            preview_facts=dict(preview_facts),
-            status="staged",
-            materialized_at=None,
-            created_at=now,
-            updated_at=now,
-        )
-        return self.repository.save_staged_command(command)
-
     def get_disposition(self, turn_id: str) -> OutputDisposition:
         disposition = self.repository.get_disposition(turn_id)
         if disposition is None:
@@ -644,11 +604,6 @@ class ConversationRuntimeService:
             return existing
         now = self._now()
         conversation = self._require_conversation(turn.conversation_id)
-        for command in self.repository.staged_commands_for_turn(turn.id):
-            if command.status == "staged":
-                self.repository.save_staged_command(
-                    replace(command, status="superseded", updated_at=now)
-                )
         disposition = self._disposition_for_transition(
             existing,
             turn.id,
@@ -753,23 +708,3 @@ class ConversationRuntimeService:
             raise ConversationRuntimeError("turn_not_found")
         return turn
 
-
-def _payload_digest(payload: Mapping[str, Any]) -> str:
-    encoded = json.dumps(
-        _canonical_payload(payload),
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode()
-    return hashlib.sha256(encoded).hexdigest()[:24]
-
-
-def _canonical_payload(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {str(key): _canonical_payload(item) for key, item in value.items()}
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
-        return [_canonical_payload(item) for item in value]
-    if value is None or isinstance(value, str | int | float | bool):
-        return value
-    return repr(value)

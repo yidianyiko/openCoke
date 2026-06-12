@@ -2143,73 +2143,12 @@ def _grounded_recovery_text(
     if request.trigger_type != "InboundTurn":
         return None
     grounding = (
-        _recovery_grounding_from_staged_commands(request)
-        or _recovery_grounding_from_tool_events(tool_events)
+        _recovery_grounding_from_tool_events(tool_events)
         or _recovery_grounding_from_input(request)
     )
     if grounding is None:
         return None
     return f"我没能帮你完成「{grounding.intent}」，{grounding.ask}"
-
-
-def _recovery_grounding_from_staged_commands(
-    request: AgentRequest,
-) -> _RecoveryGrounding | None:
-    runtime = getattr(request.freshness_guard, "conversation_runtime", None)
-    repository = getattr(runtime, "repository", None)
-    staged_commands_for_turn = getattr(repository, "staged_commands_for_turn", None)
-    if not callable(staged_commands_for_turn):
-        return None
-    for command in staged_commands_for_turn(request.turn_id):
-        if getattr(command, "status", None) != "staged":
-            continue
-        intent = _recovery_intent_from_staged_command(command)
-        if intent is not None:
-            return _RecoveryGrounding(
-                intent=intent,
-                ask="请再说一次或确认后重试。",
-            )
-    return None
-
-
-def _recovery_intent_from_staged_command(command: Any) -> str | None:
-    payload = getattr(command, "command_payload", {})
-    if isinstance(payload, Mapping):
-        raw_text = _clean_recovery_text(payload.get("raw_text"))
-        title = _clean_recovery_text(payload.get("title"))
-        if (
-            raw_text is not None
-            and title is None
-            and getattr(command, "operation", None)
-            == "detect_and_create_shared_reminder"
-        ):
-            return raw_text
-    preview_facts = getattr(command, "preview_facts", {})
-    if isinstance(preview_facts, Mapping):
-        outcome = preview_facts.get("social_scheduling_outcome")
-        if isinstance(outcome, Mapping):
-            intent = _recovery_intent_from_social_outcome(outcome)
-            if intent is not None:
-                return intent
-    if not isinstance(payload, Mapping):
-        return None
-    title = _clean_recovery_text(
-        payload.get("title")
-        or payload.get("content")
-        or payload.get("text")
-        or payload.get("summary")
-    )
-    local_time = _clean_recovery_text(
-        payload.get("local_trigger_at") or payload.get("due_at") or payload.get("time")
-    )
-    participants = _clean_recovery_text(_recovery_participants(payload))
-    pieces = [piece for piece in (title, local_time, participants) if piece]
-    if pieces:
-        return " ".join(pieces)
-    operation = _clean_recovery_text(getattr(command, "operation", None))
-    if operation is None:
-        return None
-    return operation.replace("_", " ")
 
 
 def _recovery_grounding_from_tool_events(

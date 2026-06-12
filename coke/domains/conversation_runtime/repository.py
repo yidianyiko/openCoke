@@ -26,7 +26,6 @@ from coke.domains.conversation_runtime.models import (
     Message,
     OutboxRecord,
     OutputDisposition,
-    StagedCommand,
     Turn,
     WaitingReplyCandidate,
 )
@@ -89,10 +88,6 @@ class ConversationRuntimeRepository(Protocol):
         self, conversation: Conversation, turn: Turn
     ) -> None: ...
 
-    def save_staged_command(self, command: StagedCommand) -> StagedCommand: ...
-
-    def staged_commands_for_turn(self, turn_id: str) -> list[StagedCommand]: ...
-
     def add_outbound_message(self, message: Message) -> None: ...
 
     def outbound_messages_for_turn(self, turn_id: str) -> list[Message]: ...
@@ -132,8 +127,6 @@ class InMemoryConversationRuntimeRepository:
         self.inbound_media_by_id: dict[str, InboundMedia] = {}
         self.turns_by_id: dict[str, Turn] = {}
         self.turns_by_trigger_id: dict[str, Turn] = {}
-        self.staged_commands_by_id: dict[str, StagedCommand] = {}
-        self.staged_commands_by_idempotency_key: dict[str, StagedCommand] = {}
         self.dispositions_by_turn_id: dict[str, OutputDisposition] = {}
         self.outbox_by_id: dict[str, OutboxRecord] = {}
         self.outbox_by_idempotency_key: dict[str, OutboxRecord] = {}
@@ -387,37 +380,6 @@ class InMemoryConversationRuntimeRepository:
     ) -> None:
         self.save_conversation(conversation)
         self.save_turn(turn)
-
-    def save_staged_command(self, command: StagedCommand) -> StagedCommand:
-        existing = self.staged_commands_by_id.get(command.id)
-        idempotency_owner = self.staged_commands_by_idempotency_key.get(
-            command.idempotency_key
-        )
-        if existing is None:
-            if idempotency_owner is not None:
-                raise ConversationRuntimeError("duplicate_staged_command_idempotency")
-        else:
-            if idempotency_owner is not None and idempotency_owner.id != command.id:
-                raise ConversationRuntimeError("duplicate_staged_command_idempotency")
-            if existing.idempotency_key != command.idempotency_key:
-                self.staged_commands_by_idempotency_key.pop(
-                    existing.idempotency_key,
-                    None,
-                )
-        if command.turn_id not in self.turns_by_id:
-            raise ConversationRuntimeError("turn_not_found")
-        self.staged_commands_by_id[command.id] = command
-        self.staged_commands_by_idempotency_key[command.idempotency_key] = command
-        return command
-
-    def staged_commands_for_turn(self, turn_id: str) -> list[StagedCommand]:
-        commands = [
-            command
-            for command in self.staged_commands_by_id.values()
-            if command.turn_id == turn_id
-        ]
-        commands.sort(key=lambda command: (command.created_at, command.id))
-        return commands
 
     def add_outbound_message(self, message: Message) -> None:
         if message.direction != "outbound":
@@ -894,52 +856,6 @@ class PostgresConversationRuntimeRepository:
         self.save_conversation(conversation)
         self.save_turn(turn)
 
-    def save_staged_command(self, command: StagedCommand) -> StagedCommand:
-        existing = self.session.execute(
-            sa.select(schema.staged_command.c.id).where(
-                schema.staged_command.c.id == db_id(command.id)
-            )
-        ).first()
-        if existing is None:
-            insert_row(
-                self.session,
-                schema.staged_command,
-                _staged_command_values(command),
-                {
-                    "pk_staged_command": "duplicate_staged_command_id",
-                    "uq_staged_command_idempotency": (
-                        "duplicate_staged_command_idempotency"
-                    ),
-                    "fk_staged_command_turn_id_turn": "turn_not_found",
-                },
-                default_error="duplicate_staged_command_idempotency",
-                error_type=ConversationRuntimeError,
-            )
-        else:
-            update_row(
-                self.session,
-                schema.staged_command,
-                _staged_command_values(command),
-                {
-                    "uq_staged_command_idempotency": (
-                        "duplicate_staged_command_idempotency"
-                    ),
-                    "fk_staged_command_turn_id_turn": "turn_not_found",
-                },
-                default_error="duplicate_staged_command_idempotency",
-                error_type=ConversationRuntimeError,
-            )
-        return command
-
-    def staged_commands_for_turn(self, turn_id: str) -> list[StagedCommand]:
-        rows = many(
-            self.session,
-            schema.staged_command,
-            schema.staged_command.c.turn_id == db_id(turn_id),
-            order_by=(schema.staged_command.c.created_at, schema.staged_command.c.id),
-        )
-        return [_staged_command(row) for row in rows]
-
     def add_outbound_message(self, message: Message) -> None:
         if message.direction != "outbound":
             raise ConversationRuntimeError("message_not_outbound")
@@ -1241,38 +1157,6 @@ def _turn(row: Mapping) -> Turn:
         row["superseded_by_inbound_seq"],
         row["started_at"],
         row["completed_at"],
-        row["created_at"],
-        row["updated_at"],
-    )
-
-
-def _staged_command_values(command: StagedCommand) -> dict:
-    return {
-        "id": command.id,
-        "turn_id": command.turn_id,
-        "domain": command.domain,
-        "operation": command.operation,
-        "idempotency_key": command.idempotency_key,
-        "command_payload": json_value(command.command_payload),
-        "preview_facts": json_value(command.preview_facts),
-        "status": command.status,
-        "materialized_at": command.materialized_at,
-        "created_at": command.created_at,
-        "updated_at": command.updated_at,
-    }
-
-
-def _staged_command(row: Mapping) -> StagedCommand:
-    return StagedCommand(
-        db_id(row["id"]),
-        db_id(row["turn_id"]),
-        row["domain"],
-        row["operation"],
-        row["idempotency_key"],
-        dict(row["command_payload"]),
-        dict(row["preview_facts"]),
-        row["status"],
-        row["materialized_at"],
         row["created_at"],
         row["updated_at"],
     )

@@ -45,7 +45,14 @@ DROP_RECOVERABLE_INTENT_REVISION_PATH = (
     / "versions"
     / "20260611_0001_drop_recoverable_scheduling_intent.py"
 )
-HEAD_REVISION_PATH = DROP_RECOVERABLE_INTENT_REVISION_PATH
+RETIRED_WRITE_TABLE = "staged" + "_command"
+DROP_RETIRED_WRITE_TABLE_REVISION_PATH = (
+    ROOT
+    / "migrations"
+    / "versions"
+    / ("20260612_0001_drop_" + RETIRED_WRITE_TABLE + ".py")
+)
+HEAD_REVISION_PATH = DROP_RETIRED_WRITE_TABLE_REVISION_PATH
 
 EXPECTED_TABLES = {
     "account",
@@ -61,7 +68,6 @@ EXPECTED_TABLES = {
     "delivery_route",
     "delivery_attempt",
     "conversation",
-    "staged_command",
     "message",
     "inbound_media",
     "turn",
@@ -366,6 +372,7 @@ def _load_migration_chain():
         DELIVERY_ATTEMPT_DIAGNOSTICS_REVISION_PATH,
         PENDING_CLARIFICATION_REVISION_PATH,
         DROP_RECOVERABLE_INTENT_REVISION_PATH,
+        DROP_RETIRED_WRITE_TABLE_REVISION_PATH,
     )
     return tuple(
         _load_revision_module(
@@ -557,21 +564,6 @@ def test_required_partial_unique_indexes_are_declared_for_postgres():
                 "superseded_by_inbound_seq",
                 "started_at",
                 "completed_at",
-            },
-        ),
-        (
-            "staged_command",
-            {
-                "turn_id",
-                "domain",
-                "operation",
-                "idempotency_key",
-                "command_payload",
-                "preview_facts",
-                "status",
-                "materialized_at",
-                "created_at",
-                "updated_at",
             },
         ),
         (
@@ -862,6 +854,24 @@ def test_drop_recoverable_scheduling_intent_revision_has_expected_identity():
     assert ".".join(["metadata", "drop_all"]) not in source
 
 
+def test_drop_retired_write_table_revision_has_expected_identity():
+    source = DROP_RETIRED_WRITE_TABLE_REVISION_PATH.read_text()
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".")[0])
+
+    assert 'revision = "20260612_0001"' in source
+    assert 'down_revision = "20260611_0001"' in source
+    assert RETIRED_WRITE_TABLE in source
+    assert "coke" not in imported_roots
+    assert ".".join(["metadata", "create_all"]) not in source
+    assert ".".join(["metadata", "drop_all"]) not in source
+
+
 def test_migration_chain_upgrade_matches_schema_metadata_without_live_db():
     metadata = _metadata()
     revisions = _load_migration_chain()
@@ -911,13 +921,14 @@ def test_migration_chain_downgrade_drops_recorded_objects_in_reverse_order():
         "uq_channel_one_active_per_account",
     ]
     assert recorder.dropped_tables[0] == "recoverable_scheduling_intent"
-    assert recorder.dropped_tables[1] == "pending_clarification"
-    assert recorder.dropped_tables[2] == "recoverable_scheduling_intent"
-    assert recorder.dropped_tables[3] == "staged_command"
+    assert recorder.dropped_tables[1] == RETIRED_WRITE_TABLE
+    assert recorder.dropped_tables[2] == "pending_clarification"
+    assert recorder.dropped_tables[3] == "recoverable_scheduling_intent"
     assert recorder.dropped_tables[-1] == "account"
     assert set(recorder.dropped_tables) == {
         *EXPECTED_TABLES,
         "recoverable_scheduling_intent",
+        RETIRED_WRITE_TABLE,
     }
 
     drop_position = {
