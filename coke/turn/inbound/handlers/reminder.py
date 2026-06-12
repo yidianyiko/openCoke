@@ -9,12 +9,12 @@ from coke.domains.reminder.models import (
     DetectedReminderFields,
     Reminder,
     ReminderBatchItem,
+    ReminderBatchResult,
     ReminderDetectorPort,
     ReminderItemResult,
 )
 from coke.domains.reminder.service import ReminderService
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
-from coke.turn.inbound.staging import json_safe
 
 
 class ReminderActionHandler:
@@ -29,10 +29,13 @@ class ReminderActionHandler:
         self.detector = detector
         self._now = now or (lambda: datetime.now(UTC))
 
-    def resolve_and_stage(
+    def execute(
         self,
         compiled_action: CompiledAction,
         guard: Any,
+        *,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         action = compiled_action.action
         if action is None:
@@ -52,9 +55,9 @@ class ReminderActionHandler:
         if action.operation in {"list", "filter"}:
             return self._list(params, owner)
         if action.operation == "create":
-            return self._create(params, owner, guard)
+            return self._create(params, owner, guard, action_index, turn_id)
         if action.operation == "batch_create":
-            return self._batch_create(params, owner, guard)
+            return self._batch_create(params, owner, guard, action_index, turn_id)
         if action.operation in {"update", "delete", "complete"}:
             return self._keyword_mutation(action.operation, params, owner, guard)
         return ActionOutcome(
@@ -84,6 +87,8 @@ class ReminderActionHandler:
         params: Mapping[str, Any],
         owner: str,
         guard: Any,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         detected = self._extract_create_fields(params)
         if detected.trigger_time is None:
@@ -92,30 +97,29 @@ class ReminderActionHandler:
                 status="missing_trigger_time",
                 data={"field": "trigger_time"},
             )
-        _item, payload = self._create_item_from_detected(
+        item = self._create_item_from_detected(
             params,
             detected,
-            item_index=1,
-            guard=guard,
+            item_index=action_index + 1,
+            turn_id=turn_id,
         )
-        if _item.trigger_time is not None and _item.duration_minutes is None:
+        if item.trigger_time is not None and item.duration_minutes is None:
             return _missing_duration_outcome()
-        conflict = self._check_time_conflict(owner, _item, exclude_reminder_id=None)
-        if conflict is not None:
-            return _blocked_keyword_outcome(conflict)
-        staged_id = _stage_execute_batch(guard, owner, [_staged_create_item(payload)])
-        return ActionOutcome(
-            category="done",
-            status="created",
-            data=_optimistic_batch_data(owner, [payload]),
-            staged_command_id=staged_id,
+        guard.guard_state_change()
+        batch = self.reminder_service.execute_batch(
+            owner_account_id=owner,
+            items=[item],
+            commit_guard=guard.guard_state_change,
         )
+        return _batch_outcome_from_real_results(owner, batch)
 
     def _batch_create(
         self,
         params: Mapping[str, Any],
         owner: str,
         guard: Any,
+        action_index: int,
+        turn_id: str,
     ) -> ActionOutcome:
         raw_items = params.get("items")
         if not isinstance(raw_items, list):
@@ -126,7 +130,6 @@ class ReminderActionHandler:
             )
 
         items: list[ReminderBatchItem] = []
-        payloads: list[dict[str, Any]] = []
         for index, raw_item in enumerate(raw_items, start=1):
             if not isinstance(raw_item, Mapping):
                 return ActionOutcome(
@@ -134,7 +137,11 @@ class ReminderActionHandler:
                     status="invalid_item",
                     data={"item_index": index},
                 )
-            item, payload = self._batch_item_from_params(raw_item, index, guard)
+            item = self._batch_item_from_params(
+                raw_item,
+                item_index=action_index + index,
+                turn_id=turn_id,
+            )
             if item.trigger_time is None or item.time_state == "invalid":
                 return ActionOutcome(
                     category="needs_input",
@@ -143,11 +150,7 @@ class ReminderActionHandler:
                 )
             if item.duration_minutes is None:
                 return _missing_duration_outcome(item_index=index)
-            conflict = self._check_time_conflict(owner, item, exclude_reminder_id=None)
-            if conflict is not None:
-                return _blocked_keyword_outcome(conflict)
             items.append(item)
-            payloads.append(payload)
 
         if not items:
             return ActionOutcome(
@@ -156,13 +159,13 @@ class ReminderActionHandler:
                 data={"owner_account_id": owner, "items": []},
             )
 
-        staged_id = _stage_execute_batch(guard, owner, payloads)
-        return ActionOutcome(
-            category="done",
-            status="created",
-            data=_optimistic_batch_data(owner, payloads),
-            staged_command_id=staged_id,
+        guard.guard_state_change()
+        batch = self.reminder_service.execute_batch(
+            owner_account_id=owner,
+            items=items,
+            commit_guard=guard.guard_state_change,
         )
+        return _batch_outcome_from_real_results(owner, batch)
 
     def _keyword_mutation(
         self,
@@ -186,145 +189,34 @@ class ReminderActionHandler:
                     detected.trigger_time,
                     _timezone(params),
                 )
-            result = self.reminder_service.resolve_user_mutable_keyword(
+            guard.guard_state_change()
+            result = self.reminder_service.update_reminder_by_keyword(
                 owner_account_id=owner,
                 keyword=match,
+                content=_optional_str(params.get("content")),
+                trigger_time=trigger_time,
+                captured_timezone=params.get("captured_timezone"),
+                duration_minutes=params.get("duration_minutes"),
+                commit_guard=guard.guard_state_change,
             )
-            if (
-                result.state == "succeeded"
-                and result.reminder_id is not None
-                and (
-                    trigger_time is not None
-                    or params.get("duration_minutes") is not None
-                )
-            ):
-                conflict = self._check_time_conflict(
-                    owner,
-                    ReminderBatchItem(
-                        operation="create",
-                        trigger_time=trigger_time,
-                        captured_timezone=_timezone(params),
-                        duration_minutes=params.get("duration_minutes"),
-                    ),
-                    exclude_reminder_id=result.reminder_id,
-                )
-                if conflict is not None:
-                    return _blocked_keyword_outcome(
-                        ReminderItemResult(
-                            state=conflict.state,
-                            reminder_id=result.reminder_id,
-                            reason=conflict.reason,
-                            time_state=conflict.time_state,
-                            fact=conflict.fact,
-                        )
-                    )
-            return self._keyword_mutation_outcome(
-                result,
-                guard,
-                status="updated",
-                staged_operation="update_reminder",
-                command_payload={
-                    "operation": "update_reminder",
-                    "owner_account_id": owner,
-                    "content": params.get("content"),
-                    "trigger_time": trigger_time,
-                    "captured_timezone": params.get("captured_timezone"),
-                    "duration_minutes": params.get("duration_minutes"),
-                },
-            )
+            return _keyword_mutation_outcome(result, status="updated")
 
         if operation == "delete":
-            result = self.reminder_service.resolve_user_mutable_keyword(
+            guard.guard_state_change()
+            result = self.reminder_service.delete_reminder_by_keyword(
                 owner_account_id=owner,
                 keyword=match,
+                commit_guard=guard.guard_state_change,
             )
-            return self._keyword_mutation_outcome(
-                result,
-                guard,
-                status="cancelled",
-                staged_operation="delete_reminder",
-                command_payload={
-                    "operation": "delete_reminder",
-                    "owner_account_id": owner,
-                },
-            )
+            return _keyword_mutation_outcome(result, status="cancelled")
 
-        result = self.reminder_service.resolve_user_mutable_keyword(
+        guard.guard_state_change()
+        result = self.reminder_service.complete_reminder_by_keyword(
             owner_account_id=owner,
             keyword=match,
+            commit_guard=guard.guard_state_change,
         )
-        return self._keyword_mutation_outcome(
-            result,
-            guard,
-            status="completed",
-            staged_operation="complete_reminder",
-            command_payload={
-                "operation": "complete_reminder",
-                "owner_account_id": owner,
-            },
-        )
-
-    def _check_time_conflict(
-        self,
-        owner: str,
-        item: ReminderBatchItem,
-        *,
-        exclude_reminder_id: str | None,
-    ) -> ReminderItemResult | None:
-        check = getattr(self.reminder_service, "check_time_conflict", None)
-        if not callable(check):
-            return None
-        if item.duration_minutes is None:
-            return None
-        return check(
-            owner_account_id=owner,
-            trigger_time=item.trigger_time,
-            captured_timezone=item.captured_timezone,
-            duration_minutes=item.duration_minutes,
-            exclude_reminder_id=exclude_reminder_id,
-        )
-
-    def _keyword_mutation_outcome(
-        self,
-        result: ReminderItemResult,
-        guard: Any,
-        *,
-        status: str,
-        staged_operation: str,
-        command_payload: Mapping[str, Any],
-    ) -> ActionOutcome:
-        if result.state == "succeeded":
-            if result.reminder_id is None:
-                return ActionOutcome(
-                    category="not_possible",
-                    status="missing_resolved_reminder_id",
-                    data=_item_data(result),
-                )
-            payload = {
-                key: value
-                for key, value in {
-                    **dict(command_payload),
-                    "reminder_id": result.reminder_id,
-                }.items()
-                if value is not None
-            }
-            staged_id = _stage_command(
-                guard,
-                operation=staged_operation,
-                command_payload=payload,
-                preview_facts={
-                    "status": "staged",
-                    "operation": staged_operation,
-                    "owner_account_id": payload.get("owner_account_id"),
-                },
-            )
-            return ActionOutcome(
-                category="done",
-                status=status,
-                data=_item_data(result),
-                staged_command_id=staged_id,
-            )
-        return _blocked_keyword_outcome(result)
+        return _keyword_mutation_outcome(result, status="completed")
 
     def _extract_create_fields(
         self,
@@ -339,72 +231,91 @@ class ReminderActionHandler:
         detected: DetectedReminderFields,
         *,
         item_index: int,
-        guard: Any,
-    ) -> tuple[ReminderBatchItem, dict[str, Any]]:
+        turn_id: str,
+    ) -> ReminderBatchItem:
         timezone = _timezone(params)
         trigger_time = _trigger_time(detected.trigger_time, timezone)
         content = detected.content or _optional_str(params.get("content"))
-        payload = {
-            "content": content,
-            "trigger_time": trigger_time,
-            "captured_timezone": timezone,
-            "recurrence_rule": dict(detected.recurrence_rule),
-            "duration_minutes": detected.duration_minutes,
-            "kind": detected.kind,
-            "entry_point": "turn_pipeline",
-        }
-        item = ReminderBatchItem(
+        return ReminderBatchItem(
             operation="create",
-            turn_id=_turn_id(guard),
+            turn_id=turn_id,
             item_index=item_index,
-            **payload,
+            content=content,
+            trigger_time=trigger_time,
+            captured_timezone=timezone,
+            recurrence_rule=dict(detected.recurrence_rule),
+            duration_minutes=detected.duration_minutes,
+            kind=detected.kind,
+            entry_point="turn_pipeline",
         )
-        return item, {key: value for key, value in payload.items() if value is not None}
 
     def _batch_item_from_params(
         self,
         params: Mapping[str, Any],
+        *,
         item_index: int,
-        guard: Any,
-    ) -> tuple[ReminderBatchItem, dict[str, Any]]:
+        turn_id: str,
+    ) -> ReminderBatchItem:
         timezone = _timezone(params)
         trigger_time = _optional_datetime(params.get("trigger_time"))
         if trigger_time is None and _has_time_phrase(params):
             detected = self._extract_create_fields(params)
             if detected.trigger_time is None:
-                return (
-                    ReminderBatchItem(
-                        operation="create",
-                        content=_optional_str(params.get("content")),
-                        captured_timezone=timezone,
-                        time_state="invalid",
-                        turn_id=_turn_id(guard),
-                        item_index=item_index,
-                    ),
-                    {
-                        "operation": "create",
-                        "content": _optional_str(params.get("content")),
-                        "captured_timezone": timezone,
-                        "time_state": "invalid",
-                    },
+                return ReminderBatchItem(
+                    operation="create",
+                    content=_optional_str(params.get("content")),
+                    captured_timezone=timezone,
+                    time_state="invalid",
+                    turn_id=turn_id,
+                    item_index=item_index,
                 )
             trigger_time = _trigger_time(detected.trigger_time, timezone)
-        payload = {
-            "operation": "create",
-            "content": _optional_str(params.get("content")),
-            "trigger_time": trigger_time,
-            "captured_timezone": timezone,
-            "recurrence_rule": dict(params.get("recurrence_rule") or {}),
-            "duration_minutes": params.get("duration_minutes"),
-            "kind": params.get("kind"),
-            "entry_point": "turn_pipeline",
-        }
-        item = ReminderBatchItem(
-            turn_id=_turn_id(guard),
+        return ReminderBatchItem(
+            operation="create",
+            content=_optional_str(params.get("content")),
+            trigger_time=trigger_time,
+            captured_timezone=timezone,
+            recurrence_rule=dict(params.get("recurrence_rule") or {}),
+            duration_minutes=params.get("duration_minutes"),
+            kind=params.get("kind"),
+            entry_point="turn_pipeline",
+            turn_id=turn_id,
             item_index=item_index,
-            **payload,
         )
-        return item, {key: value for key, value in payload.items() if value is not None}
+
+
+def _batch_outcome_from_real_results(
+    owner: str,
+    batch: ReminderBatchResult,
+) -> ActionOutcome:
+    data = {
+        "owner_account_id": owner,
+        "items": [_item_data(item) for item in batch.items],
+    }
+    first_problem = next(
+        (item for item in batch.items if item.state != "succeeded"),
+        None,
+    )
+    if first_problem is None:
+        return ActionOutcome(category="done", status="created", data=data)
+    category, status = _category_status_for_item(first_problem)
+    return ActionOutcome(category=category, status=status, data=data)
+
+
+def _keyword_mutation_outcome(
+    result: ReminderItemResult,
+    *,
+    status: str,
+) -> ActionOutcome:
+    if result.state == "succeeded":
+        if result.reminder_id is None:
+            return ActionOutcome(
+                category="not_possible",
+                status="missing_resolved_reminder_id",
+                data=_item_data(result),
+            )
+        return ActionOutcome(category="done", status=status, data=_item_data(result))
+    return _blocked_keyword_outcome(result)
 
 
 def _blocked_keyword_outcome(result: ReminderItemResult) -> ActionOutcome:
@@ -429,17 +340,19 @@ def _blocked_keyword_outcome(result: ReminderItemResult) -> ActionOutcome:
             status="missing_match",
             data={"field": "match"},
         )
+    category, status = _category_status_for_item(result)
+    return ActionOutcome(category=category, status=status, data=_item_data(result))
+
+
+def _category_status_for_item(result: ReminderItemResult) -> tuple[str, str]:
+    if (
+        result.reason == "needs_past_time_confirmation"
+        or result.time_state == "needs_past_time_confirmation"
+    ):
+        return "needs_confirmation", "needs_past_time_confirmation"
     if result.state == "needs-follow-up":
-        return ActionOutcome(
-            category="needs_input",
-            status=result.reason or "needs_follow_up",
-            data=_item_data(result),
-        )
-    return ActionOutcome(
-        category="not_possible",
-        status=result.reason or "reminder_action_failed",
-        data=_item_data(result),
-    )
+        return "needs_input", result.reason or "needs_follow_up"
+    return "not_possible", result.reason or "reminder_action_failed"
 
 
 def _missing_duration_outcome(*, item_index: int | None = None) -> ActionOutcome:
@@ -479,75 +392,6 @@ def _reminder_fact(reminder: Reminder) -> dict[str, Any]:
         "hidden_from_calendar": reminder.hidden_from_calendar,
         "shared_reminder_id": reminder.shared_reminder_id,
     }
-
-
-def _stage_execute_batch(
-    guard: Any,
-    owner: str,
-    items: list[dict[str, Any]],
-) -> str | None:
-    # Duplicate detection is intentionally deferred to the close materializer;
-    # execute-time handlers only build and stage the command.
-    return _stage_command(
-        guard,
-        operation="execute_batch",
-        command_payload={
-            "operation": "execute_batch",
-            "owner_account_id": owner,
-            "items": items,
-        },
-        preview_facts={
-            "status": "staged",
-            "operation": "execute_batch",
-            "owner_account_id": owner,
-        },
-    )
-
-
-def _staged_create_item(payload: Mapping[str, Any]) -> dict[str, Any]:
-    return {"operation": "create", **dict(payload)}
-
-
-def _optimistic_batch_data(
-    owner: str,
-    payloads: list[Mapping[str, Any]],
-) -> dict[str, Any]:
-    return {
-        "owner_account_id": owner,
-        "items": [
-            {
-                "state": "succeeded",
-                "reminder_id": None,
-                "reason": None,
-                "time_state": None,
-                "fact": json_safe(
-                    {key: value for key, value in payload.items() if key != "operation"}
-                ),
-            }
-            for payload in payloads
-        ],
-    }
-
-
-def _stage_command(
-    guard: Any,
-    *,
-    operation: str,
-    command_payload: Mapping[str, Any],
-    preview_facts: Mapping[str, Any],
-    item_index: int = 1,
-) -> str | None:
-    stage_command = getattr(guard, "stage_command", None)
-    if not callable(stage_command):
-        return None
-    staged = stage_command(
-        domain="reminder",
-        operation=operation,
-        command_payload=json_safe(dict(command_payload)),
-        preview_facts=json_safe(dict(preview_facts)),
-        item_index=item_index,
-    )
-    return getattr(staged, "id", None)
 
 
 def _trigger_time(value: datetime | None, captured_timezone: str) -> datetime | None:
@@ -622,8 +466,3 @@ def _kind_filter(params: Mapping[str, Any]) -> str | None:
     if value is None or value == "all":
         return None
     return str(value)
-
-
-def _turn_id(guard: Any) -> str | None:
-    value = getattr(guard, "turn_id", None)
-    return value if isinstance(value, str) else None
