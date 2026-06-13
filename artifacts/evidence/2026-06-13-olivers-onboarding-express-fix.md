@@ -53,3 +53,41 @@ open turn count.
 Public `/api/health` and `/health` returned 404; this stack does not expose
 those public routes. The deploy script's health checks and compose service state
 were the runtime health evidence for this deployment.
+
+## Follow-up: Duplicate Onboarding Segment
+
+After the first fix deployed, Olivers sent `Hi～` at
+`2026-06-13 04:24:16 UTC`. The turn completed normally:
+
+```text
+turn_id=408fe4b9-c76c-4ecf-97a2-1fcf7af0466b
+input_from_seq=221
+input_to_seq=221
+disposition=replied
+reason_code=reply_ready
+```
+
+The persisted outbound messages showed the real user-visible issue was duplicate
+first-use guidance, not a stuck turn:
+
+```text
+segment 1: Hi～
+segment 2: 我是Coke，可以帮你设提醒、和朋友共享提醒、查空闲时间，还会记住你的偏好，随时找我聊
+segment 3: 我是 Coke。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。
+```
+
+Root cause: Express's deterministic onboarding fallback only recognized a narrow
+set of onboarding words. It did not treat `朋友共享提醒` as covering the
+shared-reminder-with-friends capability, so it appended a second onboarding
+segment even though the model had already produced one.
+
+Local verification after the follow-up fix:
+
+- `tests/unit/coke/turn/inbound/test_express.py::test_render_does_not_append_duplicate_onboarding_when_model_mentions_synonyms`
+  failed before the fix and passed after it.
+- `tests/unit/coke/llm/test_interaction_agent.py` passed: `74 passed`.
+- `tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/test_delivery_lifecycle_callbacks.py`
+  passed: `34 passed`.
+- `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed:
+  `942 passed, 1 skipped`; the skip was
+  `COKE_TEST_DATABASE_URL is not set`.

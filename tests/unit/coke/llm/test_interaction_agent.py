@@ -473,6 +473,17 @@ def test_prompt_builder_omits_empty_optional_blocks():
     assert names[-1] == "output_contract"
 
 
+def test_voice_policy_uses_coke_health_buddy_role_and_work_boundaries():
+    rendered = agno_agent_module.CokeVoicePolicy().render()
+
+    assert "健康搭子" in rendered
+    assert "提醒和约课小助手" in rendered
+    assert "不写长文、论文、深度 research" in rendered
+    assert "必须拒绝" in rendered
+    assert "coding" in rendered
+    assert "Do not hard-refuse coding" not in rendered
+
+
 def test_onboarding_guidance_block_uses_supported_current_capabilities_only():
     request = _request(
         memory_enabled=True,
@@ -504,6 +515,9 @@ def test_onboarding_guidance_block_uses_supported_current_capabilities_only():
     assert "shared reminders with friends" in onboarding
     assert "availability checks" in onboarding
     assert "long-term memory/preferences" in onboarding
+    assert "提醒和约课小助手" in onboarding
+    assert "这两天有什么要做的事情吗" in onboarding
+    assert "明天大概几点开始做" in onboarding
     assert "class booking" not in onboarding.lower()
     assert "external class" not in onboarding.lower()
     assert "memo runtime" not in onboarding.lower()
@@ -562,7 +576,8 @@ def test_voice_policy_contains_coke_texture_and_challenge_handling():
     )
 
     voice = _block_text(rendered, "voice_policy")
-    assert "WeChat friend or supervisor" in voice
+    assert "健康搭子" in voice
+    assert "提醒和约课小助手" in voice
     assert "1-3 short segments" in voice
     assert "match the user's language" in voice
     assert "generic closers" in voice
@@ -571,7 +586,7 @@ def test_voice_policy_contains_coke_texture_and_challenge_handling():
     assert "do not invent facts or times" in voice
     assert "When the user challenges" in voice
     assert "我没设过这个" in voice
-    assert "Do not hard-refuse coding or deep-research chat" in voice
+    assert "必须拒绝 coding" in voice
 
 
 def test_domain_result_block_is_trusted_and_gates_success_claims():

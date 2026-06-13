@@ -1459,6 +1459,41 @@ Deployment evidence:
   `activation_completed_at`, and `first_guidance_sent_at` back to `NULL` while
   the active WeChat channel remained `connected` and open-turn count was `0`.
 
+## 2026-06-13 Olivers Duplicate Onboarding Follow-up
+
+After the Express wiring fix, Olivers retested with `Hi～`. Production state was
+healthy from the turn-machine perspective: turn
+`408fe4b9-c76c-4ecf-97a2-1fcf7af0466b` covered input seq `221`, completed with
+`replied / reply_ready`, and advanced `last_closed_inbound_seq` to `221`.
+
+The visible problem was duplicate first-use guidance inside the same final
+reply. The three persisted outbound segments were:
+
+- `Hi～`
+- `我是Coke，可以帮你设提醒、和朋友共享提醒、查空闲时间，还会记住你的偏好，随时找我聊`
+- `我是 Coke。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。`
+
+Root cause: the Express fallback added deterministic onboarding guidance when
+`_segments_include_onboarding` returned false. That detector recognized
+`好友/shared/friend` but not the model's natural `朋友共享提醒`, so it misclassified
+the model's own onboarding segment as missing guidance and appended a redundant
+segment.
+
+Repair: keep the deterministic safety net, but make the coverage check compare
+the current supported capabilities against normalized capability synonyms. The
+same change also folds the updated Coke role/onboarding prompt into the existing
+`CokeVoicePolicy`, onboarding guidance block, and `onboarding_guidance` trusted
+fact instead of adding a parallel prompt path.
+
+Verification:
+
+- New regression test reproduced the duplicate production shape before the fix:
+  `tests/unit/coke/turn/inbound/test_express.py::test_render_does_not_append_duplicate_onboarding_when_model_mentions_synonyms`.
+- Prompt tests now assert the Coke role uses `健康搭子` and `提醒和约课小助手`,
+  includes the first-use questions, and refuses coding/deep-research work.
+- `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed with
+  `942 passed, 1 skipped`; the skip was `COKE_TEST_DATABASE_URL is not set`.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The

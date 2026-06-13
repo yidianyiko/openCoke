@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import date, datetime
@@ -199,13 +200,50 @@ _ONBOARDING_CAPABILITY_LABELS = {
     "long_term_memory_preferences": "记住你的长期偏好",
 }
 
+_ONBOARDING_CAPABILITY_TERMS = {
+    "reminders": ("设置提醒", "设提醒", "提醒", "reminder"),
+    "shared_reminders_with_friends": (
+        "和好友创建共享提醒",
+        "好友共享提醒",
+        "朋友共享提醒",
+        "共享提醒",
+        "好友",
+        "朋友",
+        "sharedreminder",
+        "sharedreminders",
+        "friend",
+    ),
+    "availability_checks": (
+        "查询好友空闲时间",
+        "查空闲时间",
+        "查询空闲时间",
+        "空闲时间",
+        "空闲",
+        "availability",
+        "available",
+    ),
+    "long_term_memory_preferences": (
+        "记住你的长期偏好",
+        "长期偏好",
+        "记住你的偏好",
+        "偏好",
+        "memory",
+        "preference",
+        "preferences",
+    ),
+}
+
 
 def _with_onboarding_guidance(
     request: ExpressRequest,
     segments: tuple[str, ...],
 ) -> tuple[str, ...]:
     guidance_text = _onboarding_guidance_text(request)
-    if not guidance_text or _segments_include_onboarding(segments):
+    if not guidance_text or _segments_include_onboarding(
+        segments,
+        guidance=request.onboarding_guidance,
+        guidance_text=guidance_text,
+    ):
         return segments
     if len(segments) >= 3:
         return (*segments[:2], f"{segments[2]}\n{guidance_text}")
@@ -229,16 +267,54 @@ def _onboarding_guidance_text(request: ExpressRequest) -> str | None:
     assistant_name = guidance.get("assistant_name") or request.assistant_name or "Coke"
     if not isinstance(assistant_name, str) or not assistant_name.strip():
         assistant_name = "Coke"
-    return f"我是 {assistant_name.strip()}。你可以直接让我{'、'.join(capabilities)}。"
-
-
-def _segments_include_onboarding(segments: tuple[str, ...]) -> bool:
-    text = "\n".join(segments).lower()
     return (
-        ("提醒" in text or "reminder" in text)
-        and ("好友" in text or "shared" in text or "friend" in text)
-        and ("空闲" in text or "availability" in text or "available" in text)
+        f"我是 {assistant_name.strip()}，你的提醒和约课小助手。"
+        f"你可以直接让我{'、'.join(capabilities)}。"
     )
+
+
+def _segments_include_onboarding(
+    segments: tuple[str, ...],
+    *,
+    guidance: Mapping[str, Any] | None = None,
+    guidance_text: str | None = None,
+) -> bool:
+    normalized_segments = [_normalize_onboarding_text(segment) for segment in segments]
+    if guidance_text:
+        normalized_guidance = _normalize_onboarding_text(guidance_text)
+        if normalized_guidance and normalized_guidance in normalized_segments:
+            return True
+
+    compact_text = _normalize_onboarding_text("\n".join(segments))
+    if not compact_text:
+        return False
+
+    supported_capabilities: tuple[str, ...]
+    if isinstance(guidance, Mapping) and isinstance(
+        guidance.get("supported_capabilities"), list | tuple
+    ):
+        supported_capabilities = tuple(
+            str(item)
+            for item in guidance["supported_capabilities"]
+            if item in _ONBOARDING_CAPABILITY_TERMS
+        )
+    else:
+        supported_capabilities = (
+            "reminders",
+            "shared_reminders_with_friends",
+            "availability_checks",
+        )
+    if not supported_capabilities:
+        return False
+    return all(
+        any(_normalize_onboarding_text(term) in compact_text for term in terms)
+        for capability, terms in _ONBOARDING_CAPABILITY_TERMS.items()
+        if capability in supported_capabilities
+    )
+
+
+def _normalize_onboarding_text(text: str) -> str:
+    return re.sub(r"[\s，,。.!！?？~～、：:；;（）()]+", "", text).casefold()
 
 
 def _system_message(request: ExpressRequest) -> str:
