@@ -1387,6 +1387,48 @@ Follow-up deployment and live-send evidence:
   `provider_message_id=coke-1781281651063-8e8b7da2e620`, route
   `1eca0551-4099-4606-b8dd-a64a63c2f5da`, and `latency_ms=871`.
 
+## 2026-06-13 Eva Hard Reset And Fresh Start
+
+Production evidence later showed the same Eva WeChat wxid
+`o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat` spread across multiple connector
+sessions and account ids. Coke DB still had `eva@potaristudio.com` connected to
+that wxid, while the connector's connected session for the same wxid belonged to
+`791077310@qq.com`; the new Eva account's connector session had expired. This was
+not one stuck turn. It was account/session ownership drift caused by repeated
+scan/bind attempts across different web accounts.
+
+Operational reset evidence:
+
+- Pre-reset backups:
+  `/home/whoami/coke-clean/backups/coke-before-eva-reset-20260613T034541Z.dump`
+  and
+  `/home/whoami/coke-clean/backups/wechat-personal-state-before-eva-reset-20260613T034541Z.json`.
+- Deleted the three Eva-related accounts:
+  `55d922f5-5dae-47b4-820b-e6ea0ac04794`,
+  `94566791-4d39-4b28-9d9f-367c1ed0be2c`, and
+  `10d43cb6-ba8d-4301-a43b-8178097e9db1`.
+- Deleted associated durable rows including credentials, web sessions, access and
+  activation rows, channels, delivery routes, the Eva WeChat channel identity,
+  conversations, turns, messages, delivery attempts, reminders, shared reminder
+  records, notification records, friend links, and friendships.
+- Removed six connector sessions whose account id matched the Eva-related
+  accounts or whose `ilink_user_id` matched Eva's wxid; restarted
+  `wechat-personal-connector`.
+- Post-reset checks returned zero rows for the old account ids, old Eva emails
+  `eva.liu43@hotmail.com` and `791077310@qq.com`, and the Eva wxid in
+  `channel_identity`; connector state returned `eva_wxid_match_count=0`.
+- Created a fresh `eva@potaristudio.com` account:
+  `082ef414-4f66-4645-8c79-faab7e0f135b`, with `email_verification_state=verified`,
+  `subscription_state=active`, `suspension_state=active`, and fresh activation
+  flags still unset.
+- Fresh channel smoke: `/api/channels/status` returned `connection_state=not_connected`.
+  `/api/channels/wechat-personal/connect` and subsequent
+  `/api/channels/wechat-personal/login-status` returned
+  `connection_state=connecting`, `connector_status=waiting_for_scan`, session
+  `136844cb57364276be4e2ab75d385a1f`, QR id
+  `f3e9cccb6d2f63b343a8f1a548600f1d`, and a non-empty QR image
+  (`qrcode_image_len=1442`).
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The
