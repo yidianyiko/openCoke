@@ -1429,6 +1429,25 @@ Operational reset evidence:
   `f3e9cccb6d2f63b343a8f1a548600f1d`, and a non-empty QR image
   (`qrcode_image_len=1442`).
 
+## 2026-06-13 Olivers Onboarding Miss In Turn Pipeline
+
+After resetting `olivers@coke.keep4oforever.com` activation fields, production
+evidence showed the account sent `Hi` at `2026-06-13T04:01:13Z`, received only
+`Hi~`, and then had `first_guidance_sent_at` stamped at
+`2026-06-13T04:01:19Z`. The reset had worked; the runtime incorrectly counted a
+plain greeting as delivered onboarding.
+
+Root cause: `TurnPipelineRequest.trusted_facts` carried `onboarding_guidance`,
+but `_express_request` did not pass it into `ExpressRequest`, and the Express
+JSON input/system message did not expose it. The lifecycle recorder only knew
+that onboarding was required and a visible reply was delivered, so it marked
+first guidance even though the Express reply had no guidance content.
+
+Repair: pass `onboarding_guidance` into Express, include it in the Express input
+and system message, and append a short deterministic first-use guidance segment
+when the model omits it. This keeps the fix local to the final reply layer and
+prevents a plain greeting from being the only visible onboarding reply.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The

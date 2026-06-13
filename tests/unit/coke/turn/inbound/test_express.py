@@ -188,6 +188,46 @@ def test_render_keeps_reminder_list_in_one_multiline_segment() -> None:
     )
 
 
+def test_render_appends_onboarding_guidance_when_model_omits_it() -> None:
+    fake_agent = StaticRunAgentInstance(
+        content=json.dumps({"type": "reply", "segments": ["Hi~"]}),
+        calls=[],
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = agent.render(
+        ExpressRequest(
+            turn_id="turn-1",
+            conversation_id="conversation-1",
+            account_id="account-1",
+            settled_outcome=SettledOutcome(outcomes=()),
+            onboarding_guidance={
+                "assistant_name": "Coke",
+                "supported_capabilities": [
+                    "reminders",
+                    "shared_reminders_with_friends",
+                    "availability_checks",
+                    "long_term_memory_preferences",
+                ],
+            },
+        )
+    )
+
+    assert segments == (
+        "Hi~",
+        "我是 Coke。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。",
+    )
+    input_payload = json.loads(fake_agent.calls[0]["input"])
+    assert input_payload["onboarding_guidance"]["supported_capabilities"] == [
+        "reminders",
+        "shared_reminders_with_friends",
+        "availability_checks",
+        "long_term_memory_preferences",
+    ]
+    assert "First-use guidance is required" in factory.agent_kwargs[0]["system_message"]
+
+
 def test_render_prompt_and_segments_preserve_partial_failure_facts() -> None:
     fake_agent = PartialEchoRunAgentInstance()
     factory = FakeAgentFactory(fake_agent)
@@ -232,7 +272,37 @@ async def test_render_streaming_yields_complete_segments_without_awaiting_arun()
     assert call["kwargs"]["run_id"] == "turn-1"
 
 
-def _partial_request() -> ExpressRequest:
+@pytest.mark.asyncio
+async def test_render_streaming_appends_onboarding_guidance_when_model_omits_it() -> (
+    None
+):
+    fake_agent = PartialEchoStreamingAgentInstance()
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+    request = _partial_request(
+        onboarding_guidance={
+            "assistant_name": "Coke",
+            "supported_capabilities": [
+                "reminders",
+                "shared_reminders_with_friends",
+                "availability_checks",
+            ],
+        }
+    )
+
+    segments = [segment async for segment in agent.render_streaming(request)]
+
+    assert segments == [
+        "Partial result: partial; failed gym because already_cancelled",
+        "Which one should I try next?",
+        "我是 Coke。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间。",
+    ]
+
+
+def _partial_request(
+    *,
+    onboarding_guidance: dict[str, Any] | None = None,
+) -> ExpressRequest:
     return ExpressRequest(
         turn_id="turn-1",
         conversation_id="conversation-1",
@@ -251,6 +321,7 @@ def _partial_request() -> ExpressRequest:
         ),
         conversation_history=({"role": "user", "content": "cancel water and gym"},),
         persona="concise supervisor",
+        onboarding_guidance=onboarding_guidance,
     )
 
 

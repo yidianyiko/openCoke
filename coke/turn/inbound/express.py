@@ -35,6 +35,7 @@ class ExpressRequest:
     user_address_name: str = ""
     payload: Mapping[str, Any] = field(default_factory=dict)
     run_id: str | None = None
+    onboarding_guidance: Mapping[str, Any] | None = None
 
 
 class ExpressOutputError(RuntimeError):
@@ -61,7 +62,10 @@ class ExpressAgent:
             _agent_input(request),
             **_run_kwargs(request),
         )
-        return _segments_from_content(getattr(run_output, "content", None))
+        return _with_onboarding_guidance(
+            request,
+            _segments_from_content(getattr(run_output, "content", None)),
+        )
 
     async def render_streaming(
         self,
@@ -71,6 +75,7 @@ class ExpressAgent:
         parser = _ReplySegmentStreamParser()
         content_buffer = ""
         final_content: Any = None
+        generated_segments: list[str] = []
         stream = agent.arun(
             _agent_input(request),
             **_run_kwargs(request, run_id=request.run_id or request.turn_id),
@@ -78,7 +83,10 @@ class ExpressAgent:
             stream_events=True,
         )
         if not hasattr(stream, "__aiter__"):
-            for segment in _segments_from_content(getattr(stream, "content", None)):
+            for segment in _with_onboarding_guidance(
+                request,
+                _segments_from_content(getattr(stream, "content", None)),
+            ):
                 yield segment
             return
 
@@ -89,14 +97,16 @@ class ExpressAgent:
                 continue
             if isinstance(content, str):
                 delta, content_buffer = _stream_text_delta(content_buffer, content)
-                for segment in parser.feed(delta):
-                    yield segment
+                generated_segments.extend(parser.feed(delta))
             elif isinstance(content, Mapping):
                 final_content = content
 
         if final_content is None:
             final_content = content_buffer
-        for segment in _segments_from_content(final_content)[parser.emitted_count :]:
+        generated_segments.extend(
+            _segments_from_content(final_content)[parser.emitted_count :]
+        )
+        for segment in _with_onboarding_guidance(request, tuple(generated_segments)):
             yield segment
 
     def _build_agent(self, request: ExpressRequest) -> Any:
@@ -152,6 +162,8 @@ def _agent_input(request: ExpressRequest) -> str:
         "persona": request.persona,
         "payload": _plain_value(request.payload),
     }
+    if request.onboarding_guidance:
+        payload["onboarding_guidance"] = _plain_value(request.onboarding_guidance)
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -178,6 +190,55 @@ def _plain_value(value: Any) -> Any:
     if isinstance(value, datetime | date):
         return value.isoformat()
     return value
+
+
+_ONBOARDING_CAPABILITY_LABELS = {
+    "reminders": "设置提醒",
+    "shared_reminders_with_friends": "和好友创建共享提醒",
+    "availability_checks": "查询好友空闲时间",
+    "long_term_memory_preferences": "记住你的长期偏好",
+}
+
+
+def _with_onboarding_guidance(
+    request: ExpressRequest,
+    segments: tuple[str, ...],
+) -> tuple[str, ...]:
+    guidance_text = _onboarding_guidance_text(request)
+    if not guidance_text or _segments_include_onboarding(segments):
+        return segments
+    if len(segments) >= 3:
+        return (*segments[:2], f"{segments[2]}\n{guidance_text}")
+    return (*segments, guidance_text)
+
+
+def _onboarding_guidance_text(request: ExpressRequest) -> str | None:
+    guidance = request.onboarding_guidance
+    if not isinstance(guidance, Mapping):
+        return None
+    raw_capabilities = guidance.get("supported_capabilities")
+    if not isinstance(raw_capabilities, list | tuple):
+        return None
+    capabilities = [
+        _ONBOARDING_CAPABILITY_LABELS[item]
+        for item in raw_capabilities
+        if item in _ONBOARDING_CAPABILITY_LABELS
+    ]
+    if not capabilities:
+        return None
+    assistant_name = guidance.get("assistant_name") or request.assistant_name or "Coke"
+    if not isinstance(assistant_name, str) or not assistant_name.strip():
+        assistant_name = "Coke"
+    return f"我是 {assistant_name.strip()}。你可以直接让我{'、'.join(capabilities)}。"
+
+
+def _segments_include_onboarding(segments: tuple[str, ...]) -> bool:
+    text = "\n".join(segments).lower()
+    return (
+        ("提醒" in text or "reminder" in text)
+        and ("好友" in text or "shared" in text or "friend" in text)
+        and ("空闲" in text or "availability" in text or "available" in text)
+    )
 
 
 def _system_message(request: ExpressRequest) -> str:
@@ -210,6 +271,7 @@ def _system_message(request: ExpressRequest) -> str:
                 "or risky thing."
             ),
             "For no-action turns with no outcomes, converse from the supplied history and persona.",
+            _onboarding_system_message(request),
             "Do not claim any state change not present in settled_outcome.",
             'Return only JSON: {"type":"reply","segments":["text"]}.',
             "Text output is limited to one to three non-empty segments.",
@@ -221,6 +283,17 @@ def _system_message(request: ExpressRequest) -> str:
             CokeVoicePolicy().render(),
         )
         if part
+    )
+
+
+def _onboarding_system_message(request: ExpressRequest) -> str:
+    if not isinstance(request.onboarding_guidance, Mapping):
+        return ""
+    return (
+        "First-use guidance is required in this visible final reply. Respond to "
+        "the current message and briefly introduce only the supported "
+        "capabilities from onboarding_guidance. If the generated reply omits "
+        "that guidance, Express will append the configured guidance segment."
     )
 
 

@@ -234,6 +234,39 @@ def test_plan_request_and_planner_payload_preserve_current_input_window() -> Non
 
 
 @pytest.mark.asyncio
+async def test_pipeline_passes_onboarding_guidance_to_express() -> None:
+    events: list[str] = []
+    onboarding_guidance = {
+        "assistant_name": "Coke",
+        "supported_capabilities": [
+            "reminders",
+            "shared_reminders_with_friends",
+        ],
+    }
+    express = RecordingExpress(("Hi~",), events)
+    pipeline = TurnPipeline(
+        planner=StaticPlanner(TurnPlan(actions=()), events),
+        handlers={},
+        express=express,
+        close_coordinator=CloseCoordinator(RecordingClosePort(events)),
+        pending_store=InMemoryPendingClarificationStore(),
+        delivery=RecordingDelivery(events),
+    )
+
+    await pipeline.run(
+        _pipeline_request(
+            trusted_facts={
+                "timezone": "Asia/Tokyo",
+                "onboarding_guidance": onboarding_guidance,
+            },
+        ),
+        RecordingGuard(events),
+    )
+
+    assert express.stream_calls[0].onboarding_guidance == onboarding_guidance
+
+
+@pytest.mark.asyncio
 async def test_read_only_turn_streams_segments_and_then_closes() -> None:
     events: list[str] = []
     planner = StaticPlanner(
@@ -642,6 +675,7 @@ def _pipeline_request(
     current_input_messages: Sequence[Mapping[str, Any]] = (
         {"role": "user", "content": "hello", "seq": 1},
     ),
+    trusted_facts: Mapping[str, Any] | None = None,
 ) -> TurnPipelineRequest:
     if now is None:
         now = datetime(2026, 6, 10, 12, 0, tzinfo=UTC)
@@ -652,7 +686,7 @@ def _pipeline_request(
         account_id="account-1",
         conversation_id="conversation-1",
         payload={"text": "hello"},
-        trusted_facts={"timezone": "Asia/Tokyo"},
+        trusted_facts=trusted_facts or {"timezone": "Asia/Tokyo"},
         conversation_history=conversation_history,
         current_input_messages=current_input_messages,
         persona="concise",

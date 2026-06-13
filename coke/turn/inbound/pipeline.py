@@ -237,6 +237,7 @@ def _express_request(
     request: TurnPipelineRequest,
     settled_outcome: SettledOutcome,
 ) -> ExpressRequest:
+    onboarding_guidance = request.trusted_facts.get("onboarding_guidance")
     return ExpressRequest(
         turn_id=request.turn_id,
         conversation_id=request.conversation_id,
@@ -249,6 +250,11 @@ def _express_request(
         user_address_name=request.user_address_name,
         payload=request.payload,
         run_id=request.run_id,
+        onboarding_guidance=(
+            dict(onboarding_guidance)
+            if isinstance(onboarding_guidance, Mapping)
+            else None
+        ),
     )
 
 
