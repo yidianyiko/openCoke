@@ -337,6 +337,10 @@ def _is_redundant_first_use_segment(
     normalized_guidance = _normalize_onboarding_text(guidance_text)
     if normalized in normalized_guidance or normalized_guidance in normalized:
         return True
+    if "coke" in normalized and any(
+        marker in normalized for marker in ("健康搭子", "提醒和约课小助手")
+    ):
+        return True
     if _segments_include_onboarding(
         (segment,),
         guidance=guidance,

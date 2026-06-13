@@ -1536,6 +1536,13 @@ Verification:
 - `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed after
   the role/greeting follow-up with `942 passed, 1 skipped`; the skip was
   `COKE_TEST_DATABASE_URL is not set`.
+- Production retest after deploy showed the configured two onboarding segments
+  followed by a model-generated duplicate role intro. Express now suppresses
+  short model segments that re-introduce Coke with the same `健康搭子` /
+  `提醒和约课小助手` role markers. The new regression test
+  `test_no_action_first_use_drops_role_intro_duplicate` failed before this
+  follow-up and passed after it; the related local suite passed with
+  `118 passed`.
 
 ## Current Status
 

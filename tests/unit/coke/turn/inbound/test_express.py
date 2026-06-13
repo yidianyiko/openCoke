@@ -269,6 +269,43 @@ def test_no_action_first_use_normalizes_model_onboarding_to_configured_copy() ->
     )
 
 
+def test_no_action_first_use_drops_role_intro_duplicate() -> None:
+    fake_agent = StaticRunAgentInstance(
+        content=json.dumps(
+            {
+                "type": "reply",
+                "segments": ["Hi！我是 Coke，你的微信健康搭子、提醒和约课小助手"],
+            }
+        ),
+        calls=[],
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = agent.render(
+        ExpressRequest(
+            turn_id="turn-1",
+            conversation_id="conversation-1",
+            account_id="account-1",
+            settled_outcome=SettledOutcome(outcomes=()),
+            onboarding_guidance={
+                "assistant_name": "Coke",
+                "supported_capabilities": [
+                    "reminders",
+                    "shared_reminders_with_friends",
+                    "availability_checks",
+                    "long_term_memory_preferences",
+                ],
+            },
+        )
+    )
+
+    assert segments == (
+        "Hi！我是 Coke，你的提醒和约课小助手。",
+        "我会在微信里做你的健康搭子：督促你推进近期目标并提醒，帮你用日历和别人约时间，也可以直接回答问题。",
+    )
+
+
 def test_render_prompt_and_segments_preserve_partial_failure_facts() -> None:
     fake_agent = PartialEchoRunAgentInstance()
     factory = FakeAgentFactory(fake_agent)

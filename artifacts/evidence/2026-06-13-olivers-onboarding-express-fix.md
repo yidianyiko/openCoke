@@ -133,6 +133,36 @@ Local verification before deployment:
   `942 passed, 1 skipped`; the skip was
   `COKE_TEST_DATABASE_URL is not set`. Repo docs check passed.
 
+## Follow-up: Role Intro Duplicate Suppression
+
+Post-deploy live retest showed the new deterministic copy was sent, but Express
+kept one model-generated role intro as a third segment:
+
+```text
+Hi！我是 Coke，你的提醒和约课小助手。
+我会在微信里做你的健康搭子：督促你推进近期目标并提醒，帮你用日历和别人约时间，也可以直接回答问题。
+Hi！我是 Coke，你的微信健康搭子、提醒和约课小助手
+```
+
+Root cause: first-use duplicate suppression recognized complete capability
+onboarding, but not short role-intro duplicates containing `Coke`,
+`健康搭子`, and `提醒和约课小助手`.
+
+Fix shape:
+
+- no-action first-use duplicate suppression now drops model segments that
+  re-introduce Coke with the same role markers;
+- configured greeting and role guidance remain the only visible onboarding
+  opening for a plain first-use `Hi`.
+
+Local verification:
+
+- `tests/unit/coke/turn/inbound/test_express.py::test_no_action_first_use_drops_role_intro_duplicate`
+  failed before the fix and passed after it.
+- `tests/unit/coke/turn/inbound/test_express.py` passed: `10 passed`.
+- `tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/turn/inbound/test_express.py tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/test_delivery_lifecycle_callbacks.py`
+  passed: `118 passed`.
+
 ## Follow-up: Role/Greeting Copy
 
 After the first complete-onboarding fix, the visible reply still read too much
