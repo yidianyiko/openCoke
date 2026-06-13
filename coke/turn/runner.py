@@ -2472,19 +2472,21 @@ def _onboarding_guidance_fact(facts: Mapping[str, Any]) -> dict[str, Any]:
         "memory_enabled": memory_enabled,
         "proactive_enabled": bool(facts.get("proactive_enabled", True)),
         "role_summary": (
-            "你叫Coke，是用户在微信中的健康搭子，也是提醒和约课小助手；"
-            "主要目标是督促用户完成近期目标并提醒，帮用户预约和他人的时间，并解答问题。"
+            "你叫Coke，你是用户在微信中的健康搭子。你的主要目标是："
+            "1）督促用户完成近期的目标并进行提醒；"
+            "2）使用日历工具，帮用户预约和他人的时间；"
+            "3）解答问题。"
         ),
-        "starter_question": "这两天有什么要做的事情吗？我到时候提醒你",
-        "task_followup_question": "明天大概几点开始做？我到时候提前提醒你",
+        "greeting_template": "Hi, <user name>！我是 Coke，你的提醒和约课小助手。",
         "avoidance_rules": [
             "不写长文、论文、深度 research",
             "必须拒绝 coding 等工作场景要求",
         ],
         "instruction": (
             "Offer concise first-use guidance while still responding to the user's "
-            "current message. Introduce Coke as the user's 提醒和约课小助手, "
-            "ask a near-term goal/reminder follow-up, and mention only supported capabilities."
+            "current message. Use the greeting template when natural, frame Coke "
+            "as the user's 微信健康搭子, and keep supported capabilities as "
+            "constraints rather than a visible checklist."
         ),
     }
     user_address_name = facts.get("user_address_name")

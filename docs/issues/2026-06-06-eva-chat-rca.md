@@ -1513,12 +1513,14 @@ then send the proactive message with the captured token.
 
 Repair: for no-action first-use turns, Express now renders the configured
 onboarding copy deterministically before any model-supplied content. The fixed
-copy introduces Coke as the user's `提醒和约课小助手`, lists the supported
-capabilities, and includes the starter question in the same visible segment.
-Redundant model greetings, model-written onboarding, and duplicate starter
-questions are suppressed. For first-use turns with actual settled outcomes,
-Express still preserves the outcome reply and appends the shorter guidance
-segment so domain facts are not hidden.
+copy uses the configured greeting (`Hi, <user name>！我是 Coke，你的提醒和约课小助手。`)
+and role framing: Coke is the user's 微信健康搭子, focused on 督促近期目标并提醒, using
+calendar tooling to coordinate time with others, and answering questions. The
+old capability-checklist and starter-question wording are no longer part of the
+first-use no-action copy. Redundant model greetings, model-written onboarding,
+and duplicate starter questions are suppressed. For first-use turns with actual
+settled outcomes, Express still preserves the outcome reply and appends the
+shorter role guidance segment so domain facts are not hidden.
 
 Verification:
 
@@ -1529,6 +1531,11 @@ Verification:
   failed before the fix because model-provided onboarding remained unnormalized.
 - `tests/unit/coke/turn/inbound/test_express.py tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/test_delivery_lifecycle_callbacks.py`
   passed with `43 passed`.
+- `tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/turn/inbound/test_express.py tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/test_delivery_lifecycle_callbacks.py`
+  passed after the role/greeting follow-up with `117 passed`.
+- `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed after
+  the role/greeting follow-up with `942 passed, 1 skipped`; the skip was
+  `COKE_TEST_DATABASE_URL is not set`.
 
 ## Current Status
 

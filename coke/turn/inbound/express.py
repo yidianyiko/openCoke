@@ -283,20 +283,20 @@ def _onboarding_guidance_text(
     assistant_name = guidance.get("assistant_name") or request.assistant_name or "Coke"
     if not isinstance(assistant_name, str) or not assistant_name.strip():
         assistant_name = "Coke"
-    lead = f"我是 {assistant_name.strip()}，你的提醒和约课小助手。"
+    assistant_name = assistant_name.strip()
+    role_intro = (
+        "我会在微信里做你的健康搭子：督促你推进近期目标并提醒，"
+        "帮你用日历和别人约时间，也可以直接回答问题。"
+    )
     if include_starter_question:
         address_name = request.user_address_name.strip()
-        lead = f"Hi，{address_name}！{lead}" if address_name else f"Hi！{lead}"
-    text = f"{lead}你可以直接让我{'、'.join(capabilities)}。"
-    if include_starter_question:
-        starter = guidance.get("starter_question")
-        if not isinstance(starter, str) or not starter.strip():
-            starter = "这两天有什么要做的事情吗？我到时候提醒你。"
-        starter = starter.strip()
-        if starter and starter[-1] not in "。.!！?？":
-            starter = f"{starter}。"
-        text = f"{text}{starter}"
-    return text
+        greeting = (
+            f"Hi, {address_name}！我是 {assistant_name}，你的提醒和约课小助手。"
+            if address_name
+            else f"Hi！我是 {assistant_name}，你的提醒和约课小助手。"
+        )
+        return f"{greeting}\n{role_intro}"
+    return f"我是 {assistant_name}，你的提醒和约课小助手。{role_intro}"
 
 
 def _first_use_no_action_segments(
@@ -314,7 +314,13 @@ def _first_use_no_action_segments(
             guidance_text=guidance_text,
         )
     ]
-    return (guidance_text, *followups[:2])
+    return (*_guidance_segments(guidance_text), *followups[:1])
+
+
+def _guidance_segments(guidance_text: str) -> tuple[str, ...]:
+    return tuple(
+        segment.strip() for segment in guidance_text.splitlines() if segment.strip()
+    )
 
 
 def _is_redundant_first_use_segment(
@@ -436,10 +442,10 @@ def _onboarding_system_message(request: ExpressRequest) -> str:
     if not isinstance(request.onboarding_guidance, Mapping):
         return ""
     return (
-        "First-use guidance is required in this visible final reply. Respond to "
-        "the current message and briefly introduce only the supported "
-        "capabilities from onboarding_guidance. If the generated reply omits "
-        "that guidance, Express will append the configured guidance segment."
+        "First-use guidance is required in this visible final reply. Use "
+        "onboarding_guidance as role and capability constraints. If the "
+        "generated reply omits that guidance, Express will append the "
+        "configured greeting and role guidance."
     )
 
 

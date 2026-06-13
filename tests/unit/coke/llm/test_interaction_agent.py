@@ -478,6 +478,8 @@ def test_voice_policy_uses_coke_health_buddy_role_and_work_boundaries():
 
     assert "健康搭子" in rendered
     assert "提醒和约课小助手" in rendered
+    assert "使用日历工具" in rendered
+    assert "这两天有什么要做的事情吗" not in rendered
     assert "不写长文、论文、深度 research" in rendered
     assert "必须拒绝" in rendered
     assert "coding" in rendered
@@ -516,8 +518,10 @@ def test_onboarding_guidance_block_uses_supported_current_capabilities_only():
     assert "availability checks" in onboarding
     assert "long-term memory/preferences" in onboarding
     assert "提醒和约课小助手" in onboarding
-    assert "这两天有什么要做的事情吗" in onboarding
-    assert "明天大概几点开始做" in onboarding
+    assert "使用日历工具" in onboarding
+    assert "Hi, <user name>！我是 Coke，你的提醒和约课小助手。" in onboarding
+    assert "these supported capabilities" not in onboarding
+    assert "这两天有什么要做的事情吗" not in onboarding
     assert "class booking" not in onboarding.lower()
     assert "external class" not in onboarding.lower()
     assert "memo runtime" not in onboarding.lower()

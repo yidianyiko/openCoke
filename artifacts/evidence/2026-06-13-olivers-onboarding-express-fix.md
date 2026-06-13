@@ -104,10 +104,13 @@ but no-action first-use replies did not have a deterministic visible opening.
 
 Fix shape:
 
-- no-action first-use turns now render a configured onboarding segment first;
-- that segment introduces Coke as the user's `提醒和约课小助手`;
-- the same segment lists supported capabilities and includes the starter
-  question;
+- no-action first-use turns now render configured onboarding copy before model
+  content;
+- the first segment uses the configured greeting, for example
+  `Hi, Oliver！我是 Coke，你的提醒和约课小助手。`;
+- the second segment frames Coke as the user's health buddy: it will 督促近期目标并
+  提醒, use calendar tooling to coordinate time with others, and answer
+  questions;
 - redundant model greetings, model-written onboarding, and duplicate starter
   questions are suppressed;
 - first-use turns with settled outcomes still preserve the outcome reply and
@@ -126,6 +129,49 @@ Local verification before deployment:
   passed: `43 passed`.
 - `black coke/turn/inbound/express.py tests/unit/coke/turn/inbound/test_express.py --check`
   passed.
+- `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed:
+  `942 passed, 1 skipped`; the skip was
+  `COKE_TEST_DATABASE_URL is not set`. Repo docs check passed.
+
+## Follow-up: Role/Greeting Copy
+
+After the first complete-onboarding fix, the visible reply still read too much
+like a capability checklist and could still be influenced by the old starter
+question. The required first-use framing is now:
+
+- `Hi, <user name>！我是 Coke，你的提醒和约课小助手。`
+- Coke is the user's 微信健康搭子.
+- Coke's goals are to 督促近期目标并提醒, use calendar tooling to coordinate time
+  with others, and answer questions.
+
+Code changes in this follow-up:
+
+- Express deterministic no-action onboarding now emits the greeting and role
+  framing as two configured segments instead of a capability checklist.
+- The interaction-agent onboarding prompt block now uses the same role/greeting
+  framing and treats product surfaces as constraints rather than a required
+  visible list.
+- The runner `onboarding_guidance` fact now carries the greeting template and no
+  longer carries the old `starter_question` / `task_followup_question` fields.
+- `CokeVoicePolicy` no longer includes the old first-use starter example, so the
+  model is less likely to regenerate it before Express normalization.
+
+Local verification:
+
+- `tests/unit/coke/llm/test_interaction_agent.py::test_voice_policy_uses_coke_health_buddy_role_and_work_boundaries`
+  failed before the prompt update because `使用日历工具` was absent from the
+  role policy.
+- `tests/unit/coke/llm/test_interaction_agent.py::test_onboarding_guidance_block_uses_supported_current_capabilities_only`
+  failed before the prompt update because onboarding still used old supported
+  capability wording.
+- `tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/turn/inbound/test_express.py tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/test_delivery_lifecycle_callbacks.py`
+  passed: `117 passed`.
+- `black coke/llm/agno_interaction_agent.py coke/turn/runner.py coke/turn/inbound/express.py tests/unit/coke/llm/test_interaction_agent.py tests/unit/coke/turn/inbound/test_express.py --check`
+  passed.
+- `zsh scripts/suggest-verification --base HEAD~1` suggested
+  `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs`.
+- `zsh scripts/review-trigger --base HEAD~1` returned
+  `human_review_required: no`.
 - `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed:
   `942 passed, 1 skipped`; the skip was
   `COKE_TEST_DATABASE_URL is not set`. Repo docs check passed.

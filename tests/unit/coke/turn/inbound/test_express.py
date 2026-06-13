@@ -209,6 +209,7 @@ def test_no_action_first_use_renders_configured_onboarding_before_model_starter(
             conversation_id="conversation-1",
             account_id="account-1",
             settled_outcome=SettledOutcome(outcomes=()),
+            user_address_name="Oliver",
             onboarding_guidance={
                 "assistant_name": "Coke",
                 "supported_capabilities": [
@@ -222,7 +223,8 @@ def test_no_action_first_use_renders_configured_onboarding_before_model_starter(
     )
 
     assert segments == (
-        "Hi！我是 Coke，你的提醒和约课小助手。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。这两天有什么要做的事情吗？我到时候提醒你。",
+        "Hi, Oliver！我是 Coke，你的提醒和约课小助手。",
+        "我会在微信里做你的健康搭子：督促你推进近期目标并提醒，帮你用日历和别人约时间，也可以直接回答问题。",
     )
     input_payload = json.loads(fake_agent.calls[0]["input"])
     assert input_payload["onboarding_guidance"]["supported_capabilities"] == [
@@ -262,7 +264,8 @@ def test_no_action_first_use_normalizes_model_onboarding_to_configured_copy() ->
     )
 
     assert segments == (
-        "Hi！我是 Coke，你的提醒和约课小助手。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。这两天有什么要做的事情吗？我到时候提醒你。",
+        "Hi！我是 Coke，你的提醒和约课小助手。",
+        "我会在微信里做你的健康搭子：督促你推进近期目标并提醒，帮你用日历和别人约时间，也可以直接回答问题。",
     )
 
 
@@ -333,7 +336,7 @@ async def test_render_streaming_appends_onboarding_guidance_when_model_omits_it(
     assert segments == [
         "Partial result: partial; failed gym because already_cancelled",
         "Which one should I try next?",
-        "我是 Coke，你的提醒和约课小助手。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间。",
+        "我是 Coke，你的提醒和约课小助手。我会在微信里做你的健康搭子：督促你推进近期目标并提醒，帮你用日历和别人约时间，也可以直接回答问题。",
     ]
 
 
