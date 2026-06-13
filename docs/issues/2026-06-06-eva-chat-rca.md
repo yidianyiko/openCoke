@@ -1448,6 +1448,17 @@ and system message, and append a short deterministic first-use guidance segment
 when the model omits it. This keeps the fix local to the final reply layer and
 prevents a plain greeting from being the only visible onboarding reply.
 
+Deployment evidence:
+
+- Commit `90f50774cf9c0f33574484f8257c6ea381962172` deployed to the clean stack.
+- `scripts/deploy-compose-to-gcp.sh` rebuilt and restarted `coke-api`,
+  `coke-worker`, `coke-scheduler`, and `coke-outbox-relay`; deploy health checks
+  passed.
+- Post-deploy service check showed all clean compose services running.
+- Post-deploy Olivers reset set `first_inbound_received_at`,
+  `activation_completed_at`, and `first_guidance_sent_at` back to `NULL` while
+  the active WeChat channel remained `connected` and open-turn count was `0`.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The
