@@ -238,8 +238,20 @@ def _with_onboarding_guidance(
     request: ExpressRequest,
     segments: tuple[str, ...],
 ) -> tuple[str, ...]:
-    guidance_text = _onboarding_guidance_text(request)
-    if not guidance_text or _segments_include_onboarding(
+    first_use_no_action = not request.settled_outcome.outcomes
+    guidance_text = _onboarding_guidance_text(
+        request,
+        include_starter_question=first_use_no_action,
+    )
+    if not guidance_text:
+        return segments
+    if first_use_no_action:
+        return _first_use_no_action_segments(
+            segments,
+            guidance=request.onboarding_guidance,
+            guidance_text=guidance_text,
+        )
+    if _segments_include_onboarding(
         segments,
         guidance=request.onboarding_guidance,
         guidance_text=guidance_text,
@@ -250,7 +262,11 @@ def _with_onboarding_guidance(
     return (*segments, guidance_text)
 
 
-def _onboarding_guidance_text(request: ExpressRequest) -> str | None:
+def _onboarding_guidance_text(
+    request: ExpressRequest,
+    *,
+    include_starter_question: bool = False,
+) -> str | None:
     guidance = request.onboarding_guidance
     if not isinstance(guidance, Mapping):
         return None
@@ -267,9 +283,63 @@ def _onboarding_guidance_text(request: ExpressRequest) -> str | None:
     assistant_name = guidance.get("assistant_name") or request.assistant_name or "Coke"
     if not isinstance(assistant_name, str) or not assistant_name.strip():
         assistant_name = "Coke"
-    return (
-        f"我是 {assistant_name.strip()}，你的提醒和约课小助手。"
-        f"你可以直接让我{'、'.join(capabilities)}。"
+    lead = f"我是 {assistant_name.strip()}，你的提醒和约课小助手。"
+    if include_starter_question:
+        address_name = request.user_address_name.strip()
+        lead = f"Hi，{address_name}！{lead}" if address_name else f"Hi！{lead}"
+    text = f"{lead}你可以直接让我{'、'.join(capabilities)}。"
+    if include_starter_question:
+        starter = guidance.get("starter_question")
+        if not isinstance(starter, str) or not starter.strip():
+            starter = "这两天有什么要做的事情吗？我到时候提醒你。"
+        starter = starter.strip()
+        if starter and starter[-1] not in "。.!！?？":
+            starter = f"{starter}。"
+        text = f"{text}{starter}"
+    return text
+
+
+def _first_use_no_action_segments(
+    segments: tuple[str, ...],
+    *,
+    guidance: Mapping[str, Any] | None,
+    guidance_text: str,
+) -> tuple[str, ...]:
+    followups = [
+        segment
+        for segment in segments
+        if not _is_redundant_first_use_segment(
+            segment,
+            guidance=guidance,
+            guidance_text=guidance_text,
+        )
+    ]
+    return (guidance_text, *followups[:2])
+
+
+def _is_redundant_first_use_segment(
+    segment: str,
+    *,
+    guidance: Mapping[str, Any] | None,
+    guidance_text: str,
+) -> bool:
+    normalized = _normalize_onboarding_text(segment)
+    if not normalized:
+        return True
+    if normalized in {"hi", "hello", "hey", "你好", "嗨", "哈喽", "哈啰"}:
+        return True
+    normalized_guidance = _normalize_onboarding_text(guidance_text)
+    if normalized in normalized_guidance or normalized_guidance in normalized:
+        return True
+    if _segments_include_onboarding(
+        (segment,),
+        guidance=guidance,
+        guidance_text=guidance_text,
+    ):
+        return True
+    return "提醒" in normalized and any(
+        marker in normalized
+        for marker in ("这两天", "有什么要做", "要做的事情", "需要我提醒", "有没有")
     )
 
 

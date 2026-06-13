@@ -91,3 +91,41 @@ Local verification after the follow-up fix:
 - `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed:
   `942 passed, 1 skipped`; the skip was
   `COKE_TEST_DATABASE_URL is not set`.
+
+## Follow-up: First-Use Must Start With Complete Onboarding
+
+The next Olivers retest showed that "not duplicated" was still not enough:
+first-use `Hi` could be rendered as only the starter question, e.g. "这两天有什么要做
+的事情吗？我到时候提醒你", which did not read as the product onboarding flow.
+
+Root cause: the previous implementation treated onboarding as a model
+instruction with an Express fallback. The prompt encouraged a starter question,
+but no-action first-use replies did not have a deterministic visible opening.
+
+Fix shape:
+
+- no-action first-use turns now render a configured onboarding segment first;
+- that segment introduces Coke as the user's `提醒和约课小助手`;
+- the same segment lists supported capabilities and includes the starter
+  question;
+- redundant model greetings, model-written onboarding, and duplicate starter
+  questions are suppressed;
+- first-use turns with settled outcomes still preserve the outcome reply and
+  append guidance, so product-state facts are not hidden.
+
+Local verification before deployment:
+
+- `tests/unit/coke/turn/inbound/test_express.py::test_no_action_first_use_renders_configured_onboarding_before_model_starter`
+  failed before the fix with the starter question as segment 1 and configured
+  onboarding appended as segment 2.
+- `tests/unit/coke/turn/inbound/test_express.py::test_no_action_first_use_normalizes_model_onboarding_to_configured_copy`
+  failed before the fix with model-generated onboarding left visible.
+- After the fix, `tests/unit/coke/turn/inbound/test_express.py` passed:
+  `9 passed`.
+- `tests/unit/coke/turn/inbound/test_express.py tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/test_delivery_lifecycle_callbacks.py`
+  passed: `43 passed`.
+- `black coke/turn/inbound/express.py tests/unit/coke/turn/inbound/test_express.py --check`
+  passed.
+- `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed:
+  `942 passed, 1 skipped`; the skip was
+  `COKE_TEST_DATABASE_URL is not set`. Repo docs check passed.

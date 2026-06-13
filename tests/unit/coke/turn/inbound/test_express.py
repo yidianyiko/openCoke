@@ -188,9 +188,16 @@ def test_render_keeps_reminder_list_in_one_multiline_segment() -> None:
     )
 
 
-def test_render_appends_onboarding_guidance_when_model_omits_it() -> None:
+def test_no_action_first_use_renders_configured_onboarding_before_model_starter() -> (
+    None
+):
     fake_agent = StaticRunAgentInstance(
-        content=json.dumps({"type": "reply", "segments": ["Hi~"]}),
+        content=json.dumps(
+            {
+                "type": "reply",
+                "segments": ["这两天有什么要做的事情吗？我到时候提醒你"],
+            }
+        ),
         calls=[],
     )
     factory = FakeAgentFactory(fake_agent)
@@ -215,8 +222,7 @@ def test_render_appends_onboarding_guidance_when_model_omits_it() -> None:
     )
 
     assert segments == (
-        "Hi~",
-        "我是 Coke，你的提醒和约课小助手。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。",
+        "Hi！我是 Coke，你的提醒和约课小助手。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。这两天有什么要做的事情吗？我到时候提醒你。",
     )
     input_payload = json.loads(fake_agent.calls[0]["input"])
     assert input_payload["onboarding_guidance"]["supported_capabilities"] == [
@@ -228,9 +234,7 @@ def test_render_appends_onboarding_guidance_when_model_omits_it() -> None:
     assert "First-use guidance is required" in factory.agent_kwargs[0]["system_message"]
 
 
-def test_render_does_not_append_duplicate_onboarding_when_model_mentions_synonyms() -> (
-    None
-):
+def test_no_action_first_use_normalizes_model_onboarding_to_configured_copy() -> None:
     model_onboarding = "我是Coke，可以帮你设提醒、和朋友共享提醒、查空闲时间，还会记住你的偏好，随时找我聊"
     fake_agent = StaticRunAgentInstance(
         content=json.dumps({"type": "reply", "segments": ["Hi～", model_onboarding]}),
@@ -257,7 +261,9 @@ def test_render_does_not_append_duplicate_onboarding_when_model_mentions_synonym
         )
     )
 
-    assert segments == ("Hi～", model_onboarding)
+    assert segments == (
+        "Hi！我是 Coke，你的提醒和约课小助手。你可以直接让我设置提醒、和好友创建共享提醒、查询好友空闲时间、记住你的长期偏好。这两天有什么要做的事情吗？我到时候提醒你。",
+    )
 
 
 def test_render_prompt_and_segments_preserve_partial_failure_facts() -> None:

@@ -1494,6 +1494,42 @@ Verification:
 - `zsh scripts/verify-surface clean-rebuild-backend repo-os-docs` passed with
   `942 passed, 1 skipped`; the skip was `COKE_TEST_DATABASE_URL is not set`.
 
+## 2026-06-13 Olivers First-Use Starter Follow-up
+
+After deploying the duplicate-guidance fix, an Olivers retest exposed a stricter
+product expectation: a first-use `Hi` must visibly start with complete onboarding,
+not only the starter question. The previous repair still relied on the model to
+compose the first-use shape and used Express as a fallback. That allowed the
+model to lead with a natural starter such as "这两天有什么要做的事情吗？我到时候提醒你",
+which is consistent with the role prompt but does not read as the onboarding
+flow the user wanted to test.
+
+Additional operational note: while preparing a clean retest, the admin reset
+sent a proactive "ready" message and then cleared Olivers' conversation rows.
+If the user replied immediately after receiving that proactive message, that
+new inbound/turn could be deleted by the cleanup window. Future manual resets
+should capture the latest context token first, clear the conversation, and only
+then send the proactive message with the captured token.
+
+Repair: for no-action first-use turns, Express now renders the configured
+onboarding copy deterministically before any model-supplied content. The fixed
+copy introduces Coke as the user's `提醒和约课小助手`, lists the supported
+capabilities, and includes the starter question in the same visible segment.
+Redundant model greetings, model-written onboarding, and duplicate starter
+questions are suppressed. For first-use turns with actual settled outcomes,
+Express still preserves the outcome reply and appends the shorter guidance
+segment so domain facts are not hidden.
+
+Verification:
+
+- `tests/unit/coke/turn/inbound/test_express.py::test_no_action_first_use_renders_configured_onboarding_before_model_starter`
+  failed before the fix because the model starter was segment 1 and configured
+  onboarding was only appended.
+- `tests/unit/coke/turn/inbound/test_express.py::test_no_action_first_use_normalizes_model_onboarding_to_configured_copy`
+  failed before the fix because model-provided onboarding remained unnormalized.
+- `tests/unit/coke/turn/inbound/test_express.py tests/unit/coke/turn/inbound/test_pipeline.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/test_delivery_lifecycle_callbacks.py`
+  passed with `43 passed`.
+
 ## Current Status
 
 Open for the broader Eva RCA tracks that were outside this workstream. The
