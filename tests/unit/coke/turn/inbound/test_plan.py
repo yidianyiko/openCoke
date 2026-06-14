@@ -246,13 +246,62 @@ def test_prompt_requires_explicit_period_words_to_stay_in_time_phrase() -> None:
     assert "晚上/下午/上午/早上/中午" in system
 
 
-def _request(text: str) -> PlanRequest:
+def test_prompt_treats_contextual_date_correction_as_converse_not_new_schedule() -> (
+    None
+):
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+    history = (
+        {
+            "role": "user",
+            "content": "为什么oliver今天会有开会的日程呢",
+            "seq": 21,
+        },
+        {"role": "assistant", "content": "之前帮他约的，改到晚上6点。"},
+    )
+    focus_subject = {
+        "subject_type": "shared_reminder",
+        "object_ids": ["shared-1"],
+        "ordered": True,
+    }
+
+    plan = SiliconFlowPlanner(client).plan(
+        _request(
+            "不是明天吗？",
+            conversation_history=history,
+            focus_subject=focus_subject,
+        )
+    )
+
+    assert plan.actions == ()
+    assert plan.reply_necessity == "reply_needed"
+    call = client.calls[0]
+    system = call["system"]
+    assert "short contradiction/correction" in system
+    assert "不是明天吗" in system
+    assert "use empty actions with reply_needed" in system
+    assert "focus_subject is the typed subject" in system
+    assert call["user"]["conversation_history"] == [dict(item) for item in history]
+    assert call["user"]["focus_subject"] == focus_subject
+
+
+def _request(
+    text: str,
+    *,
+    conversation_history: tuple[Mapping[str, Any], ...] = (),
+    focus_subject: Any | None = None,
+) -> PlanRequest:
     return PlanRequest(
         account_id="acct-1",
         conversation_id="conv-1",
         payload={"text": text},
         trusted_facts={"timezone": "Asia/Tokyo"},
-        focus_subject=None,
+        conversation_history=conversation_history,
+        focus_subject=focus_subject,
     )
 
 

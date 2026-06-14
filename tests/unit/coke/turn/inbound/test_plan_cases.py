@@ -245,6 +245,12 @@ CASES: tuple[PlanCase, ...] = (
         "reply_needed",
     ),
     (
+        "zh contextual date correction is converse",
+        "不是明天吗？",
+        (),
+        "reply_needed",
+    ),
+    (
         "zh availability query",
         "小王明天下午有空吗",
         (
