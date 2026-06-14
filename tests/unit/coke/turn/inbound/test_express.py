@@ -597,3 +597,27 @@ def test_no_reply_payload_raises_when_express_reply_is_required() -> None:
         match="Express returned no_reply when a reply is required",
     ):
         _segments_from_content({"type": "no_reply"})
+
+
+def test_prose_reply_on_outcome_turn_is_accepted_single_segment() -> None:
+    # Regression: GLM often returns a prose (non-JSON) list for outcome turns.
+    # Express must accept it as a single segment, not fall to grounded-failure
+    # recovery. (RC2 force-JSON regressed every prose outcome reply.)
+    from coke.turn.inbound.express import _segments_from_content
+
+    request = ExpressRequest(
+        turn_id="t",
+        conversation_id="c",
+        account_id="a",
+        settled_outcome=SettledOutcome(
+            outcomes=(
+                ActionOutcome(
+                    category="done",
+                    status="listed",
+                    data={"reminders": [{"content": "开会"}], "count": 1},
+                ),
+            )
+        ),
+    )
+    segments = _segments_from_content("今天的提醒：\n开会\n晚饭", request)
+    assert segments == ("今天的提醒：\n开会\n晚饭",)

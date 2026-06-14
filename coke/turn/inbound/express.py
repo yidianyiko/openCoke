@@ -538,13 +538,12 @@ def _segments_from_content(
 ) -> tuple[str, ...]:
     payload = _mapping_from_content(content)
     if payload is None:
-        # GLM JSON mode is not always honored for context-light converse turns.
-        # Plain prose is a valid single-segment reply — Express makes no state
-        # claim for converse, so there is nothing to verify or to overstate.
-        if request is not None and request.settled_outcome.outcomes:
-            raise ExpressOutputError(
-                "Express output must be structured JSON for settled_outcome"
-            )
+        # GLM JSON mode is not always honored even on outcome turns (e.g. list
+        # replies often come back as a multiline prose list). Plain prose is a
+        # valid single-segment reply; the domain_claim guard below only applies to
+        # structured replies, so prose carries no fabricated state/blocker claim
+        # to validate. Forcing JSON here regressed every prose outcome reply into
+        # grounded-failure recovery, so prose is accepted as a single segment.
         if isinstance(content, str) and content.strip():
             return (content.strip(),)
         raise ExpressOutputError("invalid Express output")
