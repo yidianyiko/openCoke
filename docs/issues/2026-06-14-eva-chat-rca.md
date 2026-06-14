@@ -3,7 +3,7 @@ kind: investigation
 status: open
 title: Eva 2026-06-14 chat root-cause analysis (interactive-turn recurrence)
 created_at: 2026-06-14
-updated_at: 2026-06-14
+updated_at: 2026-06-15
 surface:
   - clean-rebuild
   - conversation-runtime
@@ -15,6 +15,38 @@ related:
 ---
 
 # Eva 2026-06-14 Chat RCA
+
+## Fix Status (updated 2026-06-15)
+
+Deployed to gcp-coke (`main`) and smoke-verified on the real WeChat path:
+
+- **RC0** ✅ deployed + verified — relative-time rendering; live replies show
+  "今天上午0点55分", "明天晚上6点".
+- **RC1** ✅ deployed + verified — "明天晚上6点" stored as 18:00 (not 06:00).
+- **RC2** ✅ deployed — conflict/refusal wording bound to typed outcome. NOTE: the
+  first RC2 deploy regressed prose list replies into grounded-failure recovery
+  (force-JSON on outcome turns); caught by live smoke, hotfixed (prose tolerance
+  restored, domain_claim guard kept), redeployed.
+- **RC5** ✅ deployed + verified — deterministic schedule-by-date; live "今天日程"
+  lists exactly today's items, no fired/past pollution.
+- **RC6** ✅ deployed + verified — fire completion; live one-time reminder fired →
+  completed → retired; recurring advancement unit+integration proven.
+
+In review (implemented by Codex, not yet merged/deployed):
+
+- **RC3+RC7** 🔶 friend-agenda questions route to availability_query (busy/free),
+  never list_shared/titles; vague queries default to a documented today..+7d
+  window. Reviewed: in scope, 357 unit tests pass, RC2 prose hotfix not
+  regressed. Pending: finish express/social diff review → commit → deploy → smoke.
+
+Not started:
+
+- **RC4** ⬜ contextual correction misclassified as a new scheduling intent (the
+  "失忆"). Last remaining; serializes on plan.py after RC3+RC7.
+
+Main commits: RC0 `340bca15`, RC6 `61a18629`, RC2 `fbba63bb`, RC5 `b76cc24a`,
+RC2 hotfix `cec8c5b4`, RC1 `b8b8a21e` (+ merge commits). Each fix was reviewed by
+running its tests directly (not trusting Codex's report).
 
 ## Summary
 
