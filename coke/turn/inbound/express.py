@@ -29,6 +29,8 @@ class ExpressRequest:
     conversation_id: str
     account_id: str
     settled_outcome: SettledOutcome
+    current_time: str = ""
+    default_timezone: str = "UTC"
     current_input_messages: Sequence[Mapping[str, Any]] = ()
     conversation_history: Sequence[Mapping[str, Any]] = ()
     persona: str = ""
@@ -153,6 +155,10 @@ def _agent_input(request: ExpressRequest) -> str:
     # planner JSON client (Message(role="user", content=json.dumps(...))).
     payload = {
         "mode": "converse" if not request.settled_outcome.outcomes else "render",
+        "clock": {
+            "current_time": request.current_time,
+            "default_timezone": request.default_timezone,
+        },
         "settled_outcome": _settled_outcome_payload(request.settled_outcome),
         "current_input_messages": [
             _plain_value(message) for message in request.current_input_messages
@@ -411,6 +417,7 @@ def _system_message(request: ExpressRequest) -> str:
             request.persona,
             "You have no tools and must not imply tool calls or domain mutation.",
             "Describe only the provided settled_outcome for product state.",
+            _clock_system_message(request),
             (
                 "Render every outcome's category and mandatory status faithfully; "
                 "status is the domain truth, not a style hint."
@@ -453,9 +460,35 @@ def _onboarding_system_message(request: ExpressRequest) -> str:
     )
 
 
+def _clock_system_message(request: ExpressRequest) -> str:
+    parts = []
+    if request.current_time:
+        parts.append(
+            "The authoritative current time is "
+            f"{request.current_time} in {request.default_timezone}. Treat this "
+            "as the only now/today anchor. Do not infer the current date or "
+            "time from conversation history."
+        )
+    parts.append(
+        "When an outcome provides a *_display sibling for a datetime field, "
+        "MUST use the provided *_display field verbatim for the date, relative "
+        "day, and clock. Do not recompute 今天/明天, remaining time, or clock "
+        "labels from raw ISO fields or conversation history."
+    )
+    return " ".join(parts)
+
+
 def _instructions() -> list[str]:
     return [
         "Use the input settled_outcome as the only product-state source.",
+        (
+            "Use clock.current_time as authoritative now and never infer now, "
+            "today, tomorrow, or elapsed/remaining time from conversation history."
+        ),
+        (
+            "For datetime fields with a *_display sibling, use *_display "
+            "verbatim when stating the date, relative day, or clock."
+        ),
         "Keep wording concise and user-facing.",
         (
             "Render a list (e.g. a reminder list) as a SINGLE segment with each "

@@ -18,6 +18,7 @@ from coke.turn.inbound.express import ExpressOutputError, ExpressRequest
 from coke.turn.inbound.pending import PendingClarificationPort
 from coke.turn.inbound.plan import Planner, PlanRequest
 from coke.turn.inbound.plan_compile import compile_plan
+from coke.turn.inbound.time_display import attach_time_display_fields
 
 
 class ExpressPort(Protocol):
@@ -238,11 +239,23 @@ def _express_request(
     settled_outcome: SettledOutcome,
 ) -> ExpressRequest:
     onboarding_guidance = request.trusted_facts.get("onboarding_guidance")
+    current_time = str(request.trusted_facts.get("current_time") or "")
+    default_timezone = str(
+        request.trusted_facts.get("default_timezone")
+        or request.trusted_facts.get("timezone")
+        or "UTC"
+    )
     return ExpressRequest(
         turn_id=request.turn_id,
         conversation_id=request.conversation_id,
         account_id=request.account_id,
-        settled_outcome=settled_outcome,
+        current_time=current_time,
+        default_timezone=default_timezone,
+        settled_outcome=_settled_outcome_with_time_display(
+            settled_outcome,
+            current_time=current_time,
+            default_timezone=default_timezone,
+        ),
         current_input_messages=request.current_input_messages,
         conversation_history=request.conversation_history,
         persona=request.persona,
@@ -255,6 +268,28 @@ def _express_request(
             if isinstance(onboarding_guidance, Mapping)
             else None
         ),
+    )
+
+
+def _settled_outcome_with_time_display(
+    settled_outcome: SettledOutcome,
+    *,
+    current_time: str,
+    default_timezone: str,
+) -> SettledOutcome:
+    return SettledOutcome(
+        outcomes=tuple(
+            ActionOutcome(
+                category=outcome.category,
+                status=outcome.status,
+                data=attach_time_display_fields(
+                    outcome.data,
+                    now=current_time,
+                    timezone_name=default_timezone,
+                ),
+            )
+            for outcome in settled_outcome.outcomes
+        )
     )
 
 

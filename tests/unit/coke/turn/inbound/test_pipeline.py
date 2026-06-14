@@ -15,14 +15,15 @@ from coke.turn.inbound.contracts import (
     SettledOutcome,
     TurnPlan,
 )
+from coke.turn.inbound.express import ExpressOutputError
 from coke.turn.inbound.pending import InMemoryPendingClarificationStore
 from coke.turn.inbound.pipeline import (
     SegmentDeliveryPort,
     TurnPipeline,
     TurnPipelineRequest,
+    _express_request,
     _plan_request,
 )
-from coke.turn.inbound.express import ExpressOutputError
 from coke.turn.inbound.plan import PlanRequest, SiliconFlowPlanner
 
 
@@ -264,6 +265,53 @@ async def test_pipeline_passes_onboarding_guidance_to_express() -> None:
     )
 
     assert express.stream_calls[0].onboarding_guidance == onboarding_guidance
+
+
+def test_express_request_threads_trusted_clock_and_formats_nested_times() -> None:
+    settled = SettledOutcome(
+        outcomes=(
+            ActionOutcome(
+                category="done",
+                status="listed",
+                data={
+                    "shared_reminders": [
+                        {
+                            "title": "开会",
+                            "local_trigger_at": "2026-06-15T06:00:00",
+                            "captured_timezone": "Asia/Shanghai",
+                        }
+                    ],
+                    "reminders": [
+                        {
+                            "content": "开会",
+                            "next_fire_at": "2026-06-14T22:00:00+00:00",
+                            "captured_timezone": "Asia/Shanghai",
+                        }
+                    ],
+                },
+            ),
+        )
+    )
+    request = _pipeline_request(
+        trusted_facts={
+            "current_time": "2026-06-14T21:17:00+08:00",
+            "default_timezone": "Asia/Shanghai",
+        },
+    )
+
+    express_request = _express_request(request, settled)
+
+    assert express_request.current_time == "2026-06-14T21:17:00+08:00"
+    assert express_request.default_timezone == "Asia/Shanghai"
+    outcome_data = express_request.settled_outcome.outcomes[0].data
+    assert outcome_data["shared_reminders"][0]["local_trigger_at"] == (
+        "2026-06-15T06:00:00"
+    )
+    assert (
+        outcome_data["shared_reminders"][0]["local_trigger_at_display"] == "明天上午6点"
+    )
+    assert outcome_data["reminders"][0]["next_fire_at"] == "2026-06-14T22:00:00+00:00"
+    assert outcome_data["reminders"][0]["next_fire_at_display"] == "明天上午6点"
 
 
 @pytest.mark.asyncio
