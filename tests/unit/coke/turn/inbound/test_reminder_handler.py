@@ -631,6 +631,44 @@ def test_batch_create_executes_all_items_once() -> None:
     assert guard.staged == []
 
 
+def test_batch_create_with_time_phrase_trusts_detector_duration_over_plan_guess() -> (
+    None
+):
+    service = StubReminderService()
+    service.batch_result = ReminderBatchResult(
+        owner_account_id="acct-1",
+        items=[_succeeded_item("real-r1")],
+    )
+    detector = StubDetector(_detected(content="检查时间", duration_minutes=5))
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        _handler(service, detector),
+        _compiled(
+            "batch_create",
+            {
+                "owner_account_id": "acct-1",
+                "items": [
+                    {
+                        "content": "检查时间",
+                        "time_phrase": "明天晚上6点",
+                        "duration_minutes": 30,
+                    }
+                ],
+            },
+        ),
+        guard,
+        turn_id="turn-77",
+    )
+
+    assert outcome.category == "done"
+    assert detector.calls == [("检查时间 明天晚上6点", "UTC", NOW)]
+    call = service.calls[0][1]
+    item = call["items"][0]
+    assert item.duration_minutes == 5
+    assert item.trigger_time == datetime(2026, 6, 11, 9, 0, tzinfo=UTC)
+
+
 def test_batch_create_missing_duration_keeps_existing_guard_before_real_write() -> None:
     service = StubReminderService()
     guard = RecordingGuard()

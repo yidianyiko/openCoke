@@ -269,26 +269,34 @@ class ReminderActionHandler:
     ) -> ReminderBatchItem:
         timezone = _timezone(params)
         trigger_time = _optional_datetime(params.get("trigger_time"))
-        if trigger_time is None and _has_time_phrase(params):
+        content = _optional_str(params.get("content"))
+        recurrence_rule = dict(params.get("recurrence_rule") or {})
+        duration_minutes = params.get("duration_minutes")
+        kind = params.get("kind")
+        if _has_time_phrase(params):
             detected = self._extract_create_fields(params)
             if detected.trigger_time is None:
                 return ReminderBatchItem(
                     operation="create",
-                    content=_optional_str(params.get("content")),
+                    content=content,
                     captured_timezone=timezone,
                     time_state="invalid",
                     turn_id=turn_id,
                     item_index=item_index,
                 )
             trigger_time = _trigger_time(detected.trigger_time, timezone)
+            content = detected.content or content
+            recurrence_rule = dict(detected.recurrence_rule)
+            duration_minutes = detected.duration_minutes
+            kind = detected.kind
         return ReminderBatchItem(
             operation="create",
-            content=_optional_str(params.get("content")),
+            content=content,
             trigger_time=trigger_time,
             captured_timezone=timezone,
-            recurrence_rule=dict(params.get("recurrence_rule") or {}),
-            duration_minutes=params.get("duration_minutes"),
-            kind=params.get("kind"),
+            recurrence_rule=recurrence_rule,
+            duration_minutes=duration_minutes,
+            kind=kind,
             entry_point="turn_pipeline",
             turn_id=turn_id,
             item_index=item_index,

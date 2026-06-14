@@ -138,6 +138,10 @@ def test_prompt_and_payload_expose_allowed_shape_without_precise_extraction() ->
     assert "never precise extracted times" in call["system"]
     assert "use exactly these param keys" in call["system"]
     assert "do not invent key names" in call["system"]
+    assert "batch_create items follow the same rule" in call["system"]
+    assert "omit trigger_time and duration_minutes from natural-language batch items" in (
+        call["system"]
+    )
     assert "confidence" in call["system"]
     assert call["user"]["allowed_domains"] == sorted(call["user"]["allowed_actions"])
     assert "reminder" in call["user"]["allowed_actions"]
