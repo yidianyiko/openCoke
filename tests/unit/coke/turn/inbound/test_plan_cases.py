@@ -28,9 +28,15 @@ CASES: tuple[PlanCase, ...] = (
         "reply_needed",
     ),
     (
-        "zh filtered reminder list",
+        "zh date-scoped reminder list",
         "看一下今天的提醒",
-        ({"domain": "reminder", "operation": "list", "params": {"keyword": "今天"}},),
+        (
+            {
+                "domain": "reminder",
+                "operation": "list",
+                "params": {"date_phrase": "今天"},
+            },
+        ),
         "reply_needed",
     ),
     (

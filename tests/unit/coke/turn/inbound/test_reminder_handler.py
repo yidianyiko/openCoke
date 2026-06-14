@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from itertools import count
 from typing import Any
 
 from coke.domains.reminder.models import (
@@ -9,6 +10,8 @@ from coke.domains.reminder.models import (
     ReminderBatchResult,
     ReminderItemResult,
 )
+from coke.domains.reminder.repository import InMemoryReminderRepository
+from coke.domains.reminder.service import ReminderService
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction, ProposedAction
 from coke.turn.inbound.handlers.reminder import (
     ReminderActionHandler,
@@ -16,6 +19,7 @@ from coke.turn.inbound.handlers.reminder import (
 )
 
 NOW = datetime(2026, 6, 10, 1, 0, tzinfo=UTC)
+SHANGHAI_NOW = datetime(2026, 6, 14, 13, 26, tzinfo=UTC)
 TRIGGER_TIME = datetime(2026, 6, 11, 9, 0)
 
 
@@ -151,6 +155,54 @@ def _reminder(reminder_id: str, content: str) -> Reminder:
     )
 
 
+def _sequence_factory(kind: str):
+    counter = count(1)
+    return lambda prefix: f"{prefix}_{kind}_{next(counter)}"
+
+
+def _real_handler_for_shanghai_now() -> ReminderActionHandler:
+    service = ReminderService(
+        repository=InMemoryReminderRepository(),
+        now=lambda: SHANGHAI_NOW,
+        id_factory=_sequence_factory("list"),
+    )
+    return ReminderActionHandler(
+        service,
+        StubDetector(_detected()),
+        now=lambda: SHANGHAI_NOW,
+    )
+
+
+def _add_list_reminder(
+    service: ReminderService,
+    *,
+    reminder_id: str,
+    content: str,
+    next_fire_at: datetime,
+    kind: str = "timed",
+    recurrence_rule: dict[str, Any] | None = None,
+    lifecycle: str = "active",
+) -> None:
+    service.repository.add_reminder(
+        Reminder(
+            id=reminder_id,
+            owner_account_id="acct-1",
+            content=content,
+            content_hash=f"hash-{reminder_id}",
+            kind=kind,
+            next_fire_at=next_fire_at,
+            recurrence_rule=dict(recurrence_rule or {}),
+            captured_timezone="Asia/Shanghai",
+            duration_minutes=30,
+            lifecycle=lifecycle,
+            hidden_from_calendar=False,
+            shared_reminder_id=None,
+            created_at=SHANGHAI_NOW,
+            updated_at=SHANGHAI_NOW,
+        )
+    )
+
+
 def _succeeded_item(reminder_id: str = "r1") -> ReminderItemResult:
     return ReminderItemResult(
         state="succeeded",
@@ -200,6 +252,100 @@ def test_list_reminders_returns_listed_without_staging() -> None:
             "trigger_before": None,
         },
     )
+
+
+def test_list_reminders_resolves_tomorrow_date_phrase_to_trigger_window() -> None:
+    service = StubReminderService()
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        _handler(service),
+        _compiled(
+            "list",
+            {
+                "owner_account_id": "acct-1",
+                "date_phrase": "明天",
+                "captured_timezone": "Asia/Shanghai",
+                "display_timezone": "Asia/Shanghai",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert service.calls[0] == (
+        "filter_reminders",
+        {
+            "owner_account_id": "acct-1",
+            "keyword": None,
+            "lifecycle": "active",
+            "kind": None,
+            "trigger_after": datetime(2026, 6, 10, 16, 0, tzinfo=UTC),
+            "trigger_before": datetime(2026, 6, 11, 16, 0, tzinfo=UTC),
+        },
+    )
+
+
+def test_tomorrow_schedule_list_is_date_scoped_and_deterministic() -> None:
+    handler = _real_handler_for_shanghai_now()
+    service = handler.reminder_service
+    guard = RecordingGuard()
+    _add_list_reminder(
+        service,
+        reminder_id="past-today",
+        content="出门",
+        next_fire_at=datetime(2026, 6, 14, 5, 41, tzinfo=UTC),
+    )
+    _add_list_reminder(
+        service,
+        reminder_id="tomorrow-dinner",
+        content="晚饭",
+        next_fire_at=datetime(2026, 6, 15, 11, 30, tzinfo=UTC),
+    )
+    _add_list_reminder(
+        service,
+        reminder_id="daily-review",
+        content="复盘今天",
+        next_fire_at=datetime(2026, 6, 14, 14, 0, tzinfo=UTC),
+        kind="recurring",
+        recurrence_rule={"frequency": "daily", "interval": 1},
+    )
+    _add_list_reminder(
+        service,
+        reminder_id="after-tomorrow",
+        content="后天事项",
+        next_fire_at=datetime(2026, 6, 16, 1, 0, tzinfo=UTC),
+    )
+    _add_list_reminder(
+        service,
+        reminder_id="completed-tomorrow",
+        content="已完成",
+        next_fire_at=datetime(2026, 6, 15, 2, 0, tzinfo=UTC),
+        lifecycle="completed",
+    )
+    compiled = _compiled(
+        "list",
+        {
+            "owner_account_id": "acct-1",
+            "date_phrase": "明天",
+            "captured_timezone": "Asia/Shanghai",
+            "display_timezone": "Asia/Shanghai",
+        },
+    )
+
+    first = _execute(handler, compiled, guard)
+    second = _execute(handler, compiled, guard)
+
+    first_reminders = list(first.data["reminders"])
+    second_reminders = list(second.data["reminders"])
+    assert [reminder["content"] for reminder in first_reminders] == [
+        "晚饭",
+        "复盘今天",
+    ]
+    assert first_reminders == second_reminders
+    assert first_reminders[1]["next_fire_at"] == "2026-06-15T14:00:00+00:00"
+    assert first.data["count"] == 2
+    assert second.data["count"] == 2
 
 
 def test_optional_datetime_handles_absent_iso_datetime_and_natural_text() -> None:

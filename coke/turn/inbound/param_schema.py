@@ -101,8 +101,11 @@ PARAM_KEY_SCHEMA: ParamKeySchema = MappingProxyType(
                         "status",
                         "kind",
                         "reminder_type",
+                        "date_phrase",
                         "trigger_after",
                         "trigger_before",
+                        "captured_timezone",
+                        "display_timezone",
                     ),
                 ),
                 "update": ParamKeySpec(

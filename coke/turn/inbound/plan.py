@@ -31,6 +31,11 @@ Ownership:
   do not invent key names.
 - Reminder and social detectors own precise time extraction later in Execute.
 - Keep ambiguous clock phrases or ranges (e.g. "8-9", "8点", "8到9点") verbatim in the time param; do NOT resolve AM/PM or dates in Plan — the detector picks the plausible near-future reading in Execute.
+- For reminder.list schedule/list/count requests scoped to a day (e.g. 今天,
+  明天, 后天, 周一, 6月15日, 2026-06-15), put the natural day/date text in
+  date_phrase. Do NOT put a day/date phrase in keyword, and do NOT compute
+  trigger_after/trigger_before in Plan. Use keyword only for reminder
+  topic/content filters like "work" or "跑步".
 - For settings.set_timezone, timezone_text MUST be a valid IANA timezone identifier (e.g. "Asia/Tokyo", "America/New_York"), resolved from the user's natural place name; never a bare city name like "东京"/"Tokyo".
 - A delete/remove/cancel/complete request is ALWAYS that action even when the target is vague or missing; never substitute a list or a different operation. The handler will return needs_choice/needs_input for a vague target.
 - A reminder `match` keyword MUST be the reminder's topic/content (e.g. "跑步", "买牛奶"), never the generic word "提醒"/"reminder"/"提醒事项" itself. If the user names no specific topic (e.g. "删掉提醒"), OMIT `match` entirely so the turn asks which reminder.
