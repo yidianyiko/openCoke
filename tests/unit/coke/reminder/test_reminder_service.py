@@ -1209,6 +1209,33 @@ def test_fire_lifecycle_is_occurrence_grain_idempotent_and_advances_recurring(se
     assert reminder.next_fire_at == trigger_time + timedelta(days=1)
 
 
+def test_complete_fire_is_idempotent_for_completed_recurring_occurrence(service):
+    trigger_time = NOW
+    created = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="daily standup",
+                trigger_time=trigger_time,
+                captured_timezone="UTC",
+                recurrence_rule={"frequency": "daily", "interval": 1},
+                duration_minutes=15,
+            )
+        ],
+    )
+    reminder_id = created.items[0].reminder_id
+    fire = service.claim_due_fire(reminder_id=reminder_id, due_at=trigger_time)
+
+    first = service.complete_fire(fire.id, completed_at=NOW + timedelta(minutes=1))
+    second = service.complete_fire(fire.id, completed_at=NOW + timedelta(minutes=2))
+    reminder = service.repository.get_reminder(reminder_id)
+
+    assert second == first
+    assert reminder.lifecycle == "active"
+    assert reminder.next_fire_at == trigger_time + timedelta(days=1)
+
+
 def test_undelivered_resend_excludes_handled_deleted_and_proactive_discards(repository):
     delivery = FakeDelivery(outcomes=["failed", "failed", "delivered"])
     service = ReminderService(
