@@ -28,9 +28,13 @@ def test_zai_config_reads_key_base_url_and_default_model_ids():
 
     assert config.api_key == "test-key"
     assert config.base_url == ZAI_BASE_URL
+    assert config.base_url == "https://api.z.ai/api/coding/paas/v4/"
     assert config.interaction_model == DEFAULT_INTERACTION_MODEL
+    assert config.interaction_model == "glm-5.2"
     assert config.planner_model == DEFAULT_PLANNER_MODEL
+    assert config.planner_model == "glm-5.2"
     assert config.detector_model == DEFAULT_DETECTOR_MODEL
+    assert config.detector_model == "glm-5.2"
     assert llm_config.DEFAULT_INTERACTION_TIMEOUT_S == 45.0
     assert config.interaction_timeout_s == DEFAULT_INTERACTION_TIMEOUT_S
     assert config.agno_database_url == "postgresql+psycopg://coke:coke@localhost/coke"
@@ -76,8 +80,8 @@ def test_openai_like_model_uses_zai_settings_and_interaction_timeout():
     config = ZAILLMConfig.from_env(
         {
             "ZAI_API_KEY": "test-key",
-            "COKE_INTERACTION_MODEL": "glm-5.1-interaction",
-            "COKE_DETECTOR_MODEL": "glm-5.1-detector",
+            "COKE_INTERACTION_MODEL": "custom-interaction-model",
+            "COKE_DETECTOR_MODEL": "custom-detector-model",
             "COKE_INTERACTION_TIMEOUT_S": "31.5",
         }
     )
@@ -86,10 +90,10 @@ def test_openai_like_model_uses_zai_settings_and_interaction_timeout():
     planner_model = config.create_planner_model()
     model = config.create_detector_model()
 
-    assert interaction_model.id == "glm-5.1-interaction"
+    assert interaction_model.id == "custom-interaction-model"
     assert interaction_model.timeout == 31.5
     # Thinking is disabled on every turn-path model, not just the detector:
-    # GLM-5.1 thinking mode leaks reasoning into final content and breaks the
+    # GLM-5.2 thinking mode leaks reasoning into final content and breaks the
     # JSON output protocol (forcing full agent re-runs) while inflating latency.
     assert interaction_model.extra_body == {"thinking": {"type": "disabled"}}
     # Every turn-path text model is on the user's reply critical path, so each
@@ -99,7 +103,7 @@ def test_openai_like_model_uses_zai_settings_and_interaction_timeout():
     # docs/issues/2026-06-09-turn-latency-uncapped-interpreter-timeout.md.
     assert planner_model.timeout == 31.5
     assert planner_model.extra_body == {"thinking": {"type": "disabled"}}
-    assert model.id == "glm-5.1-detector"
+    assert model.id == "custom-detector-model"
     assert str(model.base_url) == ZAI_BASE_URL
     assert model.api_key == "test-key"
     assert model.timeout == 31.5

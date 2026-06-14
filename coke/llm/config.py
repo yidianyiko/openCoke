@@ -6,15 +6,15 @@ from typing import Mapping
 
 from agno.models.openai.like import OpenAILike
 
-# Official Z.AI OpenAI-compatible endpoint and thinking-off request shape were
-# verified against Z.AI docs on 2026-06-09. All turn-path models (interaction,
-# planner, detector) keep GLM-5.1 thinking disabled: thinking mode breaks the
+# Official Z.AI GLM-5.2 OpenAI-compatible endpoint was verified against Z.AI
+# GLM Coding Plan docs on 2026-06-15. All turn-path models (interaction,
+# planner, detector) keep GLM-5.2 thinking disabled: thinking mode breaks the
 # JSON output protocol and inflates latency without a verified quality gain.
-ZAI_BASE_URL = "https://api.z.ai/api/paas/v4/"
+ZAI_BASE_URL = "https://api.z.ai/api/coding/paas/v4/"
 SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
-DEFAULT_INTERACTION_MODEL = "glm-5.1"
-DEFAULT_PLANNER_MODEL = "glm-5.1"
-DEFAULT_DETECTOR_MODEL = "glm-5.1"
+DEFAULT_INTERACTION_MODEL = "glm-5.2"
+DEFAULT_PLANNER_MODEL = "glm-5.2"
+DEFAULT_DETECTOR_MODEL = "glm-5.2"
 DEFAULT_INTERACTION_TIMEOUT_S = 45.0
 DEFAULT_MEDIA_MODEL_TIMEOUT_S = 60.0
 # Media-model defaults verified live against /v1/models on 2026-06-01 using the
@@ -70,7 +70,7 @@ class ZAILLMConfig:
         )
 
     def create_interaction_model(self) -> OpenAILike:
-        # Z.AI GLM-5.1 defaults to thinking enabled. Coke's turn path needs
+        # Z.AI GLM-5.2 defaults to thinking enabled. Coke's turn path needs
         # structured JSON and bounded latency, so all three text roles disable it.
         return self._create_model(
             self.interaction_model,

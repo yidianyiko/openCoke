@@ -2,7 +2,8 @@
 
 ## Status
 
-Approved for implementation on 2026-06-09.
+Approved for implementation on 2026-06-09. Updated on 2026-06-15 for the
+official GLM-5.2 Coding Plan endpoint and model id.
 
 ## Goal
 
@@ -26,11 +27,12 @@ not hosted.
 
 ## Provider Facts
 
-Official Z.AI docs verified during design:
+Official Z.AI docs verified during design and refreshed on 2026-06-15:
 
-- OpenAI-compatible base URL: `https://api.z.ai/api/paas/v4/`.
-- GLM-5.1 model id: `glm-5.1`.
-- GLM-5.1 thinking is enabled by default.
+- OpenAI-compatible base URL for GLM-5.2 Coding Plan:
+  `https://api.z.ai/api/coding/paas/v4/`.
+- GLM-5.2 model id: `glm-5.2`.
+- GLM-5.2 thinking is enabled by default.
 - Thinking is disabled with `thinking: {"type": "disabled"}`.
 
 The current SiliconFlow media facts remain unchanged:
@@ -47,9 +49,9 @@ Split model configuration by provider responsibility.
 
 - `api_key` from `ZAI_API_KEY`.
 - `base_url` from `ZAI_BASE_URL`, defaulting to
-  `https://api.z.ai/api/paas/v4/`.
-- `interaction_model`, `interpreter_model`, and `detector_model`, each
-  defaulting to `glm-5.1`.
+  `https://api.z.ai/api/coding/paas/v4/`.
+- `interaction_model`, `planner_model`, and `detector_model`, each
+  defaulting to `glm-5.2`.
 - `interaction_timeout_s`.
 - Agno database settings.
 - `create_*_model()` methods that build Agno `OpenAILike` models with
