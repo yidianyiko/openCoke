@@ -42,6 +42,8 @@ stores provider reasoning content internally, but does not include a
   `artifacts/evidence/deepseek-model-bakeoff/20260614T165753Z-deepseek-thinking-compat.json`
 - DeepSeek/GLM interaction tool repeat baseline:
   `artifacts/evidence/deepseek-model-bakeoff/20260614T171200Z-interaction-repeat-baseline.json`
+- Detector/Express switch guard:
+  `artifacts/evidence/deepseek-model-bakeoff/20260614T172905Z-detector-express-switch-guard.json`
 
 All calls used real provider APIs and the current Coke prompt/client paths, not
 mocked model outputs.
@@ -126,7 +128,21 @@ Keeping GLM-5.1 thinking disabled remains deliberate.
 
 ## Decision
 
-Do not replace the turn-path GLM-5.1 models with DeepSeek V4 now.
+Do not replace the full turn-path GLM-5.1 stack with DeepSeek V4 now. After the
+follow-up production-shaped guard, switch only `detector` and `express` to
+DeepSeek V4 Flash.
+
+The switch guard ran 10 detector cases and 5 Express cases through both GLM-5.1
+and DeepSeek V4 Flash using the current Coke prompt/client paths:
+
+| Role | Model | Pass | Mean latency | P95 latency |
+|---|---|---:|---:|---:|
+| Detector | GLM-5.1 | 10/10 | 2.185s | 2.736s |
+| Detector | DeepSeek V4 Flash | 10/10 | 0.947s | 1.077s |
+| Express | GLM-5.1 | 5/5 | 6.071s | 7.376s |
+| Express | DeepSeek V4 Flash | 5/5 | 1.911s | 1.960s |
+
+DeepSeek V4 Flash had no DeepSeek-specific failures in either role.
 
 Current stance by role:
 
@@ -135,22 +151,20 @@ Current stance by role:
 - `planner`: keep GLM-5.1 thinking-off for now. DeepSeek Flash thinking high is
   close, but not better; DeepSeek Pro thinking high is slower and still less
   accurate.
-- `detector`: DeepSeek V4 Flash remains the only plausible future candidate
-  because it matched detector pass rate with lower latency in the first
-  bake-off, but it should not be switched without a production-shaped detector
-  eval and rollout plan.
-- `express`: DeepSeek looked acceptable in the small eval, but the role is not
-  the current bottleneck and does not justify a provider split by itself.
+- `detector`: switch to DeepSeek V4 Flash. It matched GLM correctness on the
+  production-shaped guard and was faster.
+- `express`: switch to DeepSeek V4 Flash. Express has no tools or direct state
+  mutation, returned valid reply segments for all guard cases, and was faster.
 
 ## Follow-up
 
-If we revisit DeepSeek, the next valid path is not a global model swap. It is a
-new adapter/config experiment with:
+If we revisit DeepSeek for `planner` or `interaction`, the next valid path is
+not a global model swap. It is a new adapter/config experiment with:
 
 - a DeepSeek-specific planner prompt and stricter schema constraints;
 - explicit regression cases for settings updates and other state-changing false
   successes;
 - a decision on whether Agno must preserve `reasoning_content` in stored
   history before enabling DeepSeek thinking mode in production;
-- a canary role only after the role-specific corpus beats GLM-5.1 on correctness
-  and false-success risk, not only latency.
+- a role-specific corpus that beats GLM-5.1 on correctness and false-success
+  risk, not only latency.

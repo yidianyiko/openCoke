@@ -4,8 +4,10 @@ import pytest
 
 import coke.llm.config as llm_config
 from coke.llm.config import (
+    DEEPSEEK_BASE_URL,
     DEFAULT_ASR_MODEL,
     DEFAULT_DETECTOR_MODEL,
+    DEFAULT_EXPRESS_MODEL,
     DEFAULT_INTERACTION_MODEL,
     DEFAULT_INTERACTION_TIMEOUT_S,
     DEFAULT_PLANNER_MODEL,
@@ -28,9 +30,11 @@ def test_zai_config_reads_key_base_url_and_default_model_ids():
 
     assert config.api_key == "test-key"
     assert config.base_url == ZAI_BASE_URL
+    assert config.deepseek_base_url == DEEPSEEK_BASE_URL
     assert config.interaction_model == DEFAULT_INTERACTION_MODEL
     assert config.planner_model == DEFAULT_PLANNER_MODEL
     assert config.detector_model == DEFAULT_DETECTOR_MODEL
+    assert config.express_model == DEFAULT_EXPRESS_MODEL
     assert llm_config.DEFAULT_INTERACTION_TIMEOUT_S == 45.0
     assert config.interaction_timeout_s == DEFAULT_INTERACTION_TIMEOUT_S
     assert config.agno_database_url == "postgresql+psycopg://coke:coke@localhost/coke"
@@ -60,6 +64,57 @@ def test_zai_config_allows_model_and_agno_database_overrides():
 def test_zai_config_requires_api_key():
     with pytest.raises(LLMConfigurationError, match="ZAI_API_KEY"):
         ZAILLMConfig.from_env({})
+
+
+@pytest.mark.parametrize(
+    "role_provider_env",
+    ["COKE_DETECTOR_PROVIDER", "COKE_EXPRESS_PROVIDER"],
+)
+def test_zai_config_requires_deepseek_key_for_deepseek_roles(role_provider_env):
+    with pytest.raises(LLMConfigurationError, match="DEEPSEEK_API_KEY"):
+        ZAILLMConfig.from_env(
+            {
+                "ZAI_API_KEY": "zai-key",
+                role_provider_env: "deepseek",
+            }
+        )
+
+
+def test_zai_config_allows_deepseek_detector_and_express_role_overrides():
+    config = ZAILLMConfig.from_env(
+        {
+            "ZAI_API_KEY": "zai-key",
+            "DEEPSEEK_API_KEY": "deepseek-key",
+            "DEEPSEEK_BASE_URL": "https://deepseek.example",
+            "COKE_DETECTOR_PROVIDER": "deepseek",
+            "COKE_DETECTOR_MODEL": "deepseek-v4-flash",
+            "COKE_EXPRESS_PROVIDER": "deepseek",
+            "COKE_EXPRESS_MODEL": "deepseek-v4-flash",
+            "COKE_INTERACTION_TIMEOUT_S": "31.5",
+        }
+    )
+
+    interaction_model = config.create_interaction_model()
+    planner_model = config.create_planner_model()
+    detector_model = config.create_detector_model()
+    express_model = config.create_express_model()
+
+    assert interaction_model.id == DEFAULT_INTERACTION_MODEL
+    assert interaction_model.api_key == "zai-key"
+    assert str(interaction_model.base_url) == ZAI_BASE_URL
+    assert planner_model.id == DEFAULT_PLANNER_MODEL
+    assert planner_model.api_key == "zai-key"
+    assert str(planner_model.base_url) == ZAI_BASE_URL
+    assert detector_model.id == "deepseek-v4-flash"
+    assert detector_model.api_key == "deepseek-key"
+    assert str(detector_model.base_url).rstrip("/") == "https://deepseek.example"
+    assert detector_model.timeout == 31.5
+    assert detector_model.extra_body == {"thinking": {"type": "disabled"}}
+    assert express_model.id == "deepseek-v4-flash"
+    assert express_model.api_key == "deepseek-key"
+    assert str(express_model.base_url).rstrip("/") == "https://deepseek.example"
+    assert express_model.timeout == 31.5
+    assert express_model.extra_body == {"thinking": {"type": "disabled"}}
 
 
 def test_zai_config_rejects_invalid_interaction_timeout():
@@ -100,6 +155,23 @@ def test_openai_like_model_uses_zai_settings_and_interaction_timeout():
     assert planner_model.timeout == 31.5
     assert planner_model.extra_body == {"thinking": {"type": "disabled"}}
     assert model.id == "glm-5.1-detector"
+    assert str(model.base_url) == ZAI_BASE_URL
+    assert model.api_key == "test-key"
+    assert model.timeout == 31.5
+    assert model.extra_body == {"thinking": {"type": "disabled"}}
+
+
+def test_openai_like_express_model_defaults_to_zai_settings():
+    config = ZAILLMConfig.from_env(
+        {
+            "ZAI_API_KEY": "test-key",
+            "COKE_INTERACTION_TIMEOUT_S": "31.5",
+        }
+    )
+
+    model = config.create_express_model()
+
+    assert model.id == DEFAULT_EXPRESS_MODEL
     assert str(model.base_url) == ZAI_BASE_URL
     assert model.api_key == "test-key"
     assert model.timeout == 31.5

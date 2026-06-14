@@ -1,0 +1,603 @@
+{
+  "run_started_at": "20260614T172905Z",
+  "criteria": "Switch detector/express only if DeepSeek V4 Flash has no DeepSeek-specific failures versus GLM-5.1 and Express returns valid reply segments for every case.",
+  "detector_cases": [
+    {
+      "id": "relative_tomorrow_morning",
+      "text": "提醒我明天早上9点跑步",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-16T09:00:00",
+        "duration_positive": true
+      }
+    },
+    {
+      "id": "same_day_evening_range",
+      "text": "今天晚上8到9点提醒我运动",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-15T20:00:00",
+        "duration_minutes": 60
+      }
+    },
+    {
+      "id": "near_future_ambiguous_range",
+      "text": "今天8-9提醒我运动",
+      "now": "2026-06-15T14:52:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-15T20:00:00",
+        "duration_minutes": 60
+      }
+    },
+    {
+      "id": "weekly_next_future_occurrence",
+      "text": "每周一早上9点提醒我吃药",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "recurring",
+        "trigger_time": "2026-06-22T09:00:00",
+        "recurrence_rule": {
+          "frequency": "weekly",
+          "interval": 1
+        },
+        "duration_positive": true
+      }
+    },
+    {
+      "id": "relative_30_minutes",
+      "text": "提醒我30分钟后喝水",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-15T11:00:00",
+        "duration_positive": true
+      }
+    },
+    {
+      "id": "vague_later_no_concrete_time",
+      "text": "待会提醒我回邮件",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "no_trigger_time",
+        "trigger_time_is_none": true,
+        "duration_positive": true
+      }
+    },
+    {
+      "id": "next_week_wednesday_pm",
+      "text": "下周三下午3点提醒我发报告",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-24T15:00:00",
+        "duration_positive": true
+      }
+    },
+    {
+      "id": "explicit_noon_duration",
+      "text": "明天中午提醒我订午餐，大概十五分钟",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-16T12:00:00",
+        "duration_minutes": 15
+      }
+    },
+    {
+      "id": "day_after_tomorrow_late_evening",
+      "text": "提醒我后天晚上10点检查门窗",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-17T22:00:00",
+        "duration_positive": true
+      }
+    },
+    {
+      "id": "english_tomorrow_noon",
+      "text": "remind me tomorrow at noon to book lunch",
+      "now": "2026-06-15T10:30:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "expected": {
+        "kind": "timed",
+        "trigger_time": "2026-06-16T12:00:00",
+        "duration_positive": true
+      }
+    }
+  ],
+  "express_case_ids": [
+    "created_reminder",
+    "list_reminders",
+    "needs_time",
+    "receiver_conflict",
+    "first_use_onboarding"
+  ],
+  "runs": [
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "relative_tomorrow_morning",
+      "ok": true,
+      "failures": [],
+      "latency_s": 2.37,
+      "actual": {
+        "content": "跑步",
+        "trigger_time": "2026-06-16T09:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 30,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "same_day_evening_range",
+      "ok": true,
+      "failures": [],
+      "latency_s": 2.736,
+      "actual": {
+        "content": "运动",
+        "trigger_time": "2026-06-15T20:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 60,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "near_future_ambiguous_range",
+      "ok": true,
+      "failures": [],
+      "latency_s": 3.18,
+      "actual": {
+        "content": "运动",
+        "trigger_time": "2026-06-15T20:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 60,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "weekly_next_future_occurrence",
+      "ok": true,
+      "failures": [],
+      "latency_s": 2.085,
+      "actual": {
+        "content": "吃药",
+        "trigger_time": "2026-06-22T09:00:00",
+        "recurrence_rule": {
+          "frequency": "weekly",
+          "interval": 1
+        },
+        "duration_minutes": 5,
+        "kind": "recurring"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "relative_30_minutes",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.903,
+      "actual": {
+        "content": "喝水",
+        "trigger_time": "2026-06-15T11:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 1,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "vague_later_no_concrete_time",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.695,
+      "actual": {
+        "content": "回邮件",
+        "trigger_time": null,
+        "recurrence_rule": {},
+        "duration_minutes": 15,
+        "kind": "no_trigger_time"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "next_week_wednesday_pm",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.957,
+      "actual": {
+        "content": "发报告",
+        "trigger_time": "2026-06-24T15:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 30,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "explicit_noon_duration",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.831,
+      "actual": {
+        "content": "订午餐",
+        "trigger_time": "2026-06-16T12:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 15,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "day_after_tomorrow_late_evening",
+      "ok": true,
+      "failures": [],
+      "latency_s": 2.041,
+      "actual": {
+        "content": "检查门窗",
+        "trigger_time": "2026-06-17T22:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 5,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "glm-5.1",
+      "case_id": "english_tomorrow_noon",
+      "ok": true,
+      "failures": [],
+      "latency_s": 2.054,
+      "actual": {
+        "content": "book lunch",
+        "trigger_time": "2026-06-16T12:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 15,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "relative_tomorrow_morning",
+      "ok": true,
+      "failures": [],
+      "latency_s": 0.897,
+      "actual": {
+        "content": "跑步",
+        "trigger_time": "2026-06-16T09:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 30,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "same_day_evening_range",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.02,
+      "actual": {
+        "content": "运动",
+        "trigger_time": "2026-06-15T20:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 60,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "near_future_ambiguous_range",
+      "ok": true,
+      "failures": [],
+      "latency_s": 0.89,
+      "actual": {
+        "content": "运动",
+        "trigger_time": "2026-06-15T20:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 60,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "weekly_next_future_occurrence",
+      "ok": true,
+      "failures": [],
+      "latency_s": 0.879,
+      "actual": {
+        "content": "提醒我吃药",
+        "trigger_time": "2026-06-22T09:00:00",
+        "recurrence_rule": {
+          "frequency": "weekly",
+          "interval": 1
+        },
+        "duration_minutes": 5,
+        "kind": "recurring"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "relative_30_minutes",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.187,
+      "actual": {
+        "content": "喝水",
+        "trigger_time": "2026-06-15T11:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 5,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "vague_later_no_concrete_time",
+      "ok": true,
+      "failures": [],
+      "latency_s": 0.988,
+      "actual": {
+        "content": "回邮件",
+        "trigger_time": null,
+        "recurrence_rule": {},
+        "duration_minutes": 15,
+        "kind": "no_trigger_time"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "next_week_wednesday_pm",
+      "ok": true,
+      "failures": [],
+      "latency_s": 0.745,
+      "actual": {
+        "content": "发报告",
+        "trigger_time": "2026-06-24T15:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 30,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "explicit_noon_duration",
+      "ok": true,
+      "failures": [],
+      "latency_s": 0.907,
+      "actual": {
+        "content": "订午餐",
+        "trigger_time": "2026-06-16T12:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 15,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "day_after_tomorrow_late_evening",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.077,
+      "actual": {
+        "content": "检查门窗",
+        "trigger_time": "2026-06-17T22:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 10,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "detector",
+      "model": "deepseek-v4-flash",
+      "case_id": "english_tomorrow_noon",
+      "ok": true,
+      "failures": [],
+      "latency_s": 0.88,
+      "actual": {
+        "content": "book lunch",
+        "trigger_time": "2026-06-16T12:00:00",
+        "recurrence_rule": {},
+        "duration_minutes": 60,
+        "kind": "timed"
+      }
+    },
+    {
+      "role": "express",
+      "model": "glm-5.1",
+      "case_id": "created_reminder",
+      "ok": true,
+      "failures": [],
+      "latency_s": 3.422,
+      "actual": {
+        "segments": [
+          "好，已经帮你设好提醒：明天早上9点去跑步🏃‍♀️ 到时候我会叫你！"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "glm-5.1",
+      "case_id": "list_reminders",
+      "ok": true,
+      "failures": [],
+      "latency_s": 7.376,
+      "actual": {
+        "segments": [
+          "你现在有2个提醒：买牛奶、跑步，别忘了哦"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "glm-5.1",
+      "case_id": "needs_time",
+      "ok": true,
+      "failures": [],
+      "latency_s": 4.219,
+      "actual": {
+        "segments": [
+          "你想什么时候回邮件？给我个大概时间，我来提醒你"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "glm-5.1",
+      "case_id": "receiver_conflict",
+      "ok": true,
+      "failures": [],
+      "latency_s": 5.492,
+      "actual": {
+        "segments": [
+          "明天晚上9点20分到9点35分对方已经有安排了，时间冲突，约不上",
+          "要换个时间段试试吗？"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "glm-5.1",
+      "case_id": "first_use_onboarding",
+      "ok": true,
+      "failures": [],
+      "latency_s": 9.846,
+      "actual": {
+        "segments": [
+          "Hi, Oliver！我是 Coke，你的提醒和约课小助手。",
+          "我会在微信里做你的健康搭子：督促你推进近期目标并提醒，帮你用日历和别人约时间，也可以直接回答问题。"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "deepseek-v4-flash",
+      "case_id": "created_reminder",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.844,
+      "actual": {
+        "segments": [
+          "好的，已帮你设好提醒：明天早上9点跑步，我会准时提醒你 💪"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "deepseek-v4-flash",
+      "case_id": "list_reminders",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.672,
+      "actual": {
+        "segments": [
+          "已添加到你的待办清单，目前共 2 项：\n买牛奶\n跑步"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "deepseek-v4-flash",
+      "case_id": "needs_time",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.96,
+      "actual": {
+        "segments": [
+          "你提到了“回邮件”——这需要设定一个时间。你打算什么时候做这件事？告诉我具体日期和时间，我帮你记下来。"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "deepseek-v4-flash",
+      "case_id": "receiver_conflict",
+      "ok": true,
+      "failures": [],
+      "latency_s": 1.908,
+      "actual": {
+        "segments": [
+          "对方那个时间段不行，明天晚上9点20分到9点35分已经占用了。要不换个时间看看？"
+        ]
+      }
+    },
+    {
+      "role": "express",
+      "model": "deepseek-v4-flash",
+      "case_id": "first_use_onboarding",
+      "ok": true,
+      "failures": [],
+      "latency_s": 2.171,
+      "actual": {
+        "segments": [
+          "Hi, Oliver！我是 Coke，你的提醒和约课小助手。",
+          "我会在微信里做你的健康搭子：督促你推进近期目标并提醒，帮你用日历和别人约时间，也可以直接回答问题。"
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "detector:glm-5.1": {
+      "passed": 10,
+      "total": 10,
+      "mean_latency_s": 2.185,
+      "p95_latency_s": 2.736,
+      "failed_case_ids": []
+    },
+    "detector:deepseek-v4-flash": {
+      "passed": 10,
+      "total": 10,
+      "mean_latency_s": 0.947,
+      "p95_latency_s": 1.077,
+      "failed_case_ids": []
+    },
+    "express:glm-5.1": {
+      "passed": 5,
+      "total": 5,
+      "mean_latency_s": 6.071,
+      "p95_latency_s": 7.376,
+      "failed_case_ids": []
+    },
+    "express:deepseek-v4-flash": {
+      "passed": 5,
+      "total": 5,
+      "mean_latency_s": 1.911,
+      "p95_latency_s": 1.96,
+      "failed_case_ids": []
+    }
+  },
+  "deepseek_specific_failures": {
+    "detector": [],
+    "express": []
+  },
+  "run_finished_at": "20260614T173016Z"
+}

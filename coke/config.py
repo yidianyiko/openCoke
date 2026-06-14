@@ -6,14 +6,20 @@ from typing import Mapping
 from urllib.parse import urlparse
 
 from coke.llm.config import (
+    DEEPSEEK_BASE_URL,
     DEFAULT_ASR_MODEL,
     DEFAULT_DETECTOR_MODEL,
+    DEFAULT_DETECTOR_PROVIDER,
+    DEFAULT_EXPRESS_MODEL,
+    DEFAULT_EXPRESS_PROVIDER,
     DEFAULT_INTERACTION_MODEL,
     DEFAULT_INTERACTION_TIMEOUT_S,
     DEFAULT_MEDIA_MODEL_TIMEOUT_S,
     DEFAULT_PLANNER_MODEL,
     DEFAULT_VISION_TEXT_MODEL,
     SILICONFLOW_BASE_URL,
+    TEXT_PROVIDER_DEEPSEEK,
+    TEXT_PROVIDERS,
     ZAI_BASE_URL,
 )
 
@@ -52,11 +58,16 @@ class Settings:
     email_auth_enabled: bool = True
     zai_api_key: str | None = None
     zai_base_url: str = ZAI_BASE_URL
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = DEEPSEEK_BASE_URL
     siliconflow_api_key: str | None = None
     siliconflow_base_url: str = SILICONFLOW_BASE_URL
     interaction_model: str = DEFAULT_INTERACTION_MODEL
     planner_model: str = DEFAULT_PLANNER_MODEL
+    detector_provider: str = DEFAULT_DETECTOR_PROVIDER
     detector_model: str = DEFAULT_DETECTOR_MODEL
+    express_provider: str = DEFAULT_EXPRESS_PROVIDER
+    express_model: str = DEFAULT_EXPRESS_MODEL
     interaction_timeout_s: float = DEFAULT_INTERACTION_TIMEOUT_S
     agno_database_url: str | None = None
     agno_create_schema: bool = False
@@ -128,6 +139,22 @@ class Settings:
             raise ConfigurationError(
                 "ZAI_API_KEY is required for production LLM startup"
             )
+        deepseek_api_key = _optional(source, "DEEPSEEK_API_KEY")
+        detector_provider = _text_provider(
+            source, "COKE_DETECTOR_PROVIDER", DEFAULT_DETECTOR_PROVIDER
+        )
+        express_provider = _text_provider(
+            source, "COKE_EXPRESS_PROVIDER", DEFAULT_EXPRESS_PROVIDER
+        )
+        if (
+            app_env == "production"
+            and not llm_fake
+            and TEXT_PROVIDER_DEEPSEEK in {detector_provider, express_provider}
+            and not deepseek_api_key
+        ):
+            raise ConfigurationError(
+                "DEEPSEEK_API_KEY is required for production DeepSeek text roles"
+            )
         if (
             app_env == "production"
             and not llm_fake
@@ -172,6 +199,10 @@ class Settings:
             email_auth_enabled=email_auth_enabled,
             zai_api_key=zai_api_key,
             zai_base_url=_optional(source, "ZAI_BASE_URL") or ZAI_BASE_URL,
+            deepseek_api_key=deepseek_api_key,
+            deepseek_base_url=(
+                _optional(source, "DEEPSEEK_BASE_URL") or DEEPSEEK_BASE_URL
+            ),
             siliconflow_api_key=siliconflow_api_key,
             siliconflow_base_url=(
                 _optional(source, "SILICONFLOW_BASE_URL") or SILICONFLOW_BASE_URL
@@ -182,8 +213,13 @@ class Settings:
             planner_model=(
                 _optional(source, "COKE_PLANNER_MODEL") or DEFAULT_PLANNER_MODEL
             ),
+            detector_provider=detector_provider,
             detector_model=(
                 _optional(source, "COKE_DETECTOR_MODEL") or DEFAULT_DETECTOR_MODEL
+            ),
+            express_provider=express_provider,
+            express_model=(
+                _optional(source, "COKE_EXPRESS_MODEL") or DEFAULT_EXPRESS_MODEL
             ),
             interaction_timeout_s=_positive_float(
                 source,
@@ -231,6 +267,15 @@ class Settings:
 def _optional(source: Mapping[str, str], key: str) -> str | None:
     value = (source.get(key) or "").strip()
     return value or None
+
+
+def _text_provider(source: Mapping[str, str], key: str, default: str) -> str:
+    value = (source.get(key) or default).strip().lower()
+    if value not in TEXT_PROVIDERS:
+        raise ConfigurationError(
+            f"{key} must be one of {', '.join(sorted(TEXT_PROVIDERS))}"
+        )
+    return value
 
 
 def _normalize_public_base_url(raw_value: str) -> str | None:

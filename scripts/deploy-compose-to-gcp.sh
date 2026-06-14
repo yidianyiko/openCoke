@@ -262,6 +262,7 @@ rewrite_evolution_base() {
 }
 
 zai_api_key="$(read_env ZAI_API_KEY)"
+deepseek_api_key="$(read_env DEEPSEEK_API_KEY)"
 siliconflow_api_key="$(read_env SiliconFlow_API_KEY)"
 evolution_base="$(read_env COKE_PROVIDER_EVOLUTION_BASE_URL)"
 if [[ -z "$evolution_base" ]]; then
@@ -297,6 +298,7 @@ email_from_name="$(read_env EMAIL_FROM_NAME)"
 
 missing=()
 [[ -n "$zai_api_key" ]] || missing+=("ZAI_API_KEY")
+[[ -n "$deepseek_api_key" ]] || missing+=("DEEPSEEK_API_KEY")
 [[ -n "$siliconflow_api_key" ]] || missing+=("SiliconFlow_API_KEY (media ASR/VLM)")
 [[ -n "$evolution_base" ]] || missing+=("COKE_PROVIDER_EVOLUTION_BASE_URL")
 [[ -n "$evolution_api_key" ]] || missing+=("COKE_PROVIDER_EVOLUTION_API_KEY")
@@ -316,6 +318,11 @@ APP_ENV=production
 AGNO_TELEMETRY=false
 COKE_AGNO_CREATE_SCHEMA=1
 ZAI_API_KEY=${zai_api_key}
+DEEPSEEK_API_KEY=${deepseek_api_key}
+COKE_DETECTOR_PROVIDER=deepseek
+COKE_DETECTOR_MODEL=deepseek-v4-flash
+COKE_EXPRESS_PROVIDER=deepseek
+COKE_EXPRESS_MODEL=deepseek-v4-flash
 SiliconFlow_API_KEY=${siliconflow_api_key}
 RESEND_API_KEY=${resend_api_key}
 EMAIL_FROM=${email_from}

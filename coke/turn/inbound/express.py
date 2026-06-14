@@ -57,7 +57,7 @@ class ExpressAgent:
 
     @classmethod
     def from_config(cls, config: ZAILLMConfig) -> ExpressAgent:
-        return cls(model=config.create_interaction_model())
+        return cls(model=config.create_express_model())
 
     def render(self, request: ExpressRequest) -> tuple[str, ...]:
         agent = self._build_agent(request)
