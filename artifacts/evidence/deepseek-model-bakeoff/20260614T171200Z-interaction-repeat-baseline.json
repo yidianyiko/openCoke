@@ -1,0 +1,1579 @@
+{
+  "run_id": "20260614T171200Z",
+  "created_at": "2026-06-14T17:15:28.680681+00:00",
+  "summary": {
+    "deepseek-v4-flash_disabled": {
+      "passed": 6,
+      "total": 8,
+      "parse_ok": 8,
+      "mean_latency_s": 3.158,
+      "p95_latency_s": 4.394,
+      "by_case": {
+        "friend_link": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "reminder_create": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "reminder_list": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "settings_update": {
+          "passed": 0,
+          "total": 2,
+          "failures": [
+            "missing_tool_or_reply",
+            "missing_tool_or_reply"
+          ]
+        }
+      }
+    },
+    "deepseek-v4-flash_enabled_high": {
+      "passed": 6,
+      "total": 8,
+      "parse_ok": 7,
+      "mean_latency_s": 3.942,
+      "p95_latency_s": 4.351,
+      "by_case": {
+        "friend_link": {
+          "passed": 1,
+          "total": 2,
+          "failures": [
+            "missing_tool_or_reply"
+          ]
+        },
+        "reminder_create": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "reminder_list": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "settings_update": {
+          "passed": 1,
+          "total": 2,
+          "failures": [
+            "missing_tool_or_reply"
+          ]
+        }
+      }
+    },
+    "deepseek-v4-pro_disabled": {
+      "passed": 2,
+      "total": 8,
+      "parse_ok": 2,
+      "mean_latency_s": 4.192,
+      "p95_latency_s": 6.637,
+      "by_case": {
+        "friend_link": {
+          "passed": 0,
+          "total": 2,
+          "failures": [
+            "missing_tool_or_reply",
+            "missing_tool_or_reply"
+          ]
+        },
+        "reminder_create": {
+          "passed": 0,
+          "total": 2,
+          "failures": [
+            "missing_tool_or_reply",
+            "missing_tool_or_reply"
+          ]
+        },
+        "reminder_list": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "settings_update": {
+          "passed": 0,
+          "total": 2,
+          "failures": [
+            "missing_tool_or_reply",
+            "missing_tool_or_reply"
+          ]
+        }
+      }
+    },
+    "deepseek-v4-pro_enabled_high": {
+      "passed": 6,
+      "total": 8,
+      "parse_ok": 8,
+      "mean_latency_s": 4.301,
+      "p95_latency_s": 5.117,
+      "by_case": {
+        "friend_link": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "reminder_create": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "reminder_list": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "settings_update": {
+          "passed": 0,
+          "total": 2,
+          "failures": [
+            "missing_tool_or_reply",
+            "missing_tool_or_reply"
+          ]
+        }
+      }
+    },
+    "glm-5.1_disabled": {
+      "passed": 8,
+      "total": 8,
+      "parse_ok": 8,
+      "mean_latency_s": 8.577,
+      "p95_latency_s": 8.803,
+      "by_case": {
+        "friend_link": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "reminder_create": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "reminder_list": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        },
+        "settings_update": {
+          "passed": 2,
+          "total": 2,
+          "failures": []
+        }
+      }
+    }
+  },
+  "raw_history_summary": [
+    {
+      "model": "deepseek-v4-flash",
+      "replay_reasoning": false,
+      "status1": 200,
+      "first_has_reasoning_content": true,
+      "first_has_tool_call": false,
+      "ok": false,
+      "failure": "no_first_tool_call",
+      "latency_s": 1.52
+    },
+    {
+      "model": "deepseek-v4-flash",
+      "replay_reasoning": true,
+      "status1": 200,
+      "first_has_reasoning_content": true,
+      "first_has_tool_call": false,
+      "ok": false,
+      "failure": "no_first_tool_call",
+      "latency_s": 1.604
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "replay_reasoning": false,
+      "status1": 200,
+      "first_has_reasoning_content": true,
+      "first_has_tool_call": true,
+      "status2": 200,
+      "status3": 200,
+      "ok": true,
+      "final": {
+        "type": "reply",
+        "segments": [
+          "不客气！"
+        ]
+      },
+      "failure": null,
+      "latency_s": 5.234
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "replay_reasoning": true,
+      "status1": 200,
+      "first_has_reasoning_content": true,
+      "first_has_tool_call": true,
+      "status2": 200,
+      "status3": 200,
+      "ok": true,
+      "final": {
+        "type": "reply",
+        "segments": [
+          "不客气！有需要随时叫我。"
+        ]
+      },
+      "failure": null,
+      "latency_s": 6.805
+    }
+  ],
+  "results": [
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 8.803,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，已设好提醒～明天 09:00 跑步🏃"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 8.205,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，明天 09:00 跑步提醒已设好🏃"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 7.911,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你有2条提醒：",
+          "1. 跑步 - 明天 09:00",
+          "2. 买牛奶 - 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 14.726,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你有 2 个提醒：",
+          "1. 跑步 - 明天 09:00",
+          "2. 买牛奶 - 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 6.992,
+      "tool_calls": {
+        "settings": [
+          {
+            "operation": "update_settings",
+            "speaking_style": "简洁",
+            "account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，以后尽量简短回复～"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 6.404,
+      "tool_calls": {
+        "settings": [
+          {
+            "operation": "update_settings",
+            "speaking_style": "简洁",
+            "account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，以后回复会更简洁"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 7.655,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "这是你的好友邀请链接👇",
+          "https://coke.test/f/ABC123",
+          "发给朋友就能添加你啦"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "glm-5.1_disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 7.917,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你的好友邀请链接来了 👇\nhttps://coke.test/f/ABC123",
+          "邀请码：ABC123，分享给朋友就能添加你~"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 4.394,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好，明天九点跑步，我记住了，到时间提醒你💪"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.145,
+      "tool_calls": {
+        "reminder": [
+          {
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation",
+            "operation": "detect_and_create"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好，明天早上九点跑步，帮你记下了💪",
+          "到时候会准时提醒你～"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.062,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你共有 2 个提醒：\n1️⃣ 跑步 — 明天 09:00\n2️⃣ 买牛奶 — 还没设时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 5.442,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你有2个提醒：\n1. 跑步 – 明天 09:00\n2. 买牛奶 – 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 1,
+      "ok": false,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 1.871,
+      "tool_calls": {
+        "settings": []
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，收到，以后简洁回应。"
+        ]
+      },
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 2,
+      "ok": false,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 1.957,
+      "tool_calls": {
+        "settings": []
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，收到 👌"
+        ]
+      },
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 2.571,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "这是你的邀请链接，朋友点击即可加为好友👇",
+          "https://coke.test/f/ABC123"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 2.82,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "这是你的好友邀请链接，分享给朋友就能加我啦 👇",
+          "https://coke.test/f/ABC123"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 4.212,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，已设置明天早上9点跑步提醒 ✅"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 4.351,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好，明天九点跑步，已帮你记好了 🏃"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.811,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你有2条提醒：\n1. 跑步 🏃 — 明天 09:00\n2. 买牛奶 🥛 — 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.767,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你有 2 条提醒：\n1️⃣ 跑步 – 明天 09:00\n2️⃣ 买牛奶 – 还没设时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 1,
+      "ok": false,
+      "parse_ok": false,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 5.633,
+      "tool_calls": {
+        "settings": [
+          {
+            "operation": "update_settings",
+            "extra_rules": "回复务必极度简洁，每段不超过20字，能用1段不用2段。",
+            "account_id": "account_1"
+          }
+        ]
+      },
+      "output": null,
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.956,
+      "tool_calls": {
+        "settings": [
+          {
+            "operation": "update_settings",
+            "extra_rules": "回复务必简洁，控制在1-2句话内",
+            "speaking_style": "极简",
+            "account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，以后简短说。"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 1,
+      "ok": false,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 2.272,
+      "tool_calls": {
+        "social_scheduling": []
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，我帮你查一下邀请链接。"
+        ]
+      },
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-flash_enabled_high",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.536,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "这是你的邀请链接，发给朋友就能加我啦 👇",
+          "https://coke.test/f/ABC123"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 1,
+      "ok": false,
+      "parse_ok": false,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 2.458,
+      "tool_calls": {
+        "reminder": []
+      },
+      "output": null,
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 2,
+      "ok": false,
+      "parse_ok": false,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 10.1,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": null,
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.276,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你现在有2个提醒：\n1. 跑步 - 明天 09:00\n2. 买牛奶 - 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.19,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你目前有2个提醒：\n1. 跑步 - 明天 09:00\n2. 买牛奶 - 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 1,
+      "ok": false,
+      "parse_ok": false,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 2.377,
+      "tool_calls": {
+        "settings": []
+      },
+      "output": null,
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 2,
+      "ok": false,
+      "parse_ok": false,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 1.858,
+      "tool_calls": {
+        "settings": []
+      },
+      "output": null,
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 1,
+      "ok": false,
+      "parse_ok": false,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.641,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": null,
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "reasoning_effort": null,
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 2,
+      "ok": false,
+      "parse_ok": false,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 6.637,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": null,
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 6.545,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "已设置提醒：明早9点跑步 🏃"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_create",
+      "text": "提醒我明天九点跑步",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 5.117,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "detect_and_create",
+            "owner_account_id": "account_1",
+            "raw_text": "提醒我明天九点跑步",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，已设好提醒：明天早上9点跑步 🏃"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 4.939,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你现在有 2 个提醒：\n1️⃣ 跑步 - 明天 09:00\n2️⃣ 买牛奶 - 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "reminder_list",
+      "text": "列一下我的提醒",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 4.699,
+      "tool_calls": {
+        "reminder": [
+          {
+            "operation": "list_reminders",
+            "owner_account_id": "account_1",
+            "captured_timezone": "Asia/Tokyo",
+            "entry_point": "conversation"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你目前有 2 个提醒：\n1. 跑步 - 明天 09:00\n2. 买牛奶 - 未设置时间"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 1,
+      "ok": false,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 2.501,
+      "tool_calls": {
+        "settings": []
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "收到，以后尽量简洁"
+        ]
+      },
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "settings_update",
+      "text": "以后回复简洁一点",
+      "repeat": 2,
+      "ok": false,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 2.286,
+      "tool_calls": {
+        "settings": []
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "好的，以后回复尽量简短"
+        ]
+      },
+      "failure": "missing_tool_or_reply"
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 1,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 4.329,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "你的好友邀请链接：https://coke.test/f/ABC123\n邀请码：ABC123",
+          "把这个链接或邀请码发给朋友，对方就可以加你好友了"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "config": "deepseek-v4-pro_enabled_high",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "thinking": {
+        "thinking": {
+          "type": "enabled"
+        }
+      },
+      "reasoning_effort": "high",
+      "case": "friend_link",
+      "text": "给我好友邀请链接",
+      "repeat": 2,
+      "ok": true,
+      "parse_ok": true,
+      "timed_out": false,
+      "blank_output": false,
+      "latency_s": 3.993,
+      "tool_calls": {
+        "social_scheduling": [
+          {
+            "operation": "get_friend_link",
+            "owner_account_id": "account_1"
+          }
+        ]
+      },
+      "output": {
+        "type": "reply",
+        "segments": [
+          "这是你的好友邀请链接：\nhttps://coke.test/f/ABC123\n\n邀请码：ABC123"
+        ]
+      },
+      "failure": null
+    }
+  ]
+}
