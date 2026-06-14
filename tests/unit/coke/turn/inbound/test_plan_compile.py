@@ -87,6 +87,18 @@ def test_shared_cancel_schema_uses_natural_refs_not_ids() -> None:
     assert "shared_reminder_id" not in shared_cancel.optional
 
 
+def test_availability_query_can_defer_date_phrase_resolution_to_execute() -> None:
+    action = ProposedAction(
+        domain="social_scheduling",
+        operation="availability_query",
+        params={"participant": "Oliver", "date_phrase": "今天"},
+    )
+
+    compiled = compile_plan(TurnPlan(actions=(action,)))
+
+    assert compiled.actions == (CompiledAction(action=action),)
+
+
 def test_unknown_domain_yields_not_possible_mark() -> None:
     action = ProposedAction(
         domain="unknown", operation="delete", params={"match": "gym"}

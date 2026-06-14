@@ -612,6 +612,7 @@ The system must support:
 - Querying friend availability.
 - Friend availability queries must specify or resolve one or more active friends.
 - Friend availability queries must have a date range and use the user's global default timezone.
+- Friend availability questions with no specified day/date default to the user's local today through local today plus 7 days, and the visible answer states that bounded window.
 - Friend availability only returns privacy-safe busy/free information and does not return friend reminder details.
 - Creating group shared reminders.
 - Viewing the shared reminder list.

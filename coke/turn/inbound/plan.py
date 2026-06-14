@@ -41,6 +41,16 @@ Ownership:
   date_phrase. Do NOT put a day/date phrase in keyword, and do NOT compute
   trigger_after/trigger_before in Plan. Use keyword only for reminder
   topic/content filters like "work" or "跑步".
+- For a friend's schedule/availability/agenda question (e.g.
+  "oliver今天有什么安排", "今天 Oliver 忙吗", "Oliver 什么时候有空"), use
+  social_scheduling.availability_query, not social_scheduling.list_shared.
+  Put the friend reference in participant and any natural day/date text in
+  date_phrase. Do NOT compute local_start/local_end in Plan; Execute resolves
+  date_phrase deterministically and applies the product default window when no
+  day/date is given. The answer must be busy/free only, never titles.
+- social_scheduling.list_shared is only for the user's own shared reminders
+  with a friend (e.g. "我和oliver的共享提醒", "show shared reminders with Amy"),
+  not for questions about what the friend is doing.
 - For settings.set_timezone, timezone_text MUST be a valid IANA timezone identifier (e.g. "Asia/Tokyo", "America/New_York"), resolved from the user's natural place name; never a bare city name like "东京"/"Tokyo".
 - A delete/remove/cancel/complete request is ALWAYS that action even when the target is vague or missing; never substitute a list or a different operation. The handler will return needs_choice/needs_input for a vague target.
 - A reminder `match` keyword MUST be the reminder's topic/content (e.g. "跑步", "买牛奶"), never the generic word "提醒"/"reminder"/"提醒事项" itself. If the user names no specific topic (e.g. "删掉提醒"), OMIT `match` entirely so the turn asks which reminder.

@@ -99,6 +99,22 @@ class SocialBlockerEchoRunAgentInstance:
         return type("RunOutput", (), {"content": content})()
 
 
+class AvailabilityLeakRunAgentInstance:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def run(self, input, **kwargs):
+        self.calls.append({"method": "run", "input": input, "kwargs": kwargs})
+        content = json.dumps(
+            {
+                "type": "reply",
+                "segments": ["Oliver 今天有这些安排：开会 6:00、晚饭 19:30。"],
+            },
+            ensure_ascii=False,
+        )
+        return type("RunOutput", (), {"content": content})()
+
+
 class PartialEchoStreamingAgentInstance:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
@@ -364,6 +380,81 @@ def test_receiver_conflict_social_outcome_renders_only_typed_blocker_facts() -> 
     assert "conflict, refusal, can't do it, unavailability, duplicate, or blocker" in (
         system_message
     )
+
+
+def test_availability_render_uses_only_public_busy_free_windows_not_history_titles() -> (
+    None
+):
+    fake_agent = AvailabilityLeakRunAgentInstance()
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = agent.render(
+        ExpressRequest(
+            turn_id="turn-1",
+            conversation_id="conversation-1",
+            account_id="account-1",
+            settled_outcome=SettledOutcome(
+                outcomes=(
+                    ActionOutcome(
+                        category="done",
+                        status="availability",
+                        data={
+                            "query_window": {
+                                "local_start": "2026-06-15T09:00:00",
+                                "local_start_display": "明天上午9点",
+                                "local_end": "2026-06-15T11:00:00",
+                                "local_end_display": "明天上午11点",
+                                "requester_timezone": "Asia/Shanghai",
+                                "defaulted": False,
+                            },
+                            "availability": [
+                                {
+                                    "friend_display_name": "Oliver",
+                                    "windows": [
+                                        {
+                                            "state": "busy",
+                                            "start": "2026-06-15T09:00:00",
+                                            "start_display": "明天上午9点",
+                                            "end": "2026-06-15T10:00:00",
+                                            "end_display": "明天上午10点",
+                                        },
+                                        {
+                                            "state": "free",
+                                            "start": "2026-06-15T10:00:00",
+                                            "start_display": "明天上午10点",
+                                            "end": "2026-06-15T11:00:00",
+                                            "end_display": "明天上午11点",
+                                        },
+                                    ],
+                                }
+                            ],
+                        },
+                    ),
+                )
+            ),
+            conversation_history=(
+                {"role": "assistant", "content": "我和 Oliver 有共享提醒：开会、晚饭"},
+            ),
+        )
+    )
+
+    assert segments == (
+        "Oliver（明天上午9点 到 明天上午11点）\n"
+        "- busy：明天上午9点 到 明天上午10点\n"
+        "- free：明天上午10点 到 明天上午11点",
+    )
+    visible = "\n".join(segments)
+    assert "Oliver" in visible
+    assert "busy" in visible
+    assert "free" in visible
+    assert "开会" not in visible
+    assert "晚饭" not in visible
+    assert "6:00" not in visible
+    assert "19:30" not in visible
+    system_message = factory.agent_kwargs[0]["system_message"]
+    assert "availability" in system_message
+    assert "never include reminder titles" in system_message
 
 
 def test_no_action_first_use_renders_configured_onboarding_before_model_starter() -> (

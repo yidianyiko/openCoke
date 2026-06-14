@@ -13,8 +13,10 @@ from coke.domains.social_scheduling.models import (
 )
 from coke.domains.social_scheduling.service import SocialSchedulingService
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
+from coke.turn.inbound.date_windows import resolve_date_phrase_window
 
 CommitGuard = Callable[[], None] | None
+_DEFAULT_AVAILABILITY_WINDOW_DAYS = 7
 
 
 class SocialSchedulingActionHandler:
@@ -250,7 +252,7 @@ class SocialSchedulingActionHandler:
         )
         if availability_window is None:
             return _missing_input("local_start", field="time")
-        local_start, local_end = availability_window
+        local_start, local_end, defaulted = availability_window
         try:
             result = self.social_scheduling_service.query_availability(
                 requester_account_id=account_id,
@@ -264,7 +266,15 @@ class SocialSchedulingActionHandler:
         return ActionOutcome(
             category="done",
             status="availability",
-            data={"availability": _availability_facts(result)},
+            data={
+                "availability": _availability_facts(result),
+                "query_window": _availability_query_window_fact(
+                    local_start,
+                    local_end,
+                    requester_timezone=requester_timezone,
+                    defaulted=defaulted,
+                ),
+            },
         )
 
     def _resolve_participants(
@@ -645,6 +655,21 @@ def _availability_facts(result: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _availability_query_window_fact(
+    local_start: datetime,
+    local_end: datetime,
+    *,
+    requester_timezone: str,
+    defaulted: bool,
+) -> dict[str, Any]:
+    return {
+        "local_start": local_start.isoformat(),
+        "local_end": local_end.isoformat(),
+        "requester_timezone": requester_timezone,
+        "defaulted": defaulted,
+    }
+
+
 def _ambiguous_participant(
     reference: str,
     result: FriendResolutionResult,
@@ -762,78 +787,72 @@ def _detect_update_trigger_time(
     return trigger_time
 
 
-_RELATIVE_DAY_OFFSETS = {
-    "今天": 0,
-    "今日": 0,
-    "明天": 1,
-    "明日": 1,
-}
-
-
 def _availability_window(
     params: Mapping[str, Any],
     *,
     requester_timezone: str,
     now: Callable[[], datetime],
-) -> tuple[datetime, datetime] | None:
+) -> tuple[datetime, datetime, bool] | None:
+    date_phrase = params.get("date_phrase")
+    date_window = resolve_date_phrase_window(
+        date_phrase,
+        timezone_name=requester_timezone,
+        now=now,
+    )
+    if date_window is not None:
+        return date_window.local_start, date_window.local_end, False
+    if date_phrase is not None:
+        return None
+
     start_raw = params.get("local_start")
     end_raw = params.get("local_end")
     local_start = _optional_datetime(start_raw)
     local_end = _optional_datetime(end_raw)
-    start_offset = _relative_day_offset(start_raw)
-    end_offset = _relative_day_offset(end_raw)
+
     if local_start is not None:
         if local_end is not None:
-            return local_start, local_end
-        if end_offset is not None:
-            _, local_end = _relative_day_window(
-                end_offset,
-                requester_timezone=requester_timezone,
-                now=now,
-            )
-            return local_start, local_end
+            return local_start, local_end, False
+        end_window = _date_phrase_window(end_raw, requester_timezone, now)
+        if end_window is not None:
+            return local_start, end_window.local_end, False
         return None
-    if start_offset is None:
+
+    start_window = _date_phrase_window(start_raw, requester_timezone, now)
+    if start_window is not None:
+        if local_end is not None:
+            return start_window.local_start, local_end, False
+        end_window = _date_phrase_window(end_raw, requester_timezone, now)
+        if end_window is not None:
+            return start_window.local_start, end_window.local_end, False
+        return start_window.local_start, start_window.local_end, False
+
+    if start_raw is not None or end_raw is not None:
         return None
-    local_start, default_local_end = _relative_day_window(
-        start_offset,
-        requester_timezone=requester_timezone,
+
+    default_start = resolve_date_phrase_window(
+        "today",
+        timezone_name=requester_timezone,
         now=now,
     )
-    if local_end is not None:
-        return local_start, local_end
-    if end_offset is None or end_offset == start_offset:
-        return local_start, default_local_end
-    _, local_end = _relative_day_window(
-        end_offset,
-        requester_timezone=requester_timezone,
-        now=now,
-    )
-    return local_start, local_end
-
-
-def _relative_day_offset(value: Any) -> int | None:
-    if not isinstance(value, str):
+    if default_start is None:
         return None
-    return _RELATIVE_DAY_OFFSETS.get(value.strip())
+    return (
+        default_start.local_start,
+        default_start.local_start + timedelta(days=_DEFAULT_AVAILABILITY_WINDOW_DAYS),
+        True,
+    )
 
 
-def _relative_day_window(
-    offset_days: int,
-    *,
+def _date_phrase_window(
+    value: Any,
     requester_timezone: str,
     now: Callable[[], datetime],
-) -> tuple[datetime, datetime]:
-    current = now()
-    if current.tzinfo is None:
-        current = current.replace(tzinfo=UTC)
-    try:
-        zone = ZoneInfo(requester_timezone)
-    except ZoneInfoNotFoundError:
-        zone = UTC
-    local_date = current.astimezone(zone).date() + timedelta(days=offset_days)
-    local_start = datetime(local_date.year, local_date.month, local_date.day)
-    return local_start, local_start + timedelta(days=1)
+):
+    return resolve_date_phrase_window(
+        value,
+        timezone_name=requester_timezone,
+        now=now,
+    )
 
 
 def _optional_int(value: Any) -> int | None:

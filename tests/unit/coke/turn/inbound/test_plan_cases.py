@@ -230,6 +230,21 @@ CASES: tuple[PlanCase, ...] = (
         "reply_needed",
     ),
     (
+        "zh friend agenda routes to availability",
+        "oliver今天有什么安排",
+        (
+            {
+                "domain": "social_scheduling",
+                "operation": "availability_query",
+                "params": {
+                    "participant": "oliver",
+                    "date_phrase": "今天",
+                },
+            },
+        ),
+        "reply_needed",
+    ),
+    (
         "zh availability query",
         "小王明天下午有空吗",
         (
@@ -238,8 +253,7 @@ CASES: tuple[PlanCase, ...] = (
                 "operation": "availability_query",
                 "params": {
                     "participant": "小王",
-                    "local_start": "2026-06-11T13:00:00",
-                    "local_end": "2026-06-11T18:00:00",
+                    "date_phrase": "明天",
                 },
             },
         ),

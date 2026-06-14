@@ -210,6 +210,26 @@ def test_prompt_treats_shared_time_only_reschedule_as_update_without_duration() 
     assert "do not ask for duration" in system
 
 
+def test_prompt_routes_friend_schedule_questions_to_availability_not_shared_list() -> (
+    None
+):
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+
+    SiliconFlowPlanner(client).plan(_request("oliver今天有什么安排"))
+
+    system = client.calls[0]["system"]
+    assert "friend's schedule/availability/agenda" in system
+    assert "social_scheduling.availability_query" in system
+    assert "date_phrase" in system
+    assert "list_shared is only for the user's own shared reminders" in system
+    assert "我和oliver的共享提醒" in system
+
+
 def test_prompt_requires_explicit_period_words_to_stay_in_time_phrase() -> None:
     client = StubJSONClient(
         {

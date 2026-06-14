@@ -314,6 +314,53 @@ def test_express_request_threads_trusted_clock_and_formats_nested_times() -> Non
     assert outcome_data["reminders"][0]["next_fire_at_display"] == "明天上午6点"
 
 
+def test_express_request_decorates_availability_query_window_from_trusted_clock() -> None:
+    settled = SettledOutcome(
+        outcomes=(
+            ActionOutcome(
+                category="done",
+                status="availability",
+                data={
+                    "query_window": {
+                        "local_start": "2026-06-14T00:00:00",
+                        "local_end": "2026-06-15T00:00:00",
+                        "requester_timezone": "Asia/Shanghai",
+                        "defaulted": False,
+                    },
+                    "availability": [
+                        {
+                            "friend_display_name": "Oliver",
+                            "windows": [
+                                {
+                                    "state": "free",
+                                    "start": "2026-06-14T00:00:00",
+                                    "end": "2026-06-15T00:00:00",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ),
+        )
+    )
+    request = _pipeline_request(
+        trusted_facts={
+            "current_time": "2026-06-14T21:17:00+08:00",
+            "default_timezone": "Asia/Shanghai",
+        },
+    )
+
+    express_request = _express_request(request, settled)
+
+    outcome_data = express_request.settled_outcome.outcomes[0].data
+    query_window = outcome_data["query_window"]
+    assert query_window["local_start_display"] == "今天上午0点"
+    assert query_window["local_end_display"] == "明天上午0点"
+    availability_window = outcome_data["availability"][0]["windows"][0]
+    assert availability_window["start_display"] == "今天上午0点"
+    assert availability_window["end_display"] == "明天上午0点"
+
+
 @pytest.mark.asyncio
 async def test_read_only_turn_streams_segments_and_then_closes() -> None:
     events: list[str] = []

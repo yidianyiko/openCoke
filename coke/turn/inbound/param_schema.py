@@ -160,12 +160,15 @@ PARAM_KEY_SCHEMA: ParamKeySchema = MappingProxyType(
         "social_scheduling": MappingProxyType(
             {
                 "availability_query": ParamKeySpec(
-                    required=("participant", "local_start", "local_end"),
+                    required=("participant",),
                     optional=(
                         "account_id",
                         "owner_account_id",
                         "creator_account_id",
                         "requester_account_id",
+                        "date_phrase",
+                        "local_start",
+                        "local_end",
                         "captured_timezone",
                         "requester_timezone",
                     ),

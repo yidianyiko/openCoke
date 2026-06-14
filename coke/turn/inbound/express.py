@@ -448,6 +448,12 @@ def _system_message(request: ExpressRequest) -> str:
                 "Do not invent a blocker justification, activity, participant, "
                 "date, or time that is absent from settled_outcome data."
             ),
+            (
+                "For social_scheduling availability outcomes, render only the "
+                "friend display name, query window, and busy/free windows from "
+                "settled_outcome.availability; never include reminder titles, "
+                "activities, locations, or participants from conversation history."
+            ),
             'Return only JSON: {"type":"reply","segments":["text"]}.',
             "Text output is limited to one to three non-empty segments.",
             (
@@ -501,6 +507,11 @@ def _instructions() -> list[str]:
             "For datetime fields with a *_display sibling, use *_display "
             "verbatim when stating the date, relative day, or clock."
         ),
+        (
+            "For availability outcomes, use only friend display names and "
+            "busy/free window times; never include reminder titles, activities, "
+            "locations, or participants."
+        ),
         "Keep wording concise and user-facing.",
         (
             "Render a list (e.g. a reminder list) as a SINGLE segment with each "
@@ -536,6 +547,9 @@ def _segments_from_content(
     content: Any,
     request: ExpressRequest | None = None,
 ) -> tuple[str, ...]:
+    availability_segments = _availability_segments(request)
+    if availability_segments is not None:
+        return availability_segments
     payload = _mapping_from_content(content)
     if payload is None:
         # GLM JSON mode is not always honored even on outcome turns (e.g. list
@@ -561,6 +575,83 @@ def _segments_from_content(
         raise ExpressOutputError("Express output has too many segments")
     _validate_domain_claim(payload, request)
     return normalized
+
+
+def _availability_segments(request: ExpressRequest | None) -> tuple[str, ...] | None:
+    if request is None:
+        return None
+    outcomes = request.settled_outcome.outcomes
+    if not outcomes or any(outcome.status != "availability" for outcome in outcomes):
+        return None
+
+    sections: list[str] = []
+    for outcome in outcomes:
+        availability = outcome.data.get("availability")
+        if not isinstance(availability, list):
+            return None
+        query_window = _availability_query_window(outcome.data.get("query_window"))
+        for item in availability:
+            if not isinstance(item, Mapping):
+                continue
+            name = _availability_friend_name(item)
+            if name is None:
+                continue
+            header = name
+            if query_window is not None:
+                header = f"{name}（{query_window[0]} 到 {query_window[1]}）"
+            window_lines = _availability_window_lines(item.get("windows"))
+            if window_lines:
+                sections.append("\n".join((header, *window_lines)))
+            else:
+                sections.append(header)
+    if not sections:
+        return None
+    return ("\n\n".join(sections),)
+
+
+def _availability_friend_name(item: Mapping[str, Any]) -> str | None:
+    for key in ("friend_display_name", "friend_account_id"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _availability_query_window(value: Any) -> tuple[str, str] | None:
+    if not isinstance(value, Mapping):
+        return None
+    return _display_interval(value, "local_start", "local_end")
+
+
+def _availability_window_lines(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    lines: list[str] = []
+    for window in value:
+        if not isinstance(window, Mapping):
+            continue
+        state = window.get("state")
+        if state not in {"busy", "free"}:
+            continue
+        interval = _display_interval(window, "start", "end")
+        if interval is None:
+            continue
+        lines.append(f"- {state}：{interval[0]} 到 {interval[1]}")
+    return lines
+
+
+def _display_interval(
+    value: Mapping[str, Any],
+    start_key: str,
+    end_key: str,
+) -> tuple[str, str] | None:
+    start = value.get(f"{start_key}_display") or value.get(start_key)
+    end = value.get(f"{end_key}_display") or value.get(end_key)
+    if not isinstance(start, str) or not start.strip():
+        return None
+    if not isinstance(end, str) or not end.strip():
+        return None
+    return start.strip(), end.strip()
 
 
 def _validate_domain_claim(

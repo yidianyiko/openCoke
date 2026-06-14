@@ -842,6 +842,107 @@ def test_availability_query_today_token_uses_requester_local_day_without_staging
     assert guard.staged == []
 
 
+def test_friend_agenda_date_phrase_resolves_to_availability_without_shared_list() -> (
+    None
+):
+    service = StubSocialSchedulingService()
+    service.resolutions["Oliver"] = FriendResolutionResult(
+        status="matched",
+        matched_account_id="friend-oliver",
+        candidates=("friend-oliver",),
+    )
+    guard = RecordingGuard()
+
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(
+            service,
+            now=lambda: datetime(2026, 6, 14, 13, 26, tzinfo=UTC),
+        ),
+        _compiled(
+            "availability_query",
+            {
+                "account_id": "acct-eva",
+                "participant": "Oliver",
+                "date_phrase": "今天",
+                "requester_timezone": "Asia/Shanghai",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "availability"
+    assert service.calls == [
+        (
+            "resolve_active_friend_reference",
+            {"account_id": "acct-eva", "text": "Oliver"},
+        ),
+        (
+            "query_availability",
+            {
+                "requester_account_id": "acct-eva",
+                "friend_account_ids": ["friend-oliver"],
+                "local_start": datetime(2026, 6, 14, 0, 0),
+                "local_end": datetime(2026, 6, 15, 0, 0),
+                "requester_timezone": "Asia/Shanghai",
+            },
+        ),
+    ]
+    assert outcome.data["query_window"] == {
+        "local_start": "2026-06-14T00:00:00",
+        "local_end": "2026-06-15T00:00:00",
+        "requester_timezone": "Asia/Shanghai",
+        "defaulted": False,
+    }
+    assert guard.staged == []
+
+
+def test_availability_query_without_day_defaults_to_today_through_next_7_days() -> None:
+    service = StubSocialSchedulingService()
+    service.resolutions["Oliver"] = FriendResolutionResult(
+        status="matched",
+        matched_account_id="friend-oliver",
+        candidates=("friend-oliver",),
+    )
+    guard = RecordingGuard()
+
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(
+            service,
+            now=lambda: datetime(2026, 6, 14, 13, 26, tzinfo=UTC),
+        ),
+        _compiled(
+            "availability_query",
+            {
+                "account_id": "acct-eva",
+                "participant": "Oliver",
+                "requester_timezone": "Asia/Shanghai",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "availability"
+    assert service.calls[-1] == (
+        "query_availability",
+        {
+            "requester_account_id": "acct-eva",
+            "friend_account_ids": ["friend-oliver"],
+            "local_start": datetime(2026, 6, 14, 0, 0),
+            "local_end": datetime(2026, 6, 21, 0, 0),
+            "requester_timezone": "Asia/Shanghai",
+        },
+    )
+    assert outcome.data["query_window"] == {
+        "local_start": "2026-06-14T00:00:00",
+        "local_end": "2026-06-21T00:00:00",
+        "requester_timezone": "Asia/Shanghai",
+        "defaulted": True,
+    }
+    assert guard.staged == []
+
+
 def test_availability_query_same_today_tokens_use_single_local_day() -> None:
     service = StubSocialSchedulingService()
     guard = RecordingGuard()
