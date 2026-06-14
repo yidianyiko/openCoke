@@ -382,15 +382,16 @@ class ReminderService:
                 keyword_value, reminder.content
             ):
                 continue
-            if trigger_after is not None and (
-                reminder.next_fire_at is None or reminder.next_fire_at < trigger_after
-            ):
+            range_match = _reminder_in_trigger_range(
+                reminder,
+                trigger_after=trigger_after,
+                trigger_before=trigger_before,
+            )
+            if range_match is None:
                 continue
-            if trigger_before is not None and (
-                reminder.next_fire_at is None or reminder.next_fire_at > trigger_before
-            ):
-                continue
-            matches.append(reminder)
+            matches.append(range_match)
+        if trigger_after is not None or trigger_before is not None:
+            matches.sort(key=_trigger_range_sort_key)
         return matches
 
     def complete_reminder_by_keyword(
@@ -1110,6 +1111,72 @@ def _keyword_matches_content(keyword_value: str, content: str) -> bool:
     # clarification, never a wrong mutation).
     content_value = content.casefold()
     return keyword_value in content_value or content_value in keyword_value
+
+
+def _reminder_in_trigger_range(
+    reminder: Reminder,
+    *,
+    trigger_after: datetime | None,
+    trigger_before: datetime | None,
+) -> Reminder | None:
+    if trigger_after is None and trigger_before is None:
+        return reminder
+    next_fire_at = _aware_utc_datetime(reminder.next_fire_at)
+    if next_fire_at is None:
+        return None
+    start = _aware_utc_datetime(trigger_after)
+    end = _aware_utc_datetime(trigger_before)
+    occurrence = next_fire_at
+    if reminder.kind == "recurring" and reminder.recurrence_rule:
+        occurrence = _first_recurring_occurrence_at_or_after(
+            reminder,
+            next_fire_at,
+            start,
+        )
+        if occurrence is None:
+            return None
+    if start is not None and occurrence < start:
+        return None
+    if end is not None and occurrence >= end:
+        return None
+    if occurrence != reminder.next_fire_at:
+        return replace(reminder, next_fire_at=occurrence)
+    return reminder
+
+
+def _first_recurring_occurrence_at_or_after(
+    reminder: Reminder,
+    next_fire_at: datetime,
+    start: datetime | None,
+) -> datetime | None:
+    if start is None:
+        return next_fire_at
+    occurrence = next_fire_at
+    for _ in range(4096):
+        if occurrence >= start:
+            return occurrence
+        occurrence = next_occurrence_after(
+            reminder.recurrence_rule,
+            occurrence,
+            reminder.captured_timezone,
+        )
+    return None
+
+
+def _aware_utc_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _trigger_range_sort_key(reminder: Reminder) -> tuple[datetime, str, str]:
+    return (
+        _aware_utc_datetime(reminder.next_fire_at) or datetime.max.replace(tzinfo=UTC),
+        reminder.content,
+        reminder.id,
+    )
 
 
 def _zoneinfo_or_utc(timezone_name: str) -> tuple[str, ZoneInfo]:

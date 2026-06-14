@@ -15,6 +15,7 @@ from coke.domains.reminder.models import (
 )
 from coke.domains.reminder.service import ReminderService
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
+from coke.turn.inbound.date_windows import resolve_date_phrase_window
 
 
 class ReminderActionHandler:
@@ -67,13 +68,23 @@ class ReminderActionHandler:
         )
 
     def _list(self, params: Mapping[str, Any], owner: str) -> ActionOutcome:
+        trigger_after = _optional_datetime(params.get("trigger_after"))
+        trigger_before = _optional_datetime(params.get("trigger_before"))
+        date_window = resolve_date_phrase_window(
+            params.get("date_phrase"),
+            timezone_name=_timezone(params),
+            now=self._now,
+        )
+        if date_window is not None:
+            trigger_after = date_window.trigger_after
+            trigger_before = date_window.trigger_before
         reminders = self.reminder_service.filter_reminders(
             owner_account_id=owner,
             keyword=_optional_str(params.get("keyword")),
             lifecycle=_lifecycle_filter(params),
             kind=_kind_filter(params),
-            trigger_after=_optional_datetime(params.get("trigger_after")),
-            trigger_before=_optional_datetime(params.get("trigger_before")),
+            trigger_after=trigger_after,
+            trigger_before=trigger_before,
         )
         facts = [_reminder_fact(reminder) for reminder in reminders]
         return ActionOutcome(
@@ -412,8 +423,6 @@ def _optional_datetime(value: Any) -> datetime | None:
         try:
             return datetime.fromisoformat(value)
         except ValueError:
-            # Resolving natural date-range list filters (e.g. "周五") to real
-            # ranges is a separate quality follow-up; this only avoids a crash.
             return None
     return None
 
