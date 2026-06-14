@@ -147,9 +147,146 @@ def test_context_token_window_failure_marks_reminder_fire_undelivered():
         outcome=SimpleNamespace(status="failed", error_code="ilink_send_failed_ret_-2"),
     )
 
-    assert (
-        reminder_service.repository.get_fire(fire.id).delivery_result == "undelivered"
+    undelivered_fire = reminder_service.repository.get_fire(fire.id)
+    assert undelivered_fire.delivery_result == "undelivered"
+    assert undelivered_fire.fire_state == "claimed"
+    assert undelivered_fire.handled_at is None
+    assert undelivered_fire.completed_at is None
+    assert reminder_service.undelivered_resend_turn("acct_1").fire_ids == [fire.id]
+
+
+def test_delivered_recurring_reminder_fire_advances_next_occurrence():
+    reminder_service = make_reminder_service()
+    social_service, _repo = make_social_service()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
     )
+    created = reminder_service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="daily standup",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+                recurrence_rule={"frequency": "daily", "interval": 1},
+                duration_minutes=15,
+            )
+        ],
+    )
+    reminder_id = created.items[0].reminder_id
+    fire = reminder_service.claim_due_fire(reminder_id, NOW)
+
+    callbacks.record_delivery(
+        trigger=SimpleNamespace(
+            trigger_type="ReminderFireTurn",
+            payload={"fire_ids": [fire.id]},
+        ),
+        request=SimpleNamespace(account_id="acct_1", turn_id="turn_1"),
+        outcome=SimpleNamespace(status="sent", error_code=None),
+    )
+    callbacks.record_delivery(
+        trigger=SimpleNamespace(
+            trigger_type="ReminderFireTurn",
+            payload={"fire_ids": [fire.id]},
+        ),
+        request=SimpleNamespace(account_id="acct_1", turn_id="turn_1"),
+        outcome=SimpleNamespace(status="sent", error_code=None),
+    )
+
+    delivered_fire = reminder_service.repository.get_fire(fire.id)
+    reminder = reminder_service.repository.get_reminder(reminder_id)
+    assert delivered_fire.delivery_result == "delivered"
+    assert delivered_fire.fire_state == "completed"
+    assert delivered_fire.handled_at == NOW
+    assert delivered_fire.completed_at == NOW
+    assert reminder.lifecycle == "active"
+    assert reminder.next_fire_at == NOW + timedelta(days=1)
+
+
+def test_delivered_one_time_reminder_fire_retires_reminder():
+    reminder_service = make_reminder_service()
+    social_service, _repo = make_social_service()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+    )
+    created = reminder_service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="take medicine",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+                duration_minutes=15,
+            )
+        ],
+    )
+    reminder_id = created.items[0].reminder_id
+    fire = reminder_service.claim_due_fire(reminder_id, NOW)
+
+    callbacks.record_delivery(
+        trigger=SimpleNamespace(
+            trigger_type="ReminderFireTurn",
+            payload={"fire_ids": [fire.id]},
+        ),
+        request=SimpleNamespace(account_id="acct_1", turn_id="turn_1"),
+        outcome=SimpleNamespace(status="sent", error_code=None),
+    )
+
+    delivered_fire = reminder_service.repository.get_fire(fire.id)
+    reminder = reminder_service.repository.get_reminder(reminder_id)
+    assert delivered_fire.delivery_result == "delivered"
+    assert delivered_fire.fire_state == "completed"
+    assert delivered_fire.handled_at == NOW
+    assert delivered_fire.completed_at == NOW
+    assert reminder.lifecycle == "completed"
+    assert reminder.next_fire_at == NOW
+    assert reminder_service.repository.list_active_reminders("acct_1") == []
+
+
+def test_delivered_undelivered_resend_fire_retires_reminder():
+    reminder_service = make_reminder_service()
+    social_service, _repo = make_social_service()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+    )
+    created = reminder_service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="take medicine",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+                duration_minutes=15,
+            )
+        ],
+    )
+    reminder_id = created.items[0].reminder_id
+    fire = reminder_service.claim_due_fire(reminder_id, NOW)
+    reminder_service.record_fire_delivery([fire.id], delivered=False)
+
+    callbacks.record_delivery(
+        trigger=SimpleNamespace(
+            trigger_type="UndeliveredResendTurn",
+            payload={"fire_ids": [fire.id]},
+        ),
+        request=SimpleNamespace(account_id="acct_1", turn_id="turn_resend"),
+        outcome=SimpleNamespace(status="sent", error_code=None),
+    )
+
+    delivered_fire = reminder_service.repository.get_fire(fire.id)
+    reminder = reminder_service.repository.get_reminder(reminder_id)
+    assert delivered_fire.delivery_result == "delivered"
+    assert delivered_fire.fire_state == "completed"
+    assert delivered_fire.handled_at == NOW
+    assert delivered_fire.completed_at == NOW
+    assert reminder.lifecycle == "completed"
+    assert reminder_service.repository.list_active_reminders("acct_1") == []
 
 
 def test_context_token_window_failure_marks_notification_recipient_undelivered():

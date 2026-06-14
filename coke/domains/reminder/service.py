@@ -10,8 +10,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.domains.reminder.calendar_read_model import ReminderCalendarReadModel
 from coke.domains.reminder.models import (
-    CalendarQueryResult,
     BatchItemState,
+    CalendarQueryResult,
     DetectedReminderFields,
     Reminder,
     ReminderBatchItem,
@@ -590,12 +590,24 @@ class ReminderService:
                     self.record_proactive_delivery(fire_id, delivered=delivered)
                 )
                 continue
+            if fire.fire_state == "completed":
+                if delivered and fire.delivery_result != "delivered":
+                    fire = replace(
+                        fire,
+                        delivery_result="delivered",
+                        updated_at=self._now(),
+                    )
+                    self.repository.save_fire(fire)
+                updated_fires.append(fire)
+                continue
             updated = replace(
                 fire,
                 delivery_result="delivered" if delivered else "undelivered",
                 updated_at=self._now(),
             )
             self.repository.save_fire(updated)
+            if delivered:
+                updated = self.complete_fire(fire_id, completed_at=self._now())
             updated_fires.append(updated)
         return updated_fires
 
@@ -663,11 +675,13 @@ class ReminderService:
 
     def complete_fire(self, fire_id: str, completed_at: datetime) -> ReminderFire:
         fire = self._require_fire(fire_id)
+        if fire.fire_state == "completed":
+            return fire
         reminder = self._require_reminder(fire.reminder_id)
         updated_fire = replace(
             fire,
             fire_state="completed",
-            handled_at=completed_at,
+            handled_at=fire.handled_at or completed_at,
             completed_at=completed_at,
             updated_at=self._now(),
         )
