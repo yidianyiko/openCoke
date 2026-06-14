@@ -152,6 +152,52 @@ def test_render_produces_segments_from_settled_outcome() -> None:
     assert agent_kwargs["use_json_mode"] is True
 
 
+def test_render_payload_and_prompt_include_authoritative_clock() -> None:
+    fake_agent = StaticRunAgentInstance(
+        content=json.dumps({"type": "reply", "segments": ["已建好。"]}),
+        calls=[],
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    agent.render(
+        ExpressRequest(
+            turn_id="turn-1",
+            conversation_id="conversation-1",
+            account_id="account-1",
+            current_time="2026-06-14T21:17:00+08:00",
+            default_timezone="Asia/Shanghai",
+            settled_outcome=SettledOutcome(
+                outcomes=(
+                    ActionOutcome(
+                        category="done",
+                        status="created",
+                        data={
+                            "shared_reminder": {
+                                "title": "开会",
+                                "local_trigger_at": "2026-06-15T06:00:00",
+                                "local_trigger_at_display": "明天上午6点",
+                            },
+                        },
+                    ),
+                )
+            ),
+        )
+    )
+
+    input_payload = json.loads(fake_agent.calls[0]["input"])
+    assert input_payload["clock"] == {
+        "current_time": "2026-06-14T21:17:00+08:00",
+        "default_timezone": "Asia/Shanghai",
+    }
+    system_message = factory.agent_kwargs[0]["system_message"]
+    instructions = factory.agent_kwargs[0]["instructions"]
+    assert "authoritative current time" in system_message
+    assert "2026-06-14T21:17:00+08:00" in system_message
+    assert "MUST use the provided *_display field verbatim" in system_message
+    assert any("*_display" in instruction for instruction in instructions)
+
+
 def test_render_keeps_reminder_list_in_one_multiline_segment() -> None:
     fake_agent = ReminderListEchoRunAgentInstance()
     factory = FakeAgentFactory(fake_agent)
