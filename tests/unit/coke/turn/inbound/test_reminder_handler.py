@@ -419,6 +419,42 @@ def test_create_executes_batch_and_returns_real_service_outcome() -> None:
     assert guard.staged == []
 
 
+def test_create_with_current_input_text_trusts_detector_duration_over_split_params() -> (
+    None
+):
+    service = StubReminderService()
+    service.batch_result = ReminderBatchResult(
+        owner_account_id="acct-1",
+        items=[_succeeded_item("real-r1")],
+    )
+    detector = StubDetector(_detected(content="检查时间", duration_minutes=5))
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        _handler(service, detector),
+        _compiled(
+            "create",
+            {
+                "owner_account_id": "acct-1",
+                "content": "检查时间",
+                "time_phrase": "明天晚上6点",
+                "duration_minutes": 30,
+                "captured_timezone": "Asia/Shanghai",
+                "_current_input_text": "明天晚上6点提醒我检查时间，持续5分钟",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert detector.calls == [
+        ("明天晚上6点提醒我检查时间，持续5分钟", "Asia/Shanghai", NOW)
+    ]
+    call = service.calls[0][1]
+    item = call["items"][0]
+    assert item.duration_minutes == 5
+
+
 def test_create_past_time_confirmation_is_real_outcome_not_staged_success() -> None:
     service = StubReminderService()
     service.batch_result = ReminderBatchResult(

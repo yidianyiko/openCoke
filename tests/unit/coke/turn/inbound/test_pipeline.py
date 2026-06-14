@@ -21,6 +21,7 @@ from coke.turn.inbound.pipeline import (
     SegmentDeliveryPort,
     TurnPipeline,
     TurnPipelineRequest,
+    _action_context,
     _express_request,
     _plan_request,
 )
@@ -232,6 +233,22 @@ def test_plan_request_and_planner_payload_preserve_current_input_window() -> Non
         {"role": "user", "content": "remind me at 9", "seq": 1},
         {"role": "user", "content": "actually 10", "seq": 2},
     ]
+
+
+def test_action_context_preserves_current_input_text_for_execute() -> None:
+    request = _pipeline_request(
+        current_input_messages=(
+            {"role": "user", "content": "明天晚上6点提醒我检查时间，持续5分钟", "seq": 1},
+            {"role": "user", "content": "发给我之后提醒", "seq": 2},
+        ),
+        trusted_facts={"default_timezone": "Asia/Shanghai"},
+    )
+
+    context = _action_context(request)
+
+    assert context["_current_input_text"] == (
+        "明天晚上6点提醒我检查时间，持续5分钟\n发给我之后提醒"
+    )
 
 
 @pytest.mark.asyncio

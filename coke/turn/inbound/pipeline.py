@@ -204,7 +204,7 @@ def _action_context(request: TurnPipelineRequest) -> dict[str, Any]:
     # Authenticated trusted context injected into every action's params. The
     # planner never provides account ids or timezone; they come from the turn.
     timezone = str(request.trusted_facts.get("default_timezone") or "UTC")
-    return {
+    context = {
         "account_id": request.account_id,
         "owner_account_id": request.account_id,
         "creator_account_id": request.account_id,
@@ -214,6 +214,25 @@ def _action_context(request: TurnPipelineRequest) -> dict[str, Any]:
         "requester_timezone": timezone,
         "display_timezone": timezone,
     }
+    current_input_text = _current_input_text(request)
+    if current_input_text is not None:
+        context["_current_input_text"] = current_input_text
+    return context
+
+
+def _current_input_text(request: TurnPipelineRequest) -> str | None:
+    texts = [
+        text
+        for message in request.current_input_messages
+        if isinstance(text := message.get("content"), str) and text.strip()
+    ]
+    if not texts:
+        payload_text = request.payload.get("text")
+        if isinstance(payload_text, str) and payload_text.strip():
+            texts.append(payload_text)
+    if not texts:
+        return None
+    return "\n".join(text.strip() for text in texts)
 
 
 def _plan_request(

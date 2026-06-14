@@ -101,7 +101,10 @@ class ReminderActionHandler:
         action_index: int,
         turn_id: str,
     ) -> ActionOutcome:
-        detected = self._extract_create_fields(params)
+        detected = self._extract_create_fields(
+            params,
+            source_text=_optional_str(params.get("_current_input_text")),
+        )
         if detected.trigger_time is None:
             return ActionOutcome(
                 category="needs_input",
@@ -141,6 +144,8 @@ class ReminderActionHandler:
             )
 
         items: list[ReminderBatchItem] = []
+        source_text = _optional_str(params.get("_current_input_text"))
+        single_item_source_text = source_text if len(raw_items) == 1 else None
         for index, raw_item in enumerate(raw_items, start=1):
             if not isinstance(raw_item, Mapping):
                 return ActionOutcome(
@@ -152,6 +157,7 @@ class ReminderActionHandler:
                 raw_item,
                 item_index=action_index + index,
                 turn_id=turn_id,
+                source_text=single_item_source_text,
             )
             if item.trigger_time is None or item.time_state == "invalid":
                 return ActionOutcome(
@@ -232,9 +238,15 @@ class ReminderActionHandler:
     def _extract_create_fields(
         self,
         params: Mapping[str, Any],
+        *,
+        source_text: str | None = None,
     ) -> DetectedReminderFields:
         timezone = _timezone(params)
-        return self.detector.extract(_detector_text(params), timezone, self._now())
+        return self.detector.extract(
+            _detector_text(params, source_text=source_text),
+            timezone,
+            self._now(),
+        )
 
     def _create_item_from_detected(
         self,
@@ -266,6 +278,7 @@ class ReminderActionHandler:
         *,
         item_index: int,
         turn_id: str,
+        source_text: str | None = None,
     ) -> ReminderBatchItem:
         timezone = _timezone(params)
         trigger_time = _optional_datetime(params.get("trigger_time"))
@@ -274,7 +287,7 @@ class ReminderActionHandler:
         duration_minutes = params.get("duration_minutes")
         kind = params.get("kind")
         if _has_time_phrase(params):
-            detected = self._extract_create_fields(params)
+            detected = self._extract_create_fields(params, source_text=source_text)
             if detected.trigger_time is None:
                 return ReminderBatchItem(
                     operation="create",
@@ -435,10 +448,16 @@ def _optional_datetime(value: Any) -> datetime | None:
     return None
 
 
-def _detector_text(params: Mapping[str, Any]) -> str:
+def _detector_text(
+    params: Mapping[str, Any],
+    *,
+    source_text: str | None = None,
+) -> str:
     raw_text = _optional_str(params.get("raw_text") or params.get("text"))
     if raw_text is not None:
         return raw_text
+    if source_text is not None:
+        return source_text
     parts = [
         _optional_str(params.get("content")),
         _optional_str(params.get("time_phrase")),

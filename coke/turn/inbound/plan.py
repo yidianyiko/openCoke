@@ -30,6 +30,10 @@ Ownership:
 - For each domain.operation, use exactly these param keys from param_key_schema;
   do not invent key names.
 - Reminder and social detectors own precise time extraction later in Execute.
+- For natural-language reminder.create, raw_text should preserve the exact current user text
+  whenever content/time_phrase would omit words that affect extraction, such as
+  an explicit duration; omit trigger_time and duration_minutes from natural-language
+  create actions. Execute/detector will extract exact times and durations.
 - reminder.batch_create items follow the same rule: for natural-language items,
   put natural text in content/time_phrase/text/raw_text; omit trigger_time and duration_minutes from natural-language batch items. Execute/detector will extract exact times and durations.
 - For time phrases with explicit period-of-day words (晚上/下午/上午/早上/中午,
