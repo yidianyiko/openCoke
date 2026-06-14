@@ -8,7 +8,7 @@ import pytest
 from agno.run.agent import RunCompletedEvent, RunContentEvent
 
 from coke.turn.inbound.contracts import ActionOutcome, SettledOutcome
-from coke.turn.inbound.express import ExpressAgent, ExpressRequest
+from coke.turn.inbound.express import ExpressAgent, ExpressOutputError, ExpressRequest
 
 
 @dataclass
@@ -62,6 +62,39 @@ class ReminderListEchoRunAgentInstance:
                     )
                 ],
             }
+        )
+        return type("RunOutput", (), {"content": content})()
+
+
+class SocialBlockerEchoRunAgentInstance:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def run(self, input, **kwargs):
+        self.calls.append({"method": "run", "input": input, "kwargs": kwargs})
+        outcome = json.loads(input)["settled_outcome"]["outcomes"][0]
+        blocker = outcome["data"]["blocker"]
+        interval = blocker["requested_interval"]
+        participant = blocker["conflicting_participants"][0]
+        content = json.dumps(
+            {
+                "type": "reply",
+                "segments": [
+                    (
+                        f"约不了，{participant} 在 "
+                        f"{interval['local_start_display']} 到 "
+                        f"{interval['local_end_display']} 有冲突。"
+                    )
+                ],
+                "domain_claim": {
+                    "domain": "social_scheduling",
+                    "category": outcome["category"],
+                    "status": outcome["status"],
+                    "claim": "blocker",
+                    "blocker": blocker["kind"],
+                },
+            },
+            ensure_ascii=False,
         )
         return type("RunOutput", (), {"content": content})()
 
@@ -231,6 +264,105 @@ def test_render_keeps_reminder_list_in_one_multiline_segment() -> None:
     assert (
         "list (e.g. a reminder list) as a SINGLE segment"
         in factory.agent_kwargs[0]["system_message"]
+    )
+
+
+def test_created_social_outcome_rejects_fabricated_blocker_claim() -> None:
+    fake_agent = StaticRunAgentInstance(
+        content=json.dumps(
+            {
+                "type": "reply",
+                "segments": ["约不了，那个时间有冲突了。"],
+                "domain_claim": {
+                    "domain": "social_scheduling",
+                    "category": "not_possible",
+                    "status": "receiver_conflict",
+                    "claim": "blocker",
+                    "blocker": "receiver_conflict",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        calls=[],
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    with pytest.raises(ExpressOutputError, match="domain_claim does not match"):
+        agent.render(
+            ExpressRequest(
+                turn_id="turn-1",
+                conversation_id="conversation-1",
+                account_id="account-1",
+                settled_outcome=SettledOutcome(
+                    outcomes=(
+                        ActionOutcome(
+                            category="done",
+                            status="created",
+                            data={
+                                "shared_reminder": {
+                                    "title": "约 Oliver",
+                                    "local_trigger_at": "2026-06-15T21:20:00",
+                                    "captured_timezone": "Asia/Shanghai",
+                                }
+                            },
+                        ),
+                    )
+                ),
+                conversation_history=(
+                    {"role": "assistant", "content": "20:00 有冲突。"},
+                ),
+            )
+        )
+
+
+def test_receiver_conflict_social_outcome_renders_only_typed_blocker_facts() -> None:
+    fake_agent = SocialBlockerEchoRunAgentInstance()
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = agent.render(
+        ExpressRequest(
+            turn_id="turn-1",
+            conversation_id="conversation-1",
+            account_id="account-1",
+            settled_outcome=SettledOutcome(
+                outcomes=(
+                    ActionOutcome(
+                        category="not_possible",
+                        status="receiver_conflict",
+                        data={
+                            "blocker": {
+                                "kind": "receiver_conflict",
+                                "conflicting_participants": ["friend-oliver"],
+                                "requested_interval": {
+                                    "local_start": "2026-06-15T21:20:00",
+                                    "local_start_display": "明天晚上9点20分",
+                                    "local_end": "2026-06-15T21:35:00",
+                                    "local_end_display": "明天晚上9点35分",
+                                    "captured_timezone": "Asia/Shanghai",
+                                    "duration_minutes": 15,
+                                },
+                            },
+                        },
+                    ),
+                )
+            ),
+            conversation_history=(
+                {"role": "assistant", "content": "20:00 晚饭有冲突。"},
+            ),
+        )
+    )
+
+    assert segments == (
+        "约不了，friend-oliver 在 明天晚上9点20分 到 明天晚上9点35分 有冲突。",
+    )
+    assert "晚饭" not in segments[0]
+    assert "20:00" not in segments[0]
+    system_message = factory.agent_kwargs[0]["system_message"]
+    assert "domain_claim" in system_message
+    assert "conflict, refusal, can't do it, unavailability, duplicate, or blocker" in (
+        system_message
     )
 
 

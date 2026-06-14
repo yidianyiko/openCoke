@@ -336,6 +336,52 @@ def test_create_shared_reminder_duplicate_is_not_possible_without_stage() -> Non
     assert guard.staged == []
 
 
+def test_create_shared_reminder_conflict_exposes_typed_blocker_interval() -> None:
+    service = StubSocialSchedulingService()
+    service.create_result = SharedReminderCreateResult(
+        status="blocked",
+        shared_reminder=None,
+        breakdown={
+            "conflicting_participants": ["friend-amy"],
+            "unreachable_participants": [],
+            "available_participants": ["acct-1"],
+        },
+    )
+    guard = RecordingGuard()
+
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
+        _compiled(
+            "create_shared_reminder",
+            {
+                "creator_account_id": "acct-1",
+                "participant": "Amy",
+                "content": "send deck",
+                "local_trigger_at": "2026-06-11T10:00:00",
+                "captured_timezone": "Asia/Tokyo",
+                "duration_minutes": 30,
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "not_possible"
+    assert outcome.status == "receiver_conflict"
+    assert outcome.data["blocker"] == {
+        "kind": "receiver_conflict",
+        "conflicting_participants": ["friend-amy"],
+        "unreachable_participants": [],
+        "available_participants": ["acct-1"],
+        "requested_interval": {
+            "local_start": "2026-06-11T10:00:00",
+            "local_end": "2026-06-11T10:30:00",
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": 30,
+        },
+    }
+    assert guard.staged == []
+
+
 def test_create_shared_reminder_partial_delivery_returns_partial_with_counts() -> None:
     service = StubSocialSchedulingService()
     service.create_result = SimpleNamespace(
@@ -588,6 +634,18 @@ def test_update_shared_reminder_conflict_stages_nothing() -> None:
 
     assert outcome.category == "not_possible"
     assert outcome.status == "receiver_conflict"
+    assert outcome.data["blocker"] == {
+        "kind": "receiver_conflict",
+        "conflicting_participants": ["friend-amy"],
+        "unreachable_participants": [],
+        "available_participants": ["acct-1"],
+        "requested_interval": {
+            "local_start": "2026-06-11T10:00:00",
+            "local_end": "2026-06-11T10:15:00",
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": 15,
+        },
+    }
     assert guard.staged == []
 
 

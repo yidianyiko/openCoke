@@ -68,6 +68,11 @@ class SocialSchedulingActionHandler:
         resolved = self._resolve_participants(creator, params)
         if isinstance(resolved, ActionOutcome):
             return resolved
+        captured_timezone = _timezone(params)
+        duration_minutes = _optional_int(params.get("duration_minutes"))
+        local_trigger_at = _optional_datetime(
+            params.get("local_trigger_at") or params.get("trigger_time")
+        )
         try:
             if _should_detect_shared_reminder(params):
                 result = (
@@ -78,27 +83,34 @@ class SocialSchedulingActionHandler:
                         title=_optional_str(
                             params.get("title") or params.get("content")
                         ),
-                        captured_timezone=_timezone(params),
-                        duration_minutes=_optional_int(params.get("duration_minutes")),
+                        captured_timezone=captured_timezone,
+                        duration_minutes=duration_minutes,
                         commit_guard=_commit_guard(guard),
                     )
                 )
+                requested_interval = None
             else:
                 result = self.social_scheduling_service.create_shared_reminder(
                     creator_account_id=creator,
                     receiver_account_ids=resolved,
                     title=_optional_str(params.get("title") or params.get("content")),
-                    local_trigger_at=_optional_datetime(
-                        params.get("local_trigger_at") or params.get("trigger_time")
-                    ),
-                    captured_timezone=_timezone(params),
-                    duration_minutes=_optional_int(params.get("duration_minutes")),
+                    local_trigger_at=local_trigger_at,
+                    captured_timezone=captured_timezone,
+                    duration_minutes=duration_minutes,
                     commit_guard=_commit_guard(guard),
+                )
+                requested_interval = _requested_interval(
+                    local_trigger_at,
+                    captured_timezone=captured_timezone,
+                    duration_minutes=duration_minutes,
                 )
         except (SocialSchedulingError, ValueError) as error:
             return _social_error_outcome(error)
 
-        return _shared_reminder_create_outcome(result)
+        return _shared_reminder_create_outcome(
+            result,
+            requested_interval=requested_interval,
+        )
 
     def _cancel_shared_reminder(
         self,
@@ -150,6 +162,7 @@ class SocialSchedulingActionHandler:
         if account_id is None:
             return _missing_input("account_id")
         shared_reminder_id = _optional_str(params.get("shared_reminder_id"))
+        target: SharedReminder | None = None
         if shared_reminder_id is None:
             resolved = self._resolve_participants(account_id, params)
             if isinstance(resolved, ActionOutcome):
@@ -184,7 +197,17 @@ class SocialSchedulingActionHandler:
         except (SocialSchedulingError, ValueError) as error:
             return _social_error_outcome(error)
 
-        outcome = _shared_reminder_update_outcome(result)
+        duration_minutes = _optional_int(params.get("duration_minutes"))
+        if duration_minutes is None and target is not None:
+            duration_minutes = target.duration_minutes
+        outcome = _shared_reminder_update_outcome(
+            result,
+            requested_interval=_requested_interval(
+                local_trigger_at,
+                captured_timezone=captured_timezone,
+                duration_minutes=duration_minutes,
+            ),
+        )
         return outcome
 
     def _list_shared(self, params: Mapping[str, Any]) -> ActionOutcome:
@@ -320,7 +343,11 @@ class SocialSchedulingActionHandler:
         return candidates[0]
 
 
-def _shared_reminder_create_outcome(result: Any) -> ActionOutcome:
+def _shared_reminder_create_outcome(
+    result: Any,
+    *,
+    requested_interval: Mapping[str, Any] | None = None,
+) -> ActionOutcome:
     status = str(getattr(result, "status", "invalid"))
     data = _create_result_data(result)
     if _partial_failed(result):
@@ -339,7 +366,14 @@ def _shared_reminder_create_outcome(result: Any) -> ActionOutcome:
         return ActionOutcome(
             category="not_possible",
             status="duplicate_active",
-            data=data,
+            data={
+                **data,
+                "blocker": _blocker_fact(
+                    "duplicate_active",
+                    data["breakdown"],
+                    requested_interval=requested_interval,
+                ),
+            },
         )
     if status in {"needs_title", "needs_time", "needs_duration", "needs_participants"}:
         field = status.removeprefix("needs_")
@@ -366,18 +400,39 @@ def _shared_reminder_create_outcome(result: Any) -> ActionOutcome:
             return ActionOutcome(
                 category="not_possible",
                 status="receiver_conflict",
-                data=data,
+                data={
+                    **data,
+                    "blocker": _blocker_fact(
+                        "receiver_conflict",
+                        breakdown,
+                        requested_interval=requested_interval,
+                    ),
+                },
             )
         if breakdown.get("unreachable_participants"):
             return ActionOutcome(
                 category="not_possible",
                 status="unreachable",
-                data=data,
+                data={
+                    **data,
+                    "blocker": _blocker_fact(
+                        "unreachable",
+                        breakdown,
+                        requested_interval=requested_interval,
+                    ),
+                },
             )
         return ActionOutcome(
             category="not_possible",
             status="blocked",
-            data=data,
+            data={
+                **data,
+                "blocker": _blocker_fact(
+                    "blocked",
+                    breakdown,
+                    requested_interval=requested_interval,
+                ),
+            },
         )
     return ActionOutcome(
         category="not_possible",
@@ -386,7 +441,11 @@ def _shared_reminder_create_outcome(result: Any) -> ActionOutcome:
     )
 
 
-def _shared_reminder_update_outcome(result: Any) -> ActionOutcome:
+def _shared_reminder_update_outcome(
+    result: Any,
+    *,
+    requested_interval: Mapping[str, Any] | None = None,
+) -> ActionOutcome:
     status = str(getattr(result, "status", "invalid"))
     data = _create_result_data(result)
     if status == "rescheduled":
@@ -395,7 +454,14 @@ def _shared_reminder_update_outcome(result: Any) -> ActionOutcome:
         return ActionOutcome(
             category="not_possible",
             status="duplicate_active",
-            data=data,
+            data={
+                **data,
+                "blocker": _blocker_fact(
+                    "duplicate_active",
+                    data["breakdown"],
+                    requested_interval=requested_interval,
+                ),
+            },
         )
     if status == "needs_time":
         return ActionOutcome(
@@ -421,15 +487,40 @@ def _shared_reminder_update_outcome(result: Any) -> ActionOutcome:
             return ActionOutcome(
                 category="not_possible",
                 status="receiver_conflict",
-                data=data,
+                data={
+                    **data,
+                    "blocker": _blocker_fact(
+                        "receiver_conflict",
+                        breakdown,
+                        requested_interval=requested_interval,
+                    ),
+                },
             )
         if breakdown.get("unreachable_participants"):
             return ActionOutcome(
                 category="not_possible",
                 status="unreachable",
-                data=data,
+                data={
+                    **data,
+                    "blocker": _blocker_fact(
+                        "unreachable",
+                        breakdown,
+                        requested_interval=requested_interval,
+                    ),
+                },
             )
-        return ActionOutcome(category="not_possible", status="blocked", data=data)
+        return ActionOutcome(
+            category="not_possible",
+            status="blocked",
+            data={
+                **data,
+                "blocker": _blocker_fact(
+                    "blocked",
+                    breakdown,
+                    requested_interval=requested_interval,
+                ),
+            },
+        )
     return ActionOutcome(category="not_possible", status=status, data=data)
 
 
@@ -446,6 +537,54 @@ def _create_result_data(result: Any) -> dict[str, Any]:
         "follow_up_facts": dict(getattr(result, "follow_up_facts", {}) or {}),
     }
     return data
+
+
+def _blocker_fact(
+    kind: str,
+    breakdown: Mapping[str, Any],
+    *,
+    requested_interval: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    fact: dict[str, Any] = {
+        "kind": kind,
+        "conflicting_participants": _list_value(
+            breakdown.get("conflicting_participants")
+        ),
+        "unreachable_participants": _list_value(
+            breakdown.get("unreachable_participants")
+        ),
+        "available_participants": _list_value(breakdown.get("available_participants")),
+    }
+    if requested_interval is not None:
+        fact["requested_interval"] = dict(requested_interval)
+    return fact
+
+
+def _requested_interval(
+    local_trigger_at: datetime | None,
+    *,
+    captured_timezone: str,
+    duration_minutes: int | None,
+) -> dict[str, Any] | None:
+    if local_trigger_at is None:
+        return None
+    fact: dict[str, Any] = {
+        "local_start": local_trigger_at.isoformat(),
+        "captured_timezone": captured_timezone,
+    }
+    if duration_minutes is not None:
+        duration = int(duration_minutes)
+        fact["local_end"] = (local_trigger_at + timedelta(minutes=duration)).isoformat()
+        fact["duration_minutes"] = duration
+    return fact
+
+
+def _list_value(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return list(value)
+    if isinstance(value, tuple):
+        return list(value)
+    return []
 
 
 def _follow_up_data(result: Any) -> dict[str, Any]:

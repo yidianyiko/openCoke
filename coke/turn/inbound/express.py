@@ -15,7 +15,7 @@ from coke.llm.agno_interaction_agent import (
     _ReplySegmentStreamParser,
     _stream_text_delta,
 )
-from coke.turn.inbound.contracts import SettledOutcome
+from coke.turn.inbound.contracts import ActionOutcome, SettledOutcome
 
 if TYPE_CHECKING:
     from coke.llm.config import ZAILLMConfig
@@ -67,7 +67,7 @@ class ExpressAgent:
         )
         return _with_onboarding_guidance(
             request,
-            _segments_from_content(getattr(run_output, "content", None)),
+            _segments_from_content(getattr(run_output, "content", None), request),
         )
 
     async def render_streaming(
@@ -88,7 +88,7 @@ class ExpressAgent:
         if not hasattr(stream, "__aiter__"):
             for segment in _with_onboarding_guidance(
                 request,
-                _segments_from_content(getattr(stream, "content", None)),
+                _segments_from_content(getattr(stream, "content", None), request),
             ):
                 yield segment
             return
@@ -107,7 +107,7 @@ class ExpressAgent:
         if final_content is None:
             final_content = content_buffer
         generated_segments.extend(
-            _segments_from_content(final_content)[parser.emitted_count :]
+            _segments_from_content(final_content, request)[parser.emitted_count :]
         )
         for segment in _with_onboarding_guidance(request, tuple(generated_segments)):
             yield segment
@@ -436,6 +436,18 @@ def _system_message(request: ExpressRequest) -> str:
             "For no-action turns with no outcomes, converse from the supplied history and persona.",
             _onboarding_system_message(request),
             "Do not claim any state change not present in settled_outcome.",
+            (
+                "If the reply asserts a conflict, refusal, can't do it, "
+                "unavailability, duplicate, or blocker, include domain_claim "
+                "with domain, category, status, claim, and blocker when a "
+                "blocker kind exists; those fields must match one "
+                "settled_outcome exactly. For done/created/normal outcomes, do "
+                "not assert or domain_claim a blocker."
+            ),
+            (
+                "Do not invent a blocker justification, activity, participant, "
+                "date, or time that is absent from settled_outcome data."
+            ),
             'Return only JSON: {"type":"reply","segments":["text"]}.',
             "Text output is limited to one to three non-empty segments.",
             (
@@ -496,15 +508,43 @@ def _instructions() -> list[str]:
             "reply is 1-3 segments."
         ),
         "Never expose internal category/status names unless that is the clearest way to avoid overstating the result.",
+        (
+            "Any conflict, refusal, can't-do-it, unavailability, duplicate, or "
+            "blocker wording requires a matching domain_claim bound to a "
+            "settled_outcome category/status; otherwise do not use that wording."
+        ),
     ]
 
 
-def _segments_from_content(content: Any) -> tuple[str, ...]:
+_BLOCKER_CLAIM_VALUES = {
+    "blocker",
+    "not_possible",
+    "blocked",
+    "receiver_conflict",
+    "unreachable",
+    "duplicate_active",
+}
+_BLOCKER_OUTCOME_STATUSES = {
+    "blocked",
+    "receiver_conflict",
+    "unreachable",
+    "duplicate_active",
+}
+
+
+def _segments_from_content(
+    content: Any,
+    request: ExpressRequest | None = None,
+) -> tuple[str, ...]:
     payload = _mapping_from_content(content)
     if payload is None:
         # GLM JSON mode is not always honored for context-light converse turns.
         # Plain prose is a valid single-segment reply — Express makes no state
         # claim for converse, so there is nothing to verify or to overstate.
+        if request is not None and request.settled_outcome.outcomes:
+            raise ExpressOutputError(
+                "Express output must be structured JSON for settled_outcome"
+            )
         if isinstance(content, str) and content.strip():
             return (content.strip(),)
         raise ExpressOutputError("invalid Express output")
@@ -520,7 +560,102 @@ def _segments_from_content(content: Any) -> tuple[str, ...]:
         raise ExpressOutputError("Express output has no non-empty segments")
     if len(normalized) > 3:
         raise ExpressOutputError("Express output has too many segments")
+    _validate_domain_claim(payload, request)
     return normalized
+
+
+def _validate_domain_claim(
+    payload: Mapping[str, Any],
+    request: ExpressRequest | None,
+) -> None:
+    if request is None:
+        return
+    claim = payload.get("domain_claim")
+    if claim is None:
+        return
+    if not isinstance(claim, Mapping):
+        raise ExpressOutputError("Express domain_claim must be an object")
+    if claim.get("domain") != "social_scheduling":
+        return
+
+    matching_outcomes = _matching_claim_outcomes(
+        claim,
+        request.settled_outcome.outcomes,
+    )
+    if not matching_outcomes:
+        raise ExpressOutputError(
+            "Express social_scheduling domain_claim does not match settled_outcome"
+        )
+
+    claim_asserts_blocker = _claim_asserts_blocker(claim)
+    if not claim_asserts_blocker:
+        return
+
+    for outcome in matching_outcomes:
+        if _outcome_allows_blocker_claim(outcome, claim):
+            return
+    raise ExpressOutputError(
+        "Express blocker domain_claim is not allowed by settled_outcome"
+    )
+
+
+def _matching_claim_outcomes(
+    claim: Mapping[str, Any],
+    outcomes: Sequence[ActionOutcome],
+) -> tuple[ActionOutcome, ...]:
+    claimed_status = claim.get("status")
+    if not isinstance(claimed_status, str) or not claimed_status:
+        return ()
+    claimed_category = claim.get("category")
+    return tuple(
+        outcome
+        for outcome in outcomes
+        if outcome.status == claimed_status
+        and (
+            claimed_category is None
+            or (
+                isinstance(claimed_category, str)
+                and outcome.category == claimed_category
+            )
+        )
+    )
+
+
+def _claim_asserts_blocker(claim: Mapping[str, Any]) -> bool:
+    values = (
+        claim.get("claim"),
+        claim.get("blocker"),
+        claim.get("blocker_kind"),
+        claim.get("status"),
+        claim.get("category"),
+    )
+    return any(
+        isinstance(value, str) and value in _BLOCKER_CLAIM_VALUES for value in values
+    )
+
+
+def _outcome_allows_blocker_claim(
+    outcome: ActionOutcome,
+    claim: Mapping[str, Any],
+) -> bool:
+    if not _is_blocker_outcome(outcome):
+        return False
+    outcome_blocker = outcome.data.get("blocker")
+    if not isinstance(outcome_blocker, Mapping):
+        return True
+    expected_kind = outcome_blocker.get("kind")
+    if not isinstance(expected_kind, str) or not expected_kind:
+        return True
+    claimed_kind = claim.get("blocker") or claim.get("blocker_kind")
+    return claimed_kind == expected_kind
+
+
+def _is_blocker_outcome(outcome: ActionOutcome) -> bool:
+    if outcome.category in {"not_possible", "needs_input", "needs_confirmation"}:
+        return True
+    return outcome.status in _BLOCKER_OUTCOME_STATUSES or outcome.status.startswith(
+        ("needs_", "missing_")
+    )
 
 
 def _mapping_from_content(content: Any) -> Mapping[str, Any] | None:
