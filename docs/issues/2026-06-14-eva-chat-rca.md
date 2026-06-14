@@ -32,17 +32,33 @@ Deployed to gcp-coke (`main`) and smoke-verified on the real WeChat path:
 - **RC6** ✅ deployed + verified — fire completion; live one-time reminder fired →
   completed → retired; recurring advancement unit+integration proven.
 
-In review (implemented by Codex, not yet merged/deployed):
+Committed, reviewed, NOT merged to main:
 
 - **RC3+RC7** 🔶 friend-agenda questions route to availability_query (busy/free),
   never list_shared/titles; vague queries default to a documented today..+7d
-  window. Reviewed: in scope, 357 unit tests pass, RC2 prose hotfix not
-  regressed. Pending: finish express/social diff review → commit → deploy → smoke.
+  window. On branch `fix/friend-schedule-busy-free` (`11c65e8d`). Reviewed: in
+  scope, 357 unit tests pass, RC2 prose hotfix not regressed. NOT merged; will
+  likely need an express.py conflict resolution against the deepseek swap.
 
 Not started:
 
 - **RC4** ⬜ contextual correction misclassified as a new scheduling intent (the
-  "失忆"). Last remaining; serializes on plan.py after RC3+RC7.
+  "失忆"). Last remaining; serializes on plan.py.
+
+### Acceptance note (2026-06-15, post-1h auto check)
+
+main is green (973 unit tests) but the only NEW thing that landed on main during
+the hour is an UNRELATED, eval-backed **DeepSeek V4 swap for the `detector` and
+`express` roles** (`cad1b465`; decision recorded in
+`docs/issues/2026-06-15-deepseek-v4-replacement-investigation.md`). It is NOT yet
+deployed — production still runs GLM-5.1 + RC0–6.
+
+CRITICAL: the deepseek swap changes the models BEHIND RC0 (express rendering),
+RC1 (detector AM/PM), and RC2 (express conflict-claim + prose handling). All my
+RC0/RC1/RC2 live smokes were under GLM-5.1, so deploying main re-opens those as
+UNVERIFIED for the deployed model and requires a full real-account re-smoke. The
+RC4 task is still missing and RC3+RC7 is unmerged. Therefore the auto-acceptance
+did NOT blanket-deploy; this is the "investigate" path.
 
 Main commits: RC0 `340bca15`, RC6 `61a18629`, RC2 `fbba63bb`, RC5 `b76cc24a`,
 RC2 hotfix `cec8c5b4`, RC1 `b8b8a21e` (+ merge commits). Each fix was reviewed by
