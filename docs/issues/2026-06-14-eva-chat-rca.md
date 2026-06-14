@@ -286,6 +286,50 @@ permanently `claimed`.
 NOTE: this is a separate, larger fix than RC0 and is NOT in the RC0 Codex task.
 It should be its own change.
 
+### RC7 (NEW): "what is my friend doing [today]" has no correct capability → eva saw the wrong schedule
+
+Direct answer to the follow-up "why did eva ask olivers's schedule and see the
+wrong arrangements" (seq18: "今天oliver有什么安排？" -> "Oliver 今天有这些安排：
+开会 6:00、晚饭 19:30").
+
+The friend-facing READ surface (param_schema.py) is only:
+
+- `social_scheduling.availability_query` — requires `participant` +
+  `local_start` + `local_end`; returns busy/free windows ONLY (no titles).
+- `social_scheduling.list_shared` — optional `participant`, NO date params;
+  returns ALL active shared reminders between the two, WITH titles.
+- `reminder.list` — the requester's OWN reminders only (includes the requester's
+  `shared_projection` copies of shared reminders).
+
+There is no "query a friend's actual schedule" action, and there should not be
+one for a friend's PRIVATE reminders (privacy). So "今天oliver有什么安排" has no
+correct answer surface. Evidence that seq18 was answered from shared data, not
+olivers's real schedule:
+
+- An `availability_query` for "今天" would have reported olivers FREE today (his
+  only items are tomorrow 06-15), i.e. "今天他有空" — not a list of activities.
+- The exact output "开会 6:00 / 晚饭 19:30" matches eva's two `shared_projection`
+  rows (06-15) byte-for-byte. That output can only come from a shared-reminder
+  read (`list_shared`, or `reminder.list` surfacing eva's own shared projections),
+  presented AS olivers's personal agenda.
+
+So eva never saw olivers's schedule. She saw the shared reminders between them,
+and that read was wrong on four axes at once:
+
+1. it leaked activity titles instead of busy/free (RC3);
+2. `list_shared` has NO date filter, so the "今天" qualifier was ignored and
+   tomorrow's items were returned (RC5-class);
+3. they were rendered as "今天" though they are 06-15 (RC0, no Express clock);
+4. 开会 carried the wrong stored time 06:00 instead of 18:00 (RC1).
+
+Underlying problem: the runtime has no bounded concept of "a friend's schedule".
+A friend-schedule question falls back to whatever read the planner can map it to
+(`list_shared` / own `reminder.list`), which returns shared items, undated and
+titled, framed as the friend's agenda. The fix is product-level: define what a
+friend-schedule question may return (busy/free over a resolved date range, never
+private titles) and route such questions there, instead of letting them resolve
+to `list_shared`. This depends on RC0 (clock) and RC5 (date-range resolution).
+
 ## "Identical to olivers" explained (user's key question A)
 
 Eva's only tomorrow items are the two shared reminders co-owned with olivers, so
