@@ -470,6 +470,19 @@ def _shared_reminder_update_outcome(
             data={"field": "time", **_follow_up_data(result)},
         )
     if status == "needs_update_fields":
+        follow_up_facts = dict(getattr(result, "follow_up_facts", {}) or {})
+        if follow_up_facts.get("reason") == "no_change":
+            unchanged_data = {
+                **data,
+                "reason": "no_change",
+            }
+            if requested_interval is not None:
+                unchanged_data["requested_interval"] = dict(requested_interval)
+            return ActionOutcome(
+                category="not_possible",
+                status="unchanged",
+                data=unchanged_data,
+            )
         return ActionOutcome(
             category="needs_input",
             status=status,
@@ -877,11 +890,14 @@ def _should_detect_shared_reminder(params: Mapping[str, Any]) -> bool:
 
 def _shared_reminder_detector_text(params: Mapping[str, Any]) -> str:
     raw_text = _optional_str(params.get("raw_text") or params.get("text"))
+    time_phrase = _optional_str(params.get("time_phrase"))
     if raw_text is not None:
+        if time_phrase is not None and time_phrase not in raw_text:
+            return f"{raw_text} {time_phrase}"
         return raw_text
     parts = [
         _optional_str(params.get("title") or params.get("content")),
-        _optional_str(params.get("time_phrase")),
+        time_phrase,
     ]
     text = " ".join(part for part in parts if part)
     if text:

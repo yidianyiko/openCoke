@@ -210,6 +210,22 @@ def test_prompt_treats_shared_time_only_reschedule_as_update_without_duration() 
     assert "do not ask for duration" in system
 
 
+def test_prompt_requires_explicit_period_words_to_stay_in_time_phrase() -> None:
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+
+    SiliconFlowPlanner(client).plan(_request("不对 是晚上六点"))
+
+    system = client.calls[0]["system"]
+    assert "explicit period-of-day words" in system
+    assert "keep the period word attached to the time_phrase" in system
+    assert "晚上/下午/上午/早上/中午" in system
+
+
 def _request(text: str) -> PlanRequest:
     return PlanRequest(
         account_id="acct-1",

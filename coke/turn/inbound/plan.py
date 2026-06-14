@@ -30,7 +30,12 @@ Ownership:
 - For each domain.operation, use exactly these param keys from param_key_schema;
   do not invent key names.
 - Reminder and social detectors own precise time extraction later in Execute.
-- Keep ambiguous clock phrases or ranges (e.g. "8-9", "8点", "8到9点") verbatim in the time param; do NOT resolve AM/PM or dates in Plan — the detector picks the plausible near-future reading in Execute.
+- For time phrases with explicit period-of-day words (晚上/下午/上午/早上/中午,
+  evening/afternoon/morning/noon), keep the period word attached to the time_phrase;
+  never strip the phrase down to a bare clock.
+- Keep ambiguous clock phrases or ranges with no explicit period marker (e.g.
+  "8-9", "8点", "8到9点") verbatim in the time param; do NOT resolve AM/PM or
+  dates in Plan — the detector picks the plausible near-future reading in Execute.
 - For reminder.list schedule/list/count requests scoped to a day (e.g. 今天,
   明天, 后天, 周一, 6月15日, 2026-06-15), put the natural day/date text in
   date_phrase. Do NOT put a day/date phrase in keyword, and do NOT compute

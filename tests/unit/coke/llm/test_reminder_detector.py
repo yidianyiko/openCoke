@@ -161,6 +161,45 @@ def test_extract_prompt_requires_full_local_wall_clock_time_in_captured_timezone
     )
 
 
+class ExplicitPeriodAuthoritativeClient:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def complete_json(self, *, system: str, user: dict, schema_name: str):
+        self.calls.append({"system": system, "user": user, "schema_name": schema_name})
+        assert user["text"] == "明天晚上六点开会"
+        assert "晚上六点" in user["text"]
+        hour = 18 if "Explicit period-of-day markers are authoritative" in system else 6
+        return {
+            "content": "开会",
+            "trigger_time": datetime(
+                2026,
+                6,
+                15,
+                hour,
+                0,
+                tzinfo=ZoneInfo(user["captured_timezone"]),
+            ).isoformat(),
+            "recurrence_rule": {},
+            "duration_minutes": 30,
+            "kind": "shared_projection",
+        }
+
+
+def test_extract_honors_explicit_evening_marker_over_near_future_heuristic():
+    detector = SiliconFlowReminderDetector(ExplicitPeriodAuthoritativeClient())
+
+    fields = detector.extract(
+        "明天晚上六点开会",
+        "Asia/Shanghai",
+        datetime(2026, 6, 14, 18, 3, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+
+    assert fields.trigger_time == datetime(
+        2026, 6, 15, 18, 0, tzinfo=ZoneInfo("Asia/Shanghai")
+    )
+
+
 def test_extract_prompt_includes_field_specific_few_shot_boundaries():
     client = FakeJSONClient(
         {
