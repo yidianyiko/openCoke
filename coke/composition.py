@@ -66,7 +66,11 @@ from coke.infra.redis import (
 )
 from coke.infra.tracing import ensure_traceparent
 from coke.llm.agno_interaction_agent import AgnoInteractionAgent
-from coke.llm.config import SiliconFlowMediaConfig, ZAILLMConfig
+from coke.llm.config import (
+    TEXT_PROVIDER_DEEPSEEK,
+    SiliconFlowMediaConfig,
+    ZAILLMConfig,
+)
 from coke.llm.media_text import (
     MediaTextResolver,
     SiliconFlowAsrClient,
@@ -1641,12 +1645,25 @@ def _llm_from_settings(settings: Settings):
         )
     if not settings.zai_api_key:
         raise ConfigurationError("ZAI_API_KEY is required for LLM composition")
+    if (
+        TEXT_PROVIDER_DEEPSEEK
+        in {settings.detector_provider, settings.express_provider}
+        and not settings.deepseek_api_key
+    ):
+        raise ConfigurationError(
+            "DEEPSEEK_API_KEY is required for DeepSeek LLM composition"
+        )
     llm_config = ZAILLMConfig(
         api_key=settings.zai_api_key,
         base_url=settings.zai_base_url,
+        deepseek_api_key=settings.deepseek_api_key,
+        deepseek_base_url=settings.deepseek_base_url,
         interaction_model=settings.interaction_model,
         planner_model=settings.planner_model,
+        detector_provider=settings.detector_provider,
         detector_model=settings.detector_model,
+        express_provider=settings.express_provider,
+        express_model=settings.express_model,
         interaction_timeout_s=settings.interaction_timeout_s,
         agno_database_url=settings.agno_database_url,
         agno_create_schema=settings.agno_create_schema,
@@ -1831,7 +1848,9 @@ def _social_scheduling_outcome_from_command(
     blocker: str | None = None,
 ) -> dict[str, Any]:
     context = _optional_context(command.get("context")) or {}
-    creator_account_id = _social_scheduling_account_id_from_command(command) or "unknown"
+    creator_account_id = (
+        _social_scheduling_account_id_from_command(command) or "unknown"
+    )
     unresolved_reference = _unresolved_friend_reference(command, context)
     reference = (
         unresolved_reference

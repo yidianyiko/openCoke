@@ -238,7 +238,7 @@ def test_settings_from_env_rejects_public_base_url_query_for_production(
 
 def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     from coke.config import Settings
-    from coke.llm.config import ZAI_BASE_URL
+    from coke.llm.config import DEEPSEEK_BASE_URL, ZAI_BASE_URL
 
     monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
     monkeypatch.setenv("REDIS_URL", REDIS_URL)
@@ -246,10 +246,14 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_API_KEY", "evolution-key")
     monkeypatch.setenv("COKE_PROVIDER_EVOLUTION_INSTANCE", "coke")
     monkeypatch.setenv("ZAI_API_KEY", "zai-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-key")
     monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
     monkeypatch.setenv("COKE_INTERACTION_MODEL", "custom/interaction")
     monkeypatch.setenv("COKE_PLANNER_MODEL", "custom/planner")
+    monkeypatch.setenv("COKE_DETECTOR_PROVIDER", "deepseek")
     monkeypatch.setenv("COKE_DETECTOR_MODEL", "custom/detector")
+    monkeypatch.setenv("COKE_EXPRESS_PROVIDER", "deepseek")
+    monkeypatch.setenv("COKE_EXPRESS_MODEL", "custom/express")
     monkeypatch.delenv("COKE_INTERACTION_TIMEOUT_S", raising=False)
     monkeypatch.setenv("COKE_GOOGLE_CLIENT_ID", "google-client")
     monkeypatch.setenv("COKE_GOOGLE_CLIENT_SECRET", "google-secret")
@@ -269,10 +273,15 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     assert settings.evolution_instance == "coke"
     assert settings.zai_api_key == "zai-key"
     assert settings.zai_base_url == ZAI_BASE_URL
+    assert settings.deepseek_api_key == "deepseek-key"
+    assert settings.deepseek_base_url == DEEPSEEK_BASE_URL
     assert settings.siliconflow_api_key == "sf-key"
     assert settings.interaction_model == "custom/interaction"
     assert settings.planner_model == "custom/planner"
+    assert settings.detector_provider == "deepseek"
     assert settings.detector_model == "custom/detector"
+    assert settings.express_provider == "deepseek"
+    assert settings.express_model == "custom/express"
     assert settings.interaction_timeout_s == 45.0
     assert settings.google_client_id == "google-client"
     assert settings.google_client_secret == "google-secret"
@@ -369,6 +378,7 @@ def test_settings_from_env_allows_fake_llm_without_model_keys(monkeypatch):
 
     assert settings.llm_fake is True
     assert settings.zai_api_key is None
+    assert settings.deepseek_api_key is None
     assert settings.siliconflow_api_key is None
 
 
@@ -385,6 +395,31 @@ def test_settings_from_env_requires_zai_key_for_real_llm(monkeypatch):
     monkeypatch.delenv("ZAI_API_KEY", raising=False)
 
     with pytest.raises(ConfigurationError, match="ZAI_API_KEY"):
+        Settings.from_env()
+
+
+@pytest.mark.parametrize(
+    "role_provider_env",
+    ["COKE_DETECTOR_PROVIDER", "COKE_EXPRESS_PROVIDER"],
+)
+def test_settings_from_env_requires_deepseek_key_for_production_deepseek_roles(
+    monkeypatch,
+    role_provider_env,
+):
+    from coke.config import ConfigurationError, Settings
+
+    monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
+    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("COKE_PUBLIC_BASE_URL", "https://coke.example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "resend-key")
+    monkeypatch.setenv("ZAI_API_KEY", "zai-key")
+    monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
+    monkeypatch.setenv(role_provider_env, "deepseek")
+    monkeypatch.delenv("COKE_LLM_FAKE", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError, match="DEEPSEEK_API_KEY"):
         Settings.from_env()
 
 
