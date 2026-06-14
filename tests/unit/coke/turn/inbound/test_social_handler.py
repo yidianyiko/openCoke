@@ -602,6 +602,81 @@ def test_update_shared_reminder_time_phrase_uses_detector_and_preserves_duration
     assert guard.staged == []
 
 
+def test_update_shared_reminder_detector_text_preserves_period_word_from_time_phrase() -> (
+    None
+):
+    service = StubSocialSchedulingService()
+
+    def extract(text: str, captured_timezone: str, now: datetime) -> SimpleNamespace:
+        assert "晚上六点" in text
+        return SimpleNamespace(trigger_time=datetime(2026, 6, 11, 18, 0))
+
+    service.detector = SimpleNamespace(extract=extract)
+    service.update_result = SimpleNamespace(
+        status="rescheduled",
+        shared_reminder=_shared_reminder("sr-1"),
+        projections=[],
+        breakdown={},
+        follow_up_facts={},
+    )
+    guard = RecordingGuard()
+
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
+        _compiled(
+            "update_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "match": "deck",
+                "raw_text": "开会",
+                "time_phrase": "明天晚上六点",
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert service.calls[-1][1]["local_trigger_at"] == datetime(2026, 6, 11, 18, 0)
+
+
+def test_update_shared_reminder_no_change_correction_surfaces_unchanged_outcome() -> (
+    None
+):
+    service = StubSocialSchedulingService()
+    service.update_result = SimpleNamespace(
+        status="needs_update_fields",
+        shared_reminder=_shared_reminder("sr-1"),
+        projections=[],
+        breakdown={},
+        follow_up_facts={"missing": "time_or_duration", "reason": "no_change"},
+    )
+    guard = RecordingGuard()
+
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(service),
+        _compiled(
+            "update_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "match": "deck",
+                "local_trigger_at": LOCAL_TRIGGER.isoformat(),
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "not_possible"
+    assert outcome.status == "unchanged"
+    assert outcome.data["reason"] == "no_change"
+    assert outcome.data["shared_reminder"]["local_trigger_at"] == (
+        LOCAL_TRIGGER.isoformat()
+    )
+
+
 def test_update_shared_reminder_conflict_stages_nothing() -> None:
     service = StubSocialSchedulingService()
     service.update_result = SimpleNamespace(
