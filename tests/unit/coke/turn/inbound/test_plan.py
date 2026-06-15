@@ -698,3 +698,30 @@ def test_planner_prompt_forbids_generic_reminder_match_keyword():
 
     assert "never the generic word" in TURN_PLANNER_SYSTEM_PROMPT
     assert "OMIT `match`" in TURN_PLANNER_SYSTEM_PROMPT
+
+
+def test_personal_focus_anchors_bare_time_followup_to_personal_reminder() -> None:
+    """Scenario C: after creating a shared reminder and then a personal reminder,
+    a bare time follow-up must be framed to continue the (newer) personal
+    reminder, not the earlier shared meeting."""
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+    focus_subject = {
+        "subject_type": "reminder",
+        "object_ids": ["rem-water"],
+        "ordered": True,
+        "title": "喝水",
+    }
+
+    SiliconFlowPlanner(client).plan(_request("改成10点吧", focus_subject=focus_subject))
+
+    system = client.calls[0]["system"]
+    assert "Most recently you set up: the personal reminder" in system
+    assert "「喝水」" in system
+    assert "continues that same personal reminder" in system
+    assert "do not switch to a shared reminder" in system
+    assert client.calls[0]["user"]["focus_subject"]["title"] == "喝水"

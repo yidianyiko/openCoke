@@ -552,6 +552,7 @@ class ReminderLifecycleFocusRepository:
                     subject_type="reminder",
                     object_ids=(reminder.id,),
                     ordered=True,
+                    title=getattr(reminder, "content", None),
                 ),
                 _utc_datetime(getattr(event, "created_at", None)),
             )

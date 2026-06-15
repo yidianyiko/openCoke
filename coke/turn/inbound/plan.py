@@ -486,20 +486,36 @@ def _system_prompt_with_focus_subject(
     system_prompt: str,
     focus_subject: Mapping[str, Any] | None,
 ) -> str:
-    if focus_subject is None or focus_subject.get("subject_type") != "shared_reminder":
+    if focus_subject is None:
         return system_prompt
-    friend_name = _optional_focus_text(focus_subject.get("friend_name"))
-    title = _optional_focus_text(focus_subject.get("title"))
-    if friend_name is None or title is None:
-        return system_prompt
-    return (
-        system_prompt
-        + "\n\n"
-        + "Most recently you set up: the shared reminder "
-        + f"「{title}」 with friend {friend_name}. "
-        + "A bare time/duration-only follow-up continues that same shared reminder "
-        + "and the same friend; do not switch to another person mentioned earlier."
-    )
+    subject_type = focus_subject.get("subject_type")
+    if subject_type == "shared_reminder":
+        friend_name = _optional_focus_text(focus_subject.get("friend_name"))
+        title = _optional_focus_text(focus_subject.get("title"))
+        if friend_name is None or title is None:
+            return system_prompt
+        return (
+            system_prompt
+            + "\n\n"
+            + "Most recently you set up: the shared reminder "
+            + f"「{title}」 with friend {friend_name}. "
+            + "A bare time/duration-only follow-up continues that same shared reminder "
+            + "and the same friend; do not switch to another person, or to a personal "
+            + "reminder, mentioned earlier."
+        )
+    if subject_type == "reminder":
+        title = _optional_focus_text(focus_subject.get("title"))
+        if title is None:
+            return system_prompt
+        return (
+            system_prompt
+            + "\n\n"
+            + "Most recently you set up: the personal reminder "
+            + f"「{title}」 (just for the user, no friend). "
+            + "A bare time/duration-only follow-up continues that same personal reminder; "
+            + "do not switch to a shared reminder or a friend's meeting mentioned earlier."
+        )
+    return system_prompt
 
 
 def _optional_focus_text(value: Any) -> str | None:
