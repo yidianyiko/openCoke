@@ -26,7 +26,13 @@ REPLY_NECESSITIES: set[ReplyNecessity] = {
 
 TURN_PLANNER_SYSTEM_PROMPT = """
 Plan this Coke turn. Do not use keyword or regex routing.
-Return only JSON with actions and reply_necessity.
+Return a single turn_plan JSON object and nothing else.
+The top-level keys must be exactly actions and reply_necessity.
+Do not add extra top-level keys.
+Do not array-wrap the turn_plan object. Do not include prose or markdown fences.
+Each action.params object must use exactly the keys from param_key_schema for its
+domain.operation: all required keys that apply plus only applicable optional keys,
+and never extra keys.
 
 Ownership:
 - Plan proposes a flat ordered list of requested actions.

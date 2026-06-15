@@ -183,6 +183,31 @@ def test_extract_prompt_requires_empty_recurrence_object_for_non_recurring_items
     )
 
 
+def test_extract_prompt_requires_single_object_or_array_only_shape():
+    client = FakeJSONClient(
+        {
+            "content": "pay rent",
+            "trigger_time": "2026-06-01T09:00:00+09:00",
+            "recurrence_rule": {},
+            "duration_minutes": 30,
+            "kind": "timed",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    detector.extract(
+        "remind me to pay rent", "Asia/Tokyo", datetime(2026, 5, 30, 10, 0, tzinfo=UTC)
+    )
+
+    system = client.calls[0]["system"]
+    assert "Return exactly one of these top-level JSON shapes" in system
+    assert "a single JSON object for one reminder" in system
+    assert "a JSON array of reminder objects for multiple reminders" in system
+    assert "Do not return scalar values" in system
+    assert "Do not add wrapper keys" in system
+    assert "Do not include prose or markdown fences" in system
+
+
 def test_extract_prompt_requires_full_local_wall_clock_time_in_captured_timezone():
     client = FakeJSONClient(
         {

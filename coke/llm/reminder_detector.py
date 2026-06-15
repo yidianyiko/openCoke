@@ -125,6 +125,11 @@ def _detected_fields_from_payload(payload: Mapping[str, Any]) -> DetectedReminde
 def _system_prompt() -> str:
     return (
         "Extract precise reminder fields for Coke. Return only trusted JSON. "
+        "Return exactly one of these top-level JSON shapes and nothing else: "
+        "a single JSON object for one reminder, or a JSON array of reminder "
+        "objects for multiple reminders. Do not return scalar values. "
+        "Do not add wrapper keys such as reminders or data. Do not include "
+        "prose or markdown fences. "
         "Use {} for one-time or non-recurring reminders; recurrence_rule must never be null. "
         "Interpret reminder dates and times in captured_timezone. The provided "
         "now value is the authoritative current datetime in captured_timezone. "

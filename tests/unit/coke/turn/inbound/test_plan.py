@@ -279,6 +279,28 @@ def test_prompt_and_payload_expose_allowed_shape_without_precise_extraction() ->
     }
 
 
+def test_prompt_requires_single_turn_plan_object_shape() -> None:
+    client = StubJSONClient(
+        {
+            "actions": [],
+            "reply_necessity": "reply_needed",
+        }
+    )
+
+    SiliconFlowPlanner(client).plan(_request("提醒我明天9点跑步"))
+
+    system = client.calls[0]["system"]
+    assert "Return a single turn_plan JSON object" in system
+    assert "top-level keys must be exactly actions and reply_necessity" in system
+    assert "Do not add extra top-level keys" in system
+    assert "Do not array-wrap the turn_plan object" in system
+    assert (
+        "Each action.params object must use exactly the keys from param_key_schema"
+        in system
+    )
+    assert "Do not include prose or markdown fences" in system
+
+
 def test_prompt_requires_iana_timezone_for_settings_timezone_text() -> None:
     client = StubJSONClient(
         {
