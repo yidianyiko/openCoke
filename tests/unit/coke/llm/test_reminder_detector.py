@@ -232,6 +232,37 @@ def test_extract_prompt_requires_full_local_wall_clock_time_in_captured_timezone
     )
 
 
+def test_extract_prompt_requires_positive_duration_for_concrete_timed_items():
+    client = FakeJSONClient(
+        {
+            "content": "出门",
+            "trigger_time": "2026-06-14T16:00:00+08:00",
+            "recurrence_rule": {},
+            "duration_minutes": 5,
+            "kind": "timed",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    detector.extract(
+        "过20分钟提醒我出门",
+        "Asia/Shanghai",
+        datetime(2026, 6, 14, 15, 40, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+
+    system = client.calls[0]["system"]
+    assert (
+        "For every timed or recurring reminder with a concrete trigger_time, "
+        "duration_minutes must be a positive integer and must never be null"
+    ) in system
+    assert "When trigger_time is null because the time phrase is vague" in system
+    assert client.calls[0]["user"]["schema"]["duration_minutes"] == (
+        "positive integer estimated minutes for timed or recurring reminder tasks "
+        "with concrete trigger_time; null only when no concrete trigger_time or "
+        "no reminder item is present"
+    )
+
+
 def test_extract_prompt_treats_chinese_weeks_as_monday_start():
     client = FakeJSONClient(
         {

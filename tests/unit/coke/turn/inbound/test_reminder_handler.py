@@ -766,9 +766,13 @@ def test_create_detector_output_error_returns_typed_failure_without_service_writ
     assert guard.staged == []
 
 
-def test_create_missing_duration_keeps_existing_guard_before_real_write() -> None:
+def test_create_missing_detector_duration_estimates_before_real_write() -> None:
     service = StubReminderService()
-    detector = StubDetector(_detected(duration_minutes=None))
+    service.batch_result = ReminderBatchResult(
+        owner_account_id="acct-1",
+        items=[_succeeded_item("real-r1")],
+    )
+    detector = StubDetector(_detected(content="出门", duration_minutes=None))
     guard = RecordingGuard()
 
     outcome = _execute(
@@ -777,21 +781,66 @@ def test_create_missing_duration_keeps_existing_guard_before_real_write() -> Non
             "create",
             {
                 "owner_account_id": "acct-1",
-                "content": "take meds",
-                "time_phrase": "tomorrow 9",
-                "captured_timezone": "Asia/Tokyo",
+                "captured_timezone": "Asia/Shanghai",
+                "_current_input_text": "过20分钟提醒我出门",
             },
         ),
         guard,
     )
 
-    assert outcome == ActionOutcome(
-        category="not_possible",
-        status="missing_duration_minutes",
-        data={"field": "duration_minutes"},
+    assert outcome.category == "done"
+    assert outcome.status == "created"
+    assert [call[0] for call in service.calls] == ["execute_batch"]
+    item = service.calls[0][1]["items"][0]
+    assert item.content == "出门"
+    assert item.duration_minutes == 5
+    assert service.mutation_calls == ["execute_batch"]
+    assert guard.staged == []
+
+
+def test_create_absolute_time_without_detected_duration_creates_real_reminder() -> None:
+    shanghai = ZoneInfo("Asia/Shanghai")
+    now = datetime(2026, 6, 14, 12, 0, tzinfo=shanghai)
+    repository = InMemoryReminderRepository()
+    service = ReminderService(
+        repository=repository,
+        now=lambda: now,
+        id_factory=_sequence_factory("duration_fallback"),
     )
-    assert service.calls == []
-    assert service.mutation_calls == []
+    detector = StubDetector(
+        DetectedReminderFields(
+            content="交报告",
+            trigger_time=datetime(2026, 6, 14, 15, 0, tzinfo=shanghai),
+            recurrence_rule={},
+            duration_minutes=None,
+            kind="timed",
+        )
+    )
+    handler = ReminderActionHandler(service, detector, now=lambda: now)
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        handler,
+        _compiled(
+            "create",
+            {
+                "owner_account_id": "acct-1",
+                "captured_timezone": "Asia/Shanghai",
+                "_current_input_text": "下午3点提醒我交报告",
+            },
+        ),
+        guard,
+    )
+
+    reminders = repository.list_reminders("acct-1")
+    assert outcome.category == "done"
+    assert outcome.status == "created"
+    assert len(reminders) == 1
+    assert reminders[0].content == "交报告"
+    assert reminders[0].next_fire_at.astimezone(shanghai) == datetime(
+        2026, 6, 14, 15, 0, tzinfo=shanghai
+    )
+    assert reminders[0].duration_minutes == 5
     assert guard.staged == []
 
 

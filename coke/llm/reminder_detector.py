@@ -179,13 +179,15 @@ def _system_prompt() -> str:
         "needs_time clarification. In a follow-up loop, a follow-up that only "
         "supplies the missing time may complete the recently requested reminder; "
         "a new topic does not reopen an already-confirmed reminder. "
-        "duration_minutes must be a positive integer estimate for reminder "
-        "tasks. Use an explicit duration or time range when present; when "
-        "the user omits duration, infer a reasonable approximate duration "
-        "from the task content and context instead of leaving it null or "
-        "using a fixed default. Do not repair output with regex, hardcode "
-        "duration defaults, or "
-        "rewrite past/incomplete times."
+        "For every timed or recurring reminder with a concrete trigger_time, "
+        "duration_minutes must be a positive integer and must never be null. "
+        "Use an explicit duration or time range when present; when the user "
+        "omits duration, infer a reasonable approximate duration from the task "
+        "content and context instead of leaving it null or using a fixed "
+        "default. When trigger_time is null because the time phrase is vague, "
+        "keep duration_minutes null so the domain clarifies time instead of "
+        "duration. Do not repair output with regex, hardcode duration defaults, "
+        "or rewrite past/incomplete times."
     )
 
 
@@ -197,7 +199,11 @@ def _schema_prompt() -> dict[str, str]:
             "object; use {} for non-recurring reminders; recurring shape is "
             "{'frequency':'hourly|daily|weekly|monthly|yearly','interval':positive integer}; never null"
         ),
-        "duration_minutes": "positive integer estimated minutes for reminder tasks; null only when no reminder item is present",
+        "duration_minutes": (
+            "positive integer estimated minutes for timed or recurring reminder tasks "
+            "with concrete trigger_time; null only when no concrete trigger_time or "
+            "no reminder item is present"
+        ),
         "kind": "timed|no_trigger_time|recurring|proactive|shared_projection|null",
     }
 

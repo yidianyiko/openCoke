@@ -18,6 +18,10 @@ from coke.llm.json_completion import LLMOutputError
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
 from coke.turn.inbound.date_windows import DateWindow, resolve_date_phrase_window
 
+_SHORT_ESTIMATED_DURATION_MINUTES = 5
+_MEDIUM_ESTIMATED_DURATION_MINUTES = 15
+_LONG_ESTIMATED_DURATION_MINUTES = 30
+
 
 class ReminderActionHandler:
     def __init__(
@@ -355,7 +359,7 @@ class ReminderActionHandler:
             trigger_time=trigger_time,
             captured_timezone=timezone,
             recurrence_rule=dict(detected.recurrence_rule),
-            duration_minutes=detected.duration_minutes,
+            duration_minutes=_duration_minutes_for_detected(detected, content),
             kind=detected.kind,
             entry_point="turn_pipeline",
         )
@@ -401,7 +405,10 @@ class ReminderActionHandler:
                         trigger_time=_trigger_time(detected.trigger_time, timezone),
                         captured_timezone=timezone,
                         recurrence_rule=dict(detected.recurrence_rule),
-                        duration_minutes=detected.duration_minutes,
+                        duration_minutes=_duration_minutes_for_detected(
+                            detected,
+                            detected.content or content,
+                        ),
                         kind=detected.kind,
                         entry_point="turn_pipeline",
                         turn_id=turn_id,
@@ -580,6 +587,37 @@ def _invalid_detector_output(*, item_index: int | None = None) -> ActionOutcome:
         status="invalid_detector_output",
         data=data,
     )
+
+
+def _duration_minutes_for_detected(
+    detected: DetectedReminderFields,
+    content: str | None,
+) -> int | None:
+    if detected.duration_minutes is not None or detected.trigger_time is None:
+        return detected.duration_minutes
+    return _estimated_duration_minutes(content)
+
+
+def _estimated_duration_minutes(content: str | None) -> int:
+    normalized = " ".join((content or "").split())
+    if not normalized:
+        return _MEDIUM_ESTIMATED_DURATION_MINUTES
+
+    visible_chars = sum(1 for char in normalized if not char.isspace())
+    cjk_chars = sum(1 for char in normalized if "\u4e00" <= char <= "\u9fff")
+    if cjk_chars:
+        if visible_chars <= 4:
+            return _SHORT_ESTIMATED_DURATION_MINUTES
+        if visible_chars <= 12:
+            return _MEDIUM_ESTIMATED_DURATION_MINUTES
+        return _LONG_ESTIMATED_DURATION_MINUTES
+
+    word_count = len(normalized.split())
+    if word_count <= 3:
+        return _SHORT_ESTIMATED_DURATION_MINUTES
+    if word_count <= 8:
+        return _MEDIUM_ESTIMATED_DURATION_MINUTES
+    return _LONG_ESTIMATED_DURATION_MINUTES
 
 
 def _item_data(item: ReminderItemResult) -> dict[str, Any]:
