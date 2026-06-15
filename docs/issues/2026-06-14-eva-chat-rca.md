@@ -44,6 +44,24 @@ Implementation closeout:
   today's active future items and excludes past/completed pollution.
 - **RC6** ✅ fixed + deployed + verified — one-time reminder fire produced a
   delivered `reminder_fire`, `fire_state='completed'`, and retired the reminder.
+- **RC8** ✅ fixed + deployed + verified (`0bcf28db`, deployed 2026-06-15) —
+  multi-turn shared follow-up role/recency mis-attribution. When an earlier
+  friend (李梓豪) was mentioned and then a shared reminder was created with a
+  different friend ("约eva明天晚上八点开会"), a bare follow-up ("约六点吧") used to
+  re-bind to the more salient *earlier* friend, leaving the eva 开会 un-moved
+  (and surfacing a phantom self-conflict). Root cause: the planner recency anchor
+  `last_rendered_subject` read only `reminder.lifecycle` + the personal
+  `reminder` table, so a shared create emitted no focus subject — the LLM had no
+  data on which friend was recent. Fix is a lean read-only extension:
+  `ReminderLifecycleFocusRepository` now also reads the most-recent active shared
+  reminder for the account and returns whichever is newer, typed as
+  `subject_type="shared_reminder"` carrying the non-self friend's display name and
+  title; the planner presents this as a dynamic role/identity line so a bare
+  time/duration follow-up continues the same shared reminder and same friend. No
+  worker/migration/architecture change. The reschedule self-conflict was a
+  symptom — `update_shared_reminder` already excludes the moved reminder — so the
+  conflict logic was unchanged and a regression test pins the 20:00→18:00 no-self-
+  conflict behavior.
 
 Verification:
 
@@ -56,6 +74,20 @@ Verification:
 - `bash scripts/deploy-compose-to-gcp.sh`
   → clean deploy health checks passed; `/healthz` returned `{"ok": true}` and
   remote `.deployed-sha` matched `47b525ae433f0dc89e319f5b1ef3000a91d5d952`.
+- RC8: `.venv/bin/python -m pytest tests/unit/coke/turn tests/unit/coke/social_scheduling tests/unit/coke/reminder -q`
+  → `351 passed, 1 skipped`; `zsh scripts/verify-surface clean-rebuild-backend`
+  → `1037 passed, 1 skipped`. Deployed `0bcf28db`, clean deploy health checks
+  passed.
+
+RC8 production smoke (2026-06-15, olivers WeChat, 3 clean runs of
+李梓豪有空? → 约eva明天晚上八点开会 → 约六点吧), was 0/3 before, now **3/3**:
+
+- RUN 1: 开会 durable `06-16 18:00 active`; reply "把你的会从晚上8点改到明天晚上6点了".
+- RUN 2: 开会 durable `06-16 18:00 active`; reply "已经把和Eva的开会改到明天晚上6点了".
+- RUN 3: 开会 durable `06-16 18:00 active`; reply "改到明天晚上6点…会提醒你和Eva".
+
+The follow-up now reschedules the **eva** 开会 to 18:00 and names Eva — no
+re-bind to 梓豪 and no phantom self-conflict.
 
 Production smoke evidence:
 
