@@ -62,7 +62,6 @@ from scripts.smoke.clean_smoke import (
     SmokeVerdictError,
     _http_json,
     http_get_json,
-    http_post_json,
 )
 from scripts.smoke.v6_cases import CASES, V6Case, case_by_id
 
@@ -257,6 +256,58 @@ class V6WeChatSmoke:
         self.db: CleanSmokeDb | None = None
         self._friend_by_alias: dict[str, WeChatIdentity] = {}
         self._friend_cursor = 0
+        self._session_tokens: dict[str, str] = {}
+
+    # ---- Auth (fixture seeding) -------------------------------------------
+    def _bearer(self, account_id: str) -> str:
+        """Mint (and cache) a real session token for ``account_id`` so the
+        auth-gated customer REST fixture APIs accept the seeding calls. The
+        ``session.token_hash`` column stores the raw token, so a direct insert
+        is a valid bearer (matches ``get_session_by_token``)."""
+        token = self._session_tokens.get(account_id)
+        if token is not None:
+            return token
+        assert self.db is not None
+        token = f"v6smoke-session-{uuid.uuid4().hex}"
+        now = datetime.now(UTC)
+        with self.db.engine.begin() as conn:
+            conn.execute(
+                schema.session.insert().values(
+                    id=str(uuid.uuid4()),
+                    account_id=account_id,
+                    token_hash=token,
+                    expires_at=now + timedelta(days=1),
+                    revoked_at=None,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        self._session_tokens[account_id] = token
+        return token
+
+    def _auth_get(self, url: str, account_id: str) -> dict[str, Any]:
+        return _http_json(
+            Request(
+                url,
+                method="GET",
+                headers={"Authorization": f"Bearer {self._bearer(account_id)}"},
+            )
+        )
+
+    def _auth_post(
+        self, url: str, payload: dict[str, Any], account_id: str
+    ) -> dict[str, Any]:
+        return _http_json(
+            Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self._bearer(account_id)}",
+                },
+            )
+        )
 
     # ---- HTTP --------------------------------------------------------------
     def _post_webhook(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -288,16 +339,18 @@ class V6WeChatSmoke:
         return self._friend_by_alias[alias]
 
     def _befriend(self, owner_account_id: str, friend_account_id: str) -> None:
-        link = http_get_json(
+        link = self._auth_get(
             f"{self.config.api_base}/api/friends/link?"
-            + urlencode({"owner_account_id": owner_account_id})
+            + urlencode({"owner_account_id": owner_account_id}),
+            owner_account_id,
         )
         link_code = link.get("link_code")
         if not isinstance(link_code, str) or not link_code:
             raise SmokeVerdictError(f"friend link returned no code: {link}")
-        http_post_json(
+        self._auth_post(
             f"{self.config.api_base}/api/friends/join",
             {"joiner_account_id": friend_account_id, "link_code": link_code},
+            friend_account_id,
         )
 
     # ---- Fixture seeding ---------------------------------------------------
@@ -315,15 +368,16 @@ class V6WeChatSmoke:
         }
         if duration is not None:
             item["duration_minutes"] = duration
-        http_post_json(
+        self._auth_post(
             f"{self.config.api_base}/api/reminders/batch",
             {"owner_account_id": owner, "items": [item]},
+            owner,
         )
 
     def _seed_shared(
         self, creator: str, friend: str, title: str, when: datetime
     ) -> None:
-        http_post_json(
+        self._auth_post(
             f"{self.config.api_base}/api/shared-reminders",
             {
                 "creator_account_id": creator,
@@ -334,6 +388,7 @@ class V6WeChatSmoke:
                 "duration_minutes": 60,
                 "context": {"source": "v6_wechat_smoke"},
             },
+            creator,
         )
 
     def _seed_fixtures(self, case: V6Case) -> None:
