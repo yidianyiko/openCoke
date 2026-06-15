@@ -33,6 +33,19 @@ class FakeDetector:
         return self.outputs.pop(0)
 
 
+class FakeMultiDetector:
+    def __init__(self, outputs):
+        self.outputs = list(outputs)
+        self.calls: list[tuple[str, str, datetime]] = []
+
+    def extract(self, text, captured_timezone, now):
+        raise LLMOutputError("invalid detected_reminder_fields shape")
+
+    def extract_many(self, text, captured_timezone, now):
+        self.calls.append((text, captured_timezone, now))
+        return self.outputs.pop(0)
+
+
 class FakeDelivery:
     def __init__(self, outcomes=None):
         self.outcomes = list(outcomes or [])
@@ -810,6 +823,71 @@ def test_batch_items_commit_independently_and_detector_output_is_trusted_or_inva
     assert [(text, timezone) for text, timezone, _ in detector.calls] == [
         ("remind me tomorrow to book dentist", "UTC"),
         ("call mom tomorrow", "UTC"),
+    ]
+
+
+def test_detect_and_create_expands_multi_detector_output_into_batch_items(repository):
+    shanghai = ZoneInfo("Asia/Shanghai")
+    detector = FakeMultiDetector(
+        [
+            [
+                DetectedReminderFields(
+                    content="看openCoke的测试结果",
+                    trigger_time=datetime(2026, 6, 15, 9, 0, tzinfo=shanghai),
+                    recurrence_rule={},
+                    duration_minutes=30,
+                    kind="timed",
+                ),
+                DetectedReminderFields(
+                    content="续订服务",
+                    trigger_time=datetime(2026, 7, 3, 14, 0, tzinfo=shanghai),
+                    recurrence_rule={},
+                    duration_minutes=45,
+                    kind="timed",
+                ),
+            ]
+        ]
+    )
+    service = ReminderService(
+        repository=repository,
+        detector=detector,
+        now=lambda: datetime(2026, 6, 14, 13, 28, tzinfo=shanghai),
+        id_factory=sequence_factory("multi_detector"),
+    )
+
+    result = service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="detect_and_create",
+                raw_text=(
+                    "下周一早上9点提醒我看openCoke的测试结果\n"
+                    "7月3号下午2点提醒我续订服务"
+                ),
+                captured_timezone="Asia/Shanghai",
+                turn_id="turn-array",
+                item_index=1,
+            )
+        ],
+    )
+
+    reminders = repository.list_active_reminders("acct_1")
+    reminders_by_content = {reminder.content: reminder for reminder in reminders}
+    assert [item.state for item in result.items] == ["succeeded", "succeeded"]
+    assert set(reminders_by_content) == {"看openCoke的测试结果", "续订服务"}
+    assert reminders_by_content["看openCoke的测试结果"].next_fire_at == datetime(
+        2026, 6, 15, 1, 0, tzinfo=UTC
+    )
+    assert reminders_by_content["看openCoke的测试结果"].duration_minutes == 30
+    assert reminders_by_content["续订服务"].next_fire_at == datetime(
+        2026, 7, 3, 6, 0, tzinfo=UTC
+    )
+    assert reminders_by_content["续订服务"].duration_minutes == 45
+    assert [(text, timezone) for text, timezone, _ in detector.calls] == [
+        (
+            "下周一早上9点提醒我看openCoke的测试结果\n7月3号下午2点提醒我续订服务",
+            "Asia/Shanghai",
+        )
     ]
 
 

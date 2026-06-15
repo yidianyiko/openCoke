@@ -4,13 +4,35 @@
 
 **Goal:** Prevent detector JSON shape quirks from crashing reminder create turns and ensure coalesced two-reminder create input creates both reminders.
 
-**Architecture:** Keep the existing semantic Planner -> Execute -> Express shape. Strengthen planner guidance and corpus coverage so multiple create requests become `reminder.batch_create` items, then keep each detector call scoped to one item. Add a narrow detector parser tolerance for a single object wrapped in a top-level array; do not accept multi-object arrays as a single detector result because batch ownership belongs at the planner/action layer.
+**Architecture:** Keep the existing semantic Planner -> Execute -> Express shape. Planner guidance and corpus coverage still prefer multiple create requests as `reminder.batch_create` items, but Execute must not depend on the planner reliably splitting. The detector now has both a single-result API (`extract`) and an explicit multi-result API (`extract_many`). Create, batch-create, and domain `detect_and_create` flatten valid detector arrays into existing `ReminderBatchItem`s, while malformed detector output still becomes `invalid_detector_output`.
 
 **Tech Stack:** Python, pytest, Coke clean turn runtime, reminder detector JSON client, reminder inbound handler.
 
 ---
 
 Plan Status: completed
+
+### Follow-up: Multi-Object Detector Array Is Valid Batch Input
+
+Live verification against deployed `364c61b9` showed that the original
+planner-first design was insufficient: DeepSeek can return a valid multi-object
+detector array for a coalesced two-reminder create, and the planner does not
+reliably split first.
+
+- [x] Add a handler-level red test where the actual JSON completion parser sees
+  a two-object `detected_reminder_fields` array and one create action creates
+  both reminders.
+- [x] Add a service-level red test where one `detect_and_create` item expands a
+  two-field detector result into two batch item results.
+- [x] Add `AgnoJSONCompletionClient.complete_json_list()` without weakening
+  `complete_json()` single-mapping behavior.
+- [x] Add `SiliconFlowReminderDetector.extract_many()` and keep `extract()` as a
+  single-result API.
+- [x] Flatten multi-detected fields in reminder create, batch-create, and domain
+  `detect_and_create` paths.
+- [x] Run the user-requested unit command.
+- [x] Run `black . && isort .`; revert formatter-only churn outside scope.
+- [x] Commit the follow-up fix.
 
 ### Task 1: Pin Detector Array Tolerance
 

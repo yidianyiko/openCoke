@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from itertools import count
+from types import SimpleNamespace
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from coke.domains.reminder.models import (
     DetectedReminderFields,
@@ -12,7 +14,8 @@ from coke.domains.reminder.models import (
 )
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
-from coke.llm.json_completion import LLMOutputError
+from coke.llm.json_completion import AgnoJSONCompletionClient, LLMOutputError
+from coke.llm.reminder_detector import SiliconFlowReminderDetector
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction, ProposedAction
 from coke.turn.inbound.handlers.reminder import (
     ReminderActionHandler,
@@ -37,6 +40,22 @@ class StubDetector:
     ) -> DetectedReminderFields:
         self.calls.append((text, captured_timezone, now))
         return self.fields
+
+
+class FakeJSONModel:
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.calls: list[dict[str, Any]] = []
+        self.id = "fake-detector"
+
+    def response(self, messages, response_format):
+        self.calls.append(
+            {
+                "messages": messages,
+                "response_format": response_format,
+            }
+        )
+        return SimpleNamespace(content=self.content)
 
 
 class RaisingDetector:
@@ -469,6 +488,71 @@ def test_create_with_current_input_text_trusts_detector_duration_over_split_para
     call = service.calls[0][1]
     item = call["items"][0]
     assert item.duration_minutes == 5
+
+
+def test_create_with_two_object_detector_array_creates_each_reminder() -> None:
+    shanghai = ZoneInfo("Asia/Shanghai")
+    now = datetime(2026, 6, 14, 13, 28, tzinfo=shanghai)
+    repository = InMemoryReminderRepository()
+    service = ReminderService(
+        repository=repository,
+        now=lambda: now,
+        id_factory=_sequence_factory("detector_array"),
+    )
+    model = FakeJSONModel("""
+        [
+          {
+            "content": "看openCoke的测试结果",
+            "trigger_time": "2026-06-15T09:00:00+08:00",
+            "recurrence_rule": {},
+            "duration_minutes": 30,
+            "kind": "timed"
+          },
+          {
+            "content": "续订服务",
+            "trigger_time": "2026-07-03T14:00:00+08:00",
+            "recurrence_rule": {},
+            "duration_minutes": 45,
+            "kind": "timed"
+          }
+        ]
+        """)
+    detector = SiliconFlowReminderDetector(AgnoJSONCompletionClient(model))
+    handler = ReminderActionHandler(service, detector, now=lambda: now)
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        handler,
+        _compiled(
+            "create",
+            {
+                "owner_account_id": "acct-1",
+                "captured_timezone": "Asia/Shanghai",
+                "_current_input_text": (
+                    "下周一早上9点提醒我看openCoke的测试结果\n"
+                    "7月3号下午2点提醒我续订服务"
+                ),
+            },
+        ),
+        guard,
+        turn_id="turn-array",
+    )
+
+    reminders = repository.list_reminders("acct-1")
+    reminders_by_content = {reminder.content: reminder for reminder in reminders}
+    assert outcome.category == "done"
+    assert outcome.status == "created"
+    assert set(reminders_by_content) == {"看openCoke的测试结果", "续订服务"}
+    assert reminders_by_content["看openCoke的测试结果"].next_fire_at.astimezone(
+        shanghai
+    ) == datetime(2026, 6, 15, 9, 0, tzinfo=shanghai)
+    assert reminders_by_content["看openCoke的测试结果"].duration_minutes == 30
+    assert reminders_by_content["续订服务"].next_fire_at.astimezone(shanghai) == (
+        datetime(2026, 7, 3, 14, 0, tzinfo=shanghai)
+    )
+    assert reminders_by_content["续订服务"].duration_minutes == 45
+    assert model.calls[0]["response_format"] == {"type": "json_object"}
+    assert guard.staged == []
 
 
 def test_create_past_time_confirmation_is_real_outcome_not_staged_success() -> None:

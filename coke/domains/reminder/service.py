@@ -68,7 +68,9 @@ class ReminderService:
         results: list[ReminderItemResult] = []
         for item in items:
             try:
-                results.append(self._execute_item(owner_account_id, item, commit_guard))
+                results.extend(
+                    self._execute_items(owner_account_id, item, commit_guard)
+                )
             except ReminderError as error:
                 results.append(
                     ReminderItemResult(
@@ -920,45 +922,79 @@ class ReminderService:
                 )
         return None
 
+    def _execute_items(
+        self,
+        owner_account_id: str,
+        item: ReminderBatchItem,
+        commit_guard: CommitGuard,
+    ) -> list[ReminderItemResult]:
+        if item.operation == "detect_and_create":
+            return [
+                self._execute_item(owner_account_id, detected_item, commit_guard)
+                for detected_item in self._detect_items(item)
+            ]
+        return [self._execute_item(owner_account_id, item, commit_guard)]
+
     def _execute_item(
         self,
         owner_account_id: str,
         item: ReminderBatchItem,
         commit_guard: CommitGuard,
     ) -> ReminderItemResult:
-        if item.operation == "detect_and_create":
-            item = self._detect_item(item)
         if item.operation != "create":
             raise ReminderError("unsupported_reminder_operation")
         return self._create(owner_account_id, item, commit_guard)
 
-    def _detect_item(self, item: ReminderBatchItem) -> ReminderBatchItem:
+    def _detect_items(self, item: ReminderBatchItem) -> list[ReminderBatchItem]:
         if self.detector is None or item.raw_text is None:
             raise ReminderError("detector_unavailable")
         try:
             detector_now = self._now().astimezone(ZoneInfo(item.captured_timezone))
-            fields: DetectedReminderFields = self.detector.extract(
-                item.raw_text,
-                item.captured_timezone,
-                detector_now,
-            )
+            extract_many = getattr(self.detector, "extract_many", None)
+            if callable(extract_many):
+                detected_fields = extract_many(
+                    item.raw_text,
+                    item.captured_timezone,
+                    detector_now,
+                )
+            else:
+                detected_fields = [
+                    self.detector.extract(
+                        item.raw_text,
+                        item.captured_timezone,
+                        detector_now,
+                    )
+                ]
         except (RuntimeError, ZoneInfoNotFoundError) as error:
             raise ReminderError("invalid_detector_output") from error
-        if not fields.content:
+        if not detected_fields:
             raise ReminderError("invalid_detector_output")
-        return ReminderBatchItem(
-            operation="create",
-            content=fields.content,
-            trigger_time=self._detected_trigger_time(fields, item.captured_timezone),
-            captured_timezone=item.captured_timezone,
-            recurrence_rule=dict(fields.recurrence_rule),
-            duration_minutes=fields.duration_minutes,
-            kind=fields.kind,
-            entry_point=item.entry_point,
-            time_state=item.time_state,
-            turn_id=item.turn_id,
-            item_index=item.item_index,
-        )
+        detected_items: list[ReminderBatchItem] = []
+        for offset, fields in enumerate(detected_fields):
+            if not fields.content:
+                raise ReminderError("invalid_detector_output")
+            item_index = (
+                item.item_index + offset if item.item_index is not None else None
+            )
+            detected_items.append(
+                ReminderBatchItem(
+                    operation="create",
+                    content=fields.content,
+                    trigger_time=self._detected_trigger_time(
+                        fields,
+                        item.captured_timezone,
+                    ),
+                    captured_timezone=item.captured_timezone,
+                    recurrence_rule=dict(fields.recurrence_rule),
+                    duration_minutes=fields.duration_minutes,
+                    kind=fields.kind,
+                    entry_point=item.entry_point,
+                    time_state=item.time_state,
+                    turn_id=item.turn_id,
+                    item_index=item_index,
+                )
+            )
+        return detected_items
 
     def _detected_trigger_time(
         self,

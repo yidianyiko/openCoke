@@ -103,30 +103,39 @@ class ReminderActionHandler:
         turn_id: str,
     ) -> ActionOutcome:
         try:
-            detected = self._extract_create_fields(
+            detected_items = self._extract_create_field_items(
                 params,
                 source_text=_optional_str(params.get("_current_input_text")),
             )
         except LLMOutputError:
             return _invalid_detector_output()
-        if detected.trigger_time is None:
-            return ActionOutcome(
-                category="needs_input",
-                status="missing_trigger_time",
-                data={"field": "trigger_time"},
+        items: list[ReminderBatchItem] = []
+        multiple_detected = len(detected_items) > 1
+        for index, detected in enumerate(detected_items, start=1):
+            if detected.trigger_time is None:
+                data: dict[str, Any] = {"field": "trigger_time"}
+                if multiple_detected:
+                    data["item_index"] = index
+                return ActionOutcome(
+                    category="needs_input",
+                    status="missing_trigger_time",
+                    data=data,
+                )
+            item = self._create_item_from_detected(
+                params,
+                detected,
+                item_index=action_index + index,
+                turn_id=turn_id,
             )
-        item = self._create_item_from_detected(
-            params,
-            detected,
-            item_index=action_index + 1,
-            turn_id=turn_id,
-        )
-        if item.trigger_time is not None and item.duration_minutes is None:
-            return _missing_duration_outcome()
+            if item.trigger_time is not None and item.duration_minutes is None:
+                return _missing_duration_outcome(
+                    item_index=index if multiple_detected else None
+                )
+            items.append(item)
         guard.guard_state_change()
         batch = self.reminder_service.execute_batch(
             owner_account_id=owner,
-            items=[item],
+            items=items,
             commit_guard=guard.guard_state_change,
         )
         return _batch_outcome_from_real_results(owner, batch)
@@ -159,23 +168,25 @@ class ReminderActionHandler:
                 )
             item_params = _batch_item_params(params, raw_item)
             try:
-                item = self._batch_item_from_params(
+                expanded_items = self._batch_items_from_params(
                     item_params,
-                    item_index=action_index + index,
+                    item_index_start=action_index + len(items) + 1,
                     turn_id=turn_id,
                     source_text=single_item_source_text,
                 )
             except LLMOutputError:
                 return _invalid_detector_output(item_index=index)
-            if item.trigger_time is None or item.time_state == "invalid":
-                return ActionOutcome(
-                    category="needs_input",
-                    status="missing_trigger_time",
-                    data={"field": "trigger_time", "item_index": index},
-                )
-            if item.duration_minutes is None:
-                return _missing_duration_outcome(item_index=index)
-            items.append(item)
+            for item in expanded_items:
+                visible_index = len(items) + 1
+                if item.trigger_time is None or item.time_state == "invalid":
+                    return ActionOutcome(
+                        category="needs_input",
+                        status="missing_trigger_time",
+                        data={"field": "trigger_time", "item_index": visible_index},
+                    )
+                if item.duration_minutes is None:
+                    return _missing_duration_outcome(item_index=visible_index)
+                items.append(item)
 
         if not items:
             return ActionOutcome(
@@ -300,12 +311,30 @@ class ReminderActionHandler:
         *,
         source_text: str | None = None,
     ) -> DetectedReminderFields:
-        timezone = _timezone(params)
-        return self.detector.extract(
-            _detector_text(params, source_text=source_text),
-            timezone,
-            self._now(),
+        detected_items = self._extract_create_field_items(
+            params,
+            source_text=source_text,
         )
+        if len(detected_items) == 1:
+            return detected_items[0]
+        raise LLMOutputError("invalid detected_reminder_fields shape")
+
+    def _extract_create_field_items(
+        self,
+        params: Mapping[str, Any],
+        *,
+        source_text: str | None = None,
+    ) -> list[DetectedReminderFields]:
+        timezone = _timezone(params)
+        text = _detector_text(params, source_text=source_text)
+        extract_many = getattr(self.detector, "extract_many", None)
+        if callable(extract_many):
+            detected_items = extract_many(text, timezone, self._now())
+        else:
+            detected_items = [self.detector.extract(text, timezone, self._now())]
+        if not detected_items:
+            raise LLMOutputError("invalid detected_reminder_fields shape")
+        return list(detected_items)
 
     def _create_item_from_detected(
         self,
@@ -331,14 +360,14 @@ class ReminderActionHandler:
             entry_point="turn_pipeline",
         )
 
-    def _batch_item_from_params(
+    def _batch_items_from_params(
         self,
         params: Mapping[str, Any],
         *,
-        item_index: int,
+        item_index_start: int,
         turn_id: str,
         source_text: str | None = None,
-    ) -> ReminderBatchItem:
+    ) -> list[ReminderBatchItem]:
         timezone = _timezone(params)
         trigger_time = _optional_datetime(params.get("trigger_time"))
         content = _optional_str(params.get("content"))
@@ -346,33 +375,54 @@ class ReminderActionHandler:
         duration_minutes = params.get("duration_minutes")
         kind = params.get("kind")
         if _has_time_phrase(params):
-            detected = self._extract_create_fields(params, source_text=source_text)
-            if detected.trigger_time is None:
-                return ReminderBatchItem(
-                    operation="create",
-                    content=content,
-                    captured_timezone=timezone,
-                    time_state="invalid",
-                    turn_id=turn_id,
-                    item_index=item_index,
+            detected_items = self._extract_create_field_items(
+                params,
+                source_text=source_text,
+            )
+            items: list[ReminderBatchItem] = []
+            for offset, detected in enumerate(detected_items):
+                item_index = item_index_start + offset
+                if detected.trigger_time is None:
+                    items.append(
+                        ReminderBatchItem(
+                            operation="create",
+                            content=content,
+                            captured_timezone=timezone,
+                            time_state="invalid",
+                            turn_id=turn_id,
+                            item_index=item_index,
+                        )
+                    )
+                    continue
+                items.append(
+                    ReminderBatchItem(
+                        operation="create",
+                        content=detected.content or content,
+                        trigger_time=_trigger_time(detected.trigger_time, timezone),
+                        captured_timezone=timezone,
+                        recurrence_rule=dict(detected.recurrence_rule),
+                        duration_minutes=detected.duration_minutes,
+                        kind=detected.kind,
+                        entry_point="turn_pipeline",
+                        turn_id=turn_id,
+                        item_index=item_index,
+                    )
                 )
-            trigger_time = _trigger_time(detected.trigger_time, timezone)
-            content = detected.content or content
-            recurrence_rule = dict(detected.recurrence_rule)
-            duration_minutes = detected.duration_minutes
-            kind = detected.kind
-        return ReminderBatchItem(
-            operation="create",
-            content=content,
-            trigger_time=trigger_time,
-            captured_timezone=timezone,
-            recurrence_rule=recurrence_rule,
-            duration_minutes=duration_minutes,
-            kind=kind,
-            entry_point="turn_pipeline",
-            turn_id=turn_id,
-            item_index=item_index,
-        )
+            return items
+        return [
+            ReminderBatchItem(
+                operation="create",
+                content=content,
+                trigger_time=trigger_time,
+                captured_timezone=timezone,
+                recurrence_rule=recurrence_rule,
+                duration_minutes=duration_minutes,
+                kind=kind,
+                entry_point="turn_pipeline",
+                turn_id=turn_id,
+                item_index=item_index_start,
+            )
+        ]
 
 
 def _batch_outcome_from_real_results(
