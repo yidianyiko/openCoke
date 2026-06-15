@@ -60,6 +60,10 @@ class ExpressAgent:
         return cls(model=config.create_express_model())
 
     def render(self, request: ExpressRequest) -> tuple[str, ...]:
+        availability_segments = _availability_segments(request)
+        if availability_segments is not None:
+            return _with_onboarding_guidance(request, availability_segments)
+
         agent = self._build_agent(request)
         run_output = agent.run(
             _agent_input(request),
@@ -74,6 +78,12 @@ class ExpressAgent:
         self,
         request: ExpressRequest,
     ) -> AsyncIterator[str]:
+        availability_segments = _availability_segments(request)
+        if availability_segments is not None:
+            for segment in _with_onboarding_guidance(request, availability_segments):
+                yield segment
+            return
+
         agent = self._build_agent(request)
         parser = _ReplySegmentStreamParser()
         content_buffer = ""
@@ -557,6 +567,10 @@ _BLOCKER_OUTCOME_STATUSES = {
     "unreachable",
     "duplicate_active",
 }
+_AVAILABILITY_STATE_LABELS = {
+    "busy": "忙碌",
+    "free": "空闲",
+}
 
 
 def _segments_from_content(
@@ -724,12 +738,14 @@ def _availability_window_lines(value: Any) -> list[str]:
         if not isinstance(window, Mapping):
             continue
         state = window.get("state")
-        if state not in {"busy", "free"}:
+        if state not in _AVAILABILITY_STATE_LABELS:
             continue
         interval = _display_interval(window, "start", "end")
         if interval is None:
             continue
-        lines.append(f"- {state}：{interval[0]} 到 {interval[1]}")
+        lines.append(
+            f"- {_AVAILABILITY_STATE_LABELS[state]}：{interval[0]} 到 {interval[1]}"
+        )
     return lines
 
 
