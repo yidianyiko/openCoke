@@ -504,20 +504,96 @@ def test_availability_render_uses_only_public_busy_free_windows_not_history_titl
 
     assert segments == (
         "Oliver（明天上午9点 到 明天上午11点）\n"
-        "- busy：明天上午9点 到 明天上午10点\n"
-        "- free：明天上午10点 到 明天上午11点",
+        "- 忙碌：明天上午9点 到 明天上午10点\n"
+        "- 空闲：明天上午10点 到 明天上午11点",
     )
     visible = "\n".join(segments)
     assert "Oliver" in visible
-    assert "busy" in visible
-    assert "free" in visible
+    assert "忙碌" in visible
+    assert "空闲" in visible
     assert "开会" not in visible
     assert "晚饭" not in visible
     assert "6:00" not in visible
     assert "19:30" not in visible
-    system_message = factory.agent_kwargs[0]["system_message"]
-    assert "availability" in system_message
-    assert "never include reminder titles" in system_message
+    assert fake_agent.calls == []
+    assert factory.agent_kwargs == []
+
+
+@pytest.mark.asyncio
+async def test_availability_streaming_uses_only_typed_windows_not_history_activity_labels() -> (
+    None
+):
+    fake_agent = StaticStreamingAgentInstance(
+        json.dumps(
+            {
+                "type": "reply",
+                "segments": [
+                    "lizihao 今天：忙碌（和你开会）9:00-10:00，忙碌（找你）10:30-11:00。"
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = [
+        segment
+        async for segment in agent.render_streaming(
+            ExpressRequest(
+                turn_id="turn-1",
+                conversation_id="conversation-1",
+                account_id="account-1",
+                settled_outcome=SettledOutcome(
+                    outcomes=(
+                        ActionOutcome(
+                            category="done",
+                            status="availability",
+                            data={
+                                "query_window": {
+                                    "local_start_display": "今天上午9点",
+                                    "local_end_display": "今天上午11点",
+                                },
+                                "availability": [
+                                    {
+                                        "friend_display_name": "lizihao",
+                                        "windows": [
+                                            {
+                                                "state": "busy",
+                                                "start_display": "今天上午9点",
+                                                "end_display": "今天上午10点",
+                                            },
+                                            {
+                                                "state": "free",
+                                                "start_display": "今天上午10点",
+                                                "end_display": "今天上午11点",
+                                            },
+                                        ],
+                                    }
+                                ],
+                            },
+                        ),
+                    )
+                ),
+                conversation_history=(
+                    {"role": "assistant", "content": "已创建共享提醒：和你开会"},
+                    {"role": "assistant", "content": "已创建共享提醒：找你"},
+                ),
+            )
+        )
+    ]
+
+    assert segments == [
+        "lizihao（今天上午9点 到 今天上午11点）\n"
+        "- 忙碌：今天上午9点 到 今天上午10点\n"
+        "- 空闲：今天上午10点 到 今天上午11点"
+    ]
+    visible = "\n".join(segments)
+    assert "和你开会" not in visible
+    assert "找你" not in visible
+    assert "忙碌（" not in visible
+    assert fake_agent.calls == []
+    assert factory.agent_kwargs == []
 
 
 def test_reminder_fire_prompt_keeps_history_as_style_context_not_fact_source() -> None:
