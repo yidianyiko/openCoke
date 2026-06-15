@@ -365,6 +365,44 @@ def test_notification_render_failure_marks_recipient_failed():
     }
 
 
+def test_reminder_fire_render_failure_does_not_mark_fire_delivery():
+    reminder_service = make_reminder_service()
+    social_service, _repo = make_social_service()
+    callbacks = OutputLifecycleDeliveryCallbacks(
+        reminder_service=reminder_service,
+        social_scheduling_service=social_service,
+    )
+    created = reminder_service.execute_batch(
+        owner_account_id="acct_1",
+        items=[
+            ReminderBatchItem(
+                operation="create",
+                content="take medicine",
+                trigger_time=NOW,
+                captured_timezone="UTC",
+                duration_minutes=15,
+            )
+        ],
+    )
+    fire = reminder_service.claim_due_fire(created.items[0].reminder_id, NOW)
+
+    callbacks.record_render_failure(
+        trigger=SimpleNamespace(
+            trigger_type="ReminderFireTurn",
+            account_id="acct_1",
+            payload={"fire_ids": [fire.id]},
+        ),
+        turn_id="turn_1",
+        reason_code="reminder_fire_render_failed",
+    )
+
+    unchanged_fire = reminder_service.repository.get_fire(fire.id)
+    assert unchanged_fire.delivery_result is None
+    assert unchanged_fire.fire_state == "claimed"
+    assert unchanged_fire.handled_at is None
+    assert unchanged_fire.completed_at is None
+
+
 def test_undelivered_resend_delivery_updates_notification_recipient():
     reminder_service = make_reminder_service()
     social_service, repo = make_social_service()

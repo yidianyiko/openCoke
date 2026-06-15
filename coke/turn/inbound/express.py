@@ -454,6 +454,13 @@ def _system_message(request: ExpressRequest) -> str:
                 "settled_outcome.availability; never include reminder titles, "
                 "activities, locations, or participants from conversation history."
             ),
+            (
+                "For reminder_fire outcomes, render from "
+                "settled_outcome.data.facts.reminders. Conversation history may "
+                "shape tone and avoid repetition, but must not provide or "
+                "override reminder title, time, participants, delivery state, "
+                "or privacy-bearing facts."
+            ),
             'Return only JSON: {"type":"reply","segments":["text"]}.',
             "Text output is limited to one to three non-empty segments.",
             (

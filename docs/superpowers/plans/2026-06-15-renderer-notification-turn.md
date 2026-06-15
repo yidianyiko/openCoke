@@ -1,10 +1,11 @@
-# NotificationTurn Renderer Migration Implementation Plan
+# Notification And ReminderFire Renderer Migration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Route `NotificationTurn` system render turns through the stateless Express-style renderer instead of the legacy Interaction Agent.
+**Goal:** Route `NotificationTurn` and `ReminderFireTurn` system render turns through the stateless Express-style renderer instead of the legacy Interaction Agent.
 
-**Architecture:** Keep the current `Plan -> Execute -> Express -> Close` inbound path unchanged. Add a render port to `TurnRunner` and adapt `NotificationTurn` trusted facts into an `ExpressRequest`, then reuse existing commit, delivery, and notification lifecycle recording. This first stage does not migrate `ReminderFireTurn`; its existing title/time/fact guard stays in place until a later render contract carries equivalent checks.
+**Architecture:** Keep the current `Plan -> Execute -> Express -> Close` inbound path unchanged. Add a render port to `TurnRunner` and adapt migrated render triggers into `ExpressRequest` instances, then reuse existing commit, delivery, and lifecycle recording. `NotificationTurn` carries hydrated notification facts as a settled notification outcome. `ReminderFireTurn` still hydrates fire ids into trusted reminder facts before rendering, but the Express path does not run the legacy title/time string-match guard; it gives the LLM the trusted facts and applies only renderer structure/protocol and delivery-lifecycle guards. The legacy Interaction reminder guard remains only for fallback when `render_express` is unavailable.
+Migrated render requests also carry a limited recent conversation window for tone, continuity, and avoiding repetition. That history is context for expression only; product facts still come from the settled outcome.
 
 **Tech Stack:** Python, pytest, Coke clean turn runtime, `ExpressAgent`, `TurnRunner`, `ConversationRuntimeService`.
 
@@ -203,14 +204,14 @@ Run: `.venv/bin/python -m pytest tests/unit/coke/settings/test_settings_composit
 
 Expected: PASS.
 
-### Task 4: Document The First-Stage Boundary
+### Task 4: Document The Render Boundary
 
 **Files:**
 - Modify: `docs/ARCHITECTURE.md`
 
-- [ ] **Step 1: Update turn pipeline wording**
+- [x] **Step 1: Update turn pipeline wording**
 
-State that inbound visible prose and migrated system render turns use the stateless Express-style renderer, while unmigrated render turns still use legacy render-mode Interaction until their facts and guards are ported.
+State that inbound visible prose and migrated system render turns use the stateless Express-style renderer, while unmigrated render turns still use legacy render-mode Interaction until their facts and guards are ported. Document that ReminderFire hydration fails closed before prose generation, while hydrated ReminderFire prose is not post-checked by title/time string matching.
 
 - [ ] **Step 2: Run documentation checks**
 
@@ -251,3 +252,26 @@ Run:
 git add docs/superpowers/plans/2026-06-15-renderer-notification-turn.md docs/ARCHITECTURE.md coke/turn/runner.py coke/composition.py tests/unit/coke/turn/test_turn_runner.py tests/unit/coke/settings/test_settings_composition.py tests/integration/coke/test_runtime_wiring.py
 git commit -m "refactor(turn): route notifications through renderer"
 ```
+
+### Task 6: Extend Migrated Renderer To ReminderFire
+
+**Files:**
+- Modify: `coke/turn/runner.py`
+- Modify: `tests/unit/coke/turn/test_turn_runner.py`
+- Modify: `tests/unit/coke/test_delivery_lifecycle_callbacks.py`
+
+- [x] **Step 1: Add ReminderFire renderer regression coverage**
+
+Add tests proving that `ReminderFireTurn` uses the renderer with hydrated facts, accepts natural prose that does not literally repeat the trusted title/time, and fails without falling back to the Interaction Agent or delivering when the renderer raises.
+
+- [x] **Step 2: Generalize the render adapter**
+
+Generalize the Notification render adapter to a small trigger allow-list containing `NotificationTurn` and `ReminderFireTurn`. For ReminderFire, build a settled `reminder_fire` outcome from `domain_result` and its hydrated `facts`.
+
+- [x] **Step 3: Preserve delivery lifecycle boundaries**
+
+Keep ReminderFire delivery lifecycle updates tied to actual delivery outcomes. Render failure records the turn failure but does not mark the fire delivered or undelivered.
+
+- [x] **Step 4: Pass recent conversation context to Express**
+
+Reuse the existing conversation window for migrated render requests so the LLM has recent user/assistant context for tone and continuity, while prompt instructions keep reminder facts anchored to the settled outcome.

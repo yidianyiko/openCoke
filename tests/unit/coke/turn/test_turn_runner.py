@@ -154,7 +154,7 @@ class RecordingTurnPipeline:
 
 
 class RecordingRenderExpress:
-    def __init__(self, segments: tuple[str, ...] = ("rendered notification",)) -> None:
+    def __init__(self, segments: tuple[str, ...] = ("rendered turn",)) -> None:
         self.segments = segments
         self.requests = []
 
@@ -166,6 +166,39 @@ class RecordingRenderExpress:
         self.requests.append(request)
         for segment in self.segments:
             yield segment
+
+
+class FailingRenderExpress:
+    def __init__(self) -> None:
+        self.requests = []
+
+    def render(self, request):
+        self.requests.append(request)
+        raise RuntimeError("renderer failed")
+
+
+class FakeReminderFireFacts:
+    def reminder_fire_render_facts(
+        self,
+        *,
+        owner_account_id: str,
+        fire_ids: list[str],
+        viewer_account_id: str | None = None,
+    ):
+        return [
+            {
+                "fire_id": fire_ids[0],
+                "reminder_id": "reminder_1",
+                "title": "take medicine",
+                "owner_account_id": owner_account_id,
+                "viewer_account_id": viewer_account_id,
+                "due_at": "2026-05-30T10:15:00+00:00",
+                "local_due_at": "2026-05-30T10:15:00+00:00",
+                "timezone": "UTC",
+                "duration_minutes": 15,
+                "kind": "personal",
+            }
+        ]
 
 
 class ExplodingTurnPipeline:
@@ -435,7 +468,7 @@ def test_access_denied_invalid_output_recovers_and_closes_window(harness):
 
 def test_notification_turn_uses_renderer_not_interaction_agent(harness):
     harness["runner"].turn_pipeline = ExplodingTurnPipeline()
-    renderer = RecordingRenderExpress()
+    renderer = RecordingRenderExpress(("rendered notification",))
     harness["runner"].render_express = renderer
     trigger = TurnTrigger(
         trigger_id="notification:render",
@@ -469,6 +502,113 @@ def test_notification_turn_uses_renderer_not_interaction_agent(harness):
     assert request.account_id == "account_1"
     assert request.payload["trigger_type"] == "NotificationTurn"
     assert request.settled_outcome.outcomes[0].status == "notification"
+
+
+def test_reminder_fire_turn_uses_renderer_with_hydrated_facts(harness):
+    harness["runner"].turn_pipeline = ExplodingTurnPipeline()
+    harness["runner"].reminder_fire_facts = FakeReminderFireFacts()
+    renderer = RecordingRenderExpress(("好的，我会提醒你吃药。",))
+    harness["runner"].render_express = renderer
+    trigger = TurnTrigger(
+        trigger_id="reminder_fire:account_1:2026-05-30T10:15:00+00:00",
+        trigger_type="ReminderFireTurn",
+        mode=TurnMode.RENDER,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        payload={"fire_ids": ["fire_1"]},
+    )
+
+    result = harness["runner"].run_render_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "好的，我会提醒你吃药。"
+    assert harness["agent"].requests == []
+    assert len(renderer.requests) == 1
+    request = renderer.requests[0]
+    assert request.turn_id == result.turn_id
+    assert request.account_id == "account_1"
+    assert request.payload["trigger_type"] == "ReminderFireTurn"
+    outcome = request.settled_outcome.outcomes[0]
+    assert outcome.status == "reminder_fire"
+    assert outcome.data["domain_result"]["reply_contract"] == "render_reminder_fire"
+    assert outcome.data["domain_result"]["facts"]["reminders"][0]["title"] == (
+        "take medicine"
+    )
+
+
+def test_reminder_fire_renderer_accepts_natural_reply_without_fact_literals(harness):
+    harness["runner"].turn_pipeline = ExplodingTurnPipeline()
+    harness["runner"].reminder_fire_facts = FakeReminderFireFacts()
+    renderer = RecordingRenderExpress(("该吃药啦。",))
+    harness["runner"].render_express = renderer
+    trigger = TurnTrigger(
+        trigger_id="reminder_fire:account_1:2026-05-30T10:15:00+00:00",
+        trigger_type="ReminderFireTurn",
+        mode=TurnMode.RENDER,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        payload={"fire_ids": ["fire_1"]},
+    )
+
+    result = harness["runner"].run_render_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "该吃药啦。"
+    assert harness["agent"].requests == []
+    assert len(renderer.requests) == 1
+
+
+def test_reminder_fire_renderer_receives_recent_conversation_history(harness):
+    inbound_result = harness["runner"].run_inbound_turn(harness["trigger"])
+    assert inbound_result.disposition == "replied"
+    harness["runtime"].record_outbound_message(
+        inbound_result.turn_id,
+        "pipeline hello",
+        segment_index=1,
+    )
+    harness["runner"].turn_pipeline = ExplodingTurnPipeline()
+    harness["runner"].reminder_fire_facts = FakeReminderFireFacts()
+    renderer = RecordingRenderExpress(("该吃药啦。",))
+    harness["runner"].render_express = renderer
+    trigger = TurnTrigger(
+        trigger_id="reminder_fire:account_1:2026-05-30T10:15:00+00:00",
+        trigger_type="ReminderFireTurn",
+        mode=TurnMode.RENDER,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        payload={"fire_ids": ["fire_1"]},
+    )
+
+    result = harness["runner"].run_render_turn(trigger)
+
+    assert result.disposition == "replied"
+    assert renderer.requests[0].conversation_history == (
+        {"role": "user", "content": "hello", "seq": 1},
+        {"role": "assistant", "content": "pipeline hello"},
+    )
+
+
+def test_reminder_fire_renderer_failure_does_not_fallback_or_deliver(harness):
+    harness["runner"].turn_pipeline = ExplodingTurnPipeline()
+    harness["runner"].reminder_fire_facts = FakeReminderFireFacts()
+    renderer = FailingRenderExpress()
+    harness["runner"].render_express = renderer
+    trigger = TurnTrigger(
+        trigger_id="reminder_fire:account_1:2026-05-30T10:15:00+00:00",
+        trigger_type="ReminderFireTurn",
+        mode=TurnMode.RENDER,
+        conversation_id=harness["trigger"].conversation_id,
+        account_id="account_1",
+        payload={"fire_ids": ["fire_1"]},
+    )
+
+    result = harness["runner"].run_render_turn(trigger)
+
+    assert result.disposition == "failed"
+    assert result.reason_code == "reminder_fire_render_failed"
+    assert harness["agent"].requests == []
+    assert len(renderer.requests) == 1
+    assert harness["delivery"].deliveries == []
 
 
 def test_access_denied_inbound_uses_render_agent_not_turn_pipeline(harness):

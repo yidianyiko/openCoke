@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, is_dataclass, replace
@@ -39,6 +39,7 @@ NOTIFICATION_VISIBLE_REPLY_REQUIRED = "notification_requires_visible_reply"
 REMINDER_FIRE_VISIBLE_REPLY_REQUIRED = "reminder_fire_requires_visible_reply"
 REMINDER_FIRE_FACT_MISMATCH = "reminder_fire_fact_mismatch"
 INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON = "replaced_by_newer_inbound"
+_EXPRESS_RENDER_TRIGGER_TYPES = frozenset({"NotificationTurn", "ReminderFireTurn"})
 _CLOSE_BOUNDARY_OBSERVER: ContextVar[Callable[[], None] | None] = ContextVar(
     "coke_close_boundary_observer",
     default=None,
@@ -1117,10 +1118,10 @@ class TurnRunner:
                         domain_result=domain_result,
                     )
                 if (
-                    trigger.trigger_type == "NotificationTurn"
+                    trigger.trigger_type in _EXPRESS_RENDER_TRIGGER_TYPES
                     and self.render_express is not None
                 ):
-                    return self._render_notification_with_express(trigger, context)
+                    return self._render_trigger_with_express(trigger, context)
                 return self._invoke_agent_and_record(trigger, context)
             except ConversationRuntimeError as error:
                 return self._conversation_runtime_error_result(
@@ -1233,14 +1234,18 @@ class TurnRunner:
             ),
         )
 
-    def _render_notification_with_express(
+    def _render_trigger_with_express(
         self,
         trigger: TurnTrigger,
         context: Any,
     ) -> TurnRunResult:
-        request = _notification_express_request(
+        request = _render_express_request(
             trigger=trigger,
             context=context,
+            conversation_history=self._inbound_conversation_window(
+                trigger.conversation_id,
+                current_turn_id=context.freshness_guard.turn_id,
+            ),
         )
         try:
             with turn_latency_span(
@@ -1257,14 +1262,18 @@ class TurnRunner:
             return self._record_invalid_render_output(
                 trigger=trigger,
                 turn_id=context.freshness_guard.turn_id,
-                reason_code=str(error) or "notification_render_failed",
+                reason_code=_render_failure_reason(
+                    trigger.trigger_type,
+                    protocol_reason=str(error),
+                ),
             )
         except Exception:
             LOGGER.exception(
-                "notification_render_express_failed",
+                "render_express_failed",
                 extra={
                     "turn_id": context.freshness_guard.turn_id,
                     "trigger_id": trigger.trigger_id,
+                    "trigger_type": trigger.trigger_type,
                     "conversation_id": trigger.conversation_id,
                     "account_id": trigger.account_id,
                 },
@@ -1272,7 +1281,7 @@ class TurnRunner:
             return self._record_invalid_render_output(
                 trigger=trigger,
                 turn_id=context.freshness_guard.turn_id,
-                reason_code="notification_render_failed",
+                reason_code=_render_failure_reason(trigger.trigger_type),
             )
 
         validated = _validated_render_segments(segments)
@@ -2208,22 +2217,15 @@ def _validated_render_segments(segments: tuple[Any, ...]) -> ValidatedOutput:
     )
 
 
-def _notification_express_request(
+def _render_express_request(
     *,
     trigger: TurnTrigger,
     context: Any,
+    conversation_history: Sequence[Mapping[str, Any]] = (),
 ) -> ExpressRequest:
     trusted_facts = context.trusted_facts
     payload = dict(trigger.payload)
-    outcome_data = {
-        "trigger_type": trigger.trigger_type,
-        "notification_fact_id": payload.get("notification_fact_id"),
-        "notification_fact": payload.get("notification_fact"),
-        "recipient_account_ids": payload.get("recipient_account_ids"),
-        "object_type": payload.get("object_type"),
-        "object_id": payload.get("object_id"),
-        "facts_hash": payload.get("facts_hash"),
-    }
+    outcome_data = _render_outcome_data(trigger, trusted_facts)
     return ExpressRequest(
         turn_id=context.freshness_guard.turn_id,
         conversation_id=trigger.conversation_id,
@@ -2234,7 +2236,7 @@ def _notification_express_request(
             outcomes=(
                 ActionOutcome(
                     category="done",
-                    status="notification",
+                    status=_render_outcome_status(trigger.trigger_type),
                     data=outcome_data,
                 ),
             )
@@ -2242,16 +2244,70 @@ def _notification_express_request(
         persona=str(trusted_facts.get("persona") or ""),
         assistant_name=str(trusted_facts.get("assistant_name") or "Coke"),
         user_address_name=str(trusted_facts.get("user_address_name") or ""),
+        conversation_history=tuple(conversation_history),
         payload={
             "trigger_type": trigger.trigger_type,
             "trigger_payload": payload,
             "turn_source": trusted_facts.get("turn_source"),
+            "domain_result": trusted_facts.get("domain_result"),
         },
         run_id=_agent_run_id_for_trigger(
             trigger,
             fallback=context.freshness_guard.turn_id,
         ),
     )
+
+
+def _render_outcome_status(trigger_type: str) -> str:
+    if trigger_type == "NotificationTurn":
+        return "notification"
+    if trigger_type == "ReminderFireTurn":
+        return "reminder_fire"
+    return "render"
+
+
+def _render_failure_reason(
+    trigger_type: str,
+    *,
+    protocol_reason: str | None = None,
+) -> str:
+    if protocol_reason:
+        return protocol_reason
+    if trigger_type == "NotificationTurn":
+        return "notification_render_failed"
+    if trigger_type == "ReminderFireTurn":
+        return "reminder_fire_render_failed"
+    return "render_express_failed"
+
+
+def _render_outcome_data(
+    trigger: TurnTrigger,
+    trusted_facts: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    payload = dict(trigger.payload)
+    if trigger.trigger_type == "NotificationTurn":
+        return {
+            "trigger_type": trigger.trigger_type,
+            "notification_fact_id": payload.get("notification_fact_id"),
+            "notification_fact": payload.get("notification_fact"),
+            "recipient_account_ids": payload.get("recipient_account_ids"),
+            "object_type": payload.get("object_type"),
+            "object_id": payload.get("object_id"),
+            "facts_hash": payload.get("facts_hash"),
+        }
+    if trigger.trigger_type == "ReminderFireTurn":
+        domain_result = trusted_facts.get("domain_result")
+        facts = domain_result.get("facts") if isinstance(domain_result, Mapping) else {}
+        return {
+            "trigger_type": trigger.trigger_type,
+            "fire_ids": payload.get("fire_ids"),
+            "domain_result": domain_result,
+            "facts": facts if isinstance(facts, Mapping) else {},
+        }
+    return {
+        "trigger_type": trigger.trigger_type,
+        "trigger_payload": payload,
+    }
 
 
 def _validate_reminder_fire_output(

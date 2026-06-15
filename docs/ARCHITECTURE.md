@@ -54,10 +54,10 @@ InboundTurn, ReminderFireTurn, ProactiveFireTurn, NightlySummaryTurn,
 NotificationTurn, AccessDeniedTurn, and UndeliveredResendTurn. Interactive
 InboundTurn uses the Plan -> PlanCompile -> Execute -> Express -> Close
 pipeline. Migrated structured render turns use the same stateless Express-style
-renderer contract over already-trusted facts; `NotificationTurn` is the first
-migrated render turn. Render turns that have not yet been migrated keep the
-legacy render-mode Interaction Agent temporarily, still without business
-mutation tools. Runtime-owned
+renderer contract over already-trusted facts; `NotificationTurn` and
+`ReminderFireTurn` are migrated render turns. Render turns that have not yet
+been migrated keep the legacy render-mode Interaction Agent temporarily, still
+without business mutation tools. Runtime-owned
 prose is limited to typed signal exceptions such as waiting text while a model
 call is still active and grounded failure-recovery text when an interactive
 inbound turn cannot be closed correctly.
@@ -100,11 +100,15 @@ session state, memory, and tools disabled. Retained render-mode Interaction
 Agent construction also disables Agno chat history as a fact source. Render turns
 use trusted trigger facts, domain results, and dynamic prompt blocks for product
 state; recent interactive chat may not supply title, time, participant, delivery
-status, or privacy-bearing facts for system turns. `NotificationTurn` adapts the
+status, or privacy-bearing facts for system turns. Migrated render requests may
+include a limited recent conversation window for tone, continuity, and avoiding
+repetition, but that history is not a product fact source. `NotificationTurn` adapts the
 hydrated notification fact into a settled notification outcome before rendering.
-Reminder-fire render turns still hydrate fire ids into trusted reminder facts
-before the retained Interaction Agent runs and fail closed if the visible reply
-cannot reconcile with those facts.
+`ReminderFireTurn` hydrates fire ids into trusted reminder facts and adapts them
+into a settled reminder-fire outcome before rendering. Hydration failure fails
+closed before prose generation; once trusted facts are hydrated, the renderer is
+allowed to express the reminder naturally and is not post-checked by title/time
+string matching.
 
 Structured reply output may contain one to three text segments. Each segment is
 persisted as its own outbound message. For message-style channels such as

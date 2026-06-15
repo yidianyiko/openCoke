@@ -520,6 +520,58 @@ def test_availability_render_uses_only_public_busy_free_windows_not_history_titl
     assert "never include reminder titles" in system_message
 
 
+def test_reminder_fire_prompt_keeps_history_as_style_context_not_fact_source() -> None:
+    fake_agent = StaticRunAgentInstance(
+        content=json.dumps({"type": "reply", "segments": ["该吃药啦。"]}),
+        calls=[],
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = agent.render(
+        ExpressRequest(
+            turn_id="turn-1",
+            conversation_id="conversation-1",
+            account_id="account-1",
+            settled_outcome=SettledOutcome(
+                outcomes=(
+                    ActionOutcome(
+                        category="done",
+                        status="reminder_fire",
+                        data={
+                            "facts": {
+                                "reminders": [
+                                    {
+                                        "title": "take medicine",
+                                        "local_due_at": "2026-05-30T10:15:00+00:00",
+                                        "timezone": "UTC",
+                                    }
+                                ]
+                            }
+                        },
+                    ),
+                )
+            ),
+            conversation_history=(
+                {"role": "assistant", "content": "上次提醒是喝水。"},
+            ),
+        )
+    )
+
+    assert segments == ("该吃药啦。",)
+    input_payload = json.loads(fake_agent.calls[0]["input"])
+    assert input_payload["settled_outcome"]["outcomes"][0]["status"] == (
+        "reminder_fire"
+    )
+    assert input_payload["conversation_history"] == [
+        {"role": "assistant", "content": "上次提醒是喝水。"}
+    ]
+    system_message = factory.agent_kwargs[0]["system_message"]
+    assert "For reminder_fire outcomes" in system_message
+    assert "shape tone and avoid repetition" in system_message
+    assert "must not provide or override reminder title" in system_message
+
+
 def test_no_action_first_use_renders_configured_onboarding_before_model_starter() -> (
     None
 ):
