@@ -1,0 +1,153 @@
+{
+  "account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6",
+  "case": "RC6_fire_completed_and_retired_oliver",
+  "cleanup": {
+    "reminders": [
+      {
+        "content": "oliver_rc6_20260615T000144Z_0cf68245_到点退役",
+        "id": "e3b62e3f-e6c2-4cfa-b21c-bde8e138ff06",
+        "lifecycle": "deleted"
+      }
+    ]
+  },
+  "finished_at": "2026-06-15T00:02:28.671843+00:00",
+  "run_id": "oliver_rc6_20260615T000144Z_0cf68245",
+  "started_at": "2026-06-15T00:01:44.804084+00:00",
+  "status": "pass",
+  "steps": {
+    "fire_rows": [
+      {
+        "completed_at": "2026-06-15T00:05:17.722039+00:00",
+        "content": "oliver_rc6_20260615T000144Z_0cf68245_到点退役",
+        "delivery_result": "delivered",
+        "due_at": "2026-06-15T00:00:57.503607+00:00",
+        "fire_id": "b5aa0a09-2440-4f9b-9630-46dbce4db63f",
+        "fire_state": "completed",
+        "handled_at": "2026-06-15T00:05:17.722039+00:00",
+        "lifecycle": "completed",
+        "next_fire_at": "2026-06-15T00:00:57.503607+00:00",
+        "reminder_id": "e3b62e3f-e6c2-4cfa-b21c-bde8e138ff06"
+      }
+    ],
+    "fixture_reminder": {
+      "content": "oliver_rc6_20260615T000144Z_0cf68245_到点退役",
+      "created_at": "2026-06-15T00:05:02.828931+00:00",
+      "duration_minutes": 5,
+      "id": "e3b62e3f-e6c2-4cfa-b21c-bde8e138ff06",
+      "lifecycle": "active",
+      "next_fire_at": "2026-06-15T00:00:57.503607+00:00",
+      "owner_account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+    },
+    "recent_delivery_attempts": [
+      {
+        "attempted_at": "2026-06-15T00:05:17.706198+00:00",
+        "context_token_age_seconds": 25,
+        "context_token_source": "none",
+        "delivered_at": null,
+        "delivery_intent": "07224157afe744a48773467d3ca443b9:reply:1",
+        "delivery_source": "reply",
+        "error_code": null,
+        "id": "626fd3cc-1765-4c5f-a310-b7229f18e864",
+        "message_id": "dffd029e-088c-4327-9ebf-008202d4c652",
+        "status": "sent",
+        "turn_id": "07224157-afe7-44a4-8773-467d3ca443b9"
+      }
+    ],
+    "scheduler_scan_output": "0",
+    "seed_inbound": {
+      "delivery_attempts": [
+        {
+          "attempted_at": "2026-06-15T00:04:55.425288+00:00",
+          "context_token_age_seconds": null,
+          "context_token_source": "trigger_payload",
+          "delivered_at": null,
+          "error_code": null,
+          "id": "bce8b31c-2738-4d24-88a9-435322fd54c1",
+          "status": "sent"
+        }
+      ],
+      "message_id": "oliver_rc6_20260615T000144Z_0cf68245_seed_608956f0",
+      "outbound_text": "ping 收到，我在～",
+      "post": {
+        "account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6",
+        "body": {
+          "accepted": true,
+          "account_id": "ae02ff016fcd4d39a189e51c8c8a31e6",
+          "channel_id": "b36175ac2b084dadbe28183e2b44dad6",
+          "channel_identity_id": "30be8d8d05234ee2a57e0786108babfd",
+          "created_account": false,
+          "provider_subject": "o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat",
+          "provider_type": "wechat_personal",
+          "raw_event_id": "oliver_rc6_20260615T000144Z_0cf68245_seed_608956f0"
+        },
+        "context_token_hash": "7bc3485c32b7",
+        "context_token_length": 136,
+        "message_id": "oliver_rc6_20260615T000144Z_0cf68245_seed_608956f0",
+        "session_id": "9eb919db6b504c8bbd9b4ee1d734f842",
+        "status": 202,
+        "wxid": "o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat"
+      },
+      "snapshot": {
+        "delivery_attempts": [],
+        "disposition": {
+          "created_at": "2026-06-15T00:04:54.505517+00:00",
+          "disposition": "replied",
+          "id": "4b933b01-176b-48e8-8e94-6c1d54faf98e",
+          "reason_code": "reply_ready",
+          "turn_id": "725f4511-81e7-4af3-b558-3d4477228138",
+          "updated_at": "2026-06-15T00:04:54.505517+00:00"
+        },
+        "inbound": {
+          "causal_inbound_event_id": "oliver_rc6_20260615T000144Z_0cf68245_seed_608956f0",
+          "conversation_id": "7fed5c7c-08f9-4778-bdcc-c14b7f2cf346",
+          "created_at": "2026-06-15T00:04:51.079755+00:00",
+          "id": "6d183be1-7e11-466e-9d86-1c57e48eadcb",
+          "payload": {
+            "account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6",
+            "context_token": "[redacted]",
+            "message_id": "oliver_rc6_20260615T000144Z_0cf68245_seed_608956f0",
+            "session_id": "9eb919db6b504c8bbd9b4ee1d734f842",
+            "text": "oliver_rc6_20260615T000144Z_0cf68245 ping",
+            "wxid": "o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat"
+          },
+          "seq": 16,
+          "text": "oliver_rc6_20260615T000144Z_0cf68245 ping"
+        },
+        "outbound_messages": [
+          {
+            "causal_inbound_event_id": null,
+            "channel_identity_id": null,
+            "conversation_id": "7fed5c7c-08f9-4778-bdcc-c14b7f2cf346",
+            "created_at": "2026-06-15T00:04:54.501742+00:00",
+            "direction": "outbound",
+            "facts_hash": null,
+            "id": "fd0de48b-935f-4bcd-b59d-6e4f41a0c403",
+            "payload": {
+              "segment_index": 1
+            },
+            "segment_index": 1,
+            "seq": null,
+            "text": "ping 收到，我在～",
+            "turn_id": "725f4511-81e7-4af3-b558-3d4477228138",
+            "updated_at": "2026-06-15T00:04:54.501742+00:00"
+          }
+        ],
+        "turn": {
+          "completed_at": "2026-06-15T00:04:54.501742+00:00",
+          "conversation_id": "7fed5c7c-08f9-4778-bdcc-c14b7f2cf346",
+          "created_at": "2026-06-15T00:04:51.396132+00:00",
+          "id": "725f4511-81e7-4af3-b558-3d4477228138",
+          "input_from_seq": 16,
+          "input_to_seq": 16,
+          "mode": "interactive",
+          "started_at": "2026-06-15T00:04:51.396132+00:00",
+          "superseded_by_inbound_seq": null,
+          "trigger_id": "inbound:oliver_rc6_20260615T000144Z_0cf68245_seed_608956f0",
+          "trigger_type": "InboundTurn",
+          "updated_at": "2026-06-15T00:04:54.501742+00:00"
+        }
+      }
+    }
+  },
+  "wxid": "o9cq8048QW6ys6Eu_gH3NrWjTfK0@im.wechat"
+}

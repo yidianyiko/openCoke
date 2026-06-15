@@ -1,0 +1,934 @@
+{
+  "accounts": {
+    "eva": {
+      "account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a",
+      "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+    },
+    "oliver": {
+      "account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+    }
+  },
+  "cases": [
+    {
+      "details": {
+        "local_fire_at": "2026-06-16T18:00:00+08:00",
+        "message": {
+          "input": "明天晚上6点提醒我eva_rc_20260614T232816Z_53b192fd检查时间，持续5分钟",
+          "message_id": "eva_rc_20260614T232816Z_53b192fd_rc1_duration_f3c635a4",
+          "outbound_text": "已经设好了，明天晚上6点提醒你检查时间，持续5分钟👌",
+          "post": {
+            "account_id": "2ca837a34f324272a935a71b5af1209a",
+            "body": {
+              "accepted": true,
+              "account_id": "2ca837a34f324272a935a71b5af1209a",
+              "channel_id": "eda31f364cce452a8757bef4325a8fd6",
+              "channel_identity_id": "d52642ff4903414d8293b22e00b3da67",
+              "created_account": false,
+              "provider_subject": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat",
+              "provider_type": "wechat_personal",
+              "raw_event_id": "eva_rc_20260614T232816Z_53b192fd_rc1_duration_f3c635a4"
+            },
+            "context_token_hash": "048a2afc1c01",
+            "context_token_length": 136,
+            "message_id": "eva_rc_20260614T232816Z_53b192fd_rc1_duration_f3c635a4",
+            "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+            "status": 202,
+            "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+          },
+          "snapshot": {
+            "delivery_attempts": [
+              {
+                "attempted_at": "2026-06-14T23:31:35.375338+00:00",
+                "container": "24b7ccbe4ce5",
+                "context_token_age_seconds": null,
+                "context_token_source": "trigger_payload",
+                "created_at": "2026-06-14T23:31:35.375338+00:00",
+                "delivered_at": null,
+                "delivery_intent": "ea606aaca3864b95949c8908495f35d9:reply:1",
+                "delivery_source": "reply",
+                "error_code": "ilink_send_failed_ret_-2",
+                "id": "f6ccaaca-5748-417b-9b72-5efa3161da0e",
+                "latency_ms": 1527,
+                "message_id": "1043c0a5-fe72-4a41-b75b-af0e250490aa",
+                "provider_idempotency_key": "ea606aaca3864b95949c8908495f35d9:reply:1",
+                "provider_message_id": null,
+                "provider_type": "wechat_personal",
+                "retry_attempt": 1,
+                "route_id": "0102304a-1ef5-43fb-be1e-c6038676e558",
+                "status": "failed",
+                "traceparent": null,
+                "turn_id": "ea606aac-a386-4b95-949c-8908495f35d9",
+                "updated_at": "2026-06-14T23:31:35.375338+00:00"
+              }
+            ],
+            "disposition": {
+              "created_at": "2026-06-14T23:31:33.800897+00:00",
+              "disposition": "replied",
+              "id": "a353679b-7772-437b-9640-b012da5bed75",
+              "reason_code": "reply_ready",
+              "turn_id": "ea606aac-a386-4b95-949c-8908495f35d9",
+              "updated_at": "2026-06-14T23:31:33.800897+00:00"
+            },
+            "inbound": {
+              "causal_inbound_event_id": "eva_rc_20260614T232816Z_53b192fd_rc1_duration_f3c635a4",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:31:28.325217+00:00",
+              "id": "10608114-4989-453d-ba2c-7ba7a561884d",
+              "payload": {
+                "account_id": "2ca837a34f324272a935a71b5af1209a",
+                "context_token": "[redacted]",
+                "message_id": "eva_rc_20260614T232816Z_53b192fd_rc1_duration_f3c635a4",
+                "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+                "text": "明天晚上6点提醒我eva_rc_20260614T232816Z_53b192fd检查时间，持续5分钟",
+                "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+              },
+              "seq": 36,
+              "text": "明天晚上6点提醒我eva_rc_20260614T232816Z_53b192fd检查时间，持续5分钟"
+            },
+            "outbound_messages": [
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:31:33.797593+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "1043c0a5-fe72-4a41-b75b-af0e250490aa",
+                "payload": {
+                  "segment_index": 1
+                },
+                "segment_index": 1,
+                "seq": null,
+                "text": "已经设好了，明天晚上6点提醒你检查时间，持续5分钟👌",
+                "turn_id": "ea606aac-a386-4b95-949c-8908495f35d9",
+                "updated_at": "2026-06-14T23:31:33.797593+00:00"
+              }
+            ],
+            "turn": {
+              "completed_at": "2026-06-14T23:31:33.797593+00:00",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:31:28.514243+00:00",
+              "id": "ea606aac-a386-4b95-949c-8908495f35d9",
+              "input_from_seq": 36,
+              "input_to_seq": 36,
+              "mode": "interactive",
+              "started_at": "2026-06-14T23:31:28.514243+00:00",
+              "superseded_by_inbound_seq": null,
+              "trigger_id": "inbound:eva_rc_20260614T232816Z_53b192fd_rc1_duration_f3c635a4",
+              "trigger_type": "InboundTurn",
+              "updated_at": "2026-06-14T23:31:33.797593+00:00"
+            }
+          }
+        },
+        "new_rows": [
+          {
+            "captured_timezone": "Asia/Shanghai",
+            "content": "检查时间",
+            "created_at": "2026-06-14T23:31:32.738972+00:00",
+            "duration_minutes": 5,
+            "id": "8dd86eba-e7cd-44d0-a6ba-4e9e1d4d486d",
+            "lifecycle": "active",
+            "next_fire_at": "2026-06-16T10:00:00+00:00",
+            "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a",
+            "updated_at": "2026-06-14T23:31:32.738972+00:00"
+          }
+        ]
+      },
+      "name": "RC1_PM_and_duration",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "matched": "明天晚上6点",
+        "reply": "已经设好了，明天晚上6点提醒你检查时间，持续5分钟👌"
+      },
+      "name": "RC0_relative_tomorrow_render",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "fixture_rows": [
+          {
+            "captured_timezone": "Asia/Shanghai",
+            "content": "eva_rc_20260614T232816Z_53b192fd_rc5_今日未来日程",
+            "created_at": "2026-06-14T23:31:41.850654+00:00",
+            "duration_minutes": 5,
+            "id": "ed230c18-c595-4e63-b0b5-16614d4d528a",
+            "lifecycle": "active",
+            "next_fire_at": "2026-06-15T01:31:00+00:00",
+            "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+          },
+          {
+            "captured_timezone": "Asia/Shanghai",
+            "content": "eva_rc_20260614T232816Z_53b192fd_rc5_今日过去日程",
+            "created_at": "2026-06-14T23:31:45.093491+00:00",
+            "duration_minutes": 5,
+            "id": "c2ea7b1c-f826-4e20-871e-c798721444d0",
+            "lifecycle": "completed",
+            "next_fire_at": "2026-06-14T21:31:00+00:00",
+            "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+          }
+        ],
+        "message": {
+          "input": "今天日程",
+          "message_id": "eva_rc_20260614T232816Z_53b192fd_rc5_today_agenda_874bb364",
+          "outbound_text": "今天（6月15日）你的日程：\n开会 – 今天上午6点（30分钟）\neva_rc_今日未来日程 – 今天上午9点31分（5分钟）\n晚饭 – 今天晚上7点30分（60分钟）\n复盘今天 – 今天晚上10点（30分钟）\n\n共4项，今天也稳稳的💪",
+          "post": {
+            "account_id": "2ca837a34f324272a935a71b5af1209a",
+            "body": {
+              "accepted": true,
+              "account_id": "2ca837a34f324272a935a71b5af1209a",
+              "channel_id": "eda31f364cce452a8757bef4325a8fd6",
+              "channel_identity_id": "d52642ff4903414d8293b22e00b3da67",
+              "created_account": false,
+              "provider_subject": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat",
+              "provider_type": "wechat_personal",
+              "raw_event_id": "eva_rc_20260614T232816Z_53b192fd_rc5_today_agenda_874bb364"
+            },
+            "context_token_hash": "048a2afc1c01",
+            "context_token_length": 136,
+            "message_id": "eva_rc_20260614T232816Z_53b192fd_rc5_today_agenda_874bb364",
+            "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+            "status": 202,
+            "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+          },
+          "snapshot": {
+            "delivery_attempts": [],
+            "disposition": {
+              "created_at": "2026-06-14T23:31:52.822623+00:00",
+              "disposition": "replied",
+              "id": "7d1ceecc-dff3-4873-8ee9-8a7811654be0",
+              "reason_code": "reply_ready",
+              "turn_id": "241bd5f8-a478-4e4e-a0f9-decd055e3a44",
+              "updated_at": "2026-06-14T23:31:52.822623+00:00"
+            },
+            "inbound": {
+              "causal_inbound_event_id": "eva_rc_20260614T232816Z_53b192fd_rc5_today_agenda_874bb364",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:31:48.314395+00:00",
+              "id": "73594d4c-033b-40b5-937b-161eea62f3c9",
+              "payload": {
+                "account_id": "2ca837a34f324272a935a71b5af1209a",
+                "context_token": "[redacted]",
+                "message_id": "eva_rc_20260614T232816Z_53b192fd_rc5_today_agenda_874bb364",
+                "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+                "text": "今天日程",
+                "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+              },
+              "seq": 37,
+              "text": "今天日程"
+            },
+            "outbound_messages": [
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:31:52.818651+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "4dab1152-4f83-4674-bedc-474653a36045",
+                "payload": {
+                  "segment_index": 1
+                },
+                "segment_index": 1,
+                "seq": null,
+                "text": "今天（6月15日）你的日程：\n开会 – 今天上午6点（30分钟）\neva_rc_今日未来日程 – 今天上午9点31分（5分钟）\n晚饭 – 今天晚上7点30分（60分钟）\n复盘今天 – 今天晚上10点（30分钟）\n\n共4项，今天也稳稳的💪",
+                "turn_id": "241bd5f8-a478-4e4e-a0f9-decd055e3a44",
+                "updated_at": "2026-06-14T23:31:52.818651+00:00"
+              }
+            ],
+            "turn": {
+              "completed_at": "2026-06-14T23:31:52.818651+00:00",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:31:48.632102+00:00",
+              "id": "241bd5f8-a478-4e4e-a0f9-decd055e3a44",
+              "input_from_seq": 37,
+              "input_to_seq": 37,
+              "mode": "interactive",
+              "started_at": "2026-06-14T23:31:48.632102+00:00",
+              "superseded_by_inbound_seq": null,
+              "trigger_id": "inbound:eva_rc_20260614T232816Z_53b192fd_rc5_today_agenda_874bb364",
+              "trigger_type": "InboundTurn",
+              "updated_at": "2026-06-14T23:31:52.818651+00:00"
+            }
+          }
+        }
+      },
+      "name": "RC5_today_agenda_no_expired",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "fixture_rows": [
+          {
+            "captured_timezone": "Asia/Shanghai",
+            "content": "eva_rc_20260614T232816Z_53b192fd_rc37_oliver秘密安排",
+            "created_at": "2026-06-14T23:31:56.524508+00:00",
+            "duration_minutes": 5,
+            "id": "1e2d6f1e-4529-43bb-9eb3-984588b7902a",
+            "lifecycle": "active",
+            "next_fire_at": "2026-06-15T02:31:00+00:00",
+            "owner_account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+          },
+          {
+            "captured_timezone": "Asia/Shanghai",
+            "content": "eva_rc_20260614T232816Z_53b192fd_rc37_oliver远期安排",
+            "created_at": "2026-06-14T23:31:59.473154+00:00",
+            "duration_minutes": 5,
+            "id": "bfd14a2f-d4e2-4f2c-8df0-cd2c231e06fb",
+            "lifecycle": "active",
+            "next_fire_at": "2026-06-20T06:00:00+00:00",
+            "owner_account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+          }
+        ],
+        "message": {
+          "input": "oliver今天有什么安排",
+          "message_id": "eva_rc_20260614T232816Z_53b192fd_rc3_friend_today_90d941b9",
+          "outbound_text": "olivers今天的时间👇\n\n上午0:00–6:00 空闲\n6:00–6:30 有事\n6:30–9:00 空闲\n9:00–9:30 有事\n9:30–10:31 空闲\n10:31–10:36 有事\n10:36–19:30 空闲\n19:30–20:30 有事\n20:30–00:00 空闲\n\n你想约哪个时间段？",
+          "post": {
+            "account_id": "2ca837a34f324272a935a71b5af1209a",
+            "body": {
+              "accepted": true,
+              "account_id": "2ca837a34f324272a935a71b5af1209a",
+              "channel_id": "eda31f364cce452a8757bef4325a8fd6",
+              "channel_identity_id": "d52642ff4903414d8293b22e00b3da67",
+              "created_account": false,
+              "provider_subject": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat",
+              "provider_type": "wechat_personal",
+              "raw_event_id": "eva_rc_20260614T232816Z_53b192fd_rc3_friend_today_90d941b9"
+            },
+            "context_token_hash": "048a2afc1c01",
+            "context_token_length": 136,
+            "message_id": "eva_rc_20260614T232816Z_53b192fd_rc3_friend_today_90d941b9",
+            "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+            "status": 202,
+            "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+          },
+          "snapshot": {
+            "delivery_attempts": [
+              {
+                "attempted_at": "2026-06-14T23:32:09.688312+00:00",
+                "container": "24b7ccbe4ce5",
+                "context_token_age_seconds": null,
+                "context_token_source": "trigger_payload",
+                "created_at": "2026-06-14T23:32:09.688312+00:00",
+                "delivered_at": null,
+                "delivery_intent": "e736bde9a2c74f24a98433bd16d6f2c4:reply:1",
+                "delivery_source": "reply",
+                "error_code": "ilink_send_failed_ret_-2",
+                "id": "614eef8e-b225-42e3-8a46-907b6e71a092",
+                "latency_ms": 1207,
+                "message_id": "915388d6-3766-44c4-963d-586195edcf59",
+                "provider_idempotency_key": "e736bde9a2c74f24a98433bd16d6f2c4:reply:1",
+                "provider_message_id": null,
+                "provider_type": "wechat_personal",
+                "retry_attempt": 1,
+                "route_id": "0102304a-1ef5-43fb-be1e-c6038676e558",
+                "status": "failed",
+                "traceparent": null,
+                "turn_id": "e736bde9-a2c7-4f24-a984-33bd16d6f2c4",
+                "updated_at": "2026-06-14T23:32:09.688312+00:00"
+              }
+            ],
+            "disposition": {
+              "created_at": "2026-06-14T23:32:08.456072+00:00",
+              "disposition": "replied",
+              "id": "7bb8a2d0-490c-4f48-a546-848ca66eefef",
+              "reason_code": "reply_ready",
+              "turn_id": "e736bde9-a2c7-4f24-a984-33bd16d6f2c4",
+              "updated_at": "2026-06-14T23:32:08.456072+00:00"
+            },
+            "inbound": {
+              "causal_inbound_event_id": "eva_rc_20260614T232816Z_53b192fd_rc3_friend_today_90d941b9",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:02.721737+00:00",
+              "id": "f639b423-fb7e-44f9-bf80-493d859414da",
+              "payload": {
+                "account_id": "2ca837a34f324272a935a71b5af1209a",
+                "context_token": "[redacted]",
+                "message_id": "eva_rc_20260614T232816Z_53b192fd_rc3_friend_today_90d941b9",
+                "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+                "text": "oliver今天有什么安排",
+                "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+              },
+              "seq": 38,
+              "text": "oliver今天有什么安排"
+            },
+            "outbound_messages": [
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:32:08.452991+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "915388d6-3766-44c4-963d-586195edcf59",
+                "payload": {
+                  "segment_index": 1
+                },
+                "segment_index": 1,
+                "seq": null,
+                "text": "olivers今天的时间👇\n\n上午0:00–6:00 空闲\n6:00–6:30 有事\n6:30–9:00 空闲\n9:00–9:30 有事\n9:30–10:31 空闲\n10:31–10:36 有事\n10:36–19:30 空闲\n19:30–20:30 有事\n20:30–00:00 空闲\n\n你想约哪个时间段？",
+                "turn_id": "e736bde9-a2c7-4f24-a984-33bd16d6f2c4",
+                "updated_at": "2026-06-14T23:32:08.452991+00:00"
+              }
+            ],
+            "turn": {
+              "completed_at": "2026-06-14T23:32:08.452991+00:00",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:02.905393+00:00",
+              "id": "e736bde9-a2c7-4f24-a984-33bd16d6f2c4",
+              "input_from_seq": 38,
+              "input_to_seq": 38,
+              "mode": "interactive",
+              "started_at": "2026-06-14T23:32:02.905393+00:00",
+              "superseded_by_inbound_seq": null,
+              "trigger_id": "inbound:eva_rc_20260614T232816Z_53b192fd_rc3_friend_today_90d941b9",
+              "trigger_type": "InboundTurn",
+              "updated_at": "2026-06-14T23:32:08.452991+00:00"
+            }
+          }
+        }
+      },
+      "name": "RC3_friend_agenda_busy_free_no_title",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "fixture_rows": [
+          {
+            "captured_timezone": "Asia/Shanghai",
+            "content": "eva_rc_20260614T232816Z_53b192fd_rc37_oliver秘密安排",
+            "created_at": "2026-06-14T23:31:56.524508+00:00",
+            "duration_minutes": 5,
+            "id": "1e2d6f1e-4529-43bb-9eb3-984588b7902a",
+            "lifecycle": "active",
+            "next_fire_at": "2026-06-15T02:31:00+00:00",
+            "owner_account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+          },
+          {
+            "captured_timezone": "Asia/Shanghai",
+            "content": "eva_rc_20260614T232816Z_53b192fd_rc37_oliver远期安排",
+            "created_at": "2026-06-14T23:31:59.473154+00:00",
+            "duration_minutes": 5,
+            "id": "bfd14a2f-d4e2-4f2c-8df0-cd2c231e06fb",
+            "lifecycle": "active",
+            "next_fire_at": "2026-06-20T06:00:00+00:00",
+            "owner_account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+          }
+        ],
+        "message": {
+          "input": "oliver有什么安排",
+          "message_id": "eva_rc_20260614T232816Z_53b192fd_rc7_friend_vague_aaf6bfbd",
+          "outbound_text": "olivers 今天的空闲时间：\n上午0点–6点 空闲\n6:00–6:30 有事\n6:30–9:00 空闲\n9:00–9:30 有事\n9:30–10:31 空闲\n10:31–10:36 有事\n10:36–19:30 空闲\n19:30–20:30 有事\n20:30–明天0点 空闲\n\n你看哪个时段方便？",
+          "post": {
+            "account_id": "2ca837a34f324272a935a71b5af1209a",
+            "body": {
+              "accepted": true,
+              "account_id": "2ca837a34f324272a935a71b5af1209a",
+              "channel_id": "eda31f364cce452a8757bef4325a8fd6",
+              "channel_identity_id": "d52642ff4903414d8293b22e00b3da67",
+              "created_account": false,
+              "provider_subject": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat",
+              "provider_type": "wechat_personal",
+              "raw_event_id": "eva_rc_20260614T232816Z_53b192fd_rc7_friend_vague_aaf6bfbd"
+            },
+            "context_token_hash": "048a2afc1c01",
+            "context_token_length": 136,
+            "message_id": "eva_rc_20260614T232816Z_53b192fd_rc7_friend_vague_aaf6bfbd",
+            "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+            "status": 202,
+            "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+          },
+          "snapshot": {
+            "delivery_attempts": [
+              {
+                "attempted_at": "2026-06-14T23:32:20.315017+00:00",
+                "container": "24b7ccbe4ce5",
+                "context_token_age_seconds": null,
+                "context_token_source": "trigger_payload",
+                "created_at": "2026-06-14T23:32:20.315017+00:00",
+                "delivered_at": null,
+                "delivery_intent": "a0460e787eea438baf5f895776ed7c66:reply:1",
+                "delivery_source": "reply",
+                "error_code": "ilink_send_failed_ret_-2",
+                "id": "13dc8667-37e0-40a1-9728-e937b4c8ae53",
+                "latency_ms": 1154,
+                "message_id": "7279d303-47ac-42f6-80d0-896c3ab60fbd",
+                "provider_idempotency_key": "a0460e787eea438baf5f895776ed7c66:reply:1",
+                "provider_message_id": null,
+                "provider_type": "wechat_personal",
+                "retry_attempt": 1,
+                "route_id": "0102304a-1ef5-43fb-be1e-c6038676e558",
+                "status": "failed",
+                "traceparent": null,
+                "turn_id": "a0460e78-7eea-438b-af5f-895776ed7c66",
+                "updated_at": "2026-06-14T23:32:20.315017+00:00"
+              }
+            ],
+            "disposition": {
+              "created_at": "2026-06-14T23:32:19.136868+00:00",
+              "disposition": "replied",
+              "id": "d694b8b9-5832-4173-9a21-2593eea97adf",
+              "reason_code": "reply_ready",
+              "turn_id": "a0460e78-7eea-438b-af5f-895776ed7c66",
+              "updated_at": "2026-06-14T23:32:19.136868+00:00"
+            },
+            "inbound": {
+              "causal_inbound_event_id": "eva_rc_20260614T232816Z_53b192fd_rc7_friend_vague_aaf6bfbd",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:13.614626+00:00",
+              "id": "c43d36fd-cc2a-404d-a10f-b148a5a2ece6",
+              "payload": {
+                "account_id": "2ca837a34f324272a935a71b5af1209a",
+                "context_token": "[redacted]",
+                "message_id": "eva_rc_20260614T232816Z_53b192fd_rc7_friend_vague_aaf6bfbd",
+                "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+                "text": "oliver有什么安排",
+                "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+              },
+              "seq": 39,
+              "text": "oliver有什么安排"
+            },
+            "outbound_messages": [
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:32:19.133716+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "7279d303-47ac-42f6-80d0-896c3ab60fbd",
+                "payload": {
+                  "segment_index": 1
+                },
+                "segment_index": 1,
+                "seq": null,
+                "text": "olivers 今天的空闲时间：\n上午0点–6点 空闲\n6:00–6:30 有事\n6:30–9:00 空闲\n9:00–9:30 有事\n9:30–10:31 空闲\n10:31–10:36 有事\n10:36–19:30 空闲\n19:30–20:30 有事\n20:30–明天0点 空闲\n\n你看哪个时段方便？",
+                "turn_id": "a0460e78-7eea-438b-af5f-895776ed7c66",
+                "updated_at": "2026-06-14T23:32:19.133716+00:00"
+              }
+            ],
+            "turn": {
+              "completed_at": "2026-06-14T23:32:19.133716+00:00",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:13.840023+00:00",
+              "id": "a0460e78-7eea-438b-af5f-895776ed7c66",
+              "input_from_seq": 39,
+              "input_to_seq": 39,
+              "mode": "interactive",
+              "started_at": "2026-06-14T23:32:13.840023+00:00",
+              "superseded_by_inbound_seq": null,
+              "trigger_id": "inbound:eva_rc_20260614T232816Z_53b192fd_rc7_friend_vague_aaf6bfbd",
+              "trigger_type": "InboundTurn",
+              "updated_at": "2026-06-14T23:32:19.133716+00:00"
+            }
+          }
+        }
+      },
+      "name": "RC7_friend_vague_defaults_7d",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "blocker_row": {
+          "captured_timezone": "Asia/Shanghai",
+          "content": "eva_rc_20260614T232816Z_53b192fd_rc2_冲突占用",
+          "created_at": "2026-06-14T23:32:24.726748+00:00",
+          "duration_minutes": 60,
+          "id": "9d65938a-4775-466e-8050-fbe7bc8c6e79",
+          "lifecycle": "active",
+          "next_fire_at": "2026-06-16T12:00:00+00:00",
+          "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+        },
+        "message": {
+          "input": "明天晚上8点提醒我eva_rc_20260614T232816Z_53b192fd_rc2_冲突请求，持续30分钟",
+          "message_id": "eva_rc_20260614T232816Z_53b192fd_rc2_conflict_ab2493b6",
+          "outbound_text": "你明天晚上8点到8点半的时间已经有一个“冲突占用”的提醒了，这个新请求的30分钟正好撞上\n你要换个时间段，还是取消原来那个再设新的？",
+          "post": {
+            "account_id": "2ca837a34f324272a935a71b5af1209a",
+            "body": {
+              "accepted": true,
+              "account_id": "2ca837a34f324272a935a71b5af1209a",
+              "channel_id": "eda31f364cce452a8757bef4325a8fd6",
+              "channel_identity_id": "d52642ff4903414d8293b22e00b3da67",
+              "created_account": false,
+              "provider_subject": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat",
+              "provider_type": "wechat_personal",
+              "raw_event_id": "eva_rc_20260614T232816Z_53b192fd_rc2_conflict_ab2493b6"
+            },
+            "context_token_hash": "048a2afc1c01",
+            "context_token_length": 136,
+            "message_id": "eva_rc_20260614T232816Z_53b192fd_rc2_conflict_ab2493b6",
+            "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+            "status": 202,
+            "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+          },
+          "snapshot": {
+            "delivery_attempts": [],
+            "disposition": {
+              "created_at": "2026-06-14T23:32:38.847655+00:00",
+              "disposition": "replied",
+              "id": "46053b31-b80b-4365-96f4-d9ca4654f7c8",
+              "reason_code": "reply_ready",
+              "turn_id": "72e30869-4546-47bb-a92c-4ecf4a781172",
+              "updated_at": "2026-06-14T23:32:38.847655+00:00"
+            },
+            "inbound": {
+              "causal_inbound_event_id": "eva_rc_20260614T232816Z_53b192fd_rc2_conflict_ab2493b6",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:30.833171+00:00",
+              "id": "8b297da6-323f-4d81-bcba-f054d54d4069",
+              "payload": {
+                "account_id": "2ca837a34f324272a935a71b5af1209a",
+                "context_token": "[redacted]",
+                "message_id": "eva_rc_20260614T232816Z_53b192fd_rc2_conflict_ab2493b6",
+                "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+                "text": "明天晚上8点提醒我eva_rc_20260614T232816Z_53b192fd_rc2_冲突请求，持续30分钟",
+                "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+              },
+              "seq": 40,
+              "text": "明天晚上8点提醒我eva_rc_20260614T232816Z_53b192fd_rc2_冲突请求，持续30分钟"
+            },
+            "outbound_messages": [
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:32:38.841724+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "1ab6bc78-3eef-4f79-9058-a37d87426e17",
+                "payload": {
+                  "segment_index": 1
+                },
+                "segment_index": 1,
+                "seq": null,
+                "text": "你明天晚上8点到8点半的时间已经有一个“冲突占用”的提醒了，这个新请求的30分钟正好撞上",
+                "turn_id": "72e30869-4546-47bb-a92c-4ecf4a781172",
+                "updated_at": "2026-06-14T23:32:38.841724+00:00"
+              },
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:32:38.841724+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "a1bfad0b-495a-42df-9cfd-40df0074a278",
+                "payload": {
+                  "segment_index": 2
+                },
+                "segment_index": 2,
+                "seq": null,
+                "text": "你要换个时间段，还是取消原来那个再设新的？",
+                "turn_id": "72e30869-4546-47bb-a92c-4ecf4a781172",
+                "updated_at": "2026-06-14T23:32:38.841724+00:00"
+              }
+            ],
+            "turn": {
+              "completed_at": "2026-06-14T23:32:38.841724+00:00",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:31.035401+00:00",
+              "id": "72e30869-4546-47bb-a92c-4ecf4a781172",
+              "input_from_seq": 40,
+              "input_to_seq": 40,
+              "mode": "interactive",
+              "started_at": "2026-06-14T23:32:31.035401+00:00",
+              "superseded_by_inbound_seq": null,
+              "trigger_id": "inbound:eva_rc_20260614T232816Z_53b192fd_rc2_conflict_ab2493b6",
+              "trigger_type": "InboundTurn",
+              "updated_at": "2026-06-14T23:32:38.841724+00:00"
+            }
+          }
+        },
+        "new_rows_after_request": []
+      },
+      "name": "RC2_conflict_typed_outcome",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "message": {
+          "input": "不是明天吗？",
+          "message_id": "eva_rc_20260614T232816Z_53b192fd_rc4_contextual_correction_576b9e0a",
+          "outbound_text": "刚才说的是明天（6月16日）晚上8点哦，不是今晚\n今晚8点你目前是空的，但你说的那个提醒我设的是明天，你看清楚了吗😅",
+          "post": {
+            "account_id": "2ca837a34f324272a935a71b5af1209a",
+            "body": {
+              "accepted": true,
+              "account_id": "2ca837a34f324272a935a71b5af1209a",
+              "channel_id": "eda31f364cce452a8757bef4325a8fd6",
+              "channel_identity_id": "d52642ff4903414d8293b22e00b3da67",
+              "created_account": false,
+              "provider_subject": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat",
+              "provider_type": "wechat_personal",
+              "raw_event_id": "eva_rc_20260614T232816Z_53b192fd_rc4_contextual_correction_576b9e0a"
+            },
+            "context_token_hash": "048a2afc1c01",
+            "context_token_length": 136,
+            "message_id": "eva_rc_20260614T232816Z_53b192fd_rc4_contextual_correction_576b9e0a",
+            "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+            "status": 202,
+            "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+          },
+          "snapshot": {
+            "delivery_attempts": [],
+            "disposition": {
+              "created_at": "2026-06-14T23:32:54.704067+00:00",
+              "disposition": "replied",
+              "id": "d7d048f5-b5d3-4d4b-8f0c-fdcfdb4527bc",
+              "reason_code": "reply_ready",
+              "turn_id": "34125b99-761c-4ab3-9c2b-27a731eccdb6",
+              "updated_at": "2026-06-14T23:32:54.704067+00:00"
+            },
+            "inbound": {
+              "causal_inbound_event_id": "eva_rc_20260614T232816Z_53b192fd_rc4_contextual_correction_576b9e0a",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:50.176257+00:00",
+              "id": "5b8f7937-61a1-48f0-9067-c5ecc2c8c164",
+              "payload": {
+                "account_id": "2ca837a34f324272a935a71b5af1209a",
+                "context_token": "[redacted]",
+                "message_id": "eva_rc_20260614T232816Z_53b192fd_rc4_contextual_correction_576b9e0a",
+                "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+                "text": "不是明天吗？",
+                "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+              },
+              "seq": 41,
+              "text": "不是明天吗？"
+            },
+            "outbound_messages": [
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:32:54.697753+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "3c2ae444-f787-4826-874d-54be21e2d835",
+                "payload": {
+                  "segment_index": 1
+                },
+                "segment_index": 1,
+                "seq": null,
+                "text": "刚才说的是明天（6月16日）晚上8点哦，不是今晚",
+                "turn_id": "34125b99-761c-4ab3-9c2b-27a731eccdb6",
+                "updated_at": "2026-06-14T23:32:54.697753+00:00"
+              },
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:32:54.697753+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "efd959f3-6726-4aae-a9c6-77ca71d301bc",
+                "payload": {
+                  "segment_index": 2
+                },
+                "segment_index": 2,
+                "seq": null,
+                "text": "今晚8点你目前是空的，但你说的那个提醒我设的是明天，你看清楚了吗😅",
+                "turn_id": "34125b99-761c-4ab3-9c2b-27a731eccdb6",
+                "updated_at": "2026-06-14T23:32:54.697753+00:00"
+              }
+            ],
+            "turn": {
+              "completed_at": "2026-06-14T23:32:54.697753+00:00",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:32:50.525921+00:00",
+              "id": "34125b99-761c-4ab3-9c2b-27a731eccdb6",
+              "input_from_seq": 41,
+              "input_to_seq": 41,
+              "mode": "interactive",
+              "started_at": "2026-06-14T23:32:50.525921+00:00",
+              "superseded_by_inbound_seq": null,
+              "trigger_id": "inbound:eva_rc_20260614T232816Z_53b192fd_rc4_contextual_correction_576b9e0a",
+              "trigger_type": "InboundTurn",
+              "updated_at": "2026-06-14T23:32:54.697753+00:00"
+            }
+          }
+        },
+        "new_rows_after_correction": []
+      },
+      "name": "RC4_contextual_correction_no_new_intent",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "immediate_cleanup": [],
+        "message": {
+          "input": "今天上午0点55分提醒我eva_rc_20260614T232816Z_53b192fd_rc0过去渲染，持续5分钟",
+          "message_id": "eva_rc_20260614T232816Z_53b192fd_rc0_today_0055_c31512d7",
+          "outbound_text": "“今天上午0点55分”指的是今天凌晨0:55，但这个时间已经过了哦\n你指的应该是今晚（6月15日）晚上0:55？还是明天凌晨？确认一下我帮你设😅",
+          "post": {
+            "account_id": "2ca837a34f324272a935a71b5af1209a",
+            "body": {
+              "accepted": true,
+              "account_id": "2ca837a34f324272a935a71b5af1209a",
+              "channel_id": "eda31f364cce452a8757bef4325a8fd6",
+              "channel_identity_id": "d52642ff4903414d8293b22e00b3da67",
+              "created_account": false,
+              "provider_subject": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat",
+              "provider_type": "wechat_personal",
+              "raw_event_id": "eva_rc_20260614T232816Z_53b192fd_rc0_today_0055_c31512d7"
+            },
+            "context_token_hash": "048a2afc1c01",
+            "context_token_length": 136,
+            "message_id": "eva_rc_20260614T232816Z_53b192fd_rc0_today_0055_c31512d7",
+            "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+            "status": 202,
+            "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+          },
+          "snapshot": {
+            "delivery_attempts": [],
+            "disposition": {
+              "created_at": "2026-06-14T23:33:11.075873+00:00",
+              "disposition": "replied",
+              "id": "ab566ae7-850e-47f7-8ae9-fdfcdc227eea",
+              "reason_code": "reply_ready",
+              "turn_id": "11ee1eff-b22c-427c-a3c4-592318fdb4f2",
+              "updated_at": "2026-06-14T23:33:11.075873+00:00"
+            },
+            "inbound": {
+              "causal_inbound_event_id": "eva_rc_20260614T232816Z_53b192fd_rc0_today_0055_c31512d7",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:33:04.711773+00:00",
+              "id": "60d97bf8-b65b-4742-9568-ba8959022200",
+              "payload": {
+                "account_id": "2ca837a34f324272a935a71b5af1209a",
+                "context_token": "[redacted]",
+                "message_id": "eva_rc_20260614T232816Z_53b192fd_rc0_today_0055_c31512d7",
+                "session_id": "cb982f1605bd445abd4d90221d3d62a5",
+                "text": "今天上午0点55分提醒我eva_rc_20260614T232816Z_53b192fd_rc0过去渲染，持续5分钟",
+                "wxid": "o9cq8084UWQ0BnDlHIoNtko_KaAA@im.wechat"
+              },
+              "seq": 42,
+              "text": "今天上午0点55分提醒我eva_rc_20260614T232816Z_53b192fd_rc0过去渲染，持续5分钟"
+            },
+            "outbound_messages": [
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:33:11.06774+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "fd520bfa-ffe4-4d65-bcdb-a6ffb5bc35db",
+                "payload": {
+                  "segment_index": 1
+                },
+                "segment_index": 1,
+                "seq": null,
+                "text": "“今天上午0点55分”指的是今天凌晨0:55，但这个时间已经过了哦",
+                "turn_id": "11ee1eff-b22c-427c-a3c4-592318fdb4f2",
+                "updated_at": "2026-06-14T23:33:11.06774+00:00"
+              },
+              {
+                "causal_inbound_event_id": null,
+                "channel_identity_id": null,
+                "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+                "created_at": "2026-06-14T23:33:11.06774+00:00",
+                "direction": "outbound",
+                "facts_hash": null,
+                "id": "9b23a217-0b99-41e7-bf0d-b442166c524c",
+                "payload": {
+                  "segment_index": 2
+                },
+                "segment_index": 2,
+                "seq": null,
+                "text": "你指的应该是今晚（6月15日）晚上0:55？还是明天凌晨？确认一下我帮你设😅",
+                "turn_id": "11ee1eff-b22c-427c-a3c4-592318fdb4f2",
+                "updated_at": "2026-06-14T23:33:11.06774+00:00"
+              }
+            ],
+            "turn": {
+              "completed_at": "2026-06-14T23:33:11.06774+00:00",
+              "conversation_id": "c93f7cd8-6dfe-4ff7-b401-d36cc6f6f1e9",
+              "created_at": "2026-06-14T23:33:04.96021+00:00",
+              "id": "11ee1eff-b22c-427c-a3c4-592318fdb4f2",
+              "input_from_seq": 42,
+              "input_to_seq": 42,
+              "mode": "interactive",
+              "started_at": "2026-06-14T23:33:04.96021+00:00",
+              "superseded_by_inbound_seq": null,
+              "trigger_id": "inbound:eva_rc_20260614T232816Z_53b192fd_rc0_today_0055_c31512d7",
+              "trigger_type": "InboundTurn",
+              "updated_at": "2026-06-14T23:33:11.06774+00:00"
+            }
+          }
+        },
+        "new_rows_after_request": []
+      },
+      "name": "RC0_relative_today_0055_render",
+      "status": "pass"
+    }
+  ],
+  "cleanup": {
+    "pending_clarifications": [],
+    "rc0_immediate_reminders": [],
+    "reminders": [
+      {
+        "content": "eva_rc_20260614T232816Z_53b192fd_rc5_今日未来日程",
+        "id": "ed230c18-c595-4e63-b0b5-16614d4d528a",
+        "lifecycle": "deleted",
+        "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+      },
+      {
+        "content": "eva_rc_20260614T232816Z_53b192fd_rc5_今日过去日程",
+        "id": "c2ea7b1c-f826-4e20-871e-c798721444d0",
+        "lifecycle": "deleted",
+        "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+      },
+      {
+        "content": "eva_rc_20260614T232816Z_53b192fd_rc37_oliver秘密安排",
+        "id": "1e2d6f1e-4529-43bb-9eb3-984588b7902a",
+        "lifecycle": "deleted",
+        "owner_account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+      },
+      {
+        "content": "检查时间",
+        "id": "8dd86eba-e7cd-44d0-a6ba-4e9e1d4d486d",
+        "lifecycle": "deleted",
+        "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+      },
+      {
+        "content": "eva_rc_20260614T232816Z_53b192fd_rc37_oliver远期安排",
+        "id": "bfd14a2f-d4e2-4f2c-8df0-cd2c231e06fb",
+        "lifecycle": "deleted",
+        "owner_account_id": "ae02ff01-6fcd-4d39-a189-e51c8c8a31e6"
+      },
+      {
+        "content": "eva_rc_20260614T232816Z_53b192fd_rc2_冲突占用",
+        "id": "9d65938a-4775-466e-8050-fbe7bc8c6e79",
+        "lifecycle": "deleted",
+        "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+      },
+      {
+        "content": "eva_rc_20260614T232816Z_53b192fd_rc6_到点退役",
+        "id": "a4cda65d-8cc9-4194-84ac-3bdc97083f3e",
+        "lifecycle": "deleted",
+        "owner_account_id": "2ca837a3-4f32-4272-a935-a71b5af1209a"
+      }
+    ]
+  },
+  "deployed_sha": "47b525ae433f0dc89e319f5b1ef3000a91d5d952",
+  "error": "SmokeError(\"RC6 not completed/delivered/retired: scan=0, rows=[{'reminder_id': 'a4cda65d-8cc9-4194-84ac-3bdc97083f3e', 'content': 'eva_rc_20260614T232816Z_53b192fd_rc6_到点退役', 'lifecycle': 'active', 'next_fire_at': '2026-06-14T23:30:22.174819+00:00', 'fire_id': 'e1a85d58-57a1-483d-91db-0d0ec0b29cf6', 'fire_state': 'claimed', 'delivery_result': 'undelivered', 'due_at': '2026-06-14T23:30:22.174819+00:00', 'handled_at': None, 'completed_at': None}]\")",
+  "finished_at": "2026-06-14T23:33:37.046303+00:00",
+  "planned_times": {
+    "due_fire_utc": "2026-06-14T23:30:22.174819+00:00",
+    "oliver_later_shanghai": "2026-06-20T14:00:00+08:00",
+    "today_future_shanghai": "2026-06-15T09:31:00+08:00",
+    "today_past_shanghai": "2026-06-15T05:31:00+08:00",
+    "tomorrow_18_shanghai": "2026-06-16T18:00:00+08:00",
+    "tomorrow_20_shanghai": "2026-06-16T20:00:00+08:00"
+  },
+  "remote_now": {
+    "now_shanghai": "2026-06-15T07:31:22.174819",
+    "now_utc": "2026-06-14T23:31:22.174819+00:00"
+  },
+  "run_id": "eva_rc_20260614T232816Z_53b192fd",
+  "started_at": "2026-06-14T23:28:16.250631+00:00",
+  "status": "fail"
+}

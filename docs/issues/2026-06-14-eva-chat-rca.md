@@ -1,6 +1,6 @@
 ---
 kind: investigation
-status: open
+status: resolved
 title: Eva 2026-06-14 chat root-cause analysis (interactive-turn recurrence)
 created_at: 2026-06-14
 updated_at: 2026-06-15
@@ -18,51 +18,61 @@ related:
 
 ## Fix Status (updated 2026-06-15)
 
-Deployed to gcp-coke (`main`) and smoke-verified on the real WeChat path:
+Resolved on `main`, deployed to gcp-coke, and production-smoke verified against
+real WeChat accounts.
 
-- **RC0** ✅ deployed + verified — relative-time rendering; live replies show
-  "今天上午0点55分", "明天晚上6点".
-- **RC1** ✅ deployed + verified — "明天晚上6点" stored as 18:00 (not 06:00).
-- **RC2** ✅ deployed — conflict/refusal wording bound to typed outcome. NOTE: the
-  first RC2 deploy regressed prose list replies into grounded-failure recovery
-  (force-JSON on outcome turns); caught by live smoke, hotfixed (prose tolerance
-  restored, domain_claim guard kept), redeployed.
-- **RC5** ✅ deployed + verified — deterministic schedule-by-date; live "今天日程"
-  lists exactly today's items, no fired/past pollution.
-- **RC6** ✅ deployed + verified — fire completion; live one-time reminder fired →
-  completed → retired; recurring advancement unit+integration proven.
+Deployed SHA:
+`47b525ae433f0dc89e319f5b1ef3000a91d5d952`.
 
-Committed, reviewed, NOT merged to main:
+Implementation closeout:
 
-- **RC3+RC7** 🔶 friend-agenda questions route to availability_query (busy/free),
-  never list_shared/titles; vague queries default to a documented today..+7d
-  window. On branch `fix/friend-schedule-busy-free` (`11c65e8d`). Reviewed: in
-  scope, 357 unit tests pass, RC2 prose hotfix not regressed. NOT merged; will
-  likely need an express.py conflict resolution against the deepseek swap.
+- **RC0** ✅ fixed + deployed + verified — Express receives the turn clock and
+  relative-time rendering is grounded; production replies include
+  "明天晚上6点" and "今天上午0点55分".
+- **RC1** ✅ fixed + deployed + verified — explicit "晚上6点" is preserved as PM;
+  production DB stored local 18:00, not 06:00.
+- **RC2** ✅ fixed + deployed + verified — conflict/refusal prose is bound to
+  typed outcomes and does not create the rejected reminder. The earlier RC2
+  prose-list regression was caught by live smoke and hotfixed before closeout.
+- **RC3+RC7** ✅ merged + deployed + verified — friend schedule/agenda questions
+  route through availability busy/free; titles are not exposed. Vague friend
+  agenda questions default to the documented today..+7d window.
+- **RC4** ✅ fixed + deployed + verified — contextual corrections such as
+  "不是明天吗？" are not treated as fresh scheduling intents and do not create new
+  reminders.
+- **RC5** ✅ fixed + deployed + verified — deterministic schedule-by-date lists
+  today's active future items and excludes past/completed pollution.
+- **RC6** ✅ fixed + deployed + verified — one-time reminder fire produced a
+  delivered `reminder_fire`, `fire_state='completed'`, and retired the reminder.
 
-Not started:
+Verification:
 
-- **RC4** ⬜ contextual correction misclassified as a new scheduling intent (the
-  "失忆"). Last remaining; serializes on plan.py.
+- `.venv/bin/python -m pytest tests/unit/coke/turn/inbound -q`
+  → `178 passed, 1 skipped` (`COKE_TEST_DATABASE_URL` not set).
+- `.venv/bin/python -m pytest tests/unit/coke/social_scheduling/test_social_scheduling_service.py -q`
+  → `38 passed`.
+- `zsh scripts/verify-surface clean-rebuild-backend`
+  → `985 passed, 1 skipped` (`COKE_TEST_DATABASE_URL` not set).
+- `bash scripts/deploy-compose-to-gcp.sh`
+  → clean deploy health checks passed; `/healthz` returned `{"ok": true}` and
+  remote `.deployed-sha` matched `47b525ae433f0dc89e319f5b1ef3000a91d5d952`.
 
-### Acceptance note (2026-06-15, post-1h auto check)
+Production smoke evidence:
 
-main is green (973 unit tests) but the only NEW thing that landed on main during
-the hour is an UNRELATED, eval-backed **DeepSeek V4 swap for the `detector` and
-`express` roles** (`cad1b465`; decision recorded in
-`docs/issues/2026-06-15-deepseek-v4-replacement-investigation.md`). It is NOT yet
-deployed — production still runs GLM-5.1 + RC0–6.
+- Combined closeout:
+  `artifacts/evidence/eva-rc-smoke/20260615T000927Z-rc0-7-production-combined.json`.
+- Source full smoke for RC0/1/2/3/4/5/7:
+  `artifacts/evidence/eva-rc-smoke/20260614T232816Z-rc0-7-production.json`.
+- Source RC6 fire completion on Oliver:
+  `artifacts/evidence/eva-rc-smoke/20260615T000144Z-rc6-oliver-production.json`.
 
-CRITICAL: the deepseek swap changes the models BEHIND RC0 (express rendering),
-RC1 (detector AM/PM), and RC2 (express conflict-claim + prose handling). All my
-RC0/RC1/RC2 live smokes were under GLM-5.1, so deploying main re-opens those as
-UNVERIFIED for the deployed model and requires a full real-account re-smoke. The
-RC4 task is still missing and RC3+RC7 is unmerged. Therefore the auto-acceptance
-did NOT blanket-deploy; this is the "investigate" path.
-
-Main commits: RC0 `340bca15`, RC6 `61a18629`, RC2 `fbba63bb`, RC5 `b76cc24a`,
-RC2 hotfix `cec8c5b4`, RC1 `b8b8a21e` (+ merge commits). Each fix was reviewed by
-running its tests directly (not trusting Codex's report).
+RC6 account note: RC6 first attempted on Eva reached the correct
+`ReminderFireTurn` and `reply_ready` disposition, but Eva's connector `/send`
+returned iLink `ret=-2` even after `poll/once`, and direct connector probing
+reproduced the same 502. Oliver's connector send path returned 202, so RC6 was
+re-run on Oliver as the true-account fire lifecycle check. The failure was
+classified as Eva connector context-token state, not a Coke backend planning or
+fire-lifecycle regression.
 
 ## Summary
 
