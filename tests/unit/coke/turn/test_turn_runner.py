@@ -153,6 +153,21 @@ class RecordingTurnPipeline:
         )
 
 
+class RecordingRenderExpress:
+    def __init__(self, segments: tuple[str, ...] = ("rendered notification",)) -> None:
+        self.segments = segments
+        self.requests = []
+
+    def render(self, request):
+        self.requests.append(request)
+        return self.segments
+
+    async def render_streaming(self, request):
+        self.requests.append(request)
+        for segment in self.segments:
+            yield segment
+
+
 class ExplodingTurnPipeline:
     async def run(self, request, guard, delivery=None):
         raise AssertionError("turn pipeline should not be invoked")
@@ -418,23 +433,42 @@ def test_access_denied_invalid_output_recovers_and_closes_window(harness):
     assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
 
 
-def test_render_turn_stays_on_render_agent_path(harness):
+def test_notification_turn_uses_renderer_not_interaction_agent(harness):
     harness["runner"].turn_pipeline = ExplodingTurnPipeline()
+    renderer = RecordingRenderExpress()
+    harness["runner"].render_express = renderer
     trigger = TurnTrigger(
         trigger_id="notification:render",
         trigger_type="NotificationTurn",
         mode=TurnMode.RENDER,
         conversation_id=harness["trigger"].conversation_id,
         account_id="account_1",
-        payload={"notification": {"kind": "shared_reminder_created"}},
+        payload={
+            "notification_fact_id": "notification_fact_1",
+            "notification_fact": {
+                "id": "notification_fact_1",
+                "type": "shared_reminder_created",
+                "facts": {
+                    "actor_display_name": "Alice",
+                    "title": "Lunch",
+                    "status": "created",
+                },
+                "facts_hash": "hash_1",
+            },
+        },
     )
 
     result = harness["runner"].run_render_turn(trigger)
 
     assert result.disposition == "replied"
-    assert result.visible_text == "render"
-    assert len(harness["agent"].requests) == 1
-    assert harness["agent"].requests[0].trigger_type == "NotificationTurn"
+    assert result.visible_text == "rendered notification"
+    assert harness["agent"].requests == []
+    assert len(renderer.requests) == 1
+    request = renderer.requests[0]
+    assert request.turn_id == result.turn_id
+    assert request.account_id == "account_1"
+    assert request.payload["trigger_type"] == "NotificationTurn"
+    assert request.settled_outcome.outcomes[0].status == "notification"
 
 
 def test_access_denied_inbound_uses_render_agent_not_turn_pipeline(harness):

@@ -89,6 +89,8 @@ def test_runtime_wires_media_text_resolver_when_media_models_are_configured(
     assert runtime.reminder_service.detector.client.model.id == "deepseek-v4-flash"
     assert runtime.turn_pipeline._express.model.api_key == "deepseek-key"
     assert runtime.turn_pipeline._express.model.id == "deepseek-v4-flash"
+    assert runtime.turn_runner.render_express.model.api_key == "deepseek-key"
+    assert runtime.turn_runner.render_express.model.id == "deepseek-v4-flash"
     assert runtime.media_text_resolver.asr_client.api_key == "sf-key"
     assert runtime.media_text_resolver.vision_text_client.api_key == "sf-key"
 

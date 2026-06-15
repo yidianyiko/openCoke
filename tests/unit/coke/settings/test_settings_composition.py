@@ -96,6 +96,7 @@ def test_composition_exposes_active_turn_pipeline():
 
     assert runtime.turn_pipeline is not None
     assert runtime.turn_runner.turn_pipeline is runtime.turn_pipeline
+    assert runtime.turn_runner.render_express is runtime.turn_pipeline._express
 
 
 def test_composition_uses_null_email_sender_without_resend_key():

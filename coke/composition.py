@@ -1412,6 +1412,7 @@ def compose_coke_runtime(
         claim_boundary_committer=claim_boundary_committer,
         close_boundary_committer=close_boundary_committer,
         turn_pipeline=turn_pipeline,
+        render_express=turn_express,
     )
     return CokeRuntime(
         repositories=repositories,

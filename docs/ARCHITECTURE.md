@@ -41,7 +41,7 @@ providers
   -> Postgres durable facts + outbox
   -> coke-outbox-relay
   -> Redis Stream wake-up
-  -> coke-worker (The Turn, domain services, inbound turn pipeline, render-mode agent)
+  -> coke-worker (The Turn, domain services, inbound pipeline, renderers)
   -> coke-api provider egress
 
 coke-web -> coke-api -> Postgres-backed domains
@@ -53,8 +53,11 @@ All chat/channel-visible product prose flows through The Turn. Turn triggers are
 InboundTurn, ReminderFireTurn, ProactiveFireTurn, NightlySummaryTurn,
 NotificationTurn, AccessDeniedTurn, and UndeliveredResendTurn. Interactive
 InboundTurn uses the Plan -> PlanCompile -> Execute -> Express -> Close
-pipeline. Structured render turns keep the render-mode Interaction Agent: it
-receives already-trusted facts and has no business mutation tools. Runtime-owned
+pipeline. Migrated structured render turns use the same stateless Express-style
+renderer contract over already-trusted facts; `NotificationTurn` is the first
+migrated render turn. Render turns that have not yet been migrated keep the
+legacy render-mode Interaction Agent temporarily, still without business
+mutation tools. Runtime-owned
 prose is limited to typed signal exceptions such as waiting text while a model
 call is still active and grounded failure-recovery text when an interactive
 inbound turn cannot be closed correctly.
@@ -72,8 +75,9 @@ Turn execution has one spine:
    Execute calls real domain services inside the shared turn transaction, Express
    renders only the settled outcomes, and Close atomically commits domain writes,
    outbound rows, disposition, and close state.
-6. For structured reminder, notification, access, and recovery turns, invoke the
-   render-mode Interaction Agent over already-trusted facts.
+6. For structured render turns, invoke the stateless renderer when that trigger
+   has a typed render adapter; otherwise invoke the retained render-mode
+   Interaction Agent over already-trusted facts.
 7. Validate the first returned structured output. Malformed, empty, blocked, or
    timed-out-after-budget output is never an invented success reply. If the turn
    owns a current input window, it converges through a runtime-owned `recovered`
@@ -85,18 +89,22 @@ Turn execution has one spine:
    record delivery attempts.
 11. Update output-class-specific lifecycle state from delivery callbacks.
 
-The inbound turn pipeline does not expose business mutation tools to a prose
-agent. Mutations execute through typed domain services inside the shared turn
-session and become durable only when the close transaction commits. Render mode
-receives already-trusted structured facts and has no business mutation tools.
+The inbound turn pipeline and migrated render adapters do not expose business
+mutation tools to a prose agent. Mutations execute through typed domain services
+inside the shared turn session and become durable only when the close
+transaction commits. Render mode receives already-trusted structured facts and
+has no business mutation tools.
 
-Render-mode Interaction Agent construction disables Agno chat history as a fact
-source. Render turns use trusted trigger facts, domain results, and dynamic
-prompt blocks for product state; recent interactive chat may not supply title,
-time, participant, delivery status, or privacy-bearing facts for system turns.
-Reminder-fire render turns hydrate fire ids into trusted reminder facts before
-the Interaction Agent runs and fail closed if the visible reply cannot reconcile
-with those facts.
+Migrated render adapters reuse the Express-style renderer with Agno history,
+session state, memory, and tools disabled. Retained render-mode Interaction
+Agent construction also disables Agno chat history as a fact source. Render turns
+use trusted trigger facts, domain results, and dynamic prompt blocks for product
+state; recent interactive chat may not supply title, time, participant, delivery
+status, or privacy-bearing facts for system turns. `NotificationTurn` adapts the
+hydrated notification fact into a settled notification outcome before rendering.
+Reminder-fire render turns still hydrate fire ids into trusted reminder facts
+before the retained Interaction Agent runs and fail closed if the visible reply
+cannot reconcile with those facts.
 
 Structured reply output may contain one to three text segments. Each segment is
 persisted as its own outbound message. For message-style channels such as
@@ -346,8 +354,10 @@ conversation `context_token`.
 - A messaging-first anchor channel identity is not removable while it is the only
   identity anchoring the account.
 - Each account has at most one reachable personal channel.
-- Chat/channel-visible product prose is produced by inbound turn pipeline Express or the
-  retained render-mode Interaction Agent, except for runtime-owned waiting text.
+- Chat/channel-visible product prose is produced by inbound turn pipeline
+  Express, migrated structured render adapters using the same stateless renderer
+  contract, or the temporarily retained render-mode Interaction Agent for
+  unmigrated render turns, except for runtime-owned waiting text.
 - Turn disposition and delivery state are separate. Reminder undelivered state,
   proactive discard, shared-reminder projection delivery, and notification
   recipient delivery are not collapsed into a generic failure bucket.

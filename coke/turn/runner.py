@@ -24,6 +24,8 @@ from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, Interacti
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
 from coke.turn.focus import FocusResolver
 from coke.turn.freshness import FreshnessGuard
+from coke.turn.inbound.contracts import ActionOutcome, SettledOutcome
+from coke.turn.inbound.express import ExpressOutputError, ExpressRequest
 from coke.turn.inbound.pipeline import SegmentDeliveryPort, TurnPipelineRequest
 from coke.turn.locks import ConversationLockManager
 from coke.turn.memory import MemoryManager, MemoryPort
@@ -413,6 +415,7 @@ class TurnRunner:
         waiting_retry_sleep: Callable[[float], None] | None = None,
         waiting_circuit_breaker: WaitingDeliveryCircuitBreaker | None = None,
         turn_pipeline: Any | None = None,
+        render_express: Any | None = None,
     ) -> None:
         self.conversation_runtime = conversation_runtime
         self.lock_manager = lock_manager
@@ -425,6 +428,7 @@ class TurnRunner:
         self.reminder_fire_facts = reminder_fire_facts
         self.social_scheduling_service = social_scheduling_service
         self.turn_pipeline = turn_pipeline
+        self.render_express = render_express
         self.tool_ports = tool_ports or AgentToolPorts()
         self.context_assembler = context_assembler or ContextAssembler()
         self.focus_resolver = focus_resolver or FocusResolver()
@@ -1112,6 +1116,11 @@ class TurnRunner:
                         turn_source=trusted_facts["turn_source"],
                         domain_result=domain_result,
                     )
+                if (
+                    trigger.trigger_type == "NotificationTurn"
+                    and self.render_express is not None
+                ):
+                    return self._render_notification_with_express(trigger, context)
                 return self._invoke_agent_and_record(trigger, context)
             except ConversationRuntimeError as error:
                 return self._conversation_runtime_error_result(
@@ -1221,6 +1230,73 @@ class TurnRunner:
             tool_events=record_tool_events,
             onboarding_guidance_required=bool(
                 getattr(context, "onboarding_guidance_required", False)
+            ),
+        )
+
+    def _render_notification_with_express(
+        self,
+        trigger: TurnTrigger,
+        context: Any,
+    ) -> TurnRunResult:
+        request = _notification_express_request(
+            trigger=trigger,
+            context=context,
+        )
+        try:
+            with turn_latency_span(
+                "agent.primary",
+                turn_id=context.freshness_guard.turn_id,
+                trigger_type=trigger.trigger_type,
+                mode=trigger.mode,
+                account_id=trigger.account_id,
+                conversation_id=trigger.conversation_id,
+                extra={"renderer": "express"},
+            ):
+                segments = tuple(self.render_express.render(request))
+        except ExpressOutputError as error:
+            return self._record_invalid_render_output(
+                trigger=trigger,
+                turn_id=context.freshness_guard.turn_id,
+                reason_code=str(error) or "notification_render_failed",
+            )
+        except Exception:
+            LOGGER.exception(
+                "notification_render_express_failed",
+                extra={
+                    "turn_id": context.freshness_guard.turn_id,
+                    "trigger_id": trigger.trigger_id,
+                    "conversation_id": trigger.conversation_id,
+                    "account_id": trigger.account_id,
+                },
+            )
+            return self._record_invalid_render_output(
+                trigger=trigger,
+                turn_id=context.freshness_guard.turn_id,
+                reason_code="notification_render_failed",
+            )
+
+        validated = _validated_render_segments(segments)
+        validated = _validate_for_trigger(trigger, validated)
+        return self._record_validated_output(
+            turn_id=context.freshness_guard.turn_id,
+            trigger=trigger,
+            validated=validated,
+        )
+
+    def _record_invalid_render_output(
+        self,
+        *,
+        trigger: TurnTrigger,
+        turn_id: str,
+        reason_code: str,
+    ) -> TurnRunResult:
+        return self._record_validated_output(
+            turn_id=turn_id,
+            trigger=trigger,
+            validated=ValidatedOutput(
+                valid=False,
+                kind=None,
+                reason_code=reason_code,
             ),
         )
 
@@ -2104,6 +2180,78 @@ def _validate_for_trigger(
             ),
         )
     return validated
+
+
+def _validated_render_segments(segments: tuple[Any, ...]) -> ValidatedOutput:
+    normalized = tuple(
+        segment.strip()
+        for segment in segments
+        if isinstance(segment, str) and segment.strip()
+    )
+    if not normalized:
+        return ValidatedOutput(
+            valid=False,
+            kind=None,
+            reason_code="render_output_missing_segments",
+        )
+    if len(normalized) > 3:
+        return ValidatedOutput(
+            valid=False,
+            kind=None,
+            reason_code="render_output_has_too_many_segments",
+        )
+    return ValidatedOutput(
+        valid=True,
+        kind="reply",
+        segments=normalized,
+        reason_code="reply_ready",
+    )
+
+
+def _notification_express_request(
+    *,
+    trigger: TurnTrigger,
+    context: Any,
+) -> ExpressRequest:
+    trusted_facts = context.trusted_facts
+    payload = dict(trigger.payload)
+    outcome_data = {
+        "trigger_type": trigger.trigger_type,
+        "notification_fact_id": payload.get("notification_fact_id"),
+        "notification_fact": payload.get("notification_fact"),
+        "recipient_account_ids": payload.get("recipient_account_ids"),
+        "object_type": payload.get("object_type"),
+        "object_id": payload.get("object_id"),
+        "facts_hash": payload.get("facts_hash"),
+    }
+    return ExpressRequest(
+        turn_id=context.freshness_guard.turn_id,
+        conversation_id=trigger.conversation_id,
+        account_id=trigger.account_id,
+        current_time=str(trusted_facts.get("current_time") or ""),
+        default_timezone=str(trusted_facts.get("default_timezone") or "UTC"),
+        settled_outcome=SettledOutcome(
+            outcomes=(
+                ActionOutcome(
+                    category="done",
+                    status="notification",
+                    data=outcome_data,
+                ),
+            )
+        ),
+        persona=str(trusted_facts.get("persona") or ""),
+        assistant_name=str(trusted_facts.get("assistant_name") or "Coke"),
+        user_address_name=str(trusted_facts.get("user_address_name") or ""),
+        payload={
+            "trigger_type": trigger.trigger_type,
+            "trigger_payload": payload,
+            "turn_source": trusted_facts.get("turn_source"),
+        },
+        run_id=_agent_run_id_for_trigger(
+            trigger,
+            fallback=context.freshness_guard.turn_id,
+        ),
+    )
 
 
 def _validate_reminder_fire_output(
