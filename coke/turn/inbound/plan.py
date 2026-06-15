@@ -3,9 +3,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coke.turn.inbound.contracts import ProposedAction, ReplyNecessity, TurnPlan
 from coke.turn.inbound.param_schema import (
+    PARAM_KEY_SCHEMA,
     allowed_actions_from_schema,
     param_key_schema_payload,
 )
@@ -14,6 +16,7 @@ if TYPE_CHECKING:
     from coke.llm.config import ZAILLMConfig
 
 ALLOWED_ACTIONS: Mapping[str, frozenset[str]] = allowed_actions_from_schema()
+PRECISE_TIME_PARAM_KEYS = frozenset({"trigger_time", "local_trigger_at"})
 REPLY_NECESSITIES: set[ReplyNecessity] = {
     "intentional_no_reply",
     "reply_needed",
@@ -101,6 +104,61 @@ Ownership:
 - Empty actions mean converse/greeting/no product action.
 """.strip()
 
+DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT = (TURN_PLANNER_SYSTEM_PROMPT + """
+
+DeepSeek-specific planner contract:
+- Reply necessity:
+  If actions is non-empty, reply_necessity MUST be reply_needed.
+  Use intentional_no_reply only when actions is empty and the latest user input
+  is a pure acknowledgement or ending such as "嗯", "ok", "知道了".
+- Chinese shared reminder rule:
+  "提醒我/帮我记得/让我..." is a personal reminder.
+  "提醒/让/叫/通知 + <other person/friend> + <task>" is a shared reminder.
+  Example: "明天提醒小王交报告" -> social_scheduling.create_shared_reminder
+  with participant "小王", content "交报告", time_phrase "明天".
+  Example: "提醒我明天九点跑步" -> reminder.create with content "跑步",
+  time_phrase "明天九点".
+- Chinese shared reminder cancel rule:
+  "取消/删除 + 给/和 + <person> + 的 + <topic>提醒/预约/安排" is
+  social_scheduling.cancel_shared_reminder.
+  Example: "取消给小王的报告提醒" -> participant "小王", match "报告".
+- Availability date granularity:
+  For social_scheduling.availability_query, date_phrase is date granularity
+  only: 今天, 明天, 后天, 周一, 6月15日, 2026-06-15.
+  Do not include period-of-day words such as 上午/下午/晚上 in date_phrase.
+  Do not emit local_start or local_end in Planner output.
+  Example: "小王明天下午有空吗" -> participant "小王", date_phrase "明天".
+- Settings timezone:
+  Convert natural city/place names to IANA timezone IDs.
+  Example: "把我的时区改成东京" -> timezone_text "Asia/Tokyo".
+- Settings preferences:
+  Direct preference requests are settings.update_settings.
+  Example: "use concise replies" -> preference "concise replies".
+  The preference value is the desired style/content, not the command verb.
+  Example: "以后简短点" -> preference "简短点".
+- Reminder match cleanup:
+  For update/delete/complete, match is the topic only. Do not include generic
+  object words like "reminder" or "提醒".
+  Example: "move the gym reminder to tomorrow night" -> match "gym",
+  time_phrase "tomorrow night".
+- Calendar import:
+  When the user says "导入这个日历" or "import this calendar", use
+  calendar_import.import with source "current_attachment"; do not copy the
+  natural phrase into source.
+- Simple reminder.create output should omit raw_text/text when content and
+  time_phrase fully capture the request. Use raw_text/text only when the user
+  includes explicit duration, recurrence, or other words needed by Execute.
+- For reminder.batch_create items with no explicit time phrase, include only
+  content; omit time_phrase, raw_text, and text.
+- Memory/proactive toggles:
+  Requests to stop remembering preferences are settings.toggle_memory with
+  enabled=false; requests to stop proactive reminders are
+  settings.toggle_proactive with enabled=false.
+- Count/list wording:
+  "我现在有几个提醒" means reminder.list with empty params; do not add
+  date_phrase "现在".
+""").strip()
+
 
 @dataclass(frozen=True, slots=True)
 class PlanRequest:
@@ -137,20 +195,31 @@ class SiliconFlowPlanner:
     allowed_actions: Mapping[str, frozenset[str]] = field(
         default_factory=lambda: ALLOWED_ACTIONS
     )
+    system_prompt: str = TURN_PLANNER_SYSTEM_PROMPT
 
     @classmethod
-    def from_model(cls, model: Any) -> SiliconFlowPlanner:
+    def from_model(
+        cls,
+        model: Any,
+        *,
+        system_prompt: str = TURN_PLANNER_SYSTEM_PROMPT,
+    ) -> SiliconFlowPlanner:
         from coke.llm.json_completion import AgnoJSONCompletionClient
 
-        return cls(AgnoJSONCompletionClient(model))
+        return cls(AgnoJSONCompletionClient(model), system_prompt=system_prompt)
 
     @classmethod
     def from_config(cls, config: ZAILLMConfig) -> SiliconFlowPlanner:
-        return cls.from_model(config.create_planner_model())
+        return cls.from_model(
+            config.create_planner_model(),
+            system_prompt=_planner_system_prompt_for_provider(
+                getattr(config, "planner_provider", "zai")
+            ),
+        )
 
     def plan(self, request: PlanRequest) -> TurnPlan:
         payload = self.client.complete_json(
-            system=TURN_PLANNER_SYSTEM_PROMPT,
+            system=self.system_prompt,
             user={
                 "account_id": request.account_id,
                 "conversation_id": request.conversation_id,
@@ -170,8 +239,11 @@ class SiliconFlowPlanner:
         )
         if "confidence" in payload:
             raise PlannerOutputError("confidence is not part of TurnPlan")
-        reply_necessity = _required_reply_necessity(payload)
         actions = _required_actions(payload, self.allowed_actions)
+        reply_necessity = _reply_necessity_for_actions(
+            _required_reply_necessity(payload),
+            actions,
+        )
         return TurnPlan(actions=actions, reply_necessity=reply_necessity)
 
 
@@ -180,6 +252,15 @@ def _required_reply_necessity(payload: Mapping[str, Any]) -> ReplyNecessity:
     if value not in REPLY_NECESSITIES:
         raise PlannerOutputError("invalid reply_necessity")
     return value
+
+
+def _reply_necessity_for_actions(
+    reply_necessity: ReplyNecessity,
+    actions: Sequence[ProposedAction],
+) -> ReplyNecessity:
+    if actions:
+        return "reply_needed"
+    return reply_necessity
 
 
 def _required_actions(
@@ -209,11 +290,121 @@ def _proposed_action(
     params = action.get("params", {})
     if not isinstance(params, Mapping):
         raise PlannerOutputError("invalid action.params")
+    params = _validated_params(domain, operation, params)
     return ProposedAction(
         domain=domain,
         operation=operation,
         params=params,
     )
+
+
+def _planner_system_prompt_for_provider(provider: str) -> str:
+    if provider == "deepseek":
+        return DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    return TURN_PLANNER_SYSTEM_PROMPT
+
+
+def _validated_params(
+    domain: str,
+    operation: str,
+    params: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    normalized = dict(_drop_empty_optional_values(params))
+    spec = PARAM_KEY_SCHEMA[domain][operation]
+    allowed_keys = frozenset((*spec.required, *spec.optional))
+    for key in normalized:
+        if key not in allowed_keys:
+            raise PlannerOutputError(f"invalid action.params.{key}")
+    _reject_precise_time_keys(domain, operation, normalized)
+    _validate_timezone_text(domain, operation, normalized)
+    _canonicalize_availability_date_phrase(domain, operation, normalized)
+    _normalize_calendar_import_source(domain, operation, normalized)
+    return normalized
+
+
+def _drop_empty_optional_values(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            key: _drop_empty_optional_values(item)
+            for key, item in value.items()
+            if item is not None and item != ""
+        }
+    if isinstance(value, list):
+        return [_drop_empty_optional_values(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_drop_empty_optional_values(item) for item in value)
+    return value
+
+
+def _reject_precise_time_keys(
+    domain: str,
+    operation: str,
+    params: Mapping[str, Any],
+) -> None:
+    if domain != "social_scheduling" or operation not in {
+        "create_shared_reminder",
+        "update_shared_reminder",
+    }:
+        return
+    precise_keys = sorted(PRECISE_TIME_PARAM_KEYS.intersection(params))
+    if precise_keys:
+        raise PlannerOutputError(
+            "precise time params are not valid Planner output: "
+            + ", ".join(precise_keys)
+        )
+
+
+def _validate_timezone_text(
+    domain: str,
+    operation: str,
+    params: Mapping[str, Any],
+) -> None:
+    if domain != "settings" or operation != "set_timezone":
+        return
+    timezone_text = params.get("timezone_text")
+    if not isinstance(timezone_text, str) or not timezone_text.strip():
+        raise PlannerOutputError("invalid timezone_text")
+    try:
+        ZoneInfo(timezone_text)
+    except ZoneInfoNotFoundError as exc:
+        raise PlannerOutputError("invalid timezone_text") from exc
+
+
+def _canonicalize_availability_date_phrase(
+    domain: str,
+    operation: str,
+    params: dict[str, Any],
+) -> None:
+    if domain != "social_scheduling" or operation != "availability_query":
+        return
+    date_phrase = params.get("date_phrase")
+    if not isinstance(date_phrase, str):
+        return
+    for period_word in ("上午", "下午", "晚上", "早上", "中午"):
+        if date_phrase.endswith(period_word):
+            stripped = date_phrase[: -len(period_word)].strip()
+            if stripped:
+                params["date_phrase"] = stripped
+            return
+
+
+def _normalize_calendar_import_source(
+    domain: str,
+    operation: str,
+    params: dict[str, Any],
+) -> None:
+    if domain != "calendar_import" or operation != "import":
+        return
+    source = params.get("source")
+    if not isinstance(source, str):
+        return
+    if source.strip().lower() in {
+        "这个日历",
+        "這個日曆",
+        "this calendar",
+        "attached calendar",
+    }:
+        params["source"] = "current_attachment"
 
 
 def _allowed_actions_payload(

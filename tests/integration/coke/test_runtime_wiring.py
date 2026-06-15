@@ -66,6 +66,8 @@ def test_runtime_wires_media_text_resolver_when_media_models_are_configured(
         zai_api_key="zai-key",
         deepseek_api_key="deepseek-key",
         siliconflow_api_key="sf-key",
+        planner_provider="deepseek",
+        planner_model="deepseek-v4-flash",
         detector_provider="deepseek",
         detector_model="deepseek-v4-flash",
         express_provider="deepseek",
@@ -81,7 +83,8 @@ def test_runtime_wires_media_text_resolver_when_media_models_are_configured(
 
     assert runtime.media_text_resolver is not None
     assert runtime.turn_runner.interaction_agent.model.api_key == "zai-key"
-    assert runtime.turn_pipeline._planner.client.model.api_key == "zai-key"
+    assert runtime.turn_pipeline._planner.client.model.api_key == "deepseek-key"
+    assert runtime.turn_pipeline._planner.client.model.id == "deepseek-v4-flash"
     assert runtime.reminder_service.detector.client.model.api_key == "deepseek-key"
     assert runtime.reminder_service.detector.client.model.id == "deepseek-v4-flash"
     assert runtime.turn_pipeline._express.model.api_key == "deepseek-key"

@@ -239,3 +239,42 @@ Replacement recommendation after this research:
   state-changing work through Planner/Execute and leaving Interaction/Express to
   render trusted results. Both require code changes and a false-success
   regression suite before production use.
+
+## Implementation Update: Planner Optimization
+
+The follow-up implementation branch added a provider-selectable Planner role,
+a DeepSeek-specific planner contract, and fail-closed output validation for
+unknown params, invalid timezones, precise-time planner leakage, empty optional
+values, and non-empty actions marked as no-reply. Interaction received only
+tool-argument hardening and required-tool fail-closed checks; it was not switched
+to DeepSeek.
+
+Fresh real API evidence:
+
+- `artifacts/evidence/deepseek-model-bakeoff/20260615T023509Z-deepseek-planner-interaction-optimization.json`
+- `artifacts/evidence/deepseek-model-bakeoff/20260615T024537Z-deepseek-planner-interaction-optimization-r2.json`
+- `artifacts/evidence/deepseek-model-bakeoff/20260615T024900Z-deepseek-planner-flash-r3.json`
+
+The second optimization round materially changed the Planner decision:
+
+| Config | Pass | Parse OK | Mean latency | P95 latency |
+|---|---:|---:|---:|---:|
+| GLM-5.1 current prompt, thinking-off | 28/36 | 36/36 | 3.666s | 9.139s |
+| DeepSeek V4 Flash optimized prompt, thinking-off | 34/36 | 36/36 | 1.023s | 1.269s |
+| DeepSeek V4 Pro optimized prompt, thinking-off | 36/36 | 36/36 | 1.362s | 1.695s |
+
+A third Flash-only prompt refinement reached 35/36 with parse 36/36, mean
+1.007s, and p95 1.293s, but still missed one participant casing expectation.
+Because Pro reached 36/36 with a low latency tail, production should use
+`deepseek-v4-pro` for Planner instead of chasing Flash-specific prompt
+fragility.
+
+Updated role decision:
+
+- `interaction`: keep GLM-5.1 thinking-off. Current Agno tool-loop replacement
+  still fails real DeepSeek required-tool repeats by returning null final output
+  after tool calls or missing the required settings tool.
+- `planner`: switch to DeepSeek V4 Pro thinking-off with the dedicated planner
+  contract.
+- `detector`: keep the earlier DeepSeek V4 Flash switch.
+- `express`: keep the earlier DeepSeek V4 Flash switch.

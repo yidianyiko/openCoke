@@ -245,12 +245,14 @@ def test_deploy_script_writes_zai_key_for_official_text_glm_provider() -> None:
     assert 'missing+=("SiliconFlow_API_KEY")' not in script
 
 
-def test_deploy_script_switches_detector_and_express_to_deepseek_v4_flash() -> None:
+def test_deploy_script_switches_safe_text_roles_to_deepseek_v4() -> None:
     script = DEPLOY_SCRIPT.read_text()
 
     assert 'deepseek_api_key="$(read_env DEEPSEEK_API_KEY)"' in script
     assert '[[ -n "$deepseek_api_key" ]] || missing+=("DEEPSEEK_API_KEY")' in script
     assert "DEEPSEEK_API_KEY=${deepseek_api_key}" in script
+    assert "COKE_PLANNER_PROVIDER=deepseek" in script
+    assert "COKE_PLANNER_MODEL=deepseek-v4-pro" in script
     assert "COKE_DETECTOR_PROVIDER=deepseek" in script
     assert "COKE_DETECTOR_MODEL=deepseek-v4-flash" in script
     assert "COKE_EXPRESS_PROVIDER=deepseek" in script

@@ -11,6 +11,7 @@ from coke.llm.config import (
     DEFAULT_INTERACTION_MODEL,
     DEFAULT_INTERACTION_TIMEOUT_S,
     DEFAULT_PLANNER_MODEL,
+    DEFAULT_PLANNER_PROVIDER,
     DEFAULT_VISION_TEXT_MODEL,
     SILICONFLOW_BASE_URL,
     ZAI_BASE_URL,
@@ -68,7 +69,7 @@ def test_zai_config_requires_api_key():
 
 @pytest.mark.parametrize(
     "role_provider_env",
-    ["COKE_DETECTOR_PROVIDER", "COKE_EXPRESS_PROVIDER"],
+    ["COKE_PLANNER_PROVIDER", "COKE_DETECTOR_PROVIDER", "COKE_EXPRESS_PROVIDER"],
 )
 def test_zai_config_requires_deepseek_key_for_deepseek_roles(role_provider_env):
     with pytest.raises(LLMConfigurationError, match="DEEPSEEK_API_KEY"):
@@ -115,6 +116,33 @@ def test_zai_config_allows_deepseek_detector_and_express_role_overrides():
     assert str(express_model.base_url).rstrip("/") == "https://deepseek.example"
     assert express_model.timeout == 31.5
     assert express_model.extra_body == {"thinking": {"type": "disabled"}}
+
+
+def test_zai_config_allows_deepseek_planner_role_override():
+    config = ZAILLMConfig.from_env(
+        {
+            "ZAI_API_KEY": "zai-key",
+            "DEEPSEEK_API_KEY": "deepseek-key",
+            "DEEPSEEK_BASE_URL": "https://deepseek.example",
+            "COKE_PLANNER_PROVIDER": "deepseek",
+            "COKE_PLANNER_MODEL": "deepseek-v4-flash",
+            "COKE_INTERACTION_TIMEOUT_S": "31.5",
+        }
+    )
+
+    interaction_model = config.create_interaction_model()
+    planner_model = config.create_planner_model()
+
+    assert config.planner_provider == "deepseek"
+    assert DEFAULT_PLANNER_PROVIDER == "zai"
+    assert interaction_model.id == DEFAULT_INTERACTION_MODEL
+    assert interaction_model.api_key == "zai-key"
+    assert str(interaction_model.base_url) == ZAI_BASE_URL
+    assert planner_model.id == "deepseek-v4-flash"
+    assert planner_model.api_key == "deepseek-key"
+    assert str(planner_model.base_url).rstrip("/") == "https://deepseek.example"
+    assert planner_model.timeout == 31.5
+    assert planner_model.extra_body == {"thinking": {"type": "disabled"}}
 
 
 def test_zai_config_rejects_invalid_interaction_timeout():

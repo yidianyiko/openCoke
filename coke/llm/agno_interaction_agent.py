@@ -438,7 +438,7 @@ def _tool_callable(
     request: AgentRequest,
     tool_events: list[dict[str, Any]] | None = None,
 ) -> Callable[..., dict]:
-    def tool(command: dict | None = None, **kwargs) -> dict:
+    def tool(command: Any | None = None, **kwargs) -> dict:
         try:
             command_payload = _with_tool_defaults(
                 name,
@@ -903,6 +903,18 @@ def _enforce_tool_reply_contracts(
     tool_events: list[dict[str, Any]],
     request: AgentRequest,
 ) -> AgentResult:
+    required_tool_missing = _required_tool_missing(
+        request.trusted_facts.get("required_tool_call"),
+        tool_events,
+    )
+    if required_tool_missing is not None:
+        return AgentResult.completed(
+            {
+                "type": "invalid_output_protocol",
+                "reason": required_tool_missing,
+            },
+            tool_events=tuple(tool_events),
+        )
     social_outcomes = [
         *_social_scheduling_outcomes_from_tool_events(tool_events),
         *_social_scheduling_outcomes_from_trusted_facts(request.trusted_facts),
@@ -933,6 +945,68 @@ def _enforce_tool_reply_contracts(
         },
         tool_events=tuple(tool_events),
     )
+
+
+def _required_tool_missing(
+    required_tool_call: Any,
+    tool_events: list[dict[str, Any]],
+) -> str | None:
+    if not isinstance(required_tool_call, Mapping):
+        return None
+    domain = str(required_tool_call.get("domain") or "").strip()
+    tool = str(required_tool_call.get("tool") or "").strip()
+    operation = str(
+        required_tool_call.get("operation") or required_tool_call.get("action") or ""
+    ).strip()
+    if not domain and not tool:
+        return None
+    for event in tool_events:
+        if _tool_event_matches_required(
+            event,
+            domain=domain,
+            tool=tool,
+            operation=operation,
+        ):
+            return None
+    reason_domain = domain or tool.removesuffix("_tool") or "tool"
+    return f"required_{reason_domain}_tool_missing"
+
+
+def _tool_event_matches_required(
+    event: Mapping[str, Any],
+    *,
+    domain: str,
+    tool: str,
+    operation: str,
+) -> bool:
+    domain_result = event.get("domain_result")
+    if domain and isinstance(domain_result, Mapping):
+        if domain_result.get("domain") == domain:
+            return _domain_result_matches_required_operation(
+                domain_result,
+                operation=operation,
+            )
+    if tool and domain and tool == f"{domain}_tool":
+        return (
+            isinstance(domain_result, Mapping) and domain_result.get("domain") == domain
+        ) and _domain_result_matches_required_operation(
+            domain_result,
+            operation=operation,
+        )
+    return False
+
+
+def _domain_result_matches_required_operation(
+    domain_result: Mapping[str, Any],
+    *,
+    operation: str,
+) -> bool:
+    if not operation:
+        return True
+    return operation in {
+        str(domain_result.get("action") or "").strip(),
+        str(domain_result.get("intent") or "").strip(),
+    }
 
 
 def _social_scheduling_outcomes_from_tool_events(

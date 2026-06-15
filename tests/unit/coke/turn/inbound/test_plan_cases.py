@@ -308,7 +308,7 @@ CASES: tuple[PlanCase, ...] = (
             {
                 "domain": "settings",
                 "operation": "set_timezone",
-                "params": {"timezone_text": "东京"},
+                "params": {"timezone_text": "Asia/Tokyo"},
             },
         ),
         "reply_needed",

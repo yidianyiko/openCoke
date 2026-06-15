@@ -72,6 +72,15 @@ only when the sender display name should be formatted as `"Name" <address>`.
 The canonical compose deployment writes this value alongside
 `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_COKE_WEB_URL`.
 
+The canonical clean deploy keeps `interaction` on Z.AI GLM while routing the
+safe stateless text roles through DeepSeek V4: `planner` uses
+`deepseek-v4-pro`, and `detector` plus `express` use `deepseek-v4-flash`.
+`scripts/deploy-compose-to-gcp.sh` writes `COKE_PLANNER_PROVIDER`,
+`COKE_PLANNER_MODEL`, `COKE_DETECTOR_PROVIDER`, `COKE_DETECTOR_MODEL`,
+`COKE_EXPRESS_PROVIDER`, and `COKE_EXPRESS_MODEL` into the clean runtime `.env`.
+The script requires `DEEPSEEK_API_KEY` because those roles are production
+traffic.
+
 `scripts/deploy-compose-to-gcp.sh` preserves `COKE_EMAIL_AUTH_ENABLED`,
 `RESEND_API_KEY`, `EMAIL_FROM`, and `EMAIL_FROM_NAME` from the existing clean
 `.env` on every deploy. If `COKE_EMAIL_AUTH_ENABLED` is absent, the script

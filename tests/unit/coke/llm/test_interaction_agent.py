@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, get_type_hints
 
 import pytest
 from agno.run.agent import RunOutput
@@ -777,6 +777,95 @@ def test_agent_instructions_route_conversational_settings_to_settings_tool():
     assert "operation=reset_agent_settings" in instructions
     assert "memory_enabled=false" in instructions
     assert "proactive_enabled=false" in instructions
+
+
+def test_required_settings_tool_missing_fails_closed():
+    fake_agent = FakeAgentInstance(
+        content={"type": "reply", "segments": ["好的，以后简洁回复"]}
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            settings_tool=FakeSettingsTool(),
+            trusted_facts={
+                "required_tool_call": {
+                    "domain": "settings",
+                    "tool": "settings_tool",
+                }
+            },
+        )
+    )
+
+    assert result.output == {
+        "type": "invalid_output_protocol",
+        "reason": "required_settings_tool_missing",
+    }
+    assert result.tool_events == ()
+
+
+def test_required_settings_tool_event_allows_final_reply():
+    fake_agent = ToolCallingFakeAgentInstance(
+        content={"type": "reply", "segments": ["已改成简洁回复"]},
+        command={"operation": "update_settings", "preference": "concise replies"},
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            settings_tool=FakeSettingsTool(),
+            trusted_facts={
+                "required_tool_call": {
+                    "domain": "settings",
+                    "tool": "settings_tool",
+                }
+            },
+        )
+    )
+
+    assert result.output == {"type": "reply", "segments": ["已改成简洁回复"]}
+    assert len(result.tool_events) == 1
+    assert result.tool_events[0]["domain_result"]["domain"] == "settings"
+
+
+def test_required_settings_tool_wrong_operation_fails_closed():
+    fake_agent = ToolCallingFakeAgentInstance(
+        content={"type": "reply", "segments": ["已改成简洁回复"]},
+        command={"operation": "set_timezone", "default_timezone": "Asia/Tokyo"},
+    )
+    agent = AgnoInteractionAgent(
+        model=object(),
+        agent_factory=FakeAgentFactory(fake_agent),
+    )
+
+    result = agent.invoke(
+        _request(
+            memory_enabled=True,
+            settings_tool=FakeSettingsTool(),
+            trusted_facts={
+                "required_tool_call": {
+                    "domain": "settings",
+                    "tool": "settings_tool",
+                    "operation": "update_settings",
+                }
+            },
+        )
+    )
+
+    assert result.output == {
+        "type": "invalid_output_protocol",
+        "reason": "required_settings_tool_missing",
+    }
+    assert len(result.tool_events) == 1
+    assert result.tool_events[0]["domain_result"]["action"] == "set_timezone"
 
 
 def test_agent_instructions_decline_unsupported_external_booking_without_reminder():
@@ -1601,6 +1690,41 @@ def test_settings_tool_doc_and_defaults_use_trusted_account():
             {
                 "operation": "set_timezone",
                 "default_timezone": "Asia/Tokyo",
+                "account_id": "account_1",
+            },
+            guard,
+        )
+    ]
+
+
+def test_settings_tool_accepts_serialized_command_payloads():
+    fake_agent = FakeAgentInstance(content={"type": "reply", "segments": ["ok"]})
+    factory = FakeAgentFactory(fake_agent)
+    agent = AgnoInteractionAgent(model=object(), agent_factory=factory)
+    settings_tool = FakeSettingsTool()
+    guard = object()
+
+    agent.invoke(
+        _request(memory_enabled=True, settings_tool=settings_tool, guard=guard)
+    )
+
+    tool = factory.agent_kwargs[0]["tools"][0]
+    assert get_type_hints(tool)["command"] == Any | None
+
+    result = tool(
+        command='{"operation":"update_settings","preference":"concise replies"}'
+    )
+
+    assert _base_tool_result(result) == {
+        "ok": True,
+        "facts": {"default_timezone": "Asia/Tokyo"},
+        "reason_code": None,
+    }
+    assert settings_tool.calls == [
+        (
+            {
+                "operation": "update_settings",
+                "preference": "concise replies",
                 "account_id": "account_1",
             },
             guard,

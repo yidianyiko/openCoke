@@ -1647,7 +1647,11 @@ def _llm_from_settings(settings: Settings):
         raise ConfigurationError("ZAI_API_KEY is required for LLM composition")
     if (
         TEXT_PROVIDER_DEEPSEEK
-        in {settings.detector_provider, settings.express_provider}
+        in {
+            settings.planner_provider,
+            settings.detector_provider,
+            settings.express_provider,
+        }
         and not settings.deepseek_api_key
     ):
         raise ConfigurationError(
@@ -1659,6 +1663,7 @@ def _llm_from_settings(settings: Settings):
         deepseek_api_key=settings.deepseek_api_key,
         deepseek_base_url=settings.deepseek_base_url,
         interaction_model=settings.interaction_model,
+        planner_provider=settings.planner_provider,
         planner_model=settings.planner_model,
         detector_provider=settings.detector_provider,
         detector_model=settings.detector_model,

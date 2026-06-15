@@ -16,6 +16,7 @@ from coke.llm.config import (
     DEFAULT_INTERACTION_TIMEOUT_S,
     DEFAULT_MEDIA_MODEL_TIMEOUT_S,
     DEFAULT_PLANNER_MODEL,
+    DEFAULT_PLANNER_PROVIDER,
     DEFAULT_VISION_TEXT_MODEL,
     SILICONFLOW_BASE_URL,
     TEXT_PROVIDER_DEEPSEEK,
@@ -63,6 +64,7 @@ class Settings:
     siliconflow_api_key: str | None = None
     siliconflow_base_url: str = SILICONFLOW_BASE_URL
     interaction_model: str = DEFAULT_INTERACTION_MODEL
+    planner_provider: str = DEFAULT_PLANNER_PROVIDER
     planner_model: str = DEFAULT_PLANNER_MODEL
     detector_provider: str = DEFAULT_DETECTOR_PROVIDER
     detector_model: str = DEFAULT_DETECTOR_MODEL
@@ -140,6 +142,9 @@ class Settings:
                 "ZAI_API_KEY is required for production LLM startup"
             )
         deepseek_api_key = _optional(source, "DEEPSEEK_API_KEY")
+        planner_provider = _text_provider(
+            source, "COKE_PLANNER_PROVIDER", DEFAULT_PLANNER_PROVIDER
+        )
         detector_provider = _text_provider(
             source, "COKE_DETECTOR_PROVIDER", DEFAULT_DETECTOR_PROVIDER
         )
@@ -149,7 +154,8 @@ class Settings:
         if (
             app_env == "production"
             and not llm_fake
-            and TEXT_PROVIDER_DEEPSEEK in {detector_provider, express_provider}
+            and TEXT_PROVIDER_DEEPSEEK
+            in {planner_provider, detector_provider, express_provider}
             and not deepseek_api_key
         ):
             raise ConfigurationError(
@@ -210,6 +216,7 @@ class Settings:
             interaction_model=(
                 _optional(source, "COKE_INTERACTION_MODEL") or DEFAULT_INTERACTION_MODEL
             ),
+            planner_provider=planner_provider,
             planner_model=(
                 _optional(source, "COKE_PLANNER_MODEL") or DEFAULT_PLANNER_MODEL
             ),

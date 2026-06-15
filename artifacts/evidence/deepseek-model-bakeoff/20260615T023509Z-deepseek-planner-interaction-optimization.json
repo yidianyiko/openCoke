@@ -1,0 +1,4078 @@
+{
+  "run_id": "20260615T023509Z",
+  "created_at": "2026-06-15T02:39:13.666451+00:00",
+  "notes": [
+    "Planner uses current code after DeepSeek provider/prompt/validation changes.",
+    "Planner corpus is tests/unit/coke/turn/inbound/test_plan_cases.py with timezone contract updated to IANA.",
+    "Interaction settings_update uses current AgnoInteractionAgent with required_tool_call trusted fact and DeepSeek Flash thinking disabled."
+  ],
+  "summary": {
+    "planner|glm-5.1|current|disabled": {
+      "passed": 28,
+      "total": 36,
+      "parse_ok": 36,
+      "failures": {
+        "zh create reminder": 1,
+        "en create reminder": 1,
+        "zh batch create reminders": 1,
+        "en batch create reminders": 1,
+        "en update reminder by keyword": 1,
+        "zh shared reminder create": 1,
+        "en update settings": 1,
+        "zh calendar import": 1
+      },
+      "mean_latency_s": 3.666,
+      "p95_latency_s": 9.139
+    },
+    "planner|deepseek-v4-flash|deepseek_contract|disabled": {
+      "passed": 14,
+      "total": 36,
+      "parse_ok": 36,
+      "failures": {
+        "en filtered reminder list": 1,
+        "en create reminder": 1,
+        "zh batch create reminders": 1,
+        "en batch create reminders": 1,
+        "zh update reminder by keyword": 1,
+        "en update reminder by keyword": 1,
+        "zh delete reminder by keyword": 1,
+        "en delete reminder by keyword": 1,
+        "zh complete reminder by keyword": 1,
+        "zh shared reminder create": 1,
+        "zh shared reminder cancel": 1,
+        "zh shared reminder time-only reschedule": 1,
+        "en list shared reminders": 1,
+        "zh friend list": 1,
+        "en add friend by code": 1,
+        "zh get friend link": 1,
+        "en remove friend": 1,
+        "zh set timezone": 1,
+        "en toggle proactive": 1,
+        "zh toggle memory": 1,
+        "en update settings": 1,
+        "zh calendar import": 1
+      },
+      "mean_latency_s": 1.039,
+      "p95_latency_s": 1.533
+    },
+    "planner|deepseek-v4-pro|deepseek_contract|disabled": {
+      "passed": 21,
+      "total": 36,
+      "parse_ok": 36,
+      "failures": {
+        "en plain reminder list": 1,
+        "zh create reminder": 1,
+        "en create reminder": 1,
+        "zh batch create reminders": 1,
+        "en batch create reminders": 1,
+        "zh update reminder by keyword": 1,
+        "zh delete reminder by keyword": 1,
+        "en delete reminder by keyword": 1,
+        "en complete reminder by keyword": 1,
+        "en shared reminder create": 1,
+        "zh set timezone": 1,
+        "en toggle proactive": 1,
+        "zh toggle memory": 1,
+        "en update settings": 1,
+        "zh calendar import": 1
+      },
+      "mean_latency_s": 1.472,
+      "p95_latency_s": 2.422
+    },
+    "interaction_agno|deepseek-v4-flash|required_tool_contract|disabled": {
+      "passed": 0,
+      "total": 6,
+      "parse_ok": 1,
+      "failures": {
+        "settings_update": 6
+      },
+      "mean_latency_s": 3.627,
+      "p95_latency_s": 7.025,
+      "false_success": 0,
+      "blank_output": 0,
+      "settings_tool_calls": 5
+    }
+  },
+  "results": [
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh plain reminder list",
+      "message": "列一下我的提醒",
+      "latency_s": 2.227,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en plain reminder list",
+      "message": "show my reminders",
+      "latency_s": 3.394,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh reminder count as list",
+      "message": "我现在有几个提醒",
+      "latency_s": 2.718,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh date-scoped reminder list",
+      "message": "看一下今天的提醒",
+      "latency_s": 2.407,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en filtered reminder list",
+      "message": "show my work reminders",
+      "latency_s": 2.256,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "keyword": "work"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "keyword": "work"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh create reminder",
+      "message": "提醒我明天九点跑步",
+      "latency_s": 2.821,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "跑步",
+            "time_phrase": "明天九点",
+            "raw_text": "提醒我明天九点跑步"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "跑步",
+            "time_phrase": "明天九点"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en create reminder",
+      "message": "remind me tomorrow to call mom",
+      "latency_s": 3.88,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "call mom",
+            "time_phrase": "tomorrow",
+            "raw_text": "remind me tomorrow to call mom"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "call mom",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh batch create reminders",
+      "message": "提醒我买牛奶，也提醒我给妈妈打电话",
+      "latency_s": 3.052,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "买牛奶",
+                "raw_text": "提醒我买牛奶"
+              },
+              {
+                "content": "给妈妈打电话",
+                "raw_text": "也提醒我给妈妈打电话"
+              }
+            ]
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "买牛奶"
+              },
+              {
+                "content": "给妈妈打电话"
+              }
+            ]
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en batch create reminders",
+      "message": "remind me to submit expenses and book tickets",
+      "latency_s": 4.338,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "submit expenses",
+                "time_phrase": "",
+                "text": "remind me to submit expenses and book tickets",
+                "raw_text": "remind me to submit expenses and book tickets"
+              },
+              {
+                "content": "book tickets",
+                "time_phrase": "",
+                "text": "remind me to submit expenses and book tickets",
+                "raw_text": "remind me to submit expenses and book tickets"
+              }
+            ]
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "submit expenses"
+              },
+              {
+                "content": "book tickets"
+              }
+            ]
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh update reminder by keyword",
+      "message": "把健身提醒改成明天晚上",
+      "latency_s": 2.876,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "健身",
+            "time_phrase": "明天晚上"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "健身",
+            "time_phrase": "明天晚上"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en update reminder by keyword",
+      "message": "move the gym reminder to tomorrow night",
+      "latency_s": 3.018,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "gym",
+            "time_phrase": "明天晚上"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "gym",
+            "time_phrase": "tomorrow night"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh delete reminder by keyword",
+      "message": "删掉健身提醒",
+      "latency_s": 2.056,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en delete reminder by keyword",
+      "message": "delete my gym reminder",
+      "latency_s": 2.927,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh complete reminder by keyword",
+      "message": "健身提醒已经做完了",
+      "latency_s": 1.976,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en complete reminder by keyword",
+      "message": "mark the gym reminder done",
+      "latency_s": 9.059,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh shared reminder create",
+      "message": "明天提醒小王交报告",
+      "latency_s": 2.617,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "content": "交报告",
+            "time_phrase": "明天",
+            "raw_text": "明天提醒小王交报告"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "content": "交报告",
+            "time_phrase": "明天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en shared reminder create",
+      "message": "remind Amy tomorrow to send the deck",
+      "latency_s": 9.139,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "Amy",
+            "content": "send the deck",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "Amy",
+            "content": "send the deck",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh shared reminder cancel",
+      "message": "取消给小王的报告提醒",
+      "latency_s": 2.752,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "cancel_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "match": "报告"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "cancel_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "match": "报告"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh shared reminder time-only reschedule",
+      "message": "把我和 lizihao 的 openCoke 共享提醒改到明天下午4点",
+      "latency_s": 2.451,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "update_shared_reminder",
+          "params": {
+            "participant": "lizihao",
+            "match": "openCoke",
+            "time_phrase": "明天下午4点"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "update_shared_reminder",
+          "params": {
+            "participant": "lizihao",
+            "match": "openCoke",
+            "time_phrase": "明天下午4点"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en list shared reminders",
+      "message": "show shared reminders with Amy",
+      "latency_s": 2.286,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "list_shared",
+          "params": {
+            "participant": "Amy"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "list_shared",
+          "params": {
+            "participant": "Amy"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh friend agenda routes to availability",
+      "message": "oliver今天有什么安排",
+      "latency_s": 2.074,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "oliver",
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "oliver",
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh contextual date correction is converse",
+      "message": "不是明天吗？",
+      "latency_s": 1.678,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh availability query",
+      "message": "小王明天下午有空吗",
+      "latency_s": 2.201,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "小王",
+            "date_phrase": "明天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "小王",
+            "date_phrase": "明天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh friend list",
+      "message": "我的好友有哪些",
+      "latency_s": 2.427,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "list_friends",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "list_friends",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en add friend by code",
+      "message": "add friend code ABC123",
+      "latency_s": 2.577,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "add_via_code",
+          "params": {
+            "code": "ABC123"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "add_via_code",
+          "params": {
+            "code": "ABC123"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh get friend link",
+      "message": "给我好友邀请链接",
+      "latency_s": 2.431,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "get_friend_link",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "get_friend_link",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en remove friend",
+      "message": "remove Amy from friends",
+      "latency_s": 2.207,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "remove_friend",
+          "params": {
+            "friend": "Amy"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "remove_friend",
+          "params": {
+            "friend": "Amy"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh set timezone",
+      "message": "把我的时区改成东京",
+      "latency_s": 22.018,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "set_timezone",
+          "params": {
+            "timezone_text": "Asia/Tokyo"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "set_timezone",
+          "params": {
+            "timezone_text": "Asia/Tokyo"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en toggle proactive",
+      "message": "turn proactive reminders off",
+      "latency_s": 1.96,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_proactive",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_proactive",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh toggle memory",
+      "message": "不要记住这些偏好",
+      "latency_s": 2.242,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_memory",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_memory",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en update settings",
+      "message": "use concise replies",
+      "latency_s": 6.371,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "update_settings",
+          "params": {
+            "preference": "speaking_style",
+            "speaking_style": "use concise replies"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "update_settings",
+          "params": {
+            "preference": "concise replies"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh calendar import",
+      "message": "导入这个日历",
+      "latency_s": 2.518,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "calendar_import",
+          "operation": "import",
+          "params": {
+            "source": "这个日历"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "calendar_import",
+          "operation": "import",
+          "params": {
+            "source": "current_attachment"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh greeting",
+      "message": "你好",
+      "latency_s": 1.561,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en greeting",
+      "message": "hi Coke",
+      "latency_s": 5.457,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "zh intentional no reply",
+      "message": "嗯",
+      "latency_s": 3.114,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [],
+      "expected_reply_necessity": "intentional_no_reply",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|glm-5.1|current|disabled",
+      "model": "glm-5.1",
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "case": "en intentional no reply",
+      "message": "ok",
+      "latency_s": 2.878,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [],
+      "expected_reply_necessity": "intentional_no_reply",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh plain reminder list",
+      "message": "列一下我的提醒",
+      "latency_s": 0.943,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en plain reminder list",
+      "message": "show my reminders",
+      "latency_s": 1.064,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh reminder count as list",
+      "message": "我现在有几个提醒",
+      "latency_s": 0.988,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh date-scoped reminder list",
+      "message": "看一下今天的提醒",
+      "latency_s": 0.949,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en filtered reminder list",
+      "message": "show my work reminders",
+      "latency_s": 1.198,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "keyword": "work"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "keyword": "work"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh create reminder",
+      "message": "提醒我明天九点跑步",
+      "latency_s": 0.803,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "跑步",
+            "time_phrase": "明天九点"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "跑步",
+            "time_phrase": "明天九点"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en create reminder",
+      "message": "remind me tomorrow to call mom",
+      "latency_s": 1.018,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "call mom",
+            "time_phrase": "tomorrow",
+            "raw_text": "remind me tomorrow to call mom"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "call mom",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh batch create reminders",
+      "message": "提醒我买牛奶，也提醒我给妈妈打电话",
+      "latency_s": 3.405,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "买牛奶",
+                "time_phrase": null
+              },
+              {
+                "content": "给妈妈打电话",
+                "time_phrase": null
+              }
+            ]
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "买牛奶"
+              },
+              {
+                "content": "给妈妈打电话"
+              }
+            ]
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en batch create reminders",
+      "message": "remind me to submit expenses and book tickets",
+      "latency_s": 1.533,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "submit expenses",
+                "time_phrase": "",
+                "raw_text": "remind me to submit expenses and book tickets"
+              },
+              {
+                "content": "book tickets",
+                "time_phrase": "",
+                "raw_text": "remind me to submit expenses and book tickets"
+              }
+            ]
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "submit expenses"
+              },
+              {
+                "content": "book tickets"
+              }
+            ]
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh update reminder by keyword",
+      "message": "把健身提醒改成明天晚上",
+      "latency_s": 1.04,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "健身",
+            "time_phrase": "明天晚上"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "健身",
+            "time_phrase": "明天晚上"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en update reminder by keyword",
+      "message": "move the gym reminder to tomorrow night",
+      "latency_s": 1.32,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "gym",
+            "time_phrase": "tomorrow night"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "gym",
+            "time_phrase": "tomorrow night"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh delete reminder by keyword",
+      "message": "删掉健身提醒",
+      "latency_s": 0.833,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en delete reminder by keyword",
+      "message": "delete my gym reminder",
+      "latency_s": 0.863,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh complete reminder by keyword",
+      "message": "健身提醒已经做完了",
+      "latency_s": 0.892,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en complete reminder by keyword",
+      "message": "mark the gym reminder done",
+      "latency_s": 0.913,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh shared reminder create",
+      "message": "明天提醒小王交报告",
+      "latency_s": 1.049,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "content": "交报告",
+            "time_phrase": "明天"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "content": "交报告",
+            "time_phrase": "明天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en shared reminder create",
+      "message": "remind Amy tomorrow to send the deck",
+      "latency_s": 1.045,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "Amy",
+            "content": "send the deck",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "Amy",
+            "content": "send the deck",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh shared reminder cancel",
+      "message": "取消给小王的报告提醒",
+      "latency_s": 0.999,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "cancel_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "match": "报告"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "cancel_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "match": "报告"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh shared reminder time-only reschedule",
+      "message": "把我和 lizihao 的 openCoke 共享提醒改到明天下午4点",
+      "latency_s": 1.233,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "update_shared_reminder",
+          "params": {
+            "participant": "lizihao",
+            "match": "openCoke",
+            "time_phrase": "明天下午4点"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "update_shared_reminder",
+          "params": {
+            "participant": "lizihao",
+            "match": "openCoke",
+            "time_phrase": "明天下午4点"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en list shared reminders",
+      "message": "show shared reminders with Amy",
+      "latency_s": 1.033,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "list_shared",
+          "params": {
+            "participant": "Amy"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "list_shared",
+          "params": {
+            "participant": "Amy"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh friend agenda routes to availability",
+      "message": "oliver今天有什么安排",
+      "latency_s": 1.005,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "oliver",
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "oliver",
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh contextual date correction is converse",
+      "message": "不是明天吗？",
+      "latency_s": 0.805,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh availability query",
+      "message": "小王明天下午有空吗",
+      "latency_s": 0.921,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "小王",
+            "date_phrase": "明天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "小王",
+            "date_phrase": "明天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh friend list",
+      "message": "我的好友有哪些",
+      "latency_s": 0.927,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "list_friends",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "list_friends",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en add friend by code",
+      "message": "add friend code ABC123",
+      "latency_s": 1.031,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "add_via_code",
+          "params": {
+            "code": "ABC123"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "add_via_code",
+          "params": {
+            "code": "ABC123"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh get friend link",
+      "message": "给我好友邀请链接",
+      "latency_s": 0.794,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "get_friend_link",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "get_friend_link",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en remove friend",
+      "message": "remove Amy from friends",
+      "latency_s": 1.178,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "remove_friend",
+          "params": {
+            "friend": "Amy"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "remove_friend",
+          "params": {
+            "friend": "Amy"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh set timezone",
+      "message": "把我的时区改成东京",
+      "latency_s": 1.031,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "set_timezone",
+          "params": {
+            "timezone_text": "Asia/Tokyo"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "set_timezone",
+          "params": {
+            "timezone_text": "Asia/Tokyo"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en toggle proactive",
+      "message": "turn proactive reminders off",
+      "latency_s": 1.031,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_proactive",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_proactive",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh toggle memory",
+      "message": "不要记住这些偏好",
+      "latency_s": 1.003,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_memory",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_memory",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en update settings",
+      "message": "use concise replies",
+      "latency_s": 0.665,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "update_settings",
+          "params": {
+            "preference": "concise replies"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": false,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh calendar import",
+      "message": "导入这个日历",
+      "latency_s": 0.903,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "calendar_import",
+          "operation": "import",
+          "params": {
+            "source": "这个日历"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "calendar_import",
+          "operation": "import",
+          "params": {
+            "source": "current_attachment"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh greeting",
+      "message": "你好",
+      "latency_s": 0.628,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en greeting",
+      "message": "hi Coke",
+      "latency_s": 0.826,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh intentional no reply",
+      "message": "嗯",
+      "latency_s": 0.713,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [],
+      "expected_reply_necessity": "intentional_no_reply",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-flash|deepseek_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "base_url": "https://api.deepseek.com",
+      "case": "en intentional no reply",
+      "message": "ok",
+      "latency_s": 0.812,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [],
+      "expected_reply_necessity": "intentional_no_reply",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh plain reminder list",
+      "message": "列一下我的提醒",
+      "latency_s": 1.532,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en plain reminder list",
+      "message": "show my reminders",
+      "latency_s": 1.889,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh reminder count as list",
+      "message": "我现在有几个提醒",
+      "latency_s": 1.282,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh date-scoped reminder list",
+      "message": "看一下今天的提醒",
+      "latency_s": 1.314,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en filtered reminder list",
+      "message": "show my work reminders",
+      "latency_s": 1.776,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "keyword": "work"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "list",
+          "params": {
+            "keyword": "work"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh create reminder",
+      "message": "提醒我明天九点跑步",
+      "latency_s": 1.398,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "跑步",
+            "time_phrase": "明天九点"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "跑步",
+            "time_phrase": "明天九点"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en create reminder",
+      "message": "remind me tomorrow to call mom",
+      "latency_s": 1.458,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "call mom",
+            "time_phrase": "tomorrow",
+            "raw_text": "remind me tomorrow to call mom"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "create",
+          "params": {
+            "content": "call mom",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh batch create reminders",
+      "message": "提醒我买牛奶，也提醒我给妈妈打电话",
+      "latency_s": 2.255,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "买牛奶",
+                "time_phrase": null,
+                "raw_text": "提醒我买牛奶"
+              },
+              {
+                "content": "给妈妈打电话",
+                "time_phrase": null,
+                "raw_text": "提醒我给妈妈打电话"
+              }
+            ]
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "买牛奶"
+              },
+              {
+                "content": "给妈妈打电话"
+              }
+            ]
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en batch create reminders",
+      "message": "remind me to submit expenses and book tickets",
+      "latency_s": 2.422,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "submit expenses",
+                "time_phrase": "remind me to submit expenses",
+                "raw_text": "remind me to submit expenses"
+              },
+              {
+                "content": "book tickets",
+                "time_phrase": "remind me to book tickets",
+                "raw_text": " remind me to book tickets"
+              }
+            ]
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "batch_create",
+          "params": {
+            "items": [
+              {
+                "content": "submit expenses"
+              },
+              {
+                "content": "book tickets"
+              }
+            ]
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh update reminder by keyword",
+      "message": "把健身提醒改成明天晚上",
+      "latency_s": 1.562,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "健身",
+            "time_phrase": "明天晚上"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "健身",
+            "time_phrase": "明天晚上"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en update reminder by keyword",
+      "message": "move the gym reminder to tomorrow night",
+      "latency_s": 1.34,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "gym",
+            "time_phrase": "tomorrow night"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "update",
+          "params": {
+            "match": "gym",
+            "time_phrase": "tomorrow night"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh delete reminder by keyword",
+      "message": "删掉健身提醒",
+      "latency_s": 1.474,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en delete reminder by keyword",
+      "message": "delete my gym reminder",
+      "latency_s": 1.327,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "delete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh complete reminder by keyword",
+      "message": "健身提醒已经做完了",
+      "latency_s": 1.275,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "健身"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en complete reminder by keyword",
+      "message": "mark the gym reminder done",
+      "latency_s": 1.405,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "reminder",
+          "operation": "complete",
+          "params": {
+            "match": "gym"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh shared reminder create",
+      "message": "明天提醒小王交报告",
+      "latency_s": 1.8,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "content": "交报告",
+            "time_phrase": "明天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "content": "交报告",
+            "time_phrase": "明天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en shared reminder create",
+      "message": "remind Amy tomorrow to send the deck",
+      "latency_s": 1.513,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "Amy",
+            "content": "send the deck",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "create_shared_reminder",
+          "params": {
+            "participant": "Amy",
+            "content": "send the deck",
+            "time_phrase": "tomorrow"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh shared reminder cancel",
+      "message": "取消给小王的报告提醒",
+      "latency_s": 1.561,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "cancel_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "match": "报告"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "cancel_shared_reminder",
+          "params": {
+            "participant": "小王",
+            "match": "报告"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh shared reminder time-only reschedule",
+      "message": "把我和 lizihao 的 openCoke 共享提醒改到明天下午4点",
+      "latency_s": 2.703,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "update_shared_reminder",
+          "params": {
+            "participant": "lizihao",
+            "match": "openCoke",
+            "time_phrase": "明天下午4点"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "update_shared_reminder",
+          "params": {
+            "participant": "lizihao",
+            "match": "openCoke",
+            "time_phrase": "明天下午4点"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en list shared reminders",
+      "message": "show shared reminders with Amy",
+      "latency_s": 1.463,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "list_shared",
+          "params": {
+            "participant": "Amy"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "list_shared",
+          "params": {
+            "participant": "Amy"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh friend agenda routes to availability",
+      "message": "oliver今天有什么安排",
+      "latency_s": 1.472,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "oliver",
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "oliver",
+            "date_phrase": "今天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh contextual date correction is converse",
+      "message": "不是明天吗？",
+      "latency_s": 1.065,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh availability query",
+      "message": "小王明天下午有空吗",
+      "latency_s": 1.328,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "小王",
+            "date_phrase": "明天"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "social_scheduling",
+          "operation": "availability_query",
+          "params": {
+            "participant": "小王",
+            "date_phrase": "明天"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh friend list",
+      "message": "我的好友有哪些",
+      "latency_s": 1.56,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "list_friends",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "list_friends",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en add friend by code",
+      "message": "add friend code ABC123",
+      "latency_s": 2.071,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "add_via_code",
+          "params": {
+            "code": "ABC123"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "add_via_code",
+          "params": {
+            "code": "ABC123"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh get friend link",
+      "message": "给我好友邀请链接",
+      "latency_s": 1.173,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "get_friend_link",
+          "params": {}
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "get_friend_link",
+          "params": {}
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en remove friend",
+      "message": "remove Amy from friends",
+      "latency_s": 1.344,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "friendship",
+          "operation": "remove_friend",
+          "params": {
+            "friend": "Amy"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "friendship",
+          "operation": "remove_friend",
+          "params": {
+            "friend": "Amy"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh set timezone",
+      "message": "把我的时区改成东京",
+      "latency_s": 1.647,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "set_timezone",
+          "params": {
+            "timezone_text": "Asia/Tokyo"
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "set_timezone",
+          "params": {
+            "timezone_text": "Asia/Tokyo"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en toggle proactive",
+      "message": "turn proactive reminders off",
+      "latency_s": 1.387,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_proactive",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_proactive",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh toggle memory",
+      "message": "不要记住这些偏好",
+      "latency_s": 1.315,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_memory",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "toggle_memory",
+          "params": {
+            "enabled": false
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": false
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en update settings",
+      "message": "use concise replies",
+      "latency_s": 0.957,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "settings",
+          "operation": "update_settings",
+          "params": {
+            "preference": "concise replies"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": false,
+      "param_keys_ok": false,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh calendar import",
+      "message": "导入这个日历",
+      "latency_s": 1.338,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [
+        {
+          "domain": "calendar_import",
+          "operation": "import",
+          "params": {
+            "source": "这个日历"
+          }
+        }
+      ],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [
+        {
+          "domain": "calendar_import",
+          "operation": "import",
+          "params": {
+            "source": "current_attachment"
+          }
+        }
+      ],
+      "expected_reply_necessity": "reply_needed",
+      "ok": false,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": false,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh greeting",
+      "message": "你好",
+      "latency_s": 0.654,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en greeting",
+      "message": "hi Coke",
+      "latency_s": 0.984,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "reply_needed",
+      "expected_actions": [],
+      "expected_reply_necessity": "reply_needed",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "zh intentional no reply",
+      "message": "嗯",
+      "latency_s": 0.883,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [],
+      "expected_reply_necessity": "intentional_no_reply",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "planner",
+      "config": "planner|deepseek-v4-pro|deepseek_contract|disabled",
+      "model": "deepseek-v4-pro",
+      "base_url": "https://api.deepseek.com",
+      "case": "en intentional no reply",
+      "message": "ok",
+      "latency_s": 1.05,
+      "parse_ok": true,
+      "parse_error": null,
+      "actions": [],
+      "reply_necessity": "intentional_no_reply",
+      "expected_actions": [],
+      "expected_reply_necessity": "intentional_no_reply",
+      "ok": true,
+      "op_ok": true,
+      "param_keys_ok": true,
+      "params_ok": true,
+      "reply_ok": true
+    },
+    {
+      "role": "interaction",
+      "config": "interaction_agno|deepseek-v4-flash|required_tool_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "case": "settings_update",
+      "repeat": 1,
+      "latency_s": 3.045,
+      "parse_ok": false,
+      "blank_output": false,
+      "output": null,
+      "tool_events": [
+        {
+          "ok": true,
+          "facts": {
+            "settings_updated": true
+          },
+          "reason_code": null,
+          "domain_result": {
+            "domain": "settings",
+            "intent": "update_settings",
+            "action": "update_settings",
+            "effect": "succeeded",
+            "intent_fulfilled": true,
+            "visible_summary": "{\"settings_updated\": true}",
+            "reply_contract": "confirm_success",
+            "privacy_notes": []
+          }
+        }
+      ],
+      "has_settings_tool": true,
+      "false_success": false,
+      "ok": false,
+      "recorded_commands": [
+        {
+          "operation": "update_settings",
+          "speaking_style": "简短",
+          "account_id": "acct-1"
+        }
+      ]
+    },
+    {
+      "role": "interaction",
+      "config": "interaction_agno|deepseek-v4-flash|required_tool_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "case": "settings_update",
+      "repeat": 2,
+      "latency_s": 7.025,
+      "parse_ok": false,
+      "blank_output": false,
+      "output": null,
+      "tool_events": [
+        {
+          "ok": true,
+          "facts": {
+            "settings_updated": true
+          },
+          "reason_code": null,
+          "domain_result": {
+            "domain": "settings",
+            "intent": "update_settings",
+            "action": "update_settings",
+            "effect": "succeeded",
+            "intent_fulfilled": true,
+            "visible_summary": "{\"settings_updated\": true}",
+            "reply_contract": "confirm_success",
+            "privacy_notes": []
+          }
+        }
+      ],
+      "has_settings_tool": true,
+      "false_success": false,
+      "ok": false,
+      "recorded_commands": [
+        {
+          "operation": "update_settings",
+          "extra_rules": "回复要简短，一两句话内完成，不写长段。",
+          "account_id": "acct-1"
+        }
+      ]
+    },
+    {
+      "role": "interaction",
+      "config": "interaction_agno|deepseek-v4-flash|required_tool_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "case": "settings_update",
+      "repeat": 3,
+      "latency_s": 1.908,
+      "parse_ok": true,
+      "blank_output": false,
+      "output": {
+        "type": "invalid_output_protocol",
+        "reason": "required_settings_tool_missing"
+      },
+      "tool_events": [],
+      "has_settings_tool": false,
+      "false_success": false,
+      "ok": false,
+      "recorded_commands": []
+    },
+    {
+      "role": "interaction",
+      "config": "interaction_agno|deepseek-v4-flash|required_tool_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "case": "settings_update",
+      "repeat": 4,
+      "latency_s": 3.213,
+      "parse_ok": false,
+      "blank_output": false,
+      "output": null,
+      "tool_events": [
+        {
+          "ok": true,
+          "facts": {
+            "settings_updated": true
+          },
+          "reason_code": null,
+          "domain_result": {
+            "domain": "settings",
+            "intent": "update_settings",
+            "action": "update_settings",
+            "effect": "succeeded",
+            "intent_fulfilled": true,
+            "visible_summary": "{\"settings_updated\": true}",
+            "reply_contract": "confirm_success",
+            "privacy_notes": []
+          }
+        }
+      ],
+      "has_settings_tool": true,
+      "false_success": false,
+      "ok": false,
+      "recorded_commands": [
+        {
+          "operation": "update_settings",
+          "speaking_style": "keep replies short and concise, 1-2 short segments",
+          "account_id": "acct-1"
+        }
+      ]
+    },
+    {
+      "role": "interaction",
+      "config": "interaction_agno|deepseek-v4-flash|required_tool_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "case": "settings_update",
+      "repeat": 5,
+      "latency_s": 2.969,
+      "parse_ok": false,
+      "blank_output": false,
+      "output": null,
+      "tool_events": [
+        {
+          "ok": true,
+          "facts": {
+            "settings_updated": true
+          },
+          "reason_code": null,
+          "domain_result": {
+            "domain": "settings",
+            "intent": "update_settings",
+            "action": "update_settings",
+            "effect": "succeeded",
+            "intent_fulfilled": true,
+            "visible_summary": "{\"settings_updated\": true}",
+            "reply_contract": "confirm_success",
+            "privacy_notes": []
+          }
+        }
+      ],
+      "has_settings_tool": true,
+      "false_success": false,
+      "ok": false,
+      "recorded_commands": [
+        {
+          "operation": "update_settings",
+          "speaking_style": "简短回复",
+          "account_id": "acct-1"
+        }
+      ]
+    },
+    {
+      "role": "interaction",
+      "config": "interaction_agno|deepseek-v4-flash|required_tool_contract|disabled",
+      "model": "deepseek-v4-flash",
+      "case": "settings_update",
+      "repeat": 6,
+      "latency_s": 3.604,
+      "parse_ok": false,
+      "blank_output": false,
+      "output": null,
+      "tool_events": [
+        {
+          "ok": true,
+          "facts": {
+            "settings_updated": true
+          },
+          "reason_code": null,
+          "domain_result": {
+            "domain": "settings",
+            "intent": "settings",
+            "action": "settings",
+            "effect": "succeeded",
+            "intent_fulfilled": true,
+            "visible_summary": "{\"settings_updated\": true}",
+            "reply_contract": "confirm_success",
+            "privacy_notes": []
+          }
+        }
+      ],
+      "has_settings_tool": true,
+      "false_success": false,
+      "ok": false,
+      "recorded_commands": [
+        {
+          "speaking_style": "简洁，回复尽量短，1-2句话以内",
+          "account_id": "acct-1"
+        }
+      ]
+    }
+  ]
+}

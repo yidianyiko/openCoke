@@ -87,6 +87,27 @@ def test_intentional_no_reply_is_parsed() -> None:
     assert plan.reply_necessity == "intentional_no_reply"
 
 
+def test_non_empty_actions_force_reply_needed() -> None:
+    planner = SiliconFlowPlanner(
+        StubJSONClient(
+            {
+                "actions": [
+                    {
+                        "domain": "reminder",
+                        "operation": "list",
+                        "params": {},
+                    }
+                ],
+                "reply_necessity": "intentional_no_reply",
+            }
+        )
+    )
+
+    plan = planner.plan(_request("列一下我的提醒"))
+
+    assert plan.reply_necessity == "reply_needed"
+
+
 def test_planner_rejects_unknown_domain_or_operation() -> None:
     planner = SiliconFlowPlanner(
         StubJSONClient(
@@ -122,6 +143,92 @@ def test_planner_rejects_confidence_fields() -> None:
         planner.plan(_request("list reminders"))
 
 
+def test_planner_rejects_unknown_param_keys() -> None:
+    planner = SiliconFlowPlanner(
+        StubJSONClient(
+            {
+                "actions": [
+                    {
+                        "domain": "reminder",
+                        "operation": "list",
+                        "params": {"date_phrase": "今天", "invented": "x"},
+                    }
+                ],
+                "reply_necessity": "reply_needed",
+            }
+        )
+    )
+
+    with pytest.raises(PlannerOutputError, match="invalid action.params.invented"):
+        planner.plan(_request("看一下今天的提醒"))
+
+
+def test_planner_rejects_precise_shared_reminder_time_keys() -> None:
+    planner = SiliconFlowPlanner(
+        StubJSONClient(
+            {
+                "actions": [
+                    {
+                        "domain": "social_scheduling",
+                        "operation": "create_shared_reminder",
+                        "params": {
+                            "participant": "Amy",
+                            "content": "send the deck",
+                            "time_phrase": "tomorrow",
+                            "local_trigger_at": "2026-06-16T09:00:00",
+                        },
+                    }
+                ],
+                "reply_necessity": "reply_needed",
+            }
+        )
+    )
+
+    with pytest.raises(PlannerOutputError, match="precise time"):
+        planner.plan(_request("remind Amy tomorrow to send the deck"))
+
+
+def test_planner_rejects_non_iana_timezone_text() -> None:
+    planner = SiliconFlowPlanner(
+        StubJSONClient(
+            {
+                "actions": [
+                    {
+                        "domain": "settings",
+                        "operation": "set_timezone",
+                        "params": {"timezone_text": "东京"},
+                    }
+                ],
+                "reply_necessity": "reply_needed",
+            }
+        )
+    )
+
+    with pytest.raises(PlannerOutputError, match="invalid timezone_text"):
+        planner.plan(_request("把我的时区改成东京"))
+
+
+def test_planner_accepts_iana_timezone_text() -> None:
+    planner = SiliconFlowPlanner(
+        StubJSONClient(
+            {
+                "actions": [
+                    {
+                        "domain": "settings",
+                        "operation": "set_timezone",
+                        "params": {"timezone_text": "Asia/Tokyo"},
+                    }
+                ],
+                "reply_necessity": "reply_needed",
+            }
+        )
+    )
+
+    plan = planner.plan(_request("把我的时区改成东京"))
+
+    assert plan.actions[0].params == {"timezone_text": "Asia/Tokyo"}
+
+
 def test_prompt_and_payload_expose_allowed_shape_without_precise_extraction() -> None:
     client = StubJSONClient(
         {
@@ -140,8 +247,9 @@ def test_prompt_and_payload_expose_allowed_shape_without_precise_extraction() ->
     assert "do not invent key names" in call["system"]
     assert "batch_create items follow the same rule" in call["system"]
     assert "raw_text should preserve the exact current user text" in call["system"]
-    assert "omit trigger_time and duration_minutes from natural-language batch items" in (
-        call["system"]
+    assert (
+        "omit trigger_time and duration_minutes from natural-language batch items"
+        in (call["system"])
     )
     assert "confidence" in call["system"]
     assert call["user"]["allowed_domains"] == sorted(call["user"]["allowed_actions"])
@@ -178,6 +286,89 @@ def test_prompt_requires_iana_timezone_for_settings_timezone_text() -> None:
     assert "timezone_text MUST be a valid IANA timezone identifier" in system
     assert 'e.g. "Asia/Tokyo", "America/New_York"' in system
     assert "never a bare city name" in system
+
+
+def test_deepseek_prompt_addendum_has_remaining_failure_examples() -> None:
+    from coke.turn.inbound.plan import DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+
+    assert "If actions is non-empty" in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert "reply_necessity MUST be reply_needed" in (
+        DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    )
+    assert "Chinese shared reminder rule" in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert "明天提醒小王交报告" in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert "social_scheduling.create_shared_reminder" in (
+        DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    )
+    assert "Availability date granularity" in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert "小王明天下午有空吗" in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert "Asia/Tokyo" in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert 'source "current_attachment"' in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert "use concise replies" in DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    assert "preference value is the desired style" in (
+        DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    )
+    assert "move the gym reminder to tomorrow night" in (
+        DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    )
+    assert "Simple reminder.create output should omit raw_text" in (
+        DEEPSEEK_TURN_PLANNER_SYSTEM_PROMPT
+    )
+
+
+def test_planner_drops_empty_optional_values_from_nested_params() -> None:
+    planner = SiliconFlowPlanner(
+        StubJSONClient(
+            {
+                "actions": [
+                    {
+                        "domain": "reminder",
+                        "operation": "batch_create",
+                        "params": {
+                            "items": [
+                                {"content": "买牛奶", "time_phrase": None},
+                                {"content": "给妈妈打电话", "time_phrase": ""},
+                            ],
+                            "captured_timezone": "",
+                            "display_timezone": None,
+                        },
+                    }
+                ],
+                "reply_necessity": "reply_needed",
+            }
+        )
+    )
+
+    plan = planner.plan(_request("提醒我买牛奶，也提醒我给妈妈打电话"))
+
+    assert plan.actions[0].params == {
+        "items": [
+            {"content": "买牛奶"},
+            {"content": "给妈妈打电话"},
+        ],
+    }
+
+
+@pytest.mark.parametrize("source", ("这个日历", "this calendar", "attached calendar"))
+def test_planner_normalizes_calendar_attachment_source(source: str) -> None:
+    planner = SiliconFlowPlanner(
+        StubJSONClient(
+            {
+                "actions": [
+                    {
+                        "domain": "calendar_import",
+                        "operation": "import",
+                        "params": {"source": source},
+                    }
+                ],
+                "reply_necessity": "reply_needed",
+            }
+        )
+    )
+
+    plan = planner.plan(_request("导入这个日历"))
+
+    assert plan.actions[0].params == {"source": "current_attachment"}
 
 
 def test_prompt_keeps_vague_mutation_requests_as_the_requested_action() -> None:

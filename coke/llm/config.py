@@ -16,6 +16,7 @@ SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
 TEXT_PROVIDER_ZAI = "zai"
 TEXT_PROVIDER_DEEPSEEK = "deepseek"
 TEXT_PROVIDERS = frozenset({TEXT_PROVIDER_ZAI, TEXT_PROVIDER_DEEPSEEK})
+DEFAULT_PLANNER_PROVIDER = TEXT_PROVIDER_ZAI
 DEFAULT_DETECTOR_PROVIDER = TEXT_PROVIDER_ZAI
 DEFAULT_EXPRESS_PROVIDER = TEXT_PROVIDER_ZAI
 DEFAULT_INTERACTION_MODEL = "glm-5.1"
@@ -44,6 +45,7 @@ class ZAILLMConfig:
     deepseek_api_key: str | None = None
     deepseek_base_url: str = DEEPSEEK_BASE_URL
     interaction_model: str = DEFAULT_INTERACTION_MODEL
+    planner_provider: str = DEFAULT_PLANNER_PROVIDER
     planner_model: str = DEFAULT_PLANNER_MODEL
     detector_provider: str = DEFAULT_DETECTOR_PROVIDER
     detector_model: str = DEFAULT_DETECTOR_MODEL
@@ -54,10 +56,12 @@ class ZAILLMConfig:
     agno_create_schema: bool = False
 
     def __post_init__(self) -> None:
+        _validate_provider(self.planner_provider, "COKE_PLANNER_PROVIDER")
         _validate_provider(self.detector_provider, "COKE_DETECTOR_PROVIDER")
         _validate_provider(self.express_provider, "COKE_EXPRESS_PROVIDER")
         if (
-            TEXT_PROVIDER_DEEPSEEK in {self.detector_provider, self.express_provider}
+            TEXT_PROVIDER_DEEPSEEK
+            in {self.planner_provider, self.detector_provider, self.express_provider}
             and not (self.deepseek_api_key or "").strip()
         ):
             raise LLMConfigurationError(
@@ -80,6 +84,9 @@ class ZAILLMConfig:
             ).strip(),
             interaction_model=_optional_model(
                 source, "COKE_INTERACTION_MODEL", DEFAULT_INTERACTION_MODEL
+            ),
+            planner_provider=_optional_provider(
+                source, "COKE_PLANNER_PROVIDER", DEFAULT_PLANNER_PROVIDER
             ),
             planner_model=_optional_model(
                 source, "COKE_PLANNER_MODEL", DEFAULT_PLANNER_MODEL
@@ -122,7 +129,7 @@ class ZAILLMConfig:
         # single stalled Z.AI request blocks the whole turn for minutes.
         return self._create_model(
             self.planner_model,
-            provider=TEXT_PROVIDER_ZAI,
+            provider=self.planner_provider,
             timeout=self.interaction_timeout_s,
             extra_body=_thinking_disabled_body(),
         )

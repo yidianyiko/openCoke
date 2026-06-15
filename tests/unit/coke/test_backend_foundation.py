@@ -249,6 +249,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-key")
     monkeypatch.setenv("SiliconFlow_API_KEY", "sf-key")
     monkeypatch.setenv("COKE_INTERACTION_MODEL", "custom/interaction")
+    monkeypatch.setenv("COKE_PLANNER_PROVIDER", "deepseek")
     monkeypatch.setenv("COKE_PLANNER_MODEL", "custom/planner")
     monkeypatch.setenv("COKE_DETECTOR_PROVIDER", "deepseek")
     monkeypatch.setenv("COKE_DETECTOR_MODEL", "custom/detector")
@@ -277,6 +278,7 @@ def test_settings_from_env_reads_runtime_entrypoint_configuration(monkeypatch):
     assert settings.deepseek_base_url == DEEPSEEK_BASE_URL
     assert settings.siliconflow_api_key == "sf-key"
     assert settings.interaction_model == "custom/interaction"
+    assert settings.planner_provider == "deepseek"
     assert settings.planner_model == "custom/planner"
     assert settings.detector_provider == "deepseek"
     assert settings.detector_model == "custom/detector"
@@ -400,7 +402,7 @@ def test_settings_from_env_requires_zai_key_for_real_llm(monkeypatch):
 
 @pytest.mark.parametrize(
     "role_provider_env",
-    ["COKE_DETECTOR_PROVIDER", "COKE_EXPRESS_PROVIDER"],
+    ["COKE_PLANNER_PROVIDER", "COKE_DETECTOR_PROVIDER", "COKE_EXPRESS_PROVIDER"],
 )
 def test_settings_from_env_requires_deepseek_key_for_production_deepseek_roles(
     monkeypatch,
