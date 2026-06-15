@@ -19,6 +19,7 @@ from coke.domains.conversation_runtime.models import (
 )
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
 from coke.domains.social_scheduling.models import SocialSchedulingOutcome
+from coke.llm.json_completion import LLMOutputError
 from coke.observability.turn_latency import turn_latency_span
 from coke.turn.agent import AgentRequest, AgentResult, AgentToolPorts, InteractionAgent
 from coke.turn.context import ContextAssembler, ToolProfile, TurnMode, TurnTrigger
@@ -27,6 +28,7 @@ from coke.turn.freshness import FreshnessGuard
 from coke.turn.inbound.contracts import ActionOutcome, SettledOutcome
 from coke.turn.inbound.express import ExpressOutputError, ExpressRequest
 from coke.turn.inbound.pipeline import SegmentDeliveryPort, TurnPipelineRequest
+from coke.turn.inbound.plan import PlannerOutputError
 from coke.turn.locks import ConversationLockManager
 from coke.turn.memory import MemoryManager, MemoryPort
 from coke.turn.output_protocol import OutputProtocolValidator, ValidatedOutput
@@ -40,6 +42,7 @@ REMINDER_FIRE_VISIBLE_REPLY_REQUIRED = "reminder_fire_requires_visible_reply"
 REMINDER_FIRE_FACT_MISMATCH = "reminder_fire_fact_mismatch"
 INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON = "replaced_by_newer_inbound"
 _EXPRESS_RENDER_TRIGGER_TYPES = frozenset({"NotificationTurn", "ReminderFireTurn"})
+_LLM_OUTPUT_RETRY_LIMIT = 1
 _CLOSE_BOUNDARY_OBSERVER: ContextVar[Callable[[], None] | None] = ContextVar(
     "coke_close_boundary_observer",
     default=None,
@@ -412,6 +415,7 @@ class TurnRunner:
         claim_boundary_committer: Callable[[], None] | None = None,
         close_boundary_committer: Callable[[], None] | None = None,
         lock_wait_interval_s: float = 0.05,
+        lock_wait_timeout_s: float = 5.0,
         waiting_retry_jitter: Callable[[int], float] | None = None,
         waiting_retry_sleep: Callable[[float], None] | None = None,
         waiting_circuit_breaker: WaitingDeliveryCircuitBreaker | None = None,
@@ -439,6 +443,7 @@ class TurnRunner:
         self._claim_boundary_committer = claim_boundary_committer or (lambda: None)
         self._close_boundary_committer = close_boundary_committer or (lambda: None)
         self._lock_wait_interval_s = lock_wait_interval_s
+        self._lock_wait_timeout_s = lock_wait_timeout_s
         self._waiting_retry_jitter = waiting_retry_jitter
         self._waiting_retry_sleep = waiting_retry_sleep
         self._waiting_circuit_breaker = (
@@ -492,7 +497,11 @@ class TurnRunner:
                     current_input_messages=start.input_messages,
                 )
 
-            lock = self.lock_manager.acquire(trigger.conversation_id)
+            lock = self._acquire_conversation_lock(
+                trigger.conversation_id,
+                turn_id=start.turn.id,
+                trigger=trigger,
+            )
             if lock is None:
                 disposition = self.conversation_runtime.mark_failed(
                     start.turn.id, "conversation_lock_unavailable"
@@ -578,8 +587,21 @@ class TurnRunner:
                     )
 
                 lock = await self._acquire_conversation_lock_async(
-                    trigger.conversation_id
+                    trigger.conversation_id,
+                    turn_id=start.turn.id,
+                    trigger=trigger,
                 )
+                if lock is None:
+                    disposition = self.conversation_runtime.mark_failed(
+                        start.turn.id, "conversation_lock_unavailable"
+                    )
+                    return self._result_from_disposition(
+                        turn_id=start.turn.id,
+                        trigger=trigger,
+                        disposition=disposition.disposition,
+                        reason_code=disposition.reason_code,
+                        current_input_messages=start.input_messages,
+                    )
 
                 try:
                     freshness_guard = FreshnessGuard(
@@ -651,13 +673,35 @@ class TurnRunner:
             focus_subject=focus_subject,
         )
         try:
-            pipeline_result = await self.turn_pipeline.run(
-                request,
-                freshness_guard,
+            pipeline_result = await self._run_turn_pipeline_with_llm_output_retry(
+                request=request,
+                freshness_guard=freshness_guard,
                 delivery=delivery,
+                trigger=trigger,
             )
         except ConversationRuntimeError:
             raise
+        except (LLMOutputError, PlannerOutputError) as error:
+            reason_code = _llm_output_error_reason_code(error)
+            LOGGER.exception(
+                "turn_pipeline_llm_output_error_persistent",
+                extra={
+                    "turn_id": start.turn.id,
+                    "conversation_id": trigger.conversation_id,
+                    "account_id": trigger.account_id,
+                    "error_type": type(error).__name__,
+                    "reason_code": reason_code,
+                    "retry_limit": _LLM_OUTPUT_RETRY_LIMIT,
+                },
+            )
+            return self._record_runtime_failure_recovery(
+                turn_id=start.turn.id,
+                trigger=trigger,
+                reason_code=reason_code,
+                recovery_text=_runtime_failure_recovery_text(),
+                disposition_reason_code=reason_code,
+                current_input_messages=start.input_messages,
+            )
         except Exception:
             LOGGER.exception(
                 "turn_pipeline_runtime_error",
@@ -735,6 +779,41 @@ class TurnRunner:
             reason_code=getattr(disposition, "reason_code", None),
             visible_text=visible_text,
             current_input_messages=start.input_messages,
+        )
+
+    async def _run_turn_pipeline_with_llm_output_retry(
+        self,
+        *,
+        request: TurnPipelineRequest,
+        freshness_guard: FreshnessGuard,
+        delivery: SegmentDeliveryPort,
+        trigger: TurnTrigger,
+    ) -> Any:
+        assert self.turn_pipeline is not None
+        try:
+            return await self.turn_pipeline.run(
+                request,
+                freshness_guard,
+                delivery=delivery,
+            )
+        except (LLMOutputError, PlannerOutputError) as error:
+            LOGGER.warning(
+                "turn_pipeline_llm_output_error_retry",
+                extra={
+                    "turn_id": request.turn_id,
+                    "conversation_id": request.conversation_id,
+                    "account_id": request.account_id,
+                    "trigger_type": trigger.trigger_type,
+                    "error_type": type(error).__name__,
+                    "retry_attempt": 1,
+                    "retry_limit": _LLM_OUTPUT_RETRY_LIMIT,
+                },
+                exc_info=True,
+            )
+        return await self.turn_pipeline.run(
+            request,
+            freshness_guard,
+            delivery=delivery,
         )
 
     def _inbound_pipeline_request(
@@ -899,7 +978,11 @@ class TurnRunner:
                 **gate.access_facts,
             }
         )
-        lock = self.lock_manager.acquire(trigger.conversation_id)
+        lock = self._acquire_conversation_lock(
+            trigger.conversation_id,
+            turn_id=turn_id,
+            trigger=render_trigger,
+        )
         if lock is None:
             disposition = self.conversation_runtime.mark_failed(
                 turn_id, "conversation_lock_unavailable"
@@ -980,7 +1063,22 @@ class TurnRunner:
                 **gate.access_facts,
             }
         )
-        lock = await self._acquire_conversation_lock_async(trigger.conversation_id)
+        lock = await self._acquire_conversation_lock_async(
+            trigger.conversation_id,
+            turn_id=turn_id,
+            trigger=render_trigger,
+        )
+        if lock is None:
+            disposition = self.conversation_runtime.mark_failed(
+                turn_id, "conversation_lock_unavailable"
+            )
+            return self._result_from_disposition(
+                turn_id=turn_id,
+                trigger=render_trigger,
+                disposition=disposition.disposition,
+                reason_code=disposition.reason_code,
+                current_input_messages=current_input_messages,
+            )
         try:
             freshness_guard = FreshnessGuard(
                 conversation_runtime=self.conversation_runtime,
@@ -1045,7 +1143,11 @@ class TurnRunner:
             )
             if replay_result is not None:
                 return replay_result
-            lock = self.lock_manager.acquire(trigger.conversation_id)
+            lock = self._acquire_conversation_lock(
+                trigger.conversation_id,
+                turn_id=start.turn.id,
+                trigger=trigger,
+            )
             if lock is None:
                 disposition = self.conversation_runtime.mark_failed(
                     start.turn.id, "conversation_lock_unavailable"
@@ -1461,12 +1563,112 @@ class TurnRunner:
 
         return exists
 
-    async def _acquire_conversation_lock_async(self, conversation_id: str):
+    def _acquire_conversation_lock(
+        self,
+        conversation_id: str,
+        *,
+        turn_id: str,
+        trigger: TurnTrigger,
+    ):
+        deadline = time.monotonic() + max(0.0, self._lock_wait_timeout_s)
+        attempts = 0
         while True:
             lock = self.lock_manager.acquire(conversation_id)
             if lock is not None:
+                if attempts:
+                    LOGGER.info(
+                        "conversation_lock_acquired_after_wait",
+                        extra={
+                            "turn_id": turn_id,
+                            "conversation_id": conversation_id,
+                            "account_id": trigger.account_id,
+                            "trigger_type": trigger.trigger_type,
+                            "attempts": attempts + 1,
+                        },
+                    )
                 return lock
-            await asyncio.sleep(self._lock_wait_interval_s)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                LOGGER.warning(
+                    "conversation_lock_wait_timeout",
+                    extra={
+                        "turn_id": turn_id,
+                        "conversation_id": conversation_id,
+                        "account_id": trigger.account_id,
+                        "trigger_type": trigger.trigger_type,
+                        "attempts": attempts + 1,
+                        "timeout_seconds": self._lock_wait_timeout_s,
+                    },
+                )
+                return None
+            if attempts == 0:
+                LOGGER.info(
+                    "conversation_lock_waiting",
+                    extra={
+                        "turn_id": turn_id,
+                        "conversation_id": conversation_id,
+                        "account_id": trigger.account_id,
+                        "trigger_type": trigger.trigger_type,
+                        "timeout_seconds": self._lock_wait_timeout_s,
+                    },
+                )
+            attempts += 1
+            delay = min(max(0.0, self._lock_wait_interval_s), remaining)
+            if delay:
+                time.sleep(delay)
+
+    async def _acquire_conversation_lock_async(
+        self,
+        conversation_id: str,
+        *,
+        turn_id: str,
+        trigger: TurnTrigger,
+    ):
+        deadline = time.monotonic() + max(0.0, self._lock_wait_timeout_s)
+        attempts = 0
+        while True:
+            lock = self.lock_manager.acquire(conversation_id)
+            if lock is not None:
+                if attempts:
+                    LOGGER.info(
+                        "conversation_lock_acquired_after_wait",
+                        extra={
+                            "turn_id": turn_id,
+                            "conversation_id": conversation_id,
+                            "account_id": trigger.account_id,
+                            "trigger_type": trigger.trigger_type,
+                            "attempts": attempts + 1,
+                        },
+                    )
+                return lock
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                LOGGER.warning(
+                    "conversation_lock_wait_timeout",
+                    extra={
+                        "turn_id": turn_id,
+                        "conversation_id": conversation_id,
+                        "account_id": trigger.account_id,
+                        "trigger_type": trigger.trigger_type,
+                        "attempts": attempts + 1,
+                        "timeout_seconds": self._lock_wait_timeout_s,
+                    },
+                )
+                return None
+            if attempts == 0:
+                LOGGER.info(
+                    "conversation_lock_waiting",
+                    extra={
+                        "turn_id": turn_id,
+                        "conversation_id": conversation_id,
+                        "account_id": trigger.account_id,
+                        "trigger_type": trigger.trigger_type,
+                        "timeout_seconds": self._lock_wait_timeout_s,
+                    },
+                )
+            attempts += 1
+            delay = min(max(0.0, self._lock_wait_interval_s), remaining)
+            await asyncio.sleep(delay)
 
     def _record_pending_async(
         self,
@@ -1553,6 +1755,7 @@ class TurnRunner:
         turn_id: str,
         trigger: TurnTrigger,
         recovery_text: str,
+        reason_code: str = "grounded_failure_recovery",
         current_input_messages: tuple[Any, ...] = (),
         onboarding_guidance_required: bool = False,
     ) -> TurnRunResult:
@@ -1560,7 +1763,7 @@ class TurnRunner:
         disposition = self.conversation_runtime.commit_recovery_reply(
             turn_id=turn_id,
             segments=segments,
-            reason_code="grounded_failure_recovery",
+            reason_code=reason_code,
         )
         self._commit_close_boundary()
         visible_text = "\n".join(segments)
@@ -1613,13 +1816,16 @@ class TurnRunner:
         turn_id: str,
         trigger: TurnTrigger,
         reason_code: str,
+        recovery_text: str | None = None,
+        disposition_reason_code: str = "grounded_failure_recovery",
         current_input_messages: tuple[Any, ...] = (),
     ) -> TurnRunResult:
         self._record_render_failure_lifecycle(trigger, turn_id, reason_code)
         return self._record_recovery_reply(
             turn_id=turn_id,
             trigger=trigger,
-            recovery_text=_runtime_failure_recovery_text(),
+            recovery_text=recovery_text or _runtime_failure_recovery_text(),
+            reason_code=disposition_reason_code,
             current_input_messages=current_input_messages,
         )
 
@@ -2387,7 +2593,13 @@ def _grounded_recovery_text(
 
 
 def _runtime_failure_recovery_text() -> str:
-    return "刚才这条消息没有处理成功，我已经恢复会话状态。请把刚才的请求再发我一次。"
+    return "刚才这条消息我没能处理完整。你可以换个说法，或把时间、对象和要做的事补充清楚后再发我。"
+
+
+def _llm_output_error_reason_code(error: BaseException) -> str:
+    if isinstance(error, PlannerOutputError):
+        return "planner_output_error_persistent"
+    return "llm_output_error_persistent"
 
 
 def _recovery_grounding_from_tool_events(

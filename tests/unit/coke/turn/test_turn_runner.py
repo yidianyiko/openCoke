@@ -9,14 +9,16 @@ from typing import Any
 
 import pytest
 
+from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.repository import (
     InMemoryConversationRuntimeRepository,
 )
-from coke.domains.conversation_runtime.models import ConversationRuntimeError
 from coke.domains.conversation_runtime.service import ConversationRuntimeService
+from coke.llm.json_completion import LLMOutputError
 from coke.turn.agent import AgentResult, AgentToolPorts
 from coke.turn.context import TurnMode, TurnTrigger
 from coke.turn.freshness import FreshnessGuard
+from coke.turn.inbound.plan import PlannerOutputError
 from coke.turn.locks import ConversationLockManager
 from coke.turn.output_protocol import OutputProtocolValidator
 from coke.turn.pre_llm_gate import GateDecision, PreLLMGateService
@@ -211,6 +213,37 @@ class RaisingTurnPipeline:
         raise RuntimeError("planner exploded")
 
 
+class TransientPlannerOutputTurnPipeline:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def run(self, request, guard, delivery=None):
+        self.calls.append((request, guard, delivery))
+        if len(self.calls) == 1:
+            raise PlannerOutputError("invalid actions")
+        return SimpleNamespace(
+            segments=("pipeline recovered after retry",),
+            close_result=SimpleNamespace(
+                committed=True,
+                disposition=SimpleNamespace(
+                    disposition="replied",
+                    reason_code="reply_ready",
+                ),
+                error=None,
+            ),
+            streamed=False,
+        )
+
+
+class PersistentLLMOutputTurnPipeline:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def run(self, request, guard, delivery=None):
+        self.calls.append((request, guard, delivery))
+        raise LLMOutputError("invalid detected_reminder_fields shape")
+
+
 class RuntimeErrorCloseTurnPipeline:
     async def run(self, request, guard, delivery=None):
         return SimpleNamespace(
@@ -228,6 +261,28 @@ class RuntimeErrorCloseTurnPipeline:
 class NewerInboundCancelledTurnPipeline:
     async def run(self, request, guard, delivery=None):
         raise asyncio.CancelledError(INTERRUPTED_BY_NEWER_INBOUND_CANCEL_REASON)
+
+
+class FakeConversationLock:
+    def __init__(self) -> None:
+        self.release_count = 0
+
+    def release(self) -> bool:
+        self.release_count += 1
+        return True
+
+
+class FlakyConversationLockManager:
+    def __init__(self, *, unavailable_attempts: int = 1) -> None:
+        self.unavailable_attempts = unavailable_attempts
+        self.acquire_calls = 0
+        self.lock = FakeConversationLock()
+
+    def acquire(self, conversation_id: str):
+        self.acquire_calls += 1
+        if self.acquire_calls <= self.unavailable_attempts:
+            return None
+        return self.lock
 
 
 @pytest.fixture
@@ -361,9 +416,44 @@ def test_inbound_pipeline_exception_recovers_and_closes_window(harness):
 
     assert result.disposition == "recovered"
     assert result.reason_code == "grounded_failure_recovery"
-    assert "恢复会话状态" in result.visible_text
+    assert "请把刚才的请求再发我一次" not in result.visible_text
+    assert "恢复会话状态" not in result.visible_text
+    assert "补充" in result.visible_text
     assert conversation is not None
     assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
+    assert harness["agent"].requests == []
+
+
+def test_inbound_pipeline_llm_output_error_retries_once_then_replies(harness):
+    pipeline = TransientPlannerOutputTurnPipeline()
+    harness["runner"].turn_pipeline = pipeline
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "pipeline recovered after retry"
+    assert len(pipeline.calls) == 2
+    assert harness["agent"].requests == []
+
+
+def test_persistent_inbound_pipeline_llm_output_error_recovers_with_calm_copy(
+    harness,
+):
+    pipeline = PersistentLLMOutputTurnPipeline()
+    harness["runner"].turn_pipeline = pipeline
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+    disposition = harness["runtime"].get_disposition(result.turn_id)
+
+    assert result.disposition == "recovered"
+    assert result.reason_code == "llm_output_error_persistent"
+    assert disposition.disposition == "recovered"
+    assert disposition.reason_code == "llm_output_error_persistent"
+    assert len(pipeline.calls) == 2
+    assert result.visible_text
+    assert "请把刚才的请求再发我一次" not in result.visible_text
+    assert "恢复会话状态" not in result.visible_text
+    assert "补充" in result.visible_text
     assert harness["agent"].requests == []
 
 
@@ -380,6 +470,21 @@ def test_inbound_pipeline_runtime_close_error_recovers_and_closes_window(harness
     assert conversation is not None
     assert conversation.last_closed_inbound_seq == conversation.latest_inbound_seq
     assert harness["agent"].requests == []
+
+
+def test_inbound_lock_contention_waits_briefly_and_serializes(harness):
+    lock_manager = FlakyConversationLockManager(unavailable_attempts=1)
+    harness["runner"].lock_manager = lock_manager
+    harness["runner"]._lock_wait_interval_s = 0
+    harness["runner"]._lock_wait_timeout_s = 0.01
+
+    result = harness["runner"].run_inbound_turn(harness["trigger"])
+
+    assert result.disposition == "replied"
+    assert result.visible_text == "pipeline hello"
+    assert lock_manager.acquire_calls == 2
+    assert lock_manager.lock.release_count == 1
+    assert len(harness["pipeline"].calls) == 1
 
 
 def test_async_reply_timeout_recovers_and_closes_window(harness):
