@@ -73,7 +73,13 @@ PARAM_KEY_SCHEMA: ParamKeySchema = MappingProxyType(
                 ),
                 "complete": ParamKeySpec(
                     required=("match",),
-                    optional=("owner_account_id", "account_id"),
+                    optional=(
+                        "owner_account_id",
+                        "account_id",
+                        "date_phrase",
+                        "captured_timezone",
+                        "display_timezone",
+                    ),
                 ),
                 "create": ParamKeySpec(
                     required=("content", "time_phrase"),
@@ -90,7 +96,13 @@ PARAM_KEY_SCHEMA: ParamKeySchema = MappingProxyType(
                 ),
                 "delete": ParamKeySpec(
                     required=("match",),
-                    optional=("owner_account_id", "account_id"),
+                    optional=(
+                        "owner_account_id",
+                        "account_id",
+                        "date_phrase",
+                        "captured_timezone",
+                        "display_timezone",
+                    ),
                 ),
                 "list": ParamKeySpec(
                     optional=(

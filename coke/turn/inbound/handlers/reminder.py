@@ -15,7 +15,7 @@ from coke.domains.reminder.models import (
 )
 from coke.domains.reminder.service import ReminderService
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
-from coke.turn.inbound.date_windows import resolve_date_phrase_window
+from coke.turn.inbound.date_windows import DateWindow, resolve_date_phrase_window
 
 
 class ReminderActionHandler:
@@ -192,6 +192,16 @@ class ReminderActionHandler:
         guard: Any,
     ) -> ActionOutcome:
         match = _optional_str(params.get("match"))
+        date_window = _date_window_from_params(params, now=self._now)
+        if operation in {"delete", "complete"} and date_window is not None:
+            return self._date_scoped_mutation(
+                operation,
+                params,
+                owner,
+                match,
+                guard,
+                date_window,
+            )
         if operation == "update":
             trigger_time = None
             if _has_time_phrase(params):
@@ -234,6 +244,44 @@ class ReminderActionHandler:
             commit_guard=guard.guard_state_change,
         )
         return _keyword_mutation_outcome(result, status="completed")
+
+    def _date_scoped_mutation(
+        self,
+        operation: str,
+        params: Mapping[str, Any],
+        owner: str,
+        match: str | None,
+        guard: Any,
+        date_window: DateWindow,
+    ) -> ActionOutcome:
+        guard.guard_state_change()
+        if operation == "delete":
+            batch = self.reminder_service.delete_reminders_by_filter(
+                owner_account_id=owner,
+                keyword=match,
+                trigger_after=date_window.trigger_after,
+                trigger_before=date_window.trigger_before,
+                commit_guard=guard.guard_state_change,
+            )
+            return _batch_mutation_outcome(
+                owner,
+                batch,
+                status="cancelled",
+                date_window=date_window,
+            )
+        batch = self.reminder_service.complete_reminders_by_filter(
+            owner_account_id=owner,
+            keyword=match,
+            trigger_after=date_window.trigger_after,
+            trigger_before=date_window.trigger_before,
+            commit_guard=guard.guard_state_change,
+        )
+        return _batch_mutation_outcome(
+            owner,
+            batch,
+            status="completed",
+            date_window=date_window,
+        )
 
     def _extract_create_fields(
         self,
@@ -350,6 +398,49 @@ def _keyword_mutation_outcome(
     return _blocked_keyword_outcome(result)
 
 
+def _batch_mutation_outcome(
+    owner: str,
+    batch: ReminderBatchResult,
+    *,
+    status: str,
+    date_window: DateWindow,
+) -> ActionOutcome:
+    items = [_item_data(item) for item in batch.items]
+    succeeded = [item for item in items if item["state"] == "succeeded"]
+    failed = [item for item in items if item["state"] != "succeeded"]
+    data = {
+        "owner_account_id": owner,
+        "count": len(succeeded),
+        "items": items,
+        "scope": _date_window_data(date_window),
+    }
+    if not items:
+        return ActionOutcome(
+            category="not_possible",
+            status="not_found",
+            data={
+                **data,
+                "reason": "no_matching_reminder",
+                "match_count": 0,
+            },
+        )
+    if failed and succeeded:
+        return ActionOutcome(
+            category="done",
+            status="partial",
+            data={
+                **data,
+                "succeeded": succeeded,
+                "failed": failed,
+            },
+        )
+    if failed:
+        first = batch.items[0]
+        category, blocked_status = _category_status_for_item(first)
+        return ActionOutcome(category=category, status=blocked_status, data=data)
+    return ActionOutcome(category="done", status=status, data=data)
+
+
 def _blocked_keyword_outcome(result: ReminderItemResult) -> ActionOutcome:
     if result.reason == "ambiguous_reminder_reference":
         return ActionOutcome(
@@ -385,6 +476,27 @@ def _category_status_for_item(result: ReminderItemResult) -> tuple[str, str]:
     if result.state == "needs-follow-up":
         return "needs_input", result.reason or "needs_follow_up"
     return "not_possible", result.reason or "reminder_action_failed"
+
+
+def _date_window_from_params(
+    params: Mapping[str, Any],
+    *,
+    now: Callable[[], datetime],
+) -> DateWindow | None:
+    return resolve_date_phrase_window(
+        params.get("date_phrase"),
+        timezone_name=_timezone(params),
+        now=now,
+    )
+
+
+def _date_window_data(date_window: DateWindow) -> dict[str, str]:
+    return {
+        "local_start": date_window.local_start.isoformat(),
+        "local_end": date_window.local_end.isoformat(),
+        "trigger_after": date_window.trigger_after.isoformat(),
+        "trigger_before": date_window.trigger_before.isoformat(),
+    }
 
 
 def _missing_duration_outcome(*, item_index: int | None = None) -> ActionOutcome:

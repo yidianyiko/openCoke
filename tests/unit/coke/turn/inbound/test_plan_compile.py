@@ -79,6 +79,18 @@ def test_shared_cancel_can_omit_match_for_handler_disambiguation() -> None:
     assert compiled.actions == (CompiledAction(action=action),)
 
 
+def test_reminder_date_scoped_delete_can_omit_match_for_bulk_scope() -> None:
+    action = ProposedAction(
+        domain="reminder",
+        operation="delete",
+        params={"date_phrase": "今天"},
+    )
+
+    compiled = compile_plan(TurnPlan(actions=(action,)))
+
+    assert compiled.actions == (CompiledAction(action=action),)
+
+
 def test_shared_cancel_schema_uses_natural_refs_not_ids() -> None:
     shared_cancel = PARAM_KEY_SCHEMA["social_scheduling"]["cancel_shared_reminder"]
 

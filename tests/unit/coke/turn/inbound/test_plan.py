@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Mapping
 
 import pytest
 
-from coke.turn.inbound.contracts import TurnPlan
+from coke.turn.inbound.contracts import CompiledAction, TurnPlan
 from coke.turn.inbound.param_schema import param_key_schema_payload
 from coke.turn.inbound.plan import (
     PlannerOutputError,
     PlanRequest,
     SiliconFlowPlanner,
 )
+from coke.turn.inbound.plan_compile import compile_plan
 
 
 class StubJSONClient:
@@ -143,7 +145,7 @@ def test_planner_rejects_confidence_fields() -> None:
         planner.plan(_request("list reminders"))
 
 
-def test_planner_rejects_unknown_param_keys() -> None:
+def test_planner_drops_unknown_param_keys_and_keeps_action_compilable(caplog) -> None:
     planner = SiliconFlowPlanner(
         StubJSONClient(
             {
@@ -159,8 +161,13 @@ def test_planner_rejects_unknown_param_keys() -> None:
         )
     )
 
-    with pytest.raises(PlannerOutputError, match="invalid action.params.invented"):
-        planner.plan(_request("看一下今天的提醒"))
+    with caplog.at_level(logging.WARNING, logger="coke.turn.inbound.plan"):
+        plan = planner.plan(_request("看一下今天的提醒"))
+
+    assert plan.actions[0].params == {"date_phrase": "今天"}
+    assert compile_plan(plan).actions == (CompiledAction(action=plan.actions[0]),)
+    assert "planner_unknown_param_keys_dropped" in caplog.text
+    assert getattr(caplog.records[-1], "dropped_param_keys") == ("invented",)
 
 
 def test_planner_rejects_precise_shared_reminder_time_keys() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 
 ALLOWED_ACTIONS: Mapping[str, frozenset[str]] = allowed_actions_from_schema()
 PRECISE_TIME_PARAM_KEYS = frozenset({"trigger_time", "local_trigger_at"})
+LOGGER = logging.getLogger(__name__)
 REPLY_NECESSITIES: set[ReplyNecessity] = {
     "intentional_no_reply",
     "reply_needed",
@@ -45,11 +47,15 @@ Ownership:
 - Keep ambiguous clock phrases or ranges with no explicit period marker (e.g.
   "8-9", "8点", "8到9点") verbatim in the time param; do NOT resolve AM/PM or
   dates in Plan — the detector picks the plausible near-future reading in Execute.
-- For reminder.list schedule/list/count requests scoped to a day (e.g. 今天,
-  明天, 后天, 周一, 6月15日, 2026-06-15), put the natural day/date text in
-  date_phrase. Do NOT put a day/date phrase in keyword, and do NOT compute
+- For reminder.list schedule/list/count requests and date-scoped
+  reminder.delete/reminder.complete requests (e.g. 今天, 明天, 后天, 周一,
+  6月15日, 2026-06-15), put the natural day/date text in date_phrase. Do NOT
+  put a day/date phrase in keyword, and do NOT compute
   trigger_after/trigger_before in Plan. Use keyword only for reminder
   topic/content filters like "work" or "跑步".
+- For "cancel/delete/complete all reminders on <day>" requests, use
+  reminder.delete/reminder.complete with date_phrase and omit match. Execute
+  applies the date window to all user-mutable reminders in that day.
 - For a friend's schedule/availability/agenda question (e.g.
   "oliver今天有什么安排", "今天 Oliver 忙吗", "Oliver 什么时候有空"), use
   social_scheduling.availability_query, not social_scheduling.list_shared.
@@ -312,9 +318,19 @@ def _validated_params(
     normalized = dict(_drop_empty_optional_values(params))
     spec = PARAM_KEY_SCHEMA[domain][operation]
     allowed_keys = frozenset((*spec.required, *spec.optional))
-    for key in normalized:
-        if key not in allowed_keys:
-            raise PlannerOutputError(f"invalid action.params.{key}")
+    unknown_keys = tuple(sorted(key for key in normalized if key not in allowed_keys))
+    if unknown_keys:
+        LOGGER.warning(
+            "planner_unknown_param_keys_dropped",
+            extra={
+                "domain": domain,
+                "operation": operation,
+                "dropped_param_keys": unknown_keys,
+            },
+        )
+        normalized = {
+            key: value for key, value in normalized.items() if key in allowed_keys
+        }
     _reject_precise_time_keys(domain, operation, normalized)
     _validate_timezone_text(domain, operation, normalized)
     _canonicalize_availability_date_phrase(domain, operation, normalized)

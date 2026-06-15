@@ -852,6 +852,57 @@ def test_delete_resolves_and_executes_single_delete_for_real() -> None:
     assert guard.staged == []
 
 
+def test_date_scoped_delete_cancels_today_reminders_without_match() -> None:
+    handler = _real_handler_for_shanghai_now()
+    service = handler.reminder_service
+    guard = RecordingGuard()
+    _add_list_reminder(
+        service,
+        reminder_id="today-morning",
+        content="早上复盘",
+        next_fire_at=datetime(2026, 6, 14, 5, 0, tzinfo=UTC),
+    )
+    _add_list_reminder(
+        service,
+        reminder_id="today-evening",
+        content="晚上检查",
+        next_fire_at=datetime(2026, 6, 14, 14, 0, tzinfo=UTC),
+    )
+    _add_list_reminder(
+        service,
+        reminder_id="tomorrow",
+        content="明天会议",
+        next_fire_at=datetime(2026, 6, 15, 2, 0, tzinfo=UTC),
+    )
+
+    outcome = _execute(
+        handler,
+        _compiled(
+            "delete",
+            {
+                "owner_account_id": "acct-1",
+                "date_phrase": "今天",
+                "captured_timezone": "Asia/Shanghai",
+                "display_timezone": "Asia/Shanghai",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert outcome.status == "cancelled"
+    assert outcome.data["count"] == 2
+    assert [
+        item["reminder_id"]
+        for item in outcome.data["items"]
+        if item["state"] == "succeeded"
+    ] == ["today-morning", "today-evening"]
+    assert service.repository.get_reminder("today-morning").lifecycle == "deleted"
+    assert service.repository.get_reminder("today-evening").lifecycle == "deleted"
+    assert service.repository.get_reminder("tomorrow").lifecycle == "active"
+    assert guard.staged == []
+
+
 def test_complete_executes_keyword_completion_for_real() -> None:
     service = StubReminderService()
     service.resolve_result = ReminderItemResult(state="succeeded", reminder_id="r1")

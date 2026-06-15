@@ -424,6 +424,42 @@ class ReminderService:
             commit_guard=commit_guard,
         )
 
+    def delete_reminders_by_filter(
+        self,
+        *,
+        owner_account_id: str,
+        keyword: str | None = None,
+        trigger_after: datetime | None = None,
+        trigger_before: datetime | None = None,
+        commit_guard: CommitGuard = None,
+    ) -> ReminderBatchResult:
+        return self._mutate_reminders_by_filter(
+            operation="delete",
+            owner_account_id=owner_account_id,
+            keyword=keyword,
+            trigger_after=trigger_after,
+            trigger_before=trigger_before,
+            commit_guard=commit_guard,
+        )
+
+    def complete_reminders_by_filter(
+        self,
+        *,
+        owner_account_id: str,
+        keyword: str | None = None,
+        trigger_after: datetime | None = None,
+        trigger_before: datetime | None = None,
+        commit_guard: CommitGuard = None,
+    ) -> ReminderBatchResult:
+        return self._mutate_reminders_by_filter(
+            operation="complete",
+            owner_account_id=owner_account_id,
+            keyword=keyword,
+            trigger_after=trigger_after,
+            trigger_before=trigger_before,
+            commit_guard=commit_guard,
+        )
+
     def update_reminder_by_keyword(
         self,
         owner_account_id: str,
@@ -455,6 +491,59 @@ class ReminderService:
     ) -> ReminderItemResult:
         return self._single_user_mutable_keyword_match(owner_account_id, keyword)
 
+    def _mutate_reminders_by_filter(
+        self,
+        *,
+        operation: str,
+        owner_account_id: str,
+        keyword: str | None,
+        trigger_after: datetime | None,
+        trigger_before: datetime | None,
+        commit_guard: CommitGuard,
+    ) -> ReminderBatchResult:
+        matches = [
+            reminder
+            for reminder in self.filter_reminders(
+                owner_account_id=owner_account_id,
+                keyword=keyword,
+                lifecycle="active",
+                trigger_after=trigger_after,
+                trigger_before=trigger_before,
+            )
+            if _user_mutable_reminder(reminder)
+        ]
+        results: list[ReminderItemResult] = []
+        for reminder in matches:
+            try:
+                if operation == "delete":
+                    results.append(
+                        self.delete_reminder(
+                            owner_account_id,
+                            reminder.id,
+                            commit_guard=commit_guard,
+                        )
+                    )
+                elif operation == "complete":
+                    results.append(
+                        self.complete_reminder(
+                            owner_account_id,
+                            reminder.id,
+                            commit_guard=commit_guard,
+                        )
+                    )
+                else:
+                    raise ReminderError("unsupported_reminder_operation")
+            except ReminderError as error:
+                results.append(
+                    ReminderItemResult(
+                        state="failed",
+                        reminder_id=reminder.id,
+                        reason=error.code,
+                        fact=error.fact or {},
+                    )
+                )
+        return ReminderBatchResult(owner_account_id=owner_account_id, items=results)
+
     def _single_user_mutable_keyword_match(
         self,
         owner_account_id: str,
@@ -472,7 +561,7 @@ class ReminderService:
                 keyword=keyword,
                 lifecycle="active",
             )
-            if reminder.kind not in {"proactive", "shared_projection"}
+            if _user_mutable_reminder(reminder)
         ]
         if len(matches) == 1:
             return ReminderItemResult(
@@ -1111,6 +1200,10 @@ def _keyword_matches_content(keyword_value: str, content: str) -> bool:
     # clarification, never a wrong mutation).
     content_value = content.casefold()
     return keyword_value in content_value or content_value in keyword_value
+
+
+def _user_mutable_reminder(reminder: Reminder) -> bool:
+    return reminder.kind not in {"proactive", "shared_projection"}
 
 
 def _reminder_in_trigger_range(

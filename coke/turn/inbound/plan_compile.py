@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from coke.turn.inbound.contracts import (
     CompiledAction,
     CompiledPlan,
@@ -39,7 +42,9 @@ def _compile_action(action: ProposedAction) -> CompiledAction:
         )
     missing = tuple(
         param
-        for param in domain_schema[action.operation]
+        for param in _required_params_for_action(
+            action, domain_schema[action.operation]
+        )
         if action.params.get(param) is None
     )
     if missing:
@@ -50,3 +55,21 @@ def _compile_action(action: ProposedAction) -> CompiledAction:
             data={"missing_params": missing},
         )
     return CompiledAction(action=action)
+
+
+def _required_params_for_action(
+    action: ProposedAction,
+    required: tuple[str, ...],
+) -> tuple[str, ...]:
+    if (
+        action.domain == "reminder"
+        and action.operation in {"delete", "complete"}
+        and _has_date_phrase(action.params)
+    ):
+        return tuple(param for param in required if param != "match")
+    return required
+
+
+def _has_date_phrase(params: Mapping[str, Any]) -> bool:
+    value = params.get("date_phrase")
+    return isinstance(value, str) and bool(value.strip())
