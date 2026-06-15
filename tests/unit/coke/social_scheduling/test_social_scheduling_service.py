@@ -749,6 +749,35 @@ def test_update_shared_reminder_reschedules_existing_object_and_projection_remin
     assert result.notification_facts[0].facts["delivery_recipients"] == ["friend"]
 
 
+def test_update_shared_reminder_reschedule_earlier_does_not_self_conflict():
+    service, repo, _, _ = make_service({"creator", "friend"})
+    create_active_friendship(service, "creator", "friend")
+    created = service.create_shared_reminder(
+        creator_account_id="creator",
+        receiver_account_ids=["friend"],
+        title="meeting",
+        local_trigger_at=datetime(2026, 6, 4, 20, 0),
+        captured_timezone="UTC",
+        duration_minutes=30,
+    )
+    shared_id = created.shared_reminder.id
+
+    result = service.update_shared_reminder(
+        account_id="creator",
+        shared_reminder_id=shared_id,
+        local_trigger_at=datetime(2026, 6, 4, 18, 0),
+        captured_timezone="UTC",
+        duration_minutes=None,
+    )
+
+    assert result.status == "rescheduled"
+    assert result.shared_reminder.id == shared_id
+    assert result.breakdown == {}
+    assert repo.shared_reminders_by_id[shared_id].local_trigger_at == datetime(
+        2026, 6, 4, 18, 0
+    )
+
+
 def test_update_shared_reminder_rejects_noop_update_without_mutation():
     service, repo, _, _ = make_service({"creator", "friend"})
     create_active_friendship(service, "creator", "friend")

@@ -9,6 +9,8 @@ class MessageSubject:
     subject_type: str
     object_ids: tuple[str, ...]
     ordered: bool = False
+    friend_name: str | None = None
+    title: str | None = None
 
 
 class MessageSubjectRepository(Protocol):

@@ -238,8 +238,9 @@ class SiliconFlowPlanner:
         )
 
     def plan(self, request: PlanRequest) -> TurnPlan:
+        focus_subject = _focus_subject_payload(request.focus_subject)
         payload = self.client.complete_json(
-            system=self.system_prompt,
+            system=_system_prompt_with_focus_subject(self.system_prompt, focus_subject),
             user={
                 "account_id": request.account_id,
                 "conversation_id": request.conversation_id,
@@ -249,7 +250,7 @@ class SiliconFlowPlanner:
                 ],
                 "conversation_history": [dict(m) for m in request.conversation_history],
                 "trusted_facts": dict(request.trusted_facts),
-                "focus_subject": _focus_subject_payload(request.focus_subject),
+                "focus_subject": focus_subject,
                 "allowed_actions": _allowed_actions_payload(self.allowed_actions),
                 "allowed_domains": sorted(self.allowed_actions),
                 "allowed_reply_necessity": sorted(REPLY_NECESSITIES),
@@ -453,18 +454,58 @@ def _focus_subject_payload(focus_subject: Any | None) -> dict[str, Any] | None:
         subject_type = focus_subject.get("subject_type")
         object_ids = focus_subject.get("object_ids")
         ordered = focus_subject.get("ordered", False)
+        friend_name = focus_subject.get("friend_name")
+        title = focus_subject.get("title")
     else:
         subject_type = getattr(focus_subject, "subject_type", None)
         object_ids = getattr(focus_subject, "object_ids", None)
         ordered = getattr(focus_subject, "ordered", False)
+        friend_name = getattr(focus_subject, "friend_name", None)
+        title = getattr(focus_subject, "title", None)
     if not isinstance(subject_type, str) or isinstance(object_ids, str):
         return None
     try:
         normalized_object_ids = tuple(str(object_id) for object_id in object_ids or ())
     except TypeError:
         return None
-    return {
+    payload = {
         "subject_type": subject_type,
         "object_ids": list(normalized_object_ids),
         "ordered": bool(ordered),
     }
+    normalized_friend_name = _optional_focus_text(friend_name)
+    if normalized_friend_name is not None:
+        payload["friend_name"] = normalized_friend_name
+    normalized_title = _optional_focus_text(title)
+    if normalized_title is not None:
+        payload["title"] = normalized_title
+    return payload
+
+
+def _system_prompt_with_focus_subject(
+    system_prompt: str,
+    focus_subject: Mapping[str, Any] | None,
+) -> str:
+    if focus_subject is None or focus_subject.get("subject_type") != "shared_reminder":
+        return system_prompt
+    friend_name = _optional_focus_text(focus_subject.get("friend_name"))
+    title = _optional_focus_text(focus_subject.get("title"))
+    if friend_name is None or title is None:
+        return system_prompt
+    return (
+        system_prompt
+        + "\n\n"
+        + "Most recently you set up: the shared reminder "
+        + f"「{title}」 with friend {friend_name}. "
+        + "A bare time/duration-only follow-up continues that same shared reminder "
+        + "and the same friend; do not switch to another person mentioned earlier."
+    )
+
+
+def _optional_focus_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.split())
+    if not normalized:
+        return None
+    return normalized

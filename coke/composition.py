@@ -498,12 +498,34 @@ class ReminderAvailabilityAdapter:
 
 class ReminderLifecycleFocusRepository:
     def __init__(
-        self, conversation_runtime_repository: Any, reminder_repository: Any
+        self,
+        conversation_runtime_repository: Any,
+        reminder_repository: Any,
+        social_scheduling_repository: Any | None = None,
+        *,
+        display_name_resolver: Callable[[str], str] | None = None,
     ) -> None:
         self.conversation_runtime_repository = conversation_runtime_repository
         self.reminder_repository = reminder_repository
+        self.social_scheduling_repository = social_scheduling_repository
+        self.display_name_resolver = display_name_resolver or (
+            lambda account_id: account_id
+        )
 
     def last_rendered_subject(self, conversation_id: str) -> MessageSubject | None:
+        personal_subject, personal_at = self._latest_personal_subject(conversation_id)
+        shared_subject, shared_at = self._latest_shared_subject(conversation_id)
+        if shared_subject is not None and (
+            personal_subject is None
+            or personal_at is None
+            or (shared_at is not None and shared_at > personal_at)
+        ):
+            return shared_subject
+        return personal_subject
+
+    def _latest_personal_subject(
+        self, conversation_id: str
+    ) -> tuple[MessageSubject | None, datetime | None]:
         turn_ids = self.conversation_runtime_repository.latest_turn_ids(
             conversation_id,
             limit=20,
@@ -525,12 +547,69 @@ class ReminderLifecycleFocusRepository:
             reminder = self.reminder_repository.get_reminder(reminder_id)
             if reminder is None or reminder.lifecycle != "active":
                 continue
-            return MessageSubject(
-                subject_type="reminder",
-                object_ids=(reminder.id,),
-                ordered=True,
+            return (
+                MessageSubject(
+                    subject_type="reminder",
+                    object_ids=(reminder.id,),
+                    ordered=True,
+                ),
+                _utc_datetime(getattr(event, "created_at", None)),
             )
-        return None
+        return None, None
+
+    def _latest_shared_subject(
+        self, conversation_id: str
+    ) -> tuple[MessageSubject | None, datetime | None]:
+        if self.social_scheduling_repository is None:
+            return None, None
+        conversation = self.conversation_runtime_repository.get_conversation(
+            conversation_id
+        )
+        account_id = getattr(conversation, "account_id", None)
+        if not isinstance(account_id, str) or not account_id:
+            return None, None
+        reminders = [
+            reminder
+            for reminder in self.social_scheduling_repository.list_shared_reminders_for_participant(
+                account_id
+            )
+            if getattr(reminder, "status", None) == "active"
+        ]
+        if not reminders:
+            return None, None
+        latest = max(
+            reminders,
+            key=lambda reminder: (
+                _shared_reminder_recency_at(reminder)
+                or datetime.min.replace(tzinfo=UTC),
+                getattr(reminder, "id", ""),
+            ),
+        )
+        friend_account_id = _non_self_shared_participant(
+            account_id,
+            getattr(latest, "participant_account_ids", ()),
+        )
+        friend_name = (
+            self._display_name(friend_account_id)
+            if friend_account_id is not None
+            else None
+        )
+        return (
+            MessageSubject(
+                subject_type="shared_reminder",
+                object_ids=(latest.id,),
+                ordered=True,
+                friend_name=friend_name,
+                title=getattr(latest, "title", None),
+            ),
+            _shared_reminder_recency_at(latest),
+        )
+
+    def _display_name(self, account_id: str) -> str:
+        try:
+            return self.display_name_resolver(account_id)
+        except Exception:
+            return account_id
 
 
 class IdentityAccessPreLLMGatePort:
@@ -1397,6 +1476,8 @@ def compose_coke_runtime(
             ReminderLifecycleFocusRepository(
                 repositories.conversation_runtime,
                 repositories.reminder,
+                repositories.social_scheduling,
+                display_name_resolver=identity_access_service.get_display_name,
             )
         ),
         delivery_lifecycle=OutputLifecycleDeliveryCallbacks(
@@ -2230,6 +2311,37 @@ def _account_default_timezone(
 ) -> str:
     account = identity_access_service.repository.get_account(account_id)
     return account.default_timezone if account is not None else "UTC"
+
+
+def _shared_reminder_recency_at(reminder: Any) -> datetime | None:
+    return _utc_datetime(
+        getattr(reminder, "updated_at", None) or getattr(reminder, "created_at", None)
+    )
+
+
+def _utc_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _non_self_shared_participant(
+    account_id: str,
+    participant_account_ids: Any,
+) -> str | None:
+    try:
+        participants = tuple(
+            str(participant) for participant in participant_account_ids
+        )
+    except TypeError:
+        return None
+    canonical_account_id = account_id.replace("-", "")
+    for participant in participants:
+        if participant.replace("-", "") != canonical_account_id:
+            return participant
+    return None
 
 
 def _settings_update_fields(command: Mapping[str, Any]) -> dict[str, Any]:

@@ -79,6 +79,53 @@ class FollowupSameTargetJSONClient:
         }
 
 
+class SharedFocusFollowupJSONClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_json(
+        self,
+        *,
+        system: str,
+        user: dict,
+        schema_name: str,
+    ) -> Mapping[str, Any]:
+        self.calls.append(
+            {
+                "system": system,
+                "user": user,
+                "schema_name": schema_name,
+            }
+        )
+        focus_subject = user.get("focus_subject") or {}
+        participant = (
+            "eva"
+            if (
+                focus_subject.get("subject_type") == "shared_reminder"
+                and focus_subject.get("friend_name") == "eva"
+                and focus_subject.get("title") == "开会"
+                and "Most recently you set up" in system
+                and "same shared reminder" in system
+                and "do not switch to another person" in system
+            )
+            else "李梓豪"
+        )
+        return {
+            "actions": [
+                {
+                    "domain": "social_scheduling",
+                    "operation": "update_shared_reminder",
+                    "params": {
+                        "participant": participant,
+                        "match": "开会",
+                        "time_phrase": "六点",
+                    },
+                }
+            ],
+            "reply_necessity": "reply_needed",
+        }
+
+
 def test_planner_maps_json_actions_to_turn_plan() -> None:
     client = StubJSONClient(
         {
@@ -507,6 +554,48 @@ def test_bare_followup_preserves_immediately_prior_shared_reminder_friend() -> N
     assert client.calls[0]["user"]["conversation_history"] == [
         dict(item) for item in history
     ]
+
+
+def test_shared_focus_anchors_bare_time_followup_to_recent_friend() -> None:
+    client = SharedFocusFollowupJSONClient()
+    history = (
+        {
+            "role": "user",
+            "content": "约李梓豪周五下午喝咖啡",
+            "seq": 37,
+        },
+        {"role": "assistant", "content": "已约李梓豪周五下午喝咖啡。"},
+        {"role": "user", "content": "约eva明天晚上八点开会", "seq": 39},
+        {"role": "assistant", "content": "已约 eva 明天晚上八点开会。"},
+    )
+    focus_subject = {
+        "subject_type": "shared_reminder",
+        "object_ids": ["shared-eva-meeting"],
+        "ordered": True,
+        "friend_name": "eva",
+        "title": "开会",
+    }
+
+    plan = SiliconFlowPlanner(client).plan(
+        _request(
+            "约六点吧",
+            conversation_history=history,
+            focus_subject=focus_subject,
+        )
+    )
+
+    assert len(plan.actions) == 1
+    action = plan.actions[0]
+    assert action.domain == "social_scheduling"
+    assert action.operation == "update_shared_reminder"
+    assert action.params == {
+        "participant": "eva",
+        "match": "开会",
+        "time_phrase": "六点",
+    }
+    call = client.calls[0]
+    assert call["user"]["conversation_history"] == [dict(item) for item in history]
+    assert call["user"]["focus_subject"] == focus_subject
 
 
 def test_prompt_routes_friend_schedule_questions_to_availability_not_shared_list() -> (
