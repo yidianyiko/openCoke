@@ -62,6 +62,41 @@ Implementation closeout:
   symptom — `update_shared_reminder` already excludes the moved reminder — so the
   conflict logic was unchanged and a regression test pins the 20:00→18:00 no-self-
   conflict behavior.
+- **RC8b** ✅ fixed + deployed + verified (`419668e0`, deployed 2026-06-15) —
+  symmetric role anchor for *personal* follow-ups. Cross-scenario live testing of
+  the RC8 fix surfaced an asymmetry: the dynamic role line was emitted only for a
+  *shared* focus subject. When a personal reminder was the (correctly computed)
+  newer recency anchor — create shared 开会, then personal 喝水, then bare
+  "改成10点吧" — the planner had no personal role framing and fell back to the
+  salient shared meeting, mis-moving 开会 (reproduced 2/2 live). The anchor
+  recency logic was already correct (unit-verified: personal-newer returns the
+  personal subject). Fix carries the personal reminder content as the focus title
+  and presents a symmetric personal role/identity line ("Most recently you set up
+  the personal reminder 「X」 … a bare follow-up continues that same personal
+  reminder; do not switch to a shared reminder or a friend's meeting"); the shared
+  line was hardened to also forbid switching to a personal reminder. Read-only,
+  no worker/migration change.
+
+RC8 cross-scenario verification (2026-06-15, olivers WeChat, 2 clean runs each;
+evidence `artifacts/evidence/eva-rc-smoke/20260615T111144Z-rc8-cross-scenario-production.txt`):
+
+- **B** personal→shared→followup → shared 开会 → 06-16 18:00, 跑步 untouched: 2/2 ✓.
+- **C** shared→personal→followup → personal 喝水 moved (not 开会), 开会 stays
+  06-16 20:00: 2/2 ✓ (was 0/2 before RC8b).
+- **D** shared(lizihao)→shared(eva)→followup → 吃饭(eva) moved, 开会(lizihao)
+  stays 20:00: 2/2 ✓ (correct friend/object every time).
+
+Two *separate* time-resolution issues surfaced during cross-testing (NOT the
+role anchor, NOT regressions — pre-existing, lower severity, the correct object
+is targeted in every case):
+
+- **TR1 (personal reschedule date drift)**: "改成10点吧" on a *tomorrow* personal
+  reminder resolved to *today* 22:00 instead of 06-16 22:00 — the personal update
+  path does not anchor the new time to the reminder's existing date, analogous to
+  the shared-side fix already shipped (`_detect_update_trigger_time`).
+- **TR2 (bare period AM/PM)**: bare "六点" with no 上午/下午/晚上 resolved to 06:00
+  once and 18:00 once across runs — the known RC1-class ambiguity for a follow-up
+  with no period word. Not yet triaged for a fix.
 
 Verification:
 
