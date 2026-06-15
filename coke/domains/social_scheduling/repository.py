@@ -318,7 +318,10 @@ class InMemorySocialSchedulingRepository:
     ) -> list[SharedReminder]:
         reminders: list[SharedReminder] = []
         for reminder in self.shared_reminders_by_id.values():
-            if account_id in reminder.participant_account_ids:
+            if (
+                reminder.status == "active"
+                and account_id in reminder.participant_account_ids
+            ):
                 reminders.append(reminder)
         return reminders
 
@@ -694,6 +697,7 @@ class PostgresSocialSchedulingRepository:
                 == schema.shared_reminder.c.id,
             )
             .where(schema.reminder_projection.c.account_id == account_id)
+            .where(schema.shared_reminder.c.status == "active")
             .order_by(schema.shared_reminder.c.created_at, schema.shared_reminder.c.id)
         )
         return [

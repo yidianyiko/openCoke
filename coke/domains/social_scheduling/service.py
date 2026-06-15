@@ -509,7 +509,13 @@ class SocialSchedulingService:
 
     def list_shared_reminders(self, account_id: str) -> list[SharedReminder]:
         account_id = _canon(account_id)
-        return self.repository.list_shared_reminders_for_participant(account_id)
+        return [
+            reminder
+            for reminder in self.repository.list_shared_reminders_for_participant(
+                account_id
+            )
+            if reminder.status == "active"
+        ]
 
     def view_shared_reminder(
         self, account_id: str, shared_reminder_id: str

@@ -179,11 +179,20 @@ class SocialSchedulingActionHandler:
             params.get("local_trigger_at") or params.get("trigger_time")
         )
         if local_trigger_at is None and _optional_str(params.get("time_phrase")):
+            if target is None:
+                try:
+                    target = self.social_scheduling_service.view_shared_reminder(
+                        account_id,
+                        shared_reminder_id,
+                    )
+                except (SocialSchedulingError, ValueError) as error:
+                    return _social_error_outcome(error)
             local_trigger_at = _detect_update_trigger_time(
                 self.social_scheduling_service,
                 params,
                 captured_timezone=captured_timezone,
                 now=self._now,
+                original_local_trigger_at=target.local_trigger_at,
             )
             if local_trigger_at is None:
                 return _missing_input("time")
@@ -762,6 +771,7 @@ def _detect_update_trigger_time(
     *,
     captured_timezone: str,
     now: Callable[[], datetime],
+    original_local_trigger_at: datetime | None = None,
 ) -> datetime | None:
     detector = getattr(service, "detector", None)
     extract = getattr(detector, "extract", None)
@@ -783,8 +793,43 @@ def _detect_update_trigger_time(
     if not isinstance(trigger_time, datetime):
         return None
     if trigger_time.tzinfo is not None:
-        return trigger_time.astimezone(zone).replace(tzinfo=None)
-    return trigger_time
+        detected = trigger_time.astimezone(zone).replace(tzinfo=None)
+    else:
+        detected = trigger_time
+    if original_local_trigger_at is None or _time_phrase_has_date(
+        params,
+        captured_timezone=captured_timezone,
+        now=lambda: current,
+    ):
+        return detected
+    if original_local_trigger_at.tzinfo is not None:
+        original_local_trigger_at = original_local_trigger_at.astimezone(zone).replace(
+            tzinfo=None
+        )
+    return detected.replace(
+        year=original_local_trigger_at.year,
+        month=original_local_trigger_at.month,
+        day=original_local_trigger_at.day,
+    )
+
+
+def _time_phrase_has_date(
+    params: Mapping[str, Any],
+    *,
+    captured_timezone: str,
+    now: Callable[[], datetime],
+) -> bool:
+    time_phrase = _optional_str(params.get("time_phrase"))
+    if time_phrase is None:
+        return False
+    return (
+        resolve_date_phrase_window(
+            time_phrase,
+            timezone_name=captured_timezone,
+            now=now,
+        )
+        is not None
+    )
 
 
 def _availability_window(

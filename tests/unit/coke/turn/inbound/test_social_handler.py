@@ -143,7 +143,11 @@ def _execute_handler(
     )
 
 
-def _shared_reminder(reminder_id: str, title: str = "send deck") -> SharedReminder:
+def _shared_reminder(
+    reminder_id: str,
+    title: str = "send deck",
+    local_trigger_at: datetime = LOCAL_TRIGGER,
+) -> SharedReminder:
     return SharedReminder(
         id=reminder_id,
         creator_account_id="acct-1",
@@ -151,7 +155,7 @@ def _shared_reminder(reminder_id: str, title: str = "send deck") -> SharedRemind
         participant_set_hash="participants-hash",
         title=title,
         title_hash=f"title-{reminder_id}",
-        local_trigger_at=LOCAL_TRIGGER,
+        local_trigger_at=local_trigger_at,
         captured_timezone="Asia/Tokyo",
         duration_minutes=15,
         status="active",
@@ -639,6 +643,65 @@ def test_update_shared_reminder_detector_text_preserves_period_word_from_time_ph
 
     assert outcome.category == "done"
     assert service.calls[-1][1]["local_trigger_at"] == datetime(2026, 6, 11, 18, 0)
+
+
+def test_update_shared_reminder_time_only_reschedule_preserves_original_day() -> None:
+    service = StubSocialSchedulingService()
+    service.detector = SimpleNamespace(
+        extract=lambda text, captured_timezone, now: SimpleNamespace(
+            trigger_time=now.replace(hour=18, minute=0, second=0, microsecond=0)
+        )
+    )
+    service.shared_reminders = [
+        _shared_reminder(
+            "sr-tomorrow",
+            title="coffee",
+            local_trigger_at=datetime(2026, 6, 11, 20, 0),
+        )
+    ]
+    service.update_result = SimpleNamespace(
+        status="rescheduled",
+        shared_reminder=_shared_reminder(
+            "sr-tomorrow",
+            title="coffee",
+            local_trigger_at=datetime(2026, 6, 11, 18, 0),
+        ),
+        projections=[],
+        breakdown={},
+        follow_up_facts={},
+    )
+    guard = RecordingGuard()
+
+    outcome = _execute_handler(
+        SocialSchedulingActionHandler(
+            service,
+            now=lambda: datetime(2026, 6, 10, 1, 0, tzinfo=UTC),
+        ),
+        _compiled(
+            "update_shared_reminder",
+            {
+                "account_id": "acct-1",
+                "participant": "Amy",
+                "match": "coffee",
+                "time_phrase": "晚上6点",
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome.category == "done"
+    assert service.calls[-1] == (
+        "update_shared_reminder",
+        {
+            "account_id": "acct-1",
+            "shared_reminder_id": "sr-tomorrow",
+            "local_trigger_at": datetime(2026, 6, 11, 18, 0),
+            "captured_timezone": "Asia/Tokyo",
+            "duration_minutes": None,
+            "commit_guard": guard.guard_state_change,
+        },
+    )
 
 
 def test_update_shared_reminder_no_change_correction_surfaces_unchanged_outcome() -> (
