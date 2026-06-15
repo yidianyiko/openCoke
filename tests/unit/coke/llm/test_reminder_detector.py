@@ -161,6 +161,31 @@ def test_extract_prompt_requires_full_local_wall_clock_time_in_captured_timezone
     )
 
 
+def test_extract_prompt_treats_chinese_weeks_as_monday_start():
+    client = FakeJSONClient(
+        {
+            "content": "看 openCoke 的测试结果",
+            "trigger_time": "2026-06-15T09:00:00+08:00",
+            "recurrence_rule": {},
+            "duration_minutes": 30,
+            "kind": "timed",
+        }
+    )
+    detector = SiliconFlowReminderDetector(client)
+
+    fields = detector.extract(
+        "下周一早上9点提醒我看 openCoke 的测试结果",
+        "Asia/Shanghai",
+        datetime(2026, 6, 14, 13, 28, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+
+    system = client.calls[0]["system"]
+    assert fields.trigger_time == datetime.fromisoformat("2026-06-15T09:00:00+08:00")
+    assert "Chinese week expressions use Monday as the first day of the week" in system
+    assert "下周一 from a Sunday local now means tomorrow" in system
+    assert "not the Monday eight days later" in system
+
+
 class ExplicitPeriodAuthoritativeClient:
     def __init__(self) -> None:
         self.calls = []

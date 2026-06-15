@@ -147,6 +147,23 @@ class PartialEchoStreamingAgentInstance:
         return stream()
 
 
+class StaticStreamingAgentInstance:
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.calls: list[dict[str, Any]] = []
+
+    def arun(self, input, **kwargs):
+        self.calls.append({"method": "arun", "input": input, "kwargs": kwargs})
+
+        async def stream():
+            midpoint = len(self.content) // 2
+            yield RunContentEvent(content=self.content[:midpoint])
+            yield RunContentEvent(content=self.content[midpoint:])
+            yield RunCompletedEvent(content=self.content)
+
+        return stream()
+
+
 class FakeAgentFactory:
     def __init__(self, instance: Any) -> None:
         self.instance = instance
@@ -245,6 +262,52 @@ def test_render_payload_and_prompt_include_authoritative_clock() -> None:
     assert "2026-06-14T21:17:00+08:00" in system_message
     assert "MUST use the provided *_display field verbatim" in system_message
     assert any("*_display" in instruction for instruction in instructions)
+
+
+def test_created_reminder_reply_appends_missing_display_time() -> None:
+    fake_agent = StaticRunAgentInstance(
+        content=json.dumps(
+            {"type": "reply", "segments": ["好，已设好。"]},
+            ensure_ascii=False,
+        ),
+        calls=[],
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = agent.render(_created_reminder_request())
+
+    assert segments == (
+        "好，已设好。",
+        "时间：看 openCoke 的测试结果：6月22日上午9点",
+    )
+    system_message = factory.agent_kwargs[0]["system_message"]
+    instructions = factory.agent_kwargs[0]["instructions"]
+    assert "created or scheduled reminder confirmation" in system_message
+    assert any(
+        "created or scheduled reminder confirmation" in item for item in instructions
+    )
+
+
+@pytest.mark.asyncio
+async def test_created_reminder_streaming_reply_appends_missing_display_time() -> None:
+    fake_agent = StaticStreamingAgentInstance(
+        json.dumps(
+            {"type": "reply", "segments": ["好，已设好。"]},
+            ensure_ascii=False,
+        )
+    )
+    factory = FakeAgentFactory(fake_agent)
+    agent = ExpressAgent(model=object(), agent_factory=factory)
+
+    segments = [
+        segment async for segment in agent.render_streaming(_created_reminder_request())
+    ]
+
+    assert segments == [
+        "好，已设好。",
+        "时间：看 openCoke 的测试结果：6月22日上午9点",
+    ]
 
 
 def test_render_keeps_reminder_list_in_one_multiline_segment() -> None:
@@ -669,6 +732,39 @@ def _partial_request(
         conversation_history=({"role": "user", "content": "cancel water and gym"},),
         persona="concise supervisor",
         onboarding_guidance=onboarding_guidance,
+    )
+
+
+def _created_reminder_request() -> ExpressRequest:
+    return ExpressRequest(
+        turn_id="turn-1",
+        conversation_id="conversation-1",
+        account_id="account-1",
+        current_time="2026-06-14T13:28:00+08:00",
+        default_timezone="Asia/Shanghai",
+        settled_outcome=SettledOutcome(
+            outcomes=(
+                ActionOutcome(
+                    category="done",
+                    status="created",
+                    data={
+                        "owner_account_id": "account-1",
+                        "items": [
+                            {
+                                "state": "succeeded",
+                                "reminder_id": "reminder-1",
+                                "fact": {
+                                    "content": "看 openCoke 的测试结果",
+                                    "next_fire_at": "2026-06-22T01:00:00+00:00",
+                                    "next_fire_at_display": "6月22日上午9点",
+                                    "captured_timezone": "Asia/Shanghai",
+                                },
+                            }
+                        ],
+                    },
+                ),
+            )
+        ),
     )
 
 

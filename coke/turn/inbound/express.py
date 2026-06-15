@@ -493,6 +493,11 @@ def _clock_system_message(request: ExpressRequest) -> str:
         "day, and clock. Do not recompute 今天/明天, remaining time, or clock "
         "labels from raw ISO fields or conversation history."
     )
+    parts.append(
+        "For any created or scheduled reminder confirmation, the visible reply "
+        "must include the matching *_display time for each created personal or "
+        "shared reminder."
+    )
     return " ".join(parts)
 
 
@@ -506,6 +511,10 @@ def _instructions() -> list[str]:
         (
             "For datetime fields with a *_display sibling, use *_display "
             "verbatim when stating the date, relative day, or clock."
+        ),
+        (
+            "For any created or scheduled reminder confirmation, include the "
+            "matching *_display time in the visible reply."
         ),
         (
             "For availability outcomes, use only friend display names and "
@@ -559,7 +568,7 @@ def _segments_from_content(
         # to validate. Forcing JSON here regressed every prose outcome reply into
         # grounded-failure recovery, so prose is accepted as a single segment.
         if isinstance(content, str) and content.strip():
-            return (content.strip(),)
+            return _with_required_time_confirmations((content.strip(),), request)
         raise ExpressOutputError("invalid Express output")
     if payload.get("type") == "no_reply":
         raise ExpressOutputError("Express returned no_reply when a reply is required")
@@ -574,7 +583,84 @@ def _segments_from_content(
     if len(normalized) > 3:
         raise ExpressOutputError("Express output has too many segments")
     _validate_domain_claim(payload, request)
-    return normalized
+    return _with_required_time_confirmations(normalized, request)
+
+
+_CONFIRMATION_TIME_DISPLAY_KEYS = (
+    "next_fire_at_display",
+    "local_trigger_at_display",
+    "trigger_at_display",
+    "trigger_time_display",
+    "due_at_display",
+)
+
+
+def _with_required_time_confirmations(
+    segments: tuple[str, ...],
+    request: ExpressRequest | None,
+) -> tuple[str, ...]:
+    required = _required_time_confirmations(request)
+    if not required:
+        return segments
+    visible_text = "\n".join(segments)
+    missing = tuple(item for item in required if item not in visible_text)
+    if not missing:
+        return segments
+
+    time_segment = f"时间：{'；'.join(missing)}"
+    if len(segments) < 3:
+        return (*segments, time_segment)
+    return (*segments[:-1], f"{segments[-1]}\n{time_segment}")
+
+
+def _required_time_confirmations(
+    request: ExpressRequest | None,
+) -> tuple[str, ...]:
+    if request is None:
+        return ()
+    values: list[str] = []
+    for outcome in request.settled_outcome.outcomes:
+        if outcome.category != "done" or outcome.status not in {
+            "created",
+            "scheduled",
+        }:
+            continue
+        values.extend(_time_confirmations_from_value(outcome.data))
+    return tuple(dict.fromkeys(values))
+
+
+def _time_confirmations_from_value(value: Any) -> list[str]:
+    if isinstance(value, Mapping):
+        values: list[str] = []
+        label = _confirmation_label(value)
+        for key in _CONFIRMATION_TIME_DISPLAY_KEYS:
+            display = _nonempty_str(value.get(key))
+            if display is None:
+                continue
+            values.append(f"{label}：{display}" if label else display)
+        for item in value.values():
+            values.extend(_time_confirmations_from_value(item))
+        return values
+    if isinstance(value, tuple | list):
+        values: list[str] = []
+        for item in value:
+            values.extend(_time_confirmations_from_value(item))
+        return values
+    return []
+
+
+def _confirmation_label(value: Mapping[str, Any]) -> str | None:
+    for key in ("content", "title"):
+        text = _nonempty_str(value.get(key))
+        if text is not None:
+            return text
+    return None
+
+
+def _nonempty_str(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def _availability_segments(request: ExpressRequest | None) -> tuple[str, ...] | None:
