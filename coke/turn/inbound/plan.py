@@ -114,6 +114,11 @@ Ownership:
   When it is a follow-up, RECONSTRUCT the prior request's full action from
   conversation_history: same domain and operation, carry forward ALL of its params
   (participant/friend, content/title, etc.), then merge in the new detail. Never
+  re-bind a bare attribute change right after you created or confirmed something
+  to another person/friend merely because they appeared earlier or more often in
+  conversation_history. It continues the same request you just acted on: same
+  domain, operation, target object, and same person/friend. Only switch the person/target
+  when the user explicitly names a new one. Never
   downgrade a shared/social-scheduling request to a personal reminder, and never
   treat such a follow-up as converse.
 - Empty actions mean converse/greeting/no product action.

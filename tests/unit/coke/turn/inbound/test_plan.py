@@ -37,6 +37,48 @@ class StubJSONClient:
         return self.payload
 
 
+class FollowupSameTargetJSONClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_json(
+        self,
+        *,
+        system: str,
+        user: dict,
+        schema_name: str,
+    ) -> Mapping[str, Any]:
+        self.calls.append(
+            {
+                "system": system,
+                "user": user,
+                "schema_name": schema_name,
+            }
+        )
+        participant = (
+            "eva"
+            if (
+                "same person/friend" in system
+                and "Only switch the person/target" in system
+            )
+            else "lizihao"
+        )
+        return {
+            "actions": [
+                {
+                    "domain": "social_scheduling",
+                    "operation": "update_shared_reminder",
+                    "params": {
+                        "participant": participant,
+                        "match": "开会",
+                        "time_phrase": "六点",
+                    },
+                }
+            ],
+            "reply_necessity": "reply_needed",
+        }
+
+
 def test_planner_maps_json_actions_to_turn_plan() -> None:
     client = StubJSONClient(
         {
@@ -434,6 +476,37 @@ def test_prompt_treats_shared_time_only_reschedule_as_update_without_duration() 
     assert "use social_scheduling.update_shared_reminder" in system
     assert "include the new time as time_phrase" in system
     assert "do not ask for duration" in system
+
+
+def test_bare_followup_preserves_immediately_prior_shared_reminder_friend() -> None:
+    client = FollowupSameTargetJSONClient()
+    history = (
+        {
+            "role": "user",
+            "content": "约 lizihao 周五下午喝咖啡",
+            "seq": 37,
+        },
+        {"role": "assistant", "content": "已约 lizihao 周五下午喝咖啡。"},
+        {"role": "user", "content": "约eva明天晚上八点开会", "seq": 39},
+        {"role": "assistant", "content": "已约 eva 明天晚上八点开会。"},
+    )
+
+    plan = SiliconFlowPlanner(client).plan(
+        _request("约六点吧", conversation_history=history)
+    )
+
+    assert len(plan.actions) == 1
+    action = plan.actions[0]
+    assert action.domain == "social_scheduling"
+    assert action.operation == "update_shared_reminder"
+    assert action.params == {
+        "participant": "eva",
+        "match": "开会",
+        "time_phrase": "六点",
+    }
+    assert client.calls[0]["user"]["conversation_history"] == [
+        dict(item) for item in history
+    ]
 
 
 def test_prompt_routes_friend_schedule_questions_to_availability_not_shared_list() -> (
