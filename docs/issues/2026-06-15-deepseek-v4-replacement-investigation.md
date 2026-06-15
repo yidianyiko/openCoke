@@ -168,3 +168,74 @@ not a global model swap. It is a new adapter/config experiment with:
   history before enabling DeepSeek thinking mode in production;
 - a role-specific corpus that beats GLM-5.1 on correctness and false-success
   risk, not only latency.
+
+## Follow-up Research: Planner and Interaction Replacement
+
+Additional research on 2026-06-15 reran the replacement question against the
+current workspace corpus and real provider APIs. Evidence:
+
+- `artifacts/evidence/deepseek-model-bakeoff/20260615T020140Z-planner-interaction-replacement-research.json`
+- `artifacts/evidence/deepseek-model-bakeoff/20260615T021332Z-interaction-tool-choice-direct.json`
+
+Planner results changed materially when the prompt was made DeepSeek-specific:
+
+| Config | Pass | Parse OK | Mean latency | P95 latency |
+|---|---:|---:|---:|---:|
+| GLM-5.1 current prompt, thinking-off | 24/36 | 36/36 | 3.630s | 7.629s |
+| DeepSeek V4 Flash current prompt, thinking-off | 9/36 | 36/36 | 1.262s | 1.641s |
+| DeepSeek V4 Flash prompt-plus, thinking-off | 29/36 | 36/36 | 1.261s | 1.667s |
+| DeepSeek V4 Flash prompt-plus, thinking high | 31/36 | 36/36 | 2.867s | 6.478s |
+| DeepSeek V4 Pro prompt-plus, thinking-off | 29/36 | 36/36 | 1.353s | 1.775s |
+
+The planner conclusion is now narrower than the original issue decision:
+DeepSeek should not be dropped into the current planner prompt, but
+`deepseek-v4-flash` with a dedicated planner prompt is a credible next
+replacement candidate. The remaining misses are concentrated around shared
+reminder creation/cancellation in Chinese, availability date granularity,
+timezone wording, and a few raw-text/extra-param differences. Some failures also
+expose current corpus/product-contract tension, especially `set_timezone`
+expecting natural text while the planner prompt requires an IANA timezone.
+
+Interaction still should not be swapped through the current Agno Agent path.
+The current Agno path produced:
+
+| Config | Pass | Parse OK | Mean latency | P95 latency |
+|---|---:|---:|---:|---:|
+| GLM-5.1 auto tools, thinking-off | 8/8 | 8/8 | 10.360s | 17.161s |
+| DeepSeek V4 Flash auto tools, thinking-off | 6/8 | 7/8 | 4.252s | 7.173s |
+
+The two DeepSeek misses were both `settings_update`: one blank/non-parse output
+and one false-success reply with no `settings_tool` call. A separate direct
+DeepSeek API test proved the provider can do the required settings tool flow
+when the first model turn uses `tool_choice=required` or a named
+`settings_tool`, and the second model turn uses `tool_choice=none` plus JSON
+output. Flash non-thinking completed that two-step flow in 1.65-1.97s; Pro
+non-thinking completed it in 2.76s. Flash thinking with `tool_choice=required`
+returned HTTP 400: `Thinking mode does not support this tool_choice`.
+
+That means the blocker is not DeepSeek API availability. The blocker is the
+current Interaction integration shape:
+
+- Agno-level static `tool_choice=required` did not settle promptly and was
+  interrupted; it is not a safe one-line fix because the final reply turn must
+  stop calling tools.
+- DeepSeek sometimes emits tool arguments with a nested JSON string for
+  `command`. Coke already has normalization that can parse string payloads, but
+  the current `command: dict | None` tool annotation lets Agno/Pydantic reject
+  those calls before Coke normalization runs.
+- Thinking mode is unsuitable for the current Interaction tool loop unless the
+  adapter also preserves `reasoning_content` across tool-call turns and avoids
+  unsupported `tool_choice` combinations.
+
+Replacement recommendation after this research:
+
+- `planner`: proceed with a branch that adds a provider-specific planner prompt
+  and validates it against a refreshed planner corpus. The best candidate is
+  `deepseek-v4-flash` prompt-plus. Default should stay non-thinking unless the
+  remaining 2 extra passes from thinking high are worth the higher tail latency.
+- `interaction`: do not replace the current Agno tool-loop agent directly.
+  Viable next designs are either a direct two-step DeepSeek tool adapter with
+  first-turn tool choice and final-turn `tool_choice=none`, or moving more
+  state-changing work through Planner/Execute and leaving Interaction/Express to
+  render trusted results. Both require code changes and a false-success
+  regression suite before production use.
