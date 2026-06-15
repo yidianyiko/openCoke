@@ -12,6 +12,7 @@ from coke.domains.reminder.models import (
 )
 from coke.domains.reminder.repository import InMemoryReminderRepository
 from coke.domains.reminder.service import ReminderService
+from coke.llm.json_completion import LLMOutputError
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction, ProposedAction
 from coke.turn.inbound.handlers.reminder import (
     ReminderActionHandler,
@@ -36,6 +37,21 @@ class StubDetector:
     ) -> DetectedReminderFields:
         self.calls.append((text, captured_timezone, now))
         return self.fields
+
+
+class RaisingDetector:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        self.calls: list[tuple[str, str, datetime]] = []
+
+    def extract(
+        self,
+        text: str,
+        captured_timezone: str,
+        now: datetime,
+    ) -> DetectedReminderFields:
+        self.calls.append((text, captured_timezone, now))
+        raise self.error
 
 
 class StubReminderService:
@@ -520,6 +536,38 @@ def test_create_missing_detector_time_needs_input_without_service_or_stage() -> 
     )
     assert [call[0] for call in service.calls] == []
     assert detector.calls == [("take meds later", "Asia/Tokyo", NOW)]
+    assert guard.staged == []
+
+
+def test_create_detector_output_error_returns_typed_failure_without_service_write() -> (
+    None
+):
+    service = StubReminderService()
+    detector = RaisingDetector(LLMOutputError("invalid detected_reminder_fields shape"))
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        _handler(service, detector),  # type: ignore[arg-type]
+        _compiled(
+            "create",
+            {
+                "owner_account_id": "acct-1",
+                "content": "take meds",
+                "time_phrase": "tomorrow 9",
+                "captured_timezone": "Asia/Tokyo",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome == ActionOutcome(
+        category="not_possible",
+        status="invalid_detector_output",
+        data={"reason": "invalid_detector_output"},
+    )
+    assert detector.calls == [("take meds tomorrow 9", "Asia/Tokyo", NOW)]
+    assert service.calls == []
+    assert service.mutation_calls == []
     assert guard.staged == []
 
 

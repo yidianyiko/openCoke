@@ -53,16 +53,28 @@ class AgnoJSONCompletionClient:
 
 
 def _mapping_from_content(content: Any, *, schema_name: str) -> Mapping[str, Any]:
-    if isinstance(content, Mapping):
-        return content
+    parsed = _single_mapping_from_value(content)
+    if parsed is not None:
+        return parsed
     if isinstance(content, str):
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as error:
             raise LLMOutputError(f"invalid {schema_name} JSON") from error
-        if isinstance(parsed, Mapping):
+        parsed = _single_mapping_from_value(parsed)
+        if parsed is not None:
             return parsed
     raise LLMOutputError(f"invalid {schema_name} shape")
+
+
+def _single_mapping_from_value(value: Any) -> Mapping[str, Any] | None:
+    if isinstance(value, Mapping):
+        return value
+    if isinstance(value, (list, tuple)) and len(value) == 1:
+        item = value[0]
+        if isinstance(item, Mapping):
+            return item
+    return None
 
 
 def _model_label(model: Any) -> str:

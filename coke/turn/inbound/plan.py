@@ -41,6 +41,9 @@ Ownership:
   create actions. Execute/detector will extract exact times and durations.
 - reminder.batch_create items follow the same rule: for natural-language items,
   put natural text in content/time_phrase/text/raw_text; omit trigger_time and duration_minutes from natural-language batch items. Execute/detector will extract exact times and durations.
+- When current_input_messages or one user message contains multiple personal
+  reminder create requests, emit one reminder.batch_create action with one item per reminder.
+  Do not combine multiple reminders into one reminder.create or one detector input.
 - For time phrases with explicit period-of-day words (晚上/下午/上午/早上/中午,
   evening/afternoon/morning/noon), keep the period word attached to the time_phrase;
   never strip the phrase down to a bare clock.

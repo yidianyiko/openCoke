@@ -253,6 +253,7 @@ def test_prompt_and_payload_expose_allowed_shape_without_precise_extraction() ->
     assert "use exactly these param keys" in call["system"]
     assert "do not invent key names" in call["system"]
     assert "batch_create items follow the same rule" in call["system"]
+    assert "one item per reminder" in call["system"]
     assert "raw_text should preserve the exact current user text" in call["system"]
     assert (
         "omit trigger_time and duration_minutes from natural-language batch items"

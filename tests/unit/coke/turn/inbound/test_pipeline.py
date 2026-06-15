@@ -3,9 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Mapping, Sequence
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from coke.domains.reminder.models import DetectedReminderFields
+from coke.domains.reminder.repository import InMemoryReminderRepository
+from coke.domains.reminder.service import ReminderService
 from coke.turn.inbound.close import CloseCoordinator
 from coke.turn.inbound.contracts import (
     ActionOutcome,
@@ -16,6 +20,7 @@ from coke.turn.inbound.contracts import (
     TurnPlan,
 )
 from coke.turn.inbound.express import ExpressOutputError
+from coke.turn.inbound.handlers.reminder import ReminderActionHandler
 from coke.turn.inbound.pending import InMemoryPendingClarificationStore
 from coke.turn.inbound.pipeline import (
     SegmentDeliveryPort,
@@ -122,6 +127,21 @@ class FailingExpress:
         self.stream_calls.append(request)
         raise ExpressOutputError("invalid Express output")
         yield  # pragma: no cover
+
+
+class MappingReminderDetector:
+    def __init__(self, fields_by_text: Mapping[str, DetectedReminderFields]) -> None:
+        self.fields_by_text = dict(fields_by_text)
+        self.calls: list[tuple[str, str, datetime]] = []
+
+    def extract(
+        self,
+        text: str,
+        captured_timezone: str,
+        now: datetime,
+    ) -> DetectedReminderFields:
+        self.calls.append((text, captured_timezone, now))
+        return self.fields_by_text[text]
 
 
 class RecordingDelivery(SegmentDeliveryPort):
@@ -282,6 +302,200 @@ async def test_pipeline_passes_onboarding_guidance_to_express() -> None:
     )
 
     assert express.stream_calls[0].onboarding_guidance == onboarding_guidance
+
+
+@pytest.mark.asyncio
+async def test_coalesced_two_reminder_create_turn_creates_both_reminders() -> None:
+    events: list[str] = []
+    shanghai = ZoneInfo("Asia/Shanghai")
+    now = datetime(2026, 6, 14, 13, 28, tzinfo=shanghai)
+    repository = InMemoryReminderRepository()
+    service = ReminderService(
+        repository=repository,
+        now=lambda: now,
+        id_factory=_sequence_id_factory(),
+    )
+    detector = MappingReminderDetector(
+        {
+            "看openCoke的测试结果 下周一早上9点": DetectedReminderFields(
+                content="看openCoke的测试结果",
+                trigger_time=datetime(2026, 6, 15, 9, 0, tzinfo=shanghai),
+                recurrence_rule={},
+                duration_minutes=30,
+                kind="timed",
+            ),
+            "续订服务 7月3号下午2点": DetectedReminderFields(
+                content="续订服务",
+                trigger_time=datetime(2026, 7, 3, 14, 0, tzinfo=shanghai),
+                recurrence_rule={},
+                duration_minutes=30,
+                kind="timed",
+            ),
+        }
+    )
+    close_port = RecordingClosePort(events)
+    delivery = RecordingDelivery(events)
+    pipeline = TurnPipeline(
+        planner=StaticPlanner(
+            TurnPlan(
+                actions=(
+                    ProposedAction(
+                        domain="reminder",
+                        operation="batch_create",
+                        params={
+                            "items": [
+                                {
+                                    "content": "看openCoke的测试结果",
+                                    "time_phrase": "下周一早上9点",
+                                },
+                                {
+                                    "content": "续订服务",
+                                    "time_phrase": "7月3号下午2点",
+                                },
+                            ]
+                        },
+                    ),
+                )
+            ),
+            events,
+        ),
+        handlers={
+            "reminder": ReminderActionHandler(
+                service,
+                detector,
+                now=lambda: now,
+            )
+        },
+        express=RecordingExpress(("两个提醒都创建好了。",), events),
+        close_coordinator=CloseCoordinator(close_port),
+        pending_store=InMemoryPendingClarificationStore(),
+        delivery=delivery,
+    )
+
+    result = await pipeline.run(
+        _pipeline_request(
+            now=now,
+            source_input_window=(110, 111),
+            current_input_messages=(
+                {
+                    "role": "user",
+                    "content": "下周一早上9点提醒我看openCoke的测试结果",
+                    "seq": 110,
+                },
+                {
+                    "role": "user",
+                    "content": "7月3号下午2点提醒我续订服务",
+                    "seq": 111,
+                },
+            ),
+            trusted_facts={"default_timezone": "Asia/Shanghai"},
+        ),
+        RecordingGuard(events),
+    )
+
+    reminders = repository.list_reminders("account-1")
+    reminders_by_content = {reminder.content: reminder for reminder in reminders}
+    assert result.close_result.committed is True
+    assert result.close_result.disposition == FakeDisposition(
+        disposition="replied",
+        reason_code="reply_ready",
+    )
+    assert result.settled_outcome.outcomes[0].category == "done"
+    assert result.settled_outcome.outcomes[0].status == "created"
+    assert set(reminders_by_content) == {"看openCoke的测试结果", "续订服务"}
+    assert reminders_by_content["看openCoke的测试结果"].kind == "timed"
+    assert reminders_by_content["看openCoke的测试结果"].next_fire_at.astimezone(
+        shanghai
+    ) == datetime(2026, 6, 15, 9, 0, tzinfo=shanghai)
+    assert reminders_by_content["续订服务"].kind == "timed"
+    assert reminders_by_content["续订服务"].next_fire_at.astimezone(shanghai) == (
+        datetime(2026, 7, 3, 14, 0, tzinfo=shanghai)
+    )
+    assert {reminder.duration_minutes for reminder in reminders} == {30}
+    assert detector.calls == [
+        ("看openCoke的测试结果 下周一早上9点", "Asia/Shanghai", now),
+        ("续订服务 7月3号下午2点", "Asia/Shanghai", now),
+    ]
+    assert delivery.segments == ["两个提醒都创建好了。"]
+
+
+@pytest.mark.asyncio
+async def test_single_reminder_create_turn_still_creates_one_reminder() -> None:
+    events: list[str] = []
+    shanghai = ZoneInfo("Asia/Shanghai")
+    now = datetime(2026, 6, 14, 13, 28, tzinfo=shanghai)
+    repository = InMemoryReminderRepository()
+    service = ReminderService(
+        repository=repository,
+        now=lambda: now,
+        id_factory=_sequence_id_factory(),
+    )
+    detector = MappingReminderDetector(
+        {
+            "下周一早上9点提醒我看openCoke的测试结果": DetectedReminderFields(
+                content="看openCoke的测试结果",
+                trigger_time=datetime(2026, 6, 15, 9, 0, tzinfo=shanghai),
+                recurrence_rule={},
+                duration_minutes=30,
+                kind="timed",
+            ),
+        }
+    )
+    pipeline = TurnPipeline(
+        planner=StaticPlanner(
+            TurnPlan(
+                actions=(
+                    ProposedAction(
+                        domain="reminder",
+                        operation="create",
+                        params={
+                            "content": "看openCoke的测试结果",
+                            "time_phrase": "下周一早上9点",
+                        },
+                    ),
+                )
+            ),
+            events,
+        ),
+        handlers={
+            "reminder": ReminderActionHandler(
+                service,
+                detector,
+                now=lambda: now,
+            )
+        },
+        express=RecordingExpress(("提醒创建好了。",), events),
+        close_coordinator=CloseCoordinator(RecordingClosePort(events)),
+        pending_store=InMemoryPendingClarificationStore(),
+        delivery=RecordingDelivery(events),
+    )
+
+    result = await pipeline.run(
+        _pipeline_request(
+            now=now,
+            current_input_messages=(
+                {
+                    "role": "user",
+                    "content": "下周一早上9点提醒我看openCoke的测试结果",
+                    "seq": 112,
+                },
+            ),
+            trusted_facts={"default_timezone": "Asia/Shanghai"},
+        ),
+        RecordingGuard(events),
+    )
+
+    reminders = repository.list_reminders("account-1")
+    assert result.close_result.committed is True
+    assert len(reminders) == 1
+    assert reminders[0].content == "看openCoke的测试结果"
+    assert reminders[0].next_fire_at.astimezone(shanghai) == datetime(
+        2026, 6, 15, 9, 0, tzinfo=shanghai
+    )
+    assert reminders[0].duration_minutes == 30
+    assert detector.calls == [
+        ("下周一早上9点提醒我看openCoke的测试结果", "Asia/Shanghai", now)
+    ]
 
 
 def test_express_request_threads_trusted_clock_and_formats_nested_times() -> None:
@@ -806,3 +1020,13 @@ def _pipeline_request(
         pending_expires_at=pending_expires_at,
         now=now,
     )
+
+
+def _sequence_id_factory():
+    counters: dict[str, int] = {}
+
+    def next_id(prefix: str) -> str:
+        counters[prefix] = counters.get(prefix, 0) + 1
+        return f"{prefix}-{counters[prefix]}"
+
+    return next_id

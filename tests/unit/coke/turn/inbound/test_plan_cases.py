@@ -87,6 +87,29 @@ CASES: tuple[PlanCase, ...] = (
         "reply_needed",
     ),
     (
+        "zh consecutive timed reminder creates",
+        "下周一早上9点提醒我看openCoke的测试结果\n7月3号下午2点提醒我续订服务",
+        (
+            {
+                "domain": "reminder",
+                "operation": "batch_create",
+                "params": {
+                    "items": [
+                        {
+                            "content": "看openCoke的测试结果",
+                            "time_phrase": "下周一早上9点",
+                        },
+                        {
+                            "content": "续订服务",
+                            "time_phrase": "7月3号下午2点",
+                        },
+                    ]
+                },
+            },
+        ),
+        "reply_needed",
+    ),
+    (
         "en batch create reminders",
         "remind me to submit expenses and book tickets",
         (

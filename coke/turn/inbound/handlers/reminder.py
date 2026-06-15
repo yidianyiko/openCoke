@@ -14,6 +14,7 @@ from coke.domains.reminder.models import (
     ReminderItemResult,
 )
 from coke.domains.reminder.service import ReminderService
+from coke.llm.json_completion import LLMOutputError
 from coke.turn.inbound.contracts import ActionOutcome, CompiledAction
 from coke.turn.inbound.date_windows import DateWindow, resolve_date_phrase_window
 
@@ -101,10 +102,13 @@ class ReminderActionHandler:
         action_index: int,
         turn_id: str,
     ) -> ActionOutcome:
-        detected = self._extract_create_fields(
-            params,
-            source_text=_optional_str(params.get("_current_input_text")),
-        )
+        try:
+            detected = self._extract_create_fields(
+                params,
+                source_text=_optional_str(params.get("_current_input_text")),
+            )
+        except LLMOutputError:
+            return _invalid_detector_output()
         if detected.trigger_time is None:
             return ActionOutcome(
                 category="needs_input",
@@ -153,12 +157,16 @@ class ReminderActionHandler:
                     status="invalid_item",
                     data={"item_index": index},
                 )
-            item = self._batch_item_from_params(
-                raw_item,
-                item_index=action_index + index,
-                turn_id=turn_id,
-                source_text=single_item_source_text,
-            )
+            item_params = _batch_item_params(params, raw_item)
+            try:
+                item = self._batch_item_from_params(
+                    item_params,
+                    item_index=action_index + index,
+                    turn_id=turn_id,
+                    source_text=single_item_source_text,
+                )
+            except LLMOutputError:
+                return _invalid_detector_output(item_index=index)
             if item.trigger_time is None or item.time_state == "invalid":
                 return ActionOutcome(
                     category="needs_input",
@@ -205,7 +213,10 @@ class ReminderActionHandler:
         if operation == "update":
             trigger_time = None
             if _has_time_phrase(params):
-                detected = self._extract_create_fields(params)
+                try:
+                    detected = self._extract_create_fields(params)
+                except LLMOutputError:
+                    return _invalid_detector_output()
                 if detected.trigger_time is None:
                     return ActionOutcome(
                         category="needs_input",
@@ -510,6 +521,17 @@ def _missing_duration_outcome(*, item_index: int | None = None) -> ActionOutcome
     )
 
 
+def _invalid_detector_output(*, item_index: int | None = None) -> ActionOutcome:
+    data: dict[str, Any] = {"reason": "invalid_detector_output"}
+    if item_index is not None:
+        data["item_index"] = item_index
+    return ActionOutcome(
+        category="not_possible",
+        status="invalid_detector_output",
+        data=data,
+    )
+
+
 def _item_data(item: ReminderItemResult) -> dict[str, Any]:
     return {
         "state": item.state,
@@ -558,6 +580,17 @@ def _optional_datetime(value: Any) -> datetime | None:
         except ValueError:
             return None
     return None
+
+
+def _batch_item_params(
+    action_params: Mapping[str, Any],
+    item_params: Mapping[str, Any],
+) -> dict[str, Any]:
+    merged = dict(item_params)
+    for key in ("captured_timezone", "display_timezone"):
+        if key not in merged and key in action_params:
+            merged[key] = action_params[key]
+    return merged
 
 
 def _detector_text(

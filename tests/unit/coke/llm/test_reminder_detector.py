@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, time, timedelta
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from coke.llm.json_completion import AgnoJSONCompletionClient
 from coke.llm.reminder_detector import LLMOutputError, SiliconFlowReminderDetector
 
 
@@ -16,6 +18,22 @@ class FakeJSONClient:
     def complete_json(self, *, system: str, user: dict, schema_name: str):
         self.calls.append({"system": system, "user": user, "schema_name": schema_name})
         return self.output
+
+
+class FakeJSONModel:
+    def __init__(self, content) -> None:
+        self.content = content
+        self.calls = []
+        self.id = "fake-detector"
+
+    def response(self, messages, response_format):
+        self.calls.append(
+            {
+                "messages": messages,
+                "response_format": response_format,
+            }
+        )
+        return SimpleNamespace(content=self.content)
 
 
 def test_extract_maps_structured_model_output_to_detected_reminder_fields():
@@ -40,6 +58,34 @@ def test_extract_maps_structured_model_output_to_detected_reminder_fields():
     assert fields.kind == "recurring"
     assert client.calls[0]["schema_name"] == "detected_reminder_fields"
     assert client.calls[0]["user"]["captured_timezone"] == "Asia/Tokyo"
+
+
+def test_extract_accepts_single_object_json_array_from_model_response():
+    model = FakeJSONModel("""
+        [
+          {
+            "content": "看 openCoke 的测试结果",
+            "trigger_time": "2026-06-15T09:00:00+08:00",
+            "recurrence_rule": {},
+            "duration_minutes": 30,
+            "kind": "timed"
+          }
+        ]
+        """)
+    detector = SiliconFlowReminderDetector(AgnoJSONCompletionClient(model))
+
+    fields = detector.extract(
+        "下周一早上9点提醒我看 openCoke 的测试结果",
+        "Asia/Shanghai",
+        datetime(2026, 6, 14, 13, 28, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+
+    assert fields.content == "看 openCoke 的测试结果"
+    assert fields.trigger_time == datetime.fromisoformat("2026-06-15T09:00:00+08:00")
+    assert fields.recurrence_rule == {}
+    assert fields.duration_minutes == 30
+    assert fields.kind == "timed"
+    assert model.calls[0]["response_format"] == {"type": "json_object"}
 
 
 def test_extract_rejects_rrule_style_model_rule_without_runtime_repair():
