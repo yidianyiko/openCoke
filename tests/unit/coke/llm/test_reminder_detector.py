@@ -324,6 +324,42 @@ def test_extract_prompt_includes_field_specific_few_shot_boundaries():
     assert "Negative examples" in system
 
 
+class DeterminableRelativeOffsetClient:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def complete_json(self, *, system: str, user: dict, schema_name: str):
+        self.calls.append({"system": system, "user": user, "schema_name": schema_name})
+        assert "determinate relative offset" in system
+        assert "过N分钟/小时" in system
+        assert "N分钟后/小时后" in system
+        assert "半小时后" in system
+        assert "never ask the user to restate" in system
+        assert user["now"] == "2026-06-14T15:40:00+08:00"
+        return {
+            "content": "看一下锅里的汤",
+            "trigger_time": "2026-06-14T15:50:00+08:00",
+            "recurrence_rule": {},
+            "duration_minutes": 5,
+            "kind": "timed",
+        }
+
+
+def test_extract_prompt_requires_determinable_relative_offsets_from_now():
+    detector = SiliconFlowReminderDetector(DeterminableRelativeOffsetClient())
+    shanghai = ZoneInfo("Asia/Shanghai")
+
+    fields = detector.extract(
+        "过10分钟提醒我看一下锅里的汤",
+        "Asia/Shanghai",
+        datetime(2026, 6, 14, 15, 40, tzinfo=shanghai),
+    )
+
+    assert fields.trigger_time == datetime(2026, 6, 14, 15, 50, tzinfo=shanghai)
+    assert fields.content == "看一下锅里的汤"
+    assert fields.duration_minutes == 5
+
+
 class GroundedRelativeClient:
     def __init__(self) -> None:
         self.calls = []

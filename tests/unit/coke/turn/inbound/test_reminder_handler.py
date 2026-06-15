@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from itertools import count
 from types import SimpleNamespace
 from typing import Any
@@ -56,6 +56,38 @@ class FakeJSONModel:
             }
         )
         return SimpleNamespace(content=self.content)
+
+
+class RelativeOffsetJSONClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_json(self, *, system: str, user: dict, schema_name: str):
+        self.calls.append({"system": system, "user": user, "schema_name": schema_name})
+        if "待会" in user["text"]:
+            return {
+                "content": "看一下锅里的汤",
+                "trigger_time": None,
+                "recurrence_rule": {},
+                "duration_minutes": None,
+                "kind": "no_trigger_time",
+            }
+        if "determinate relative offset" not in system:
+            return {
+                "content": "看一下锅里的汤",
+                "trigger_time": None,
+                "recurrence_rule": {},
+                "duration_minutes": None,
+                "kind": "no_trigger_time",
+            }
+        trigger_time = datetime.fromisoformat(user["now"]) + timedelta(minutes=10)
+        return {
+            "content": "看一下锅里的汤",
+            "trigger_time": trigger_time.isoformat(),
+            "recurrence_rule": {},
+            "duration_minutes": 5,
+            "kind": "timed",
+        }
 
 
 class RaisingDetector:
@@ -488,6 +520,85 @@ def test_create_with_current_input_text_trusts_detector_duration_over_split_para
     call = service.calls[0][1]
     item = call["items"][0]
     assert item.duration_minutes == 5
+
+
+def test_create_determinable_relative_offset_resolves_and_creates_without_needs_time() -> (
+    None
+):
+    shanghai = ZoneInfo("Asia/Shanghai")
+    now = datetime(2026, 6, 14, 15, 40, tzinfo=shanghai)
+    repository = InMemoryReminderRepository()
+    service = ReminderService(
+        repository=repository,
+        now=lambda: now,
+        id_factory=_sequence_factory("relative_offset"),
+    )
+    client = RelativeOffsetJSONClient()
+    detector = SiliconFlowReminderDetector(client)
+    handler = ReminderActionHandler(service, detector, now=lambda: now)
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        handler,
+        _compiled(
+            "create",
+            {
+                "owner_account_id": "acct-1",
+                "captured_timezone": "Asia/Shanghai",
+                "_current_input_text": "过10分钟提醒我看一下锅里的汤",
+            },
+        ),
+        guard,
+        turn_id="turn-relative",
+    )
+
+    reminders = repository.list_reminders("acct-1")
+    assert outcome.category == "done"
+    assert outcome.status == "created"
+    assert len(reminders) == 1
+    assert reminders[0].content == "看一下锅里的汤"
+    assert reminders[0].next_fire_at.astimezone(shanghai) == now + timedelta(minutes=10)
+    assert reminders[0].duration_minutes == 5
+    assert client.calls[0]["user"]["now"] == "2026-06-14T15:40:00+08:00"
+    assert client.calls[0]["user"]["text"] == "过10分钟提醒我看一下锅里的汤"
+    assert guard.staged == []
+
+
+def test_create_vague_relative_time_still_clarifies_without_service_write() -> None:
+    shanghai = ZoneInfo("Asia/Shanghai")
+    now = datetime(2026, 6, 14, 15, 40, tzinfo=shanghai)
+    repository = InMemoryReminderRepository()
+    service = ReminderService(
+        repository=repository,
+        now=lambda: now,
+        id_factory=_sequence_factory("vague_time"),
+    )
+    client = RelativeOffsetJSONClient()
+    detector = SiliconFlowReminderDetector(client)
+    handler = ReminderActionHandler(service, detector, now=lambda: now)
+    guard = RecordingGuard()
+
+    outcome = _execute(
+        handler,
+        _compiled(
+            "create",
+            {
+                "owner_account_id": "acct-1",
+                "captured_timezone": "Asia/Shanghai",
+                "_current_input_text": "待会提醒我看一下锅里的汤",
+            },
+        ),
+        guard,
+    )
+
+    assert outcome == ActionOutcome(
+        category="needs_input",
+        status="missing_trigger_time",
+        data={"field": "trigger_time"},
+    )
+    assert repository.list_reminders("acct-1") == []
+    assert client.calls[0]["user"]["text"] == "待会提醒我看一下锅里的汤"
+    assert guard.staged == []
 
 
 def test_create_with_two_object_detector_array_creates_each_reminder() -> None:
